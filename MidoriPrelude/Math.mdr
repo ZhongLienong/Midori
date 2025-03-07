@@ -1,0 +1,4 @@
+namespace Math
+{
+	foreign "SquareRoot" SquareRoot : (Frac) -> Frac;
+}

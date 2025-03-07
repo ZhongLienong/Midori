@@ -1,0 +1,13 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def factorial = fn(n : Int) : Int
+{
+  if (n <= 1) return 1;
+  return n * factorial(n-1);
+};
+
+def main = fn() : Int
+{
+	IO::PrintLine(factorial(5) as Text);  // Should print 120
+	return 0;
+};

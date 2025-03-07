@@ -1,0 +1,14 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def GetSum = fn(a : Int, b : Int) : Int
+{
+	return b == 0 
+		? a 
+		: GetSum(a ^ b, (a & b) <~ 1);
+};
+
+def main = fn() : Unit
+{
+	IO::PrintLine(GetSum(20, 22) as Text);
+	return ();
+};

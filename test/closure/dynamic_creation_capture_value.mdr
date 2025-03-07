@@ -1,0 +1,30 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def foo = fn() : Unit
+{
+	def arr : Array[() -> Int] = [];
+	loop (def i : Int = 0; i < 3; i = i + 1)
+	{
+		(fn(i : Int) : Unit
+		{
+			arr = arr ++ [fn() : Int
+			{
+				return i;
+			}];
+			return ();
+		})(i);
+	}
+
+	IO::PrintLine(arr[0]() as Text);  // Should print 0
+	IO::PrintLine(arr[1]() as Text);  // Should print 1
+	IO::PrintLine(arr[2]() as Text);  // Should print 2
+	
+	return ();
+};
+
+def main = fn() : Unit
+{
+	foo();
+
+	return ();
+};

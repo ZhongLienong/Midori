@@ -1,0 +1,36 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def main = fn()
+{
+	def abs = fn(x)
+	{
+		return x < 0.0 ? -x : x;
+	};
+
+	def square = fn(x : Frac)
+	{
+		return x * x;
+	};
+
+	def sqrt = fn(x)
+	{
+		def is_good_enough = fn(guess)
+		{
+			return abs(square(guess) - x) < 0.001;
+		};
+
+		def improve = fn(guess)
+		{
+			return (guess + x / guess) / 2.0;
+		};
+
+		def sqrt_iter = fn(guess : Frac) : Frac
+		{
+			return is_good_enough(guess) ? guess : sqrt_iter(improve(guess));
+		};
+
+		return sqrt_iter(1.0);
+	};
+
+	return IO::PrintLine(sqrt(2.0) as Text);
+};

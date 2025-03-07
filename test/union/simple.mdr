@@ -1,0 +1,20 @@
+struct S1
+{
+};
+
+union U1
+{
+	A(Int),
+	B,
+	C(Frac, Int, Text),
+	D(U1),
+	E(S1),
+};
+
+def main = fn() : Unit
+{
+	def x = new U1::D(new U1::E(new S1()));
+	x = new U1::C(1.2, 2, "sss");
+
+	return ();
+};

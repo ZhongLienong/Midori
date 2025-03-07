@@ -1,0 +1,15 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def x = fn(y : Int) : (Int) -> () -> Int 
+{
+  return fn(z : Int) : () -> Int { return fn() : Int { return y + z; }; };
+};
+
+def f = x(5)(3);
+
+def main = fn() : Int
+{
+	IO::PrintLine(f() as Text); // Should print 8
+
+	return 0;
+};

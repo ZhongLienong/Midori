@@ -1,0 +1,26 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+#include "E:\Projects\Midori\MidoriPrelude\DateTime.mdr"
+
+def TestStringManipulation = fn() : Unit
+{
+    def start = DateTime::GetTime();
+
+    def testString = "";
+    loop (def i = 0; i < 10000; i = i + 1)
+    {
+        testString = testString ++ "a";
+    }
+
+    def end = DateTime::GetTime();
+
+    IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+    
+    return ();
+};
+
+
+def main = fn() : Int
+{
+    TestStringManipulation();
+    return 0;
+};

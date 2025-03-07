@@ -1,0 +1,29 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+struct FunStruct
+{
+	num : Int,
+	no_op : (Int) -> Int,
+	inc : () -> Unit,
+	plus : (Int) -> Int,
+};
+
+def main = fn() : Int
+{
+
+	struct Fib
+	{
+		n : Int,
+		calc : (Int) -> Int
+	};
+
+	def s = new FunStruct
+	(
+		0, 
+		fn(x : Int) : Int { return x; }, 
+		fn() : Unit { s.num = s.num + 1; return (); }, 
+		fn(x : Int) : Int { return s.num + x; }
+	);
+
+    return 0;
+};

@@ -1,0 +1,44 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+#include "E:\Projects\Midori\MidoriPrelude\DateTime.mdr"
+
+def TestParenthesisGeneration = fn(max_len : Int) : Unit
+{
+    def output : Array[Text] = [];
+    def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text) : Unit
+    {   
+        if (left < right)
+        {
+            return ();
+        }
+        if (left > len || right > len)
+        {
+            return ();
+        }
+        if (left == len && right == len)
+        {
+            output = output ++ [acc];
+            return ();
+        }
+
+        BackTrack(len, left + 1, right, acc ++ "(");
+        BackTrack(len, left, right + 1, acc ++ ")");
+        return ();
+    };
+
+    def start = DateTime::GetTime();
+
+    BackTrack(max_len, 0, 0, "");
+
+    def end = DateTime::GetTime();
+
+    IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+
+    return ();
+};
+
+
+def main = fn() : Int
+{
+    TestParenthesisGeneration(5);
+    return 0;
+};

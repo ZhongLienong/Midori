@@ -1,0 +1,19 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def foo = fn() : Int
+{
+	def getFunc : () -> Int = fn() : Int { return 1; };
+	if (true)
+	{
+		def y : Int = 5;
+		getFunc = fn() : Int { return y; };
+	}
+	return getFunc();
+};
+
+def main = fn() : Unit
+{
+	IO::PrintLine(foo() as Text);  // Should print 5
+
+	return ();
+};

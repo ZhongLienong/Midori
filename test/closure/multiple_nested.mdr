@@ -1,0 +1,21 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def makeAdder = fn(a : Int) : (Int) -> (Int) -> Int 
+{
+  return fn(b : Int) : (Int) -> Int
+  {
+    return fn(c : Int) : Int
+    {
+        return a + b + c;
+    };
+  };
+};
+
+def adder : (Int) -> Int = makeAdder(3)(4);
+
+def main = fn() : Unit
+{
+    IO::PrintLine(adder(5) as Text);  // Should print 12
+
+    return ();
+};

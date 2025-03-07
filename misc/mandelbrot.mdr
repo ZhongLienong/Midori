@@ -1,0 +1,129 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\Math.mdr"
+
+struct Complex 
+{
+    Real : Frac,
+    Imag : Frac,
+};
+
+def abs = fn(x : Frac) : Frac 
+{
+    return x < 0.0 ? -x : x;
+};
+
+def complex_abs = fn(x : Complex) : Frac 
+{
+    return Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
+};
+
+def complex_add = fn(a : Complex, b : Complex) : Complex 
+{
+    return new Complex(a.Real + b.Real, a.Imag + b.Imag);
+};
+
+def complex_mul = fn(a : Complex, b : Complex) : Complex 
+{
+    return new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+};
+
+def complex_square = fn(a : Complex) : Complex 
+{
+    return complex_mul(a, a); // Use complex_mul for squaring
+};
+
+def map_color = fn(iterations : Int, max_iterations: Int) : Text 
+{
+    if (iterations == max_iterations) 
+    {
+        return "0 0 0\n"; // Black (inside set)
+    } 
+    else 
+    {
+        // Simple color gradient (adjust as needed)
+        def r = (iterations * 5) % 256;
+        def g = (iterations * 10) % 256;
+        def b = (iterations * 15) % 256;
+        return (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n";
+    }
+};
+
+def mandelbrot_ppm = fn(width : Int, height : Int, limit : Int) : Text 
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def ppm_data = "";
+
+    loop (def y = 0; y < height; y = y + 1) 
+    {
+        loop (def x = 0; x < width; x = x + 1) 
+        {
+            def c = new Complex(-2.05 + (x as Frac) * 2.6 / (width as Frac), -1.2 + (y as Frac) * 2.4 / (height as Frac));
+            def z = new Complex(0.0, 0.0);
+            def iterations = 0;
+            loop (iterations < limit) 
+            {
+                z = complex_add(complex_square(z), c);
+                if (complex_abs(z) >= 2.0) 
+                { 
+                    break; 
+                }
+                iterations = iterations + 1;
+            }
+            ppm_data = ppm_data ++ map_color(iterations, limit);
+        }
+    }
+    return ppm_header ++ ppm_data;
+};
+
+def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def ppm_data = "";
+
+    // Adjust these values to shift the Julia set
+    def real_min = -2.5; // Original: -2.05
+    def real_max = 2.5;   // Original: 0.55
+    def imag_min = -1.2;  // Original: -1.2
+    def imag_max = 1.2;   // Original: 1.2
+
+
+    loop (def y = 0; y < height; y = y + 1)
+    {
+        loop (def x = 0; x < width; x = x + 1)
+        {
+            // Calculate complex number based on adjusted ranges
+            def real = real_min + (x as Frac) / (width as Frac) * (real_max - real_min);
+            def imag = imag_min + (y as Frac) / (height as Frac) * (imag_max - imag_min);
+            def z = new Complex(real, imag);
+
+
+            def iterations = 0;
+            loop (iterations < limit)
+            {
+                z = complex_add(complex_square(z), c);
+                if (complex_abs(z) >= 2.0)
+                {
+                    break;
+                }
+                iterations = iterations + 1;
+            }
+            ppm_data = ppm_data ++ map_color(iterations, limit);
+        }
+    }
+
+    return ppm_header ++ ppm_data;
+};
+
+def main = fn() : Unit 
+{
+    def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
+    def limit = 100;
+
+    def mandelbrot_output = mandelbrot_ppm(400, 300, limit);
+    IO::OverwriteToFile("D:\Xuexi\mandelbrot.ppm", mandelbrot_output);
+
+    def julia_output = julia_ppm(400, 300, julia_constant, limit);
+    IO::OverwriteToFile("D:\Xuexi\julia.ppm", julia_output);
+
+    return ();
+};

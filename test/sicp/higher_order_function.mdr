@@ -1,0 +1,65 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def cube = fn(x : Frac) : Frac
+{
+    return x * x * x;
+};
+
+def accumulate = fn(combiner : (Frac, Frac) -> Frac, null_value : Frac, term : (Frac) -> Frac, a : Frac, next : (Frac) -> Frac, b : Frac) : Frac
+{
+    return a > b
+        ? null_value
+        : combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b));
+};
+
+def sum = fn(term : (Frac) -> Frac, a : Frac, 
+    next : (Frac) -> Frac, b : Frac) : Frac
+{
+    return accumulate(fn(a : Frac, b : Frac) : Frac 
+    {
+        return a + b;
+    },
+    0.0, term, a, next, b);
+};
+
+def integral = fn(f : (Frac) -> Frac, a : Frac, b : Frac, dx : Frac) : Frac
+{
+    def add_dx = fn(x : Frac) : Frac
+    {
+        return x + dx;
+    };
+
+    return sum(f, a + dx / 2.0, add_dx, b) * dx;
+};
+
+def simpson = fn(f : (Frac) -> Frac, a : Frac, b : Frac, n : Int) : Frac
+{
+    def inc = fn(k : Frac) : Frac
+    {
+        return k + 1.0;
+    }; 
+    def aux_fun = fn(h : Frac) : Frac
+    {
+        def y = fn(k : Frac) : Frac
+        {
+            return k == 0.0 || k == (n as Frac)
+                ? f(a + k * h)
+                : k % 2.0 == 0.0 
+                ? 2.0 * f(a + k * h)
+                : 4.0 * f(a + k * h);
+        };
+
+        return (h / 3.0) * sum(y, 0.0, inc, n as Frac);
+    };
+
+    return aux_fun((b - a) / (n as Frac));
+};
+
+def main = fn() : Unit
+{
+    IO::PrintLine("integral(cube, 0.0, 1.0, 0.001): " ++ (integral(cube, 0.0, 1.0, 0.002) as Text));
+
+    IO::PrintLine("simpson(cube, 0.0, 1.0, 1000): " ++ (simpson(cube, 0.0, 1.0, 100) as Text));
+
+    return ();
+};

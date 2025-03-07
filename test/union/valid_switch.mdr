@@ -1,0 +1,107 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+struct S1
+{
+};
+
+union U1
+{
+	A(Int),
+	B,
+	C(Frac, Int, Text),
+	D(U1),
+	E(S1),
+};
+
+def main = fn() : Unit
+{
+	def x = new U1::D(new U1::E(new S1()));
+	x = new U1::C(1.2, 2, "sss");
+
+	switch(x)
+	{
+		case U1::A(a):
+		{
+			IO::PrintLine("case A");
+		}
+		case U1::B():
+			IO::PrintLine("case B");
+		case U1::C(frac_1, int_1, text_1):
+		{
+			IO::PrintLine("case C");
+		}
+		case U1::D(u):
+		{
+			IO::PrintLine("case D");
+		}
+		case U1::E(s):
+			IO::PrintLine("case E");
+	}
+
+
+	x = new U1::D(new U1::B());
+
+	switch(x)
+	{
+		case U1::D(u):
+		{
+			IO::PrintLine("case D");
+			
+			switch(u)
+			{
+				case U1::A(a):
+				{
+					IO::PrintLine("case A");
+				}
+				case U1::B():
+					IO::PrintLine("case B");
+				case U1::C(frac_1, int_1, text_1):
+				{
+					IO::PrintLine("case C");
+				}
+				case U1::D(u):
+				{
+					IO::PrintLine("case D");
+				}
+				case U1::E(s):
+					IO::PrintLine("case E");
+			}
+		}
+		case U1::A(a):
+		{
+			IO::PrintLine("case A");
+		}
+		case U1::C(frac_1, int_1, text_1):
+		{
+			IO::PrintLine("case C");
+		}
+		case U1::E(s):
+			IO::PrintLine("case E");
+		case U1::B():
+			IO::PrintLine("case B");
+	}
+
+	x = new U1::B();
+
+	switch(x)
+	{
+		case U1::D(u):
+		{
+			IO::PrintLine("case D");
+		}
+		case U1::A(a):
+		{
+			IO::PrintLine("case A");
+		}
+		case U1::C(frac_1, int_1, text_1):
+		{
+			IO::PrintLine("case C");
+		}
+		case U1::E(s):
+			IO::PrintLine("case E");
+		case U1::B():
+			IO::PrintLine("case B");
+	}
+
+	return ();
+};

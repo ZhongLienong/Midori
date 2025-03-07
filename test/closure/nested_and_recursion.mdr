@@ -1,0 +1,21 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def createCounter = fn(initial : Int) : (Int) -> () -> Int
+{
+  def counter = fn(value : Int) : () -> Int 
+  {
+    initial = initial + value;
+    return fn() : Int { return initial; };
+  };
+  return counter;
+};
+
+def counter = createCounter(5);
+def next = counter(3);
+
+def main = fn() : Int
+{
+    IO::PrintLine(next() as Text);  // Should print 8
+
+    return 0;
+};

@@ -1,0 +1,42 @@
+
+union G
+{
+	A,
+};
+
+namespace NSP
+{
+	struct S1
+	{
+	};
+
+	union U1
+	{
+		A(Int),
+		B,
+		C(Frac, Int, Text),
+		D(U1),
+		E(S1),
+	};
+
+	namespace NNSP
+	{
+		union UU1
+		{
+			A(U1),
+			B(NSP::U1, G),
+			C(S1),
+			D(NSP::S1),
+		};
+	}
+}
+
+fixed main = fn() : Unit
+{
+	var x = new NSP::U1::D(new NSP::U1::E(new NSP::S1()));
+	x = new NSP::U1::C(1.2, 2, "sss");
+	fixed y = new NSP::NNSP::UU1::A(x);
+	fixed yy = new NSP::NNSP::UU1::B(x, new G::A());
+
+	return ();
+};

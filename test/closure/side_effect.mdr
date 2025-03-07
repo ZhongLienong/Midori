@@ -1,0 +1,15 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def main = fn() : Int
+{
+	def counter = (fn() : () -> Int
+	{
+		def privateCounter = 0;
+		return fn() : Int { privateCounter = privateCounter + 1; return privateCounter; };
+	})();
+
+	IO::PrintLine(counter() as Text);  // Should print 1
+	IO::PrintLine(counter() as Text);  // Should print 2
+
+	return 0;
+};

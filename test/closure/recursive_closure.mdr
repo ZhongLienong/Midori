@@ -1,0 +1,17 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+def makeRecursive = fn(n : Int) : (Int) -> Int 
+{
+  if (n == 0) return fn(x : Int) : Int { return 1; };
+  return fn(x : Int) : Int { return x * makeRecursive(n - 1)(x - 1); };
+};
+
+def factorial = makeRecursive(5);
+
+def main = fn() : Int
+{
+	factorial = makeRecursive(5);
+	IO::PrintLine(factorial(5) as Text);  // Should print 120
+
+	return 0;
+};

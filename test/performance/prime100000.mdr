@@ -1,0 +1,44 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+#include "E:\Projects\Midori\MidoriPrelude\DateTime.mdr"
+
+def TestPrimeNumbers = fn() : Unit
+{
+	def IsPrime = fn(n : Int) : Bool
+	{
+		if (n <= 1)
+		{
+			return false;
+		}
+
+		def (def i = 2; i * i <= n; i = i + 1)
+		{
+			if (n % i == 0)
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
+	def start = DateTime::GetTime();
+
+	def prime_count = 0;
+	for (def i = 0; i < 100000; i = i + 1)
+	{
+		if (IsPrime(i))
+		{
+			prime_count = prime_count + 1;
+		}
+	}
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Prime(100000) benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+
+	return ();
+};
+
+def main = fn() : Unit
+{
+	return TestPrimeNumbers();
+};

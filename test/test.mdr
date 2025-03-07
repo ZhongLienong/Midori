@@ -1,0 +1,124 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\DateTime.mdr"
+
+def TestPrimeNumbers = fn()
+{
+	def IsPrime = fn(n)
+	{
+		if n <= 1
+		{
+			return false;
+		}
+
+		def i = 2;
+		loop (i * i <= n)
+		{
+			if n % i == 0
+			{
+				return false;
+			}
+			i = i + 1;
+		}
+		return true;
+	};
+
+	def start = DateTime::GetTime();
+
+	def prime_count = 0;
+	loop (def i = 0; i < 100000; i = i + 1)
+	{
+		if IsPrime(i)
+		{
+			prime_count = prime_count + 1;
+		}
+	}
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+
+	return ();
+};
+
+def TestFib = fn()
+{
+
+	def fib = fn(n) : Int
+	{
+		return n <= 1 
+			? n 
+			: fib(n - 1) + fib(n - 2);
+	};
+
+	def start = DateTime::GetTime();
+
+	def fib_35 = fib(35);
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+
+	return ();
+};
+
+def TestStringManipulation = fn()
+{
+    def start = DateTime::GetTime();
+
+    def testString = "";
+    loop (def i = 0; i < 10000; i = i + 1)
+    {
+        testString = testString ++ "a";
+    }
+
+    def end = DateTime::GetTime();
+
+    IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+    
+    return ();
+};
+
+def TestParenthesisGeneration = fn(max_len)
+{
+    def output = [];
+    def BackTrack = fn(len, left, right : Int, acc)
+    {   
+        if left < right
+        {
+            return ();
+        }
+        if left > len || right > len
+        {
+            return ();
+        }
+        if left == len && right == len
+        {
+            output = output ++ [acc];
+            return ();
+        }
+
+        BackTrack(len, left + 1, right, acc ++ "(");
+        BackTrack(len, left, right + 1, acc ++ ")");
+        return ();
+    };
+
+    def start = DateTime::GetTime();
+
+    BackTrack(max_len, 0, 0, "");
+
+    def end = DateTime::GetTime();
+
+    IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+
+    return ();
+};
+
+def main = fn()
+{
+	TestFib();
+	TestPrimeNumbers();
+	TestStringManipulation();
+	TestParenthesisGeneration(8);
+
+	return 0;
+};

@@ -1,0 +1,30 @@
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
+
+struct S1
+{
+};
+
+union U1
+{
+	A(Int),
+	B,
+	C(Frac, Int, Text),
+	D(U1),
+	E(S1),
+};
+
+def main = fn() : Unit
+{
+	def complex = new U1::C(3.14, 42, "Complex case");
+
+	switch(complex)
+	{
+		case U1::C(frac, num, str):
+			IO::PrintLine("Matching complex C with values: " ++ (frac as Text) ++ ", " ++ (num as Text) ++ ", " ++ str);
+		default:
+			IO::PrintLine("default case");
+	}
+
+
+	return ();
+};
