@@ -1,16 +1,21 @@
 #include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
 
-def CountingBits = fn(n : Int) : Array[Int]
+def CountingBits = fn(n : Int)
 {
 	def Count1 = fn(n : Int) : Int
 	{
 		return n == 0 ? 0 : Count1(n & n - 1) + 1;
 	};
 
-	def output = [];
+	def output = "";
 	loop (def i = 0; i <= n; i = i + 1)
 	{
-		output = output ++ [Count1(i)];
+		if output == ""
+		{
+			output = (Count1(i) as Text);
+			continue;
+		}
+		output = (output as Text) ++ ", " ++ (Count1(i) as Text);
 	}
 
 	return output;
@@ -18,5 +23,5 @@ def CountingBits = fn(n : Int) : Array[Int]
 
 def main = fn()
 {
-	return IO::PrintLine(CountingBits(2) as Text);
+	return IO::PrintLine(CountingBits(4));
 };

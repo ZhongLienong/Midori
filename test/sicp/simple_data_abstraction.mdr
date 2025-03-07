@@ -18,47 +18,47 @@ struct Rectangle
 	height : LineSegment,
 };
 
-def abs = fn(fixed x : Frac) : Frac
+def abs = fn(x : Frac) : Frac
 {
 	return x < 0.0 ? -x : x;
 };
 
-def make_point = fn(fixed x : Frac, fixed y : Frac)
+def make_point = fn(x : Frac, y : Frac)
 {
 	return new Point(x, y);
 };
 
-def x_point = fn(fixed pt : Point)
+def x_point = fn(pt : Point)
 {
 	return pt.x;
 };
 
-def y_point = fn(fixed pt : Point)
+def y_point = fn(pt : Point)
 {
 	return pt.y;
 };
 
-def print_point = fn(fixed pt : Point) : Unit
+def print_point = fn(pt : Point) : Unit
 {
 	return IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
 };
 
-def make_segment = fn(fixed start : Point, fixed end : Point) : LineSegment
+def make_segment = fn(start : Point, end : Point) : LineSegment
 {
 	return new LineSegment(start, end);
 };
 
-def start_segment = fn(fixed seg : LineSegment) : Point
+def start_segment = fn(seg : LineSegment) : Point
 {
 	return seg.start;
 };
 
-def end_segment = fn(fixed seg : LineSegment) : Point
+def end_segment = fn(seg : LineSegment) : Point
 {
 	return seg.end;
 };
 
-def midpoint_segment = fn(fixed seg : LineSegment) : Point
+def midpoint_segment = fn(seg : LineSegment) : Point
 {
 	def start_pt = start_segment(seg);
 	def end_pt = end_segment(seg);
@@ -67,59 +67,59 @@ def midpoint_segment = fn(fixed seg : LineSegment) : Point
 	return make_point(x_point(start_pt) + x_diff / 2.0, y_point(start_pt) + y_diff / 2.0);
 };
 
-def make_rect = fn(fixed top_left : Point, fixed bottom_right : Point) : Rectangle
+def make_rect = fn(top_left : Point, bottom_right : Point) : Rectangle
 {
 	def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
 	def top_right = make_point(-x_point(bottom_right), y_point(top_left));
 	return new Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
 };
 
-def width_rect = fn(fixed rect : Rectangle) : Frac
+def width_rect = fn(rect : Rectangle) : Frac
 {
 	return abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)));
 };
 
-def height_rect = fn(fixed rect : Rectangle) : Frac
+def height_rect = fn(rect : Rectangle) : Frac
 {
 	return abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)));
 };
 
-def perimeter_rect = fn(fixed rect : Rectangle) : Frac
+def perimeter_rect = fn(rect : Rectangle) : Frac
 {
 	return abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect));
 };
 
-def pair = fn(fixed x : Int, fixed y : Int) : ((Int, Int) -> Int) -> Int
+def pair = fn(x : Int, y : Int) : ((Int, Int) -> Int) -> Int
 {
-	return fn(fixed f : (Int, Int) -> Int) : Int { return f(x, y); };
+	return fn(f : (Int, Int) -> Int) : Int { return f(x, y); };
 };
 
-def head = fn(fixed z : ((Int, Int) -> Int) -> Int) : Int
+def head = fn(z : ((Int, Int) -> Int) -> Int) : Int
 {
-    return z(fn(fixed x : Int, fixed y : Int) : Int { return x; });
+    return z(fn(x : Int, y : Int) : Int { return x; });
 };
 
-def tail = fn(fixed z : ((Int, Int) -> Int) -> Int) : Int
+def tail = fn(z : ((Int, Int) -> Int) -> Int) : Int
 {
-    return z(fn(fixed x : Int, fixed y : Int) : Int { return y; });
+    return z(fn(x : Int, y : Int) : Int { return y; });
 };
 
 def main = fn() : Unit
 {
-	fixed start_pt = make_point(0.0, 0.0);
-	fixed end_pt = make_point(2.12312, 4.312312);
-	fixed line_segment = make_segment(start_pt, end_pt);
-	fixed midpoint = midpoint_segment(line_segment);
+	def start_pt = make_point(0.0, 0.0);
+	def end_pt = make_point(2.12312, 4.312312);
+	def line_segment = make_segment(start_pt, end_pt);
+	def midpoint = midpoint_segment(line_segment);
 
 	IO::PrintLine("Finding midpoint");
 	print_point(midpoint);
 
-	fixed rect = make_rect(make_point(0.0, 0.0), make_point(2.0, -1.0));
+	def rect = make_rect(make_point(0.0, 0.0), make_point(2.0, -1.0));
 	IO::PrintLine("Finding perimeter");
 	IO::PrintLine(perimeter_rect(rect) as Text);
 
 	IO::PrintLine("Constructing church-encoding pair (1, 2)");
-	fixed church_encoding_pair = pair(1, 2);
+	def church_encoding_pair = pair(1, 2);
 	IO::PrintLine("Accessing head: " ++ (head(church_encoding_pair) as Text));
 	IO::PrintLine("Accessing tail: " ++ (tail(church_encoding_pair) as Text));
 

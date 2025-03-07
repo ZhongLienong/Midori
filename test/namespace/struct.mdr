@@ -5,7 +5,7 @@ namespace Test
 		x : Int,
 	};
 
-	fixed foo = fn() : Int
+	def foo = fn() : Int
 	{
 		return 2;
 	};
@@ -35,7 +35,7 @@ namespace Test
 	}
 }
 
-fixed main = fn() : Unit
+def main = fn() : Unit
 {
 	return ();
 };

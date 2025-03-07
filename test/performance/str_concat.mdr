@@ -1,5 +1,5 @@
 #include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
-#include "E:\Projects\Midori\MidoriPrelude\DateTime.mdr"
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\DateTime.mdr"
 
 def TestStringManipulation = fn() : Unit
 {

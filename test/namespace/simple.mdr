@@ -1,37 +1,37 @@
 
-var x = 3;
+def x = 3;
 
 namespace TestNamespace
 {
-	var x = 4;
-	var xxx = x;
-	var t = "sss";
+	def x = 4;
+	def xxx = x;
+	def t = "sss";
 	namespace InnerTestNamespace
 	{
-		var y = 1.1;
-		var ttt = TestNamespace::t;
-		var foo = fn(var x: Frac) : Frac
+		def y = 1.1;
+		def ttt = TestNamespace::t;
+		def foo = fn(x: Frac) : Frac
 		{
-			var oo = InnerTestNamespace::y;
+			def oo = InnerTestNamespace::y;
 			return oo;
 		};
 		namespace InnerInnerTestNamespace
 		{
-			var x = InnerTestNamespace::y;
+			def x = InnerTestNamespace::y;
 		}
 	}
-	var z = "asd" ++ t;
+	def z = "asd" ++ t;
 }
 
-var k = 2;
+def k = 2;
 
 namespace asdawd
 {
 
 }
 
-fixed main = fn() : Unit
+def main = fn() : Unit
 {
-	var x = TestNamespace::InnerTestNamespace::y;
+	def x = TestNamespace::InnerTestNamespace::y;
 	return ();
 };

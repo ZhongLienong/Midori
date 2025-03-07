@@ -21,8 +21,8 @@ def main = fn() : Int
 	(
 		0, 
 		fn(x : Int) : Int { return x; }, 
-		fn() : Unit { s.num = s.num + 1; return (); }, 
-		fn(x : Int) : Int { return s.num + x; }
+		fn() : Unit { return (); }, 
+		fn(x : Int) : Int { return x + x; }
 	);
 
     return 0;

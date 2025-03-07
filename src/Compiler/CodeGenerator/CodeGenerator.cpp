@@ -523,6 +523,10 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		{
 			EmitByte(OpCode::TEXT_TO_FRAC, line);
 		}
+		else if (from_type->IsType<MidoriType::FractionType>())
+		{
+			// Do nothing
+		}
 		else
 		{
 			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to frac' instruction.", line));
@@ -537,6 +541,10 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		else if (from_type->IsType<MidoriType::TextType>())
 		{
 			EmitByte(OpCode::TEXT_TO_INT, line);
+		}
+		else if (from_type->IsType<MidoriType::IntegerType>())
+		{
+			// Do nothing
 		}
 		else
 		{
@@ -556,6 +564,10 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		else if (from_type->IsType<MidoriType::IntegerType>())
 		{
 			EmitByte(OpCode::INT_TO_TEXT, line);
+		}
+		else if (from_type->IsType<MidoriType::TextType>())
+		{
+			// Do nothing
 		}
 		else
 		{

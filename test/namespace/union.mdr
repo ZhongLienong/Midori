@@ -31,12 +31,12 @@ namespace NSP
 	}
 }
 
-fixed main = fn() : Unit
+def  main = fn() : Unit
 {
-	var x = new NSP::U1::D(new NSP::U1::E(new NSP::S1()));
+	def x = new NSP::U1::D(new NSP::U1::E(new NSP::S1()));
 	x = new NSP::U1::C(1.2, 2, "sss");
-	fixed y = new NSP::NNSP::UU1::A(x);
-	fixed yy = new NSP::NNSP::UU1::B(x, new G::A());
+	def  y = new NSP::NNSP::UU1::A(x);
+	def  yy = new NSP::NNSP::UU1::B(x, new G::A());
 
 	return ();
 };

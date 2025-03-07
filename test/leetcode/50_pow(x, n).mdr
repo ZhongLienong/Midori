@@ -20,7 +20,7 @@ def Pow = fn(x, n)
 			}
 			else
 			{
-				fixed sub_result = Pow(x, n / 2);
+				def sub_result = Pow(x, n / 2);
 				return sub_result * sub_result;
 			}
 		}

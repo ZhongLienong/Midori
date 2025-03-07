@@ -1,5 +1,5 @@
 #include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
-#include "E:\Projects\Midori\MidoriPrelude\DateTime.mdr"
+#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\DateTime.mdr"
 
 def TestPrimeNumbers = fn() : Unit
 {
@@ -10,7 +10,7 @@ def TestPrimeNumbers = fn() : Unit
 			return false;
 		}
 
-		def (def i = 2; i * i <= n; i = i + 1)
+		loop (def i = 2; i * i <= n; i = i + 1)
 		{
 			if (n % i == 0)
 			{
@@ -23,7 +23,7 @@ def TestPrimeNumbers = fn() : Unit
 	def start = DateTime::GetTime();
 
 	def prime_count = 0;
-	for (def i = 0; i < 100000; i = i + 1)
+	loop (def i = 0; i < 100000; i = i + 1)
 	{
 		if (IsPrime(i))
 		{

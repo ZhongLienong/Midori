@@ -2,7 +2,7 @@
 
 def foo = fn() : Unit
 {
-	def arr : Array[() -> Int] = [];
+	def arr : Array<() -> Int> = [];
 	loop (def i = 0; i < 3; i = i + 1)
 	{
 		arr = arr ++ [fn() : Int
