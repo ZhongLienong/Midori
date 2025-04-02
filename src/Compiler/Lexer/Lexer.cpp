@@ -36,11 +36,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"namespace"s, Token::Name::NAMESPACE},
 };
 
-const std::unordered_set<std::string> Lexer::s_directives =
-{
-	"include"s,
-};
-
 bool Lexer::IsAtEnd(int offset) const
 {
 	return m_current + static_cast<size_t>(offset) >= m_source_code.size();
@@ -253,31 +248,6 @@ Token Lexer::MatchIdentifierOrReserved()
 	}
 }
 
-MidoriResult::TokenResult Lexer::MatchDirective()
-{
-	return SkipWhitespaceAndComments()
-		.and_then
-		(
-			[this](Token&&) ->MidoriResult::TokenResult
-			{
-				std::string result;
-				while (IsAlpha(LookAhead(0)))
-				{
-					result.push_back(Advance());
-				}
-
-				if (s_directives.contains(result))
-				{
-					return MakeToken(Token::Name::DIRECTIVE, std::move(result));
-				}
-				else
-				{
-					return std::unexpected<std::string>(MidoriError::GenerateLexerError("Unknown directive.", m_line));
-				}
-			}
-		);
-}
-
 MidoriResult::TokenResult Lexer::LexOneToken()
 {
 	return SkipWhitespaceAndComments()
@@ -432,8 +402,6 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					{
 						return MakeToken(Token::Name::TILDE);
 					}
-				case '#':
-					return MatchDirective();
 				case ' ':
 				case '\r':
 				case '\t':
@@ -459,7 +427,7 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					}
 					else
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateLexerError("Invalid character."s + next_char, m_line));
+						return std::unexpected<std::string>(MidoriError::GenerateLexerError("Invalid character: "s + next_char, m_line));
 					}
 				}
 			}

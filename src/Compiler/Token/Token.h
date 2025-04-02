@@ -2,6 +2,8 @@
 
 #include <deque>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 struct Token
 {
@@ -127,4 +129,26 @@ public:
 	void Insert(iterator iter, TokenStream&& tokens);
 
 	void Erase(iterator iter);
+};
+
+struct BuildGraph 
+{
+	struct BuildNode
+	{
+		TokenStream m_tokens;
+		std::string m_file_name;
+		std::vector<std::string> m_dependencies;
+		int m_in_degree = 0;
+		bool m_processed = false;
+	};
+
+	std::unordered_map<std::string, BuildNode> m_nodes;
+
+	std::vector<std::string> GetStartingPoints() const;
+
+	void MarkProcessed(const std::string& file_name);
+
+	bool IsComplete() const;
+
+	TokenStream Stitch();
 };

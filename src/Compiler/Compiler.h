@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Result/Result.h"
+#include "Compiler/Result/Result.h"
 
 class Compiler
 {

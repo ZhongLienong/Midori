@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Common/Error/Error.h"
-#include "Common/Result/Result.h"
+#include "Compiler/Result/Result.h"
 
 #include <string>
 #include <unordered_map>
@@ -16,7 +16,6 @@ private:
 	size_t m_current = 0u;
 	bool m_is_main_program = true;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
-	static const std::unordered_set<std::string> s_directives;
 
 public:
 
@@ -53,6 +52,4 @@ private:
 	Token MatchNumber();
 
 	Token MatchIdentifierOrReserved();
-
-	MidoriResult::TokenResult MatchDirective();
 };

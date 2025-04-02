@@ -13,6 +13,7 @@ namespace MidoriResult
 {
 	using TokenResult = std::expected<Token, std::string>;
 	using LexerResult = std::expected<TokenStream, std::string>;
+	using ImportManagerResult = std::expected<BuildGraph, std::string>;
 	using ExpressionResult = std::expected<std::unique_ptr<MidoriExpression>, std::string>;
 	using StatementResult = std::expected<std::unique_ptr<MidoriStatement>, std::string>;
 	using CaseResult = std::expected<Switch::Case, std::string>;

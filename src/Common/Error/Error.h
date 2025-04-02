@@ -15,6 +15,8 @@ public:
 
 	static std::string GenerateLexerError(std::string_view message, int line);
 
+	static std::string GenerateImportManagerError(std::string_view message, int line);
+
 	static std::string GenerateParserError(std::string_view message, const Token& token);
 
 	static std::string GenerateTypeCheckerError(std::string_view message, int line);

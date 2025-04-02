@@ -1,5 +1,8 @@
-#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\IO.mdr"
-#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\DateTime.mdr"
+import 
+{
+	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr",
+	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\DateTime.mdr"
+}
 
 def TestStringManipulation = fn() : Unit
 {

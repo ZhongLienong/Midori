@@ -15,7 +15,6 @@ namespace
 Parser::Parser(TokenStream&& tokens, const std::string& file_name) : m_tokens(std::move(tokens))
 {
 	std::string absolute_file_path = std::filesystem::absolute(file_name).string();
-	s_dependency_graph[absolute_file_path] = {};
 	m_file_name = std::move(absolute_file_path);
 }
 
@@ -1851,99 +1850,6 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 	}
 }
 
-bool Parser::HasCircularDependency() const
-{
-	std::unordered_set<std::string> visited;
-	std::unordered_set<std::string> in_progress;
-	std::queue<std::string> queue;
-
-	queue.emplace(m_file_name);
-	in_progress.emplace(m_file_name);
-
-	while (!queue.empty())
-	{
-		std::string current = queue.front();
-		queue.pop();
-		in_progress.erase(current);
-		visited.emplace(current);
-
-		for (const std::string& dependency : s_dependency_graph[current])
-		{
-			if (visited.contains(dependency))
-			{
-				continue;
-			}
-			if (in_progress.contains(dependency))
-			{
-				// Cycle detected
-				return true; 
-			}
-			queue.emplace(dependency);
-			in_progress.insert(dependency);
-		}
-	}
-
-	return false;
-}
-
-MidoriResult::TokenResult Parser::HandleDirective()
-{
-	using namespace std::string_literals;
-
-	Token& directive = Previous();
-	if (directive.m_lexeme == "include"s)
-	{
-		return Consume(Token::Name::TEXT_LITERAL, "Expected text literal after include directive.")
-			.and_then
-			(
-				[&directive, this](Token&&) ->MidoriResult::TokenResult
-				{
-					Token& include_path = Previous();
-					std::string include_absolute_path_str = std::filesystem::absolute(include_path.m_lexeme).string();
-
-					if (s_dependency_graph.contains(include_absolute_path_str))
-					{
-						return directive;
-					}
-
-					s_dependency_graph[m_file_name].emplace_back(include_absolute_path_str);
-
-					std::ifstream include_file(include_absolute_path_str);
-					if (!include_file.is_open())
-					{
-						return std::unexpected<std::string>(GenerateParserError("Could not open include file.", include_path));
-					}
-
-					if (HasCircularDependency())
-					{
-						return std::unexpected<std::string>(GenerateParserError("Circular dependency detected.", include_path));
-					}
-
-					std::ostringstream include_file_stream;
-					include_file_stream << include_file.rdbuf();
-
-					constexpr bool is_main_program = false;
-					return Lexer(include_file_stream.str(), is_main_program)
-						.Lex()
-						.and_then
-						(
-							[&directive, this](TokenStream&& tokens) ->MidoriResult::TokenResult
-							{
-								m_tokens.Erase(m_tokens.begin() + m_current_token_index);
-								m_tokens.Insert(m_tokens.begin(), std::move(tokens));
-								m_current_token_index = 0;
-								return directive;
-							}
-						);
-				}
-			);
-	}
-	else
-	{
-		return std::unexpected<std::string>(GenerateParserError("Unknown directive '" + directive.m_lexeme + "'.", directive));
-	}
-}
-
 bool Parser::HasReturnStatement(const MidoriStatement& stmt)
 {
 	return std::visit
@@ -2024,20 +1930,19 @@ MidoriResult::StatementResult Parser::ParseDeclarationCommon(bool allow_stmt)
 
 MidoriResult::ParserResult Parser::Parse()
 {
+	/*
+	return ParseZeroOrMore
+	(
+		[this]() { return ParseGlobalDeclaration(); },
+		[this]() { return IsAtEnd(); },
+		MidoriProgramTree()
+	);
+	*/
 	MidoriProgramTree programTree;
 	std::string errors;
 
 	while (!IsAtEnd())
 	{
-		while (Match(Token::Name::DIRECTIVE))
-		{
-			MidoriResult::TokenResult directive_result = HandleDirective();
-			if (!directive_result.has_value())
-			{
-				return std::unexpected<std::string>(std::move(directive_result.error()));
-			}
-		}
-
 		MidoriResult::StatementResult result = ParseGlobalDeclaration();
 		if (result.has_value())
 		{

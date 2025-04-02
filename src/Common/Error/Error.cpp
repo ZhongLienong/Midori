@@ -26,6 +26,11 @@ std::string MidoriError::GenerateLexerError(std::string_view message, int line)
 	return GenerateBaseError(std::format("Lexer Error\n{}", message), line);
 }
 
+std::string MidoriError::GenerateImportManagerError(std::string_view message, int line)
+{
+	return GenerateBaseError(std::format("Import Manager Error\n{}", message), line);
+}
+
 std::string MidoriError::GenerateParserError(std::string_view message, const Token& token)
 {
 	return GenerateBaseError(std::format("Parser Error\n{}", message), token.m_line, &token);

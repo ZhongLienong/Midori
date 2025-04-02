@@ -3,6 +3,7 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Parser/Parser.h"
 #include "TypeChecker/TypeChecker.h"
+#include "Compiler/ImportManager/ImportManager.h"
 
 
 #ifdef DEBUG
@@ -22,36 +23,44 @@ MidoriResult::CompilerResult Compiler::Compile()
 		(
 			[this](TokenStream&& lexer_result) -> MidoriResult::CompilerResult
 			{
-				return Parser(std::move(lexer_result), m_file_name)
-					.Parse()
+				return ImportManager(std::move(lexer_result), std::string(m_file_name))
+					.GenerateBuildGraph()
 					.and_then
 					(
-						[](MidoriProgramTree&& parser_result) -> MidoriResult::CompilerResult
+						[this](BuildGraph&& build_graph) -> MidoriResult::CompilerResult
 						{
-							return TypeChecker()
-								.TypeCheck(std::move(parser_result))
+							return Parser(build_graph.Stitch(), m_file_name)
+								.Parse()
 								.and_then
 								(
-									[](MidoriProgramTree&& program) -> MidoriResult::CompilerResult
+									[](MidoriProgramTree&& parser_result) -> MidoriResult::CompilerResult
 									{
-#ifdef DEBUG
-										PrintAbstractSyntaxTree ast_printer;
-										std::ranges::for_each(program, [&ast_printer](auto&& statement) { std::visit(ast_printer, *statement); });
-#endif
-										return CodeGenerator()
-											.GenerateCode(std::move(program))
+										return TypeChecker()
+											.TypeCheck(std::move(parser_result))
 											.and_then
 											(
-												[](MidoriExecutable&& compilation_result) ->MidoriResult::CompilerResult
+												[](MidoriProgramTree&& program) -> MidoriResult::CompilerResult
 												{
 #ifdef DEBUG
-													for (size_t i : std::views::iota(0u, compilation_result.m_procedure_names.size()))
-													{
-														MidoriText variable_name = compilation_result.m_procedure_names[i];
-														Disassembler::DisassembleBytecodeStream(compilation_result, static_cast<int>(i), variable_name.GetCString());
-													}
+													PrintAbstractSyntaxTree ast_printer;
+													std::ranges::for_each(program, [&ast_printer](auto&& statement) { std::visit(ast_printer, *statement); });
 #endif
-													return compilation_result;
+													return CodeGenerator()
+														.GenerateCode(std::move(program))
+														.and_then
+														(
+															[](MidoriExecutable&& compilation_result) ->MidoriResult::CompilerResult
+															{
+#ifdef DEBUG
+																for (size_t i : std::views::iota(0u, compilation_result.m_procedure_names.size()))
+																{
+																	MidoriText variable_name = compilation_result.m_procedure_names[i];
+																	Disassembler::DisassembleBytecodeStream(compilation_result, static_cast<int>(i), variable_name.GetCString());
+																}
+#endif
+																return compilation_result;
+															}
+														);
 												}
 											);
 									}

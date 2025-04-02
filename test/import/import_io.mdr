@@ -1,0 +1,6 @@
+import 
+{
+	"C:\Users\jk381\source\repos\ZhongLienong\Midori\MidoriPrelude\IO.mdr"
+}
+
+def foo = 23;

@@ -5,7 +5,7 @@
 #include <unordered_map>
 
 #include "Common/Error/Error.h"
-#include "Common/Result/Result.h"
+#include "Compiler/Result/Result.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 
 class Parser
@@ -37,10 +37,8 @@ private:
 		DefinedNames m_defined_names;
 	};
 
-	using DependencyGraph = std::unordered_map<std::string, std::vector<std::string>>;
 	using Scopes = std::vector<Scope>;
 	
-	inline static DependencyGraph s_dependency_graph{};
 	TokenStream m_tokens;
 	std::string m_file_name;
 	Scopes m_scopes{ Scope() };
@@ -356,8 +354,4 @@ private:
 	MidoriResult::CaseResult ParseDefaultStatement(bool& default_visited, Token&& keyword);
 
 	MidoriResult::StatementResult ParseStatement();
-
-	MidoriResult::TokenResult HandleDirective();
-
-	bool HasCircularDependency() const; 
 };
