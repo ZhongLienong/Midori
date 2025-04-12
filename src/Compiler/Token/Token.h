@@ -1,6 +1,5 @@
 #pragma once
 
-#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -106,11 +105,11 @@ class TokenStream
 public:
 
 private:
-	std::deque<Token> m_tokens;
+	std::vector<Token> m_tokens;
 
 public:
-	using iterator = std::deque<Token>::iterator;
-	using const_iterator = std::deque<Token>::const_iterator;
+	using iterator = std::vector<Token>::iterator;
+	using const_iterator = std::vector<Token>::const_iterator;
 
 	iterator begin();
 
