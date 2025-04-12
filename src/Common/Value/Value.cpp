@@ -229,66 +229,6 @@ MidoriText MidoriTraceable::ToText()
 }
 #endif
 
-bool MidoriTraceable::IsText() const
-{
-	return std::holds_alternative<MidoriText>(m_value);
-}
-
-MidoriText& MidoriTraceable::GetText()
-{
-	return std::get<MidoriText>(m_value);
-}
-
-bool MidoriTraceable::IsArray() const
-{
-	return std::holds_alternative<MidoriArray>(m_value);
-}
-
-MidoriArray& MidoriTraceable::GetArray()
-{
-	return std::get<MidoriArray>(m_value);
-}
-
-bool MidoriTraceable::IsCellValue() const
-{
-	return std::holds_alternative<MidoriCellValue>(m_value);
-}
-
-MidoriCellValue& MidoriTraceable::GetCellValue()
-{
-	return std::get<MidoriCellValue>(m_value);
-}
-
-bool MidoriTraceable::IsClosure() const
-{
-	return std::holds_alternative<MidoriClosure>(m_value);
-}
-
-MidoriClosure& MidoriTraceable::GetClosure()
-{
-	return std::get<MidoriClosure>(m_value);
-}
-
-bool MidoriTraceable::IsStruct() const
-{
-	return std::holds_alternative<MidoriStruct>(m_value);
-}
-
-MidoriStruct& MidoriTraceable::GetStruct()
-{
-	return std::get<MidoriStruct>(m_value);
-}
-
-bool MidoriTraceable::IsUnion() const
-{
-	return std::holds_alternative<MidoriUnion>(m_value);
-}
-
-MidoriUnion& MidoriTraceable::GetUnion()
-{
-	return std::get<MidoriUnion>(m_value);
-}
-
 size_t MidoriTraceable::GetSize() const
 {
 	return m_size;
@@ -340,9 +280,9 @@ void MidoriTraceable::Trace()
 #endif
 	Mark();
 
-	if (IsArray())
+	if (IsTraceable<MidoriArray>())
 	{
-		MidoriArray& arr = GetArray();
+		MidoriArray& arr = GetTraceable<MidoriArray>();
 		for (int idx : std::views::iota(0, arr.GetLength()))
 		{
 			MidoriValue& value = arr[idx];
@@ -352,26 +292,26 @@ void MidoriTraceable::Trace()
 			}
 		}
 	}
-	else if (IsClosure())
+	else if (IsTraceable<MidoriClosure>())
 	{
-		MidoriArray& cell_values = GetClosure().m_cell_values;
+		MidoriArray& cell_values = GetTraceable<MidoriClosure>().m_cell_values;
 		for (int i = 0; i < cell_values.GetLength(); i += 1)
 		{
 			MidoriValue& val = cell_values[i];
 			val.GetPointer()->Trace();
 		}
 	}
-	else if (IsCellValue())
+	else if (IsTraceable<MidoriCellValue>())
 	{
-		MidoriValue cell_value = GetCellValue().GetValue();
+		MidoriValue cell_value = GetTraceable<MidoriCellValue>().GetValue();
 		if (s_traceables.contains(cell_value.GetPointer()))
 		{
 			cell_value.GetPointer()->Trace();
 		}
 	}
-	else if (IsStruct())
+	else if (IsTraceable<MidoriStruct>())
 	{
-		MidoriArray& arr = GetStruct().m_values;
+		MidoriArray& arr = GetTraceable<MidoriStruct>().m_values;
 		for (int idx : std::views::iota(0, arr.GetLength()))
 		{
 			MidoriValue& value = arr[idx];
@@ -381,9 +321,9 @@ void MidoriTraceable::Trace()
 			}
 		}
 	}
-	else if (IsUnion())
+	else if (IsTraceable<MidoriUnion>())
 	{
-		MidoriArray& arr = GetUnion().m_values;
+		MidoriArray& arr = GetTraceable<MidoriUnion>().m_values;
 
 		for (int idx : std::views::iota(0, arr.GetLength()))
 		{

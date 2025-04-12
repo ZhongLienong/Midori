@@ -415,7 +415,7 @@ int VirtualMachine::Execute() noexcept
 					}
 
 					MidoriValue arr = Pop();
-					MidoriArray& arr_ref = arr.GetPointer()->GetArray();
+					MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 					MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref.GetLength());
 
 					for (int i = 0; i < num_indices; i += 1)
@@ -431,7 +431,7 @@ int VirtualMachine::Execute() noexcept
 
 						if (i != num_indices - 1)
 						{
-							arr_ref = next_val.GetPointer()->GetArray();
+							arr_ref = next_val.GetPointer()->GetTraceable<MidoriArray>();
 						}
 						else
 						{
@@ -453,7 +453,7 @@ int VirtualMachine::Execute() noexcept
 					}
 
 					MidoriValue arr = Pop();
-					MidoriArray& arr_ref = arr.GetPointer()->GetArray();
+					MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 					MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref.GetLength());
 
 					for (int i = 0; i < num_indices; i += 1)
@@ -467,7 +467,7 @@ int VirtualMachine::Execute() noexcept
 						MidoriValue& next_val = arr_ref[static_cast<int>(index.GetInteger())];
 						if (i != num_indices - 1)
 						{
-							arr_ref = next_val.GetPointer()->GetArray();
+							arr_ref = next_val.GetPointer()->GetTraceable<MidoriArray>();
 						}
 						else
 						{
@@ -482,7 +482,7 @@ int VirtualMachine::Execute() noexcept
 				{
 					MidoriValue size_val = Pop();
 					MidoriValue arr_val = Pop();
-					MidoriArray& arr_ref = arr_val.GetPointer()->GetArray();
+					MidoriArray& arr_ref = arr_val.GetPointer()->GetTraceable<MidoriArray>();
 
 					MidoriInteger original_size = arr_ref.GetLength();
 					MidoriInteger repeat_count = size_val.GetInteger();
@@ -510,7 +510,7 @@ int VirtualMachine::Execute() noexcept
 					MidoriValue val = Pop();
 					MidoriValue& arr = Peek();
 
-					MidoriArray& arr_ref = arr.GetPointer()->GetArray();
+					MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 					arr_ref.AddBack(val);
 
 					break;
@@ -520,7 +520,7 @@ int VirtualMachine::Execute() noexcept
 					MidoriValue arr = Pop();
 					MidoriValue& val = Peek();
 
-					MidoriArray& arr_ref = arr.GetPointer()->GetArray();
+					MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 					arr_ref.AddFront(val);
 
 					val = arr;
@@ -534,7 +534,7 @@ int VirtualMachine::Execute() noexcept
 				}
 				case OpCode::TEXT_TO_FRAC:
 				{
-					Peek() = static_cast<MidoriFraction>(Peek().GetPointer()->GetText().ToFraction());
+					Peek() = static_cast<MidoriFraction>(Peek().GetPointer()->GetTraceable<MidoriText>().ToFraction());
 					break;
 				}
 				case OpCode::FRAC_TO_INT:
@@ -544,7 +544,7 @@ int VirtualMachine::Execute() noexcept
 				}
 				case OpCode::TEXT_TO_INT:
 				{
-					Peek() = static_cast<MidoriInteger>(Peek().GetPointer()->GetText().ToInteger());
+					Peek() = static_cast<MidoriInteger>(Peek().GetPointer()->GetTraceable<MidoriText>().ToInteger());
 					break;
 				}
 				case OpCode::FRAC_TO_TEXT:
@@ -706,8 +706,8 @@ int VirtualMachine::Execute() noexcept
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					MidoriArray& left_value_vector_ref = left.GetPointer()->GetArray();
-					MidoriArray& right_value_vector_ref = right.GetPointer()->GetArray();
+					MidoriArray& left_value_vector_ref = left.GetPointer()->GetTraceable<MidoriArray>();
+					MidoriArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MidoriArray>();
 					MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
 					left = MidoriTraceable::AllocateTraceable(std::move(result), PointerTag::ARRAY);
@@ -719,8 +719,8 @@ int VirtualMachine::Execute() noexcept
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					MidoriText& left_value_string_ref = left.GetPointer()->GetText();
-					MidoriText& right_value_string_ref = right.GetPointer()->GetText();
+					MidoriText& left_value_string_ref = left.GetPointer()->GetTraceable<MidoriText>();
+					MidoriText& right_value_string_ref = right.GetPointer()->GetTraceable<MidoriText>();
 
 					MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
@@ -841,7 +841,7 @@ int VirtualMachine::Execute() noexcept
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetPointer()->GetText() == right.GetPointer()->GetText();
+					left = left.GetPointer()->GetTraceable<MidoriText>() == right.GetPointer()->GetTraceable<MidoriText>();
 
 					break;
 				}
@@ -1044,7 +1044,7 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::LOAD_TAG:
 				{
 					MidoriValue union_val = Pop();
-					MidoriUnion& union_ref = union_val.GetPointer()->GetUnion();
+					MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
 
 					for (int i = 0; i < union_ref.m_values.GetLength(); i += 1)
 					{
@@ -1057,7 +1057,7 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::SET_TAG:
 				{
 					int tag = static_cast<int>(ReadByte());
-					MidoriUnion& union_ref = Peek().GetPointer()->GetUnion();
+					MidoriUnion& union_ref = Peek().GetPointer()->GetTraceable<MidoriUnion>();
 					union_ref.m_index = tag;
 					break;
 				}
@@ -1065,7 +1065,7 @@ int VirtualMachine::Execute() noexcept
 				{
 					MidoriValue foreign_function_name = Pop();
 					int arity = static_cast<int>(ReadByte());
-					MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetText();
+					MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
 					// Platform-specific function loading
 #ifdef _WIN32
@@ -1085,7 +1085,7 @@ int VirtualMachine::Execute() noexcept
 
 						if (MidoriTraceable::s_traceables.contains(arg.GetPointer()))
 						{
-							args[i] = (void*)arg.GetPointer()->GetText().GetCString();
+							args[i] = (void*)arg.GetPointer()->GetTraceable<MidoriText>().GetCString();
 						}
 						else 
 						{
@@ -1109,7 +1109,7 @@ int VirtualMachine::Execute() noexcept
 					// Return address := pop all the arguments and the callee
 					PushCallFrame(m_value_stack_base_pointer, m_value_stack_pointer - arity, m_instruction_pointer, m_curr_environment);
 
-					MidoriClosure& closure = callable.GetPointer()->GetClosure();
+					MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 					m_curr_environment = &closure.m_cell_values;
 
 					m_instruction_pointer = m_executable.GetBytecodeStream(closure.m_proc_index)[0u];
@@ -1128,7 +1128,7 @@ int VirtualMachine::Execute() noexcept
 						args[i] = Pop();
 					}
 
-					MidoriArray& members = new_struct->GetStruct().m_values;
+					MidoriArray& members = new_struct->GetTraceable<MidoriStruct>().m_values;
 					members = std::move(args);
 
 					Push(new_struct);
@@ -1147,7 +1147,7 @@ int VirtualMachine::Execute() noexcept
 						args[i] = Pop();
 					}
 
-					MidoriArray& members = new_union->GetUnion().m_values;
+					MidoriArray& members = new_union->GetTraceable<MidoriUnion>().m_values;
 					members = std::move(args);
 
 					Push(new_union);
@@ -1170,7 +1170,7 @@ int VirtualMachine::Execute() noexcept
 						break;
 					}
 
-					MidoriArray& captured_variables = (m_value_stack_pointer - 1)->GetPointer()->GetClosure().m_cell_values;
+					MidoriArray& captured_variables = (m_value_stack_pointer - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
 
 					captured_variables = *m_curr_environment;
 					captured_count -= captured_variables.GetLength();
@@ -1185,7 +1185,7 @@ int VirtualMachine::Execute() noexcept
 							MidoriValue* stack_value_ref = &value;
 							MidoriValue cell_value = MidoriTraceable::AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
 							captured_variables.AddBack(cell_value);
-							m_cells_to_promote.emplace_back(& cell_value.GetPointer()->GetCellValue());
+							m_cells_to_promote.emplace_back(& cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
 						}
 					);
 
@@ -1231,14 +1231,14 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::GET_CELL:
 				{
 					int offset = static_cast<int>(ReadByte());
-					MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetCellValue().GetValue();
+					MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
 					Push(cell_value);
 					break;
 				}
 				case OpCode::SET_CELL:
 				{
 					int offset = static_cast<int>(ReadByte());
-					MidoriValue& cell_value = (*m_curr_environment)[offset].GetPointer()->GetCellValue().GetValue();
+					MidoriValue& cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
 					cell_value = Peek();
 					break;
 				}
@@ -1246,7 +1246,7 @@ int VirtualMachine::Execute() noexcept
 				{
 					int index = static_cast<int>(ReadByte());
 					MidoriValue value = Pop();
-					Push(value.GetPointer()->GetStruct().m_values[index]);
+					Push(value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
 					break;
 				}
 				case OpCode::SET_MEMBER:
@@ -1254,7 +1254,7 @@ int VirtualMachine::Execute() noexcept
 					int index = static_cast<int>(ReadByte());
 					MidoriValue value = Pop();
 					MidoriValue& var = Peek();
-					var.GetPointer()->GetStruct().m_values[index] = value;
+					var.GetPointer()->GetTraceable<MidoriStruct>().m_values[index] = value;
 					break;
 				}
 				case OpCode::POP:

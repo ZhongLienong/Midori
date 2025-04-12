@@ -132,7 +132,7 @@ private:
 
 	void operator()(MidoriExpression::UnitLiteral& unit);
 
-	void operator()(MidoriExpression::Function& closure);
+	void operator()(MidoriExpression::Function& function);
 
 	void operator()(MidoriExpression::Construct& construct);
 

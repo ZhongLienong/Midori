@@ -19,6 +19,7 @@ enum PointerTag : uint8_t
 	UNION = 0b100,
 	CELL = 0b011,
 	FUNCTION = 0b110,
+	BOX = 0b101, 
 };
 
 class MidoriTraceable;
@@ -252,6 +253,11 @@ struct MidoriUnion
 	int m_index{ 0 };
 };
 
+struct MidoriBox
+{
+	MidoriValue m_inner_value{};
+};
+
 class MidoriTraceable
 {
 public:
@@ -262,7 +268,7 @@ public:
 	static inline std::unordered_set<MidoriTraceable*> s_traceables;
 
 private:
-	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure> m_value;
+	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure, MidoriBox> m_value;
 	size_t m_size;
 	bool m_is_marked = false;
 
@@ -270,29 +276,17 @@ public:
 
 	~MidoriTraceable() = default;
 
-	MidoriText& GetText();
+	template<typename T>
+	constexpr bool IsTraceable()
+	{
+		return std::holds_alternative<T>(m_value);
+	}
 
-	bool IsText() const;
-
-	MidoriArray& GetArray();
-
-	bool IsArray() const;
-
-	bool IsCellValue() const;
-
-	MidoriCellValue& GetCellValue();
-
-	bool IsClosure() const;
-
-	MidoriClosure& GetClosure();
-
-	bool IsStruct() const;
-
-	MidoriStruct& GetStruct();
-
-	bool IsUnion() const;
-
-	MidoriUnion& GetUnion();
+	template<typename T>
+	constexpr T& GetTraceable()
+	{
+		return std::get<T>(m_value);
+	}
 
 	size_t GetSize() const;
 
