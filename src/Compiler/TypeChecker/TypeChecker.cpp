@@ -193,7 +193,6 @@ void TypeChecker::operator()(Define& def)
 	}
 	else if (def.m_value->IsExpression<MidoriExpression::Array>())
 	{
-		const MidoriExpression::Array& array = def.m_value->GetExpression<MidoriExpression::Array>();
 		MidoriResult::TypeResult init_expr_type = std::visit([this](auto&& arg) { return (*this)(arg); }, **def.m_value);
 		if (!init_expr_type.has_value())
 		{

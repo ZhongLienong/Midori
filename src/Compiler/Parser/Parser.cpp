@@ -724,17 +724,17 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 											constexpr bool is_variable = true;
 											return TryParser<std::tuple<std::shared_ptr<MidoriType>, Token>>
 												(
-													[&name, is_variable, this]()
+													[&name, this]()
 													{
 														return Consume(Token::Name::SINGLE_COLON, "Expected ':' before parameter type token.")
 															.and_then
 															(
-																[&name, is_variable, this](Token&&)
+																[&name, this](Token&&)
 																{
 																	return ParseType()
 																		.and_then
 																		(
-																			[&name, is_variable, this](std::shared_ptr<MidoriType>&& param_type)
+																			[&name, this](std::shared_ptr<MidoriType>&& param_type)
 																			{
 																				return DefineName(name, is_variable)
 																					.and_then
@@ -753,7 +753,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 												)
 												.or_else
 												(
-													[&name, is_variable, this](std::string&&)
+													[&name, this](std::string&&)
 													{
 														return DefineName(name, is_variable)
 															.and_then
@@ -964,7 +964,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 								return ParseType()
 									.and_then
 									(
-										[&def_aux_func, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
+										[&def_aux_func](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
 										{
 											return def_aux_func(std::move(type));
 										}
@@ -1088,7 +1088,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 				return DefineName(union_name, is_variable)
 					.and_then
 					(
-						[&union_name_before_mangle, is_variable, this](Token&& union_name) ->MidoriResult::StatementResult
+						[&union_name_before_mangle, this](Token&& union_name) ->MidoriResult::StatementResult
 						{
 							int tag = 0;
 							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme);
@@ -1099,16 +1099,16 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							return Consume(Token::Name::LEFT_BRACE, "Expected '{' before union body.")
 								.and_then
 								(
-									[&union_type_ref, &union_type, &union_name, &tag, is_variable, this](Token&&) mutable ->MidoriResult::StatementResult
+									[&union_type_ref, &union_type, &union_name, &tag, this](Token&&) mutable ->MidoriResult::StatementResult
 									{
 										return ParseDelimitedZeroOrMore<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
 											(
-												[&tag, is_variable, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+												[&tag, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
 												{
 													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.")
 														.and_then
 														(
-															[&tag, is_variable, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+															[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
 															{
 																member_name.m_lexeme = Mangle(member_name.m_lexeme);
 																return DefineName(member_name, is_variable)
@@ -1597,7 +1597,7 @@ MidoriResult::CaseResult Parser::ParseCaseStatement(std::unordered_set<std::stri
 								[&keyword, &binding_names, &member_name, this](std::unique_ptr<MidoriStatement>&& case_stmt)->MidoriResult::CaseResult
 								{
 									EndScope();
-									return Switch::MemberCase{ std::move(keyword), std::move(binding_names), std::move(member_name.m_lexeme), std::move(case_stmt) };
+									return Switch::MemberCase{ .m_keyword = std::move(keyword), .m_binding_names = std::move(binding_names), .m_member_name = std::move(member_name.m_lexeme), .m_stmt = std::move(case_stmt), .m_tag = 0 };
 								}
 							);
 					}
@@ -1692,7 +1692,7 @@ MidoriResult::CaseResult Parser::ParseDefaultStatement(bool& default_visited, To
 						(
 							[&keyword](std::unique_ptr<MidoriStatement>&& case_stmt) -> MidoriResult::CaseResult
 							{
-								return Switch::DefaultCase{ std::move(keyword), std::move(case_stmt) };
+								return Switch::DefaultCase{ .m_keyword = std::move(keyword), .m_stmt = std::move(case_stmt) };
 							}
 						);
 				}
@@ -1814,7 +1814,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 				)
 				.and_then
 				(
-					[&func_type_aux_func, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
+					[&func_type_aux_func](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
 					{
 						return func_type_aux_func(std::move(types));
 					}

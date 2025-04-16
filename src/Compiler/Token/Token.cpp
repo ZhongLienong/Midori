@@ -138,7 +138,9 @@ TokenStream BuildGraph::Stitch()
 
     TokenStream stitched_stream;
     std::vector<std::string> topological_order;
+#ifdef DEBUG
     int processed_count = 0;
+#endif
 
     while (!zero_in_degree.empty()) 
     {
@@ -146,7 +148,9 @@ TokenStream BuildGraph::Stitch()
         zero_in_degree.pop();
 
         topological_order.push_back(current);
+#ifdef DEBUG
         processed_count++;
+#endif
 
         for (const std::string& dependent : dependents[current]) 
         {
