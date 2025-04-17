@@ -8,8 +8,6 @@
 
 class CodeGenerator
 {
-public:
-
 private:
 	struct MainProcedureContext
 	{
@@ -30,12 +28,14 @@ private:
 	std::vector<MidoriText> m_procedure_names{ MidoriText("runtime startup") };
 #endif
 	std::string m_errors;
+	MidoriExecutable::StringPool m_string_pool;
 	std::stack<LoopContext> m_loop_contexts;
 	std::unordered_map<std::string, int> m_global_variables;
 
 	MidoriExecutable m_executable;
 	std::optional<MainProcedureContext> m_main_function_ctx = std::nullopt;
 	size_t m_current_procedure_index = 0;
+	int m_string_pool_index = 0;
 	OpCode m_last_opcode = OpCode::HALT;
 
 public:
@@ -48,6 +48,8 @@ private:
 
 	void PopByte(int line);
 
+	void EmitTextConstant(std::string_view data, int line);
+
 	void EmitByte(OpCode byte, int line);
 
 	void EmitTwoBytes(int byte1, int byte2, int line);
@@ -55,8 +57,6 @@ private:
 	void EmitThreeBytes(int byte1, int byte2, int byte3, int line);
 
 	void EmitNumericConstant(MidoriInteger val, int line, bool is_integer);
-
-	void EmitPointerConstant(MidoriTraceable* value, int line);
 
 	void EmitFractionConstant(MidoriFraction value, int line);
 

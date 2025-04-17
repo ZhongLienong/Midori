@@ -1,8 +1,9 @@
 #pragma once
 
-#include <cinttypes>
-
 #include "Common/Value/Value.h"
+
+#include <cinttypes>
+#include <string>
 
 enum class OpCode : uint8_t
 {
@@ -10,6 +11,7 @@ enum class OpCode : uint8_t
 	LOAD_CONSTANT,
 	LOAD_CONSTANT_LONG,
 	LOAD_CONSTANT_LONG_LONG,
+	LOAD_STRING,
 	INTEGER_CONSTANT,
 	FRACTION_CONSTANT,
 	OP_UNIT,
@@ -180,6 +182,7 @@ public:
 	using StaticData = std::vector<MidoriValue>;
 	using GlobalNames = std::vector<MidoriText>;
 	using Procedures = std::vector<BytecodeStream>;
+	using StringPool = std::vector<std::string>;
 
 #ifdef DEBUG
 	std::vector<MidoriText> m_procedure_names;
@@ -190,6 +193,7 @@ private:
 	StaticData m_constants;
 	GlobalNames m_globals;
 	Procedures m_procedures;
+	StringPool m_string_pool;
 
 public:
 	const MidoriValue& GetConstant(int index) const;
@@ -203,6 +207,8 @@ public:
 	void AddConstantRoot(MidoriTraceable* root);
 
 	void AttachProcedures(Procedures&& bytecode);
+
+	void AddStringPool(StringPool&& string_pool);
 
 #ifdef DEBUG
 	void AttachProcedureNames(std::vector<MidoriText>&& procedure_names);
@@ -221,4 +227,6 @@ public:
 	int GetProcedureCount() const;
 
 	int GetGlobalVariableCount() const;
+
+	const StringPool& GetStringPool() const;
 };

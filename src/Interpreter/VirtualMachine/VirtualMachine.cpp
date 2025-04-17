@@ -1,13 +1,14 @@
+#include "Common/Constant/Constant.h"
+#include "Common/Printer/Printer.h"
+#include "Utility/Disassembler/Disassembler.h"
+#include "VirtualMachine.h"
+
 #include <algorithm>
 #include <cmath>
 #include <execution>
 #include <format>
 #include <numeric>
-
-#include "Common/Constant/Constant.h"
-#include "Common/Printer/Printer.h"
-#include "Utility/Disassembler/Disassembler.h"
-#include "VirtualMachine.h"
+#include <ranges>
 
 using namespace std::string_literals;
 
@@ -25,7 +26,6 @@ VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_execu
 	m_global_vars.resize(static_cast<size_t>(m_executable.GetGlobalVariableCount()));
 	constexpr int runtime_startup_proc_index = 0;
 	m_instruction_pointer = &*m_executable.GetBytecodeStream(runtime_startup_proc_index).cbegin();
-
 }
 
 VirtualMachine::~VirtualMachine()
@@ -367,6 +367,12 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::LOAD_CONSTANT_LONG_LONG:
 				{
 					Push(ReadConstant(instruction));
+					break;
+				}
+				case OpCode::LOAD_STRING:
+				{
+					size_t index = static_cast<size_t>(ReadByte());
+					Push(MidoriTraceable::AllocateTraceable(m_executable.GetStringPool()[index].data(), PointerTag::TEXT));
 					break;
 				}
 				case OpCode::INTEGER_CONSTANT:

@@ -22,6 +22,19 @@ void CodeGenerator::PopByte(int line)
 	m_procedures[m_current_procedure_index].PopByteCode(line);
 }
 
+void CodeGenerator::EmitTextConstant(std::string_view data, int line)
+{
+	if (m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError("Too many text constants.", line));
+		return;
+	}
+
+	m_string_pool.emplace_back(data);
+	EmitByte(OpCode::LOAD_STRING, line);
+	EmitByte(static_cast<OpCode>(m_string_pool_index++), line);
+}
+
 void CodeGenerator::EmitTwoBytes(int byte1, int byte2, int line)
 {
 	EmitByte(static_cast<OpCode>(byte1 & 0xff), line);
@@ -62,34 +75,6 @@ void CodeGenerator::EmitNumericConstant(MidoriInteger val, int line, bool is_int
 	EmitByte(static_cast<OpCode>(byte6), line);
 	EmitByte(static_cast<OpCode>(byte7), line);
 	EmitByte(static_cast<OpCode>(byte8), line);
-}
-
-void CodeGenerator::EmitPointerConstant(MidoriTraceable* value, int line)
-{
-	m_executable.AddConstantRoot(value);
-	MidoriTraceable::s_static_bytes_allocated += value->GetSize();
-
-	int index = m_executable.AddConstant(std::move(value));
-
-	if (index <= MAX_SIZE_OP_CONSTANT) // 1 byte
-	{
-		EmitByte(OpCode::LOAD_CONSTANT, line);
-		EmitByte(static_cast<OpCode>(index), line);
-	}
-	else if (index <= MAX_SIZE_OP_CONSTANT_LONG) // 2 bytes
-	{
-		EmitByte(OpCode::LOAD_CONSTANT_LONG, line);
-		EmitTwoBytes(index, index >> 8, line);
-	}
-	else if (index <= MAX_SIZE_OP_CONSTANT_LONG_LONG) // 3 bytes
-	{
-		EmitByte(OpCode::LOAD_CONSTANT_LONG_LONG, line);
-		EmitThreeBytes(index, index >> 8, index >> 16, line);
-	}
-	else
-	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many constants (max {}).", MAX_SIZE_OP_CONSTANT_LONG_LONG + 1), line));
-	}
 }
 
 void CodeGenerator::EmitFractionConstant(MidoriFraction value, int line)
@@ -197,6 +182,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&
 	m_executable.AttachProcedureNames(std::move(m_procedure_names));
 #endif
 	m_executable.AttachProcedures(std::move(m_procedures));
+	m_executable.AddStringPool(std::move(m_string_pool));
 
 	return m_executable;
 }
@@ -410,7 +396,7 @@ void CodeGenerator::operator()(Foreign& foreign)
 		m_global_variables[foreign.m_function_name.m_lexeme] = index.value();
 	}
 
-	EmitPointerConstant(MidoriTraceable::AllocateTraceable(foreign.m_foreign_name.c_str(), PointerTag::FUNCTION), line);
+	EmitTextConstant(foreign.m_foreign_name, line);
 
 	if (is_global)
 	{
@@ -795,27 +781,28 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 
 void CodeGenerator::operator()(MidoriExpression::Bind& bind)
 {
+	int line = bind.m_name.m_line;
 	std::visit([this](auto&& arg){ (*this)(arg); }, **bind.m_value);
 
-	std::visit([&bind, this](auto&& arg)
+	std::visit([&bind, line, this](auto&& arg)
 		{
 			using T = std::decay_t<decltype(arg)>;
 
 			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
 			{
-				EmitVariable(arg.m_index, OpCode::SET_LOCAL, bind.m_name.m_line);
+				EmitVariable(arg.m_index, OpCode::SET_LOCAL, line);
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
 			{
-				EmitVariable(m_global_variables[bind.m_name.m_lexeme], OpCode::SET_GLOBAL, bind.m_name.m_line);
+				EmitVariable(m_global_variables[bind.m_name.m_lexeme], OpCode::SET_GLOBAL, line);
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
 			{
-				EmitVariable(arg.m_index, OpCode::SET_CELL, bind.m_name.m_line);
+				EmitVariable(arg.m_index, OpCode::SET_CELL, line);
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorError("Bad Bind MidoriExpression.", bind.m_name.m_line));
+				AddError(MidoriError::GenerateCodeGeneratorError("Bad Bind MidoriExpression.", line));
 				return;
 			}
 		}, bind.m_name_ctx);
@@ -823,7 +810,7 @@ void CodeGenerator::operator()(MidoriExpression::Bind& bind)
 
 void CodeGenerator::operator()(MidoriExpression::TextLiteral& text)
 {
-	EmitPointerConstant(MidoriTraceable::AllocateTraceable(text.m_token.m_lexeme.c_str(), PointerTag::TEXT), text.m_token.m_line);
+	EmitTextConstant(text.m_token.m_lexeme, text.m_token.m_line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::BoolLiteral& bool_expr)

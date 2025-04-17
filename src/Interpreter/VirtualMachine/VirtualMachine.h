@@ -32,6 +32,7 @@ private:
     MidoriExecutable m_executable;
     GlobalVariables m_global_vars;
     std::vector<MidoriCellValue*> m_cells_to_promote;
+    std::vector<std::string> m_string_pool;
     GarbageCollector m_garbage_collector;
 
     MidoriArray* m_curr_environment = nullptr;

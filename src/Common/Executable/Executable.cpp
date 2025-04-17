@@ -151,6 +151,11 @@ void MidoriExecutable::AttachProcedures(Procedures&& bytecode)
 	m_procedures = std::move(bytecode);
 }
 
+void MidoriExecutable::AddStringPool(StringPool&& string_pool)
+{
+	m_string_pool = std::move(string_pool);
+}
+
 #ifdef DEBUG
 void MidoriExecutable::AttachProcedureNames(std::vector<MidoriText>&& procedure_names)
 {
@@ -191,4 +196,9 @@ int MidoriExecutable::GetProcedureCount() const
 int MidoriExecutable::GetGlobalVariableCount() const
 {
 	return static_cast<int>(m_globals.size());
+}
+
+const MidoriExecutable::StringPool& MidoriExecutable::GetStringPool() const
+{
+	return m_string_pool;
 }
