@@ -11,7 +11,7 @@ union U1
 {
 	A(Int),
 	B,
-	C(Frac, Int, Text),
+	C(Float, Int, Text),
 	D(U1),
 	E(S1),
 };
@@ -22,8 +22,8 @@ def main = fn() : Unit
 
 	switch(complex)
 	{
-		case U1::C(frac, num, str):
-			IO::PrintLine("Matching complex C with values: " ++ (frac as Text) ++ ", " ++ (num as Text) ++ ", " ++ str);
+		case U1::C(float, num, str):
+			IO::PrintLine("Matching complex C with values: " ++ (float as Text) ++ ", " ++ (num as Text) ++ ", " ++ str);
 		default:
 			IO::PrintLine("default case");
 	}

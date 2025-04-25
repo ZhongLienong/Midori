@@ -64,9 +64,9 @@ void TypeChecker::UpdateConditionOperandType(MidoriExpression::ConditionOperandT
 		{
 			op_type = MidoriExpression::ConditionOperandType::INTEGER;
 		}
-		else if (left_type->IsType<MidoriType::FractionType>())
+		else if (left_type->IsType<MidoriType::FloatType>())
 		{
-			op_type = MidoriExpression::ConditionOperandType::FRACTION;
+			op_type = MidoriExpression::ConditionOperandType::FLOAT;
 		}
 		else
 		{
@@ -530,7 +530,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 							{
 								if (!self_type->IsNumericType())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FractionType>()));
+									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 								}
 
 								self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
@@ -539,7 +539,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 							{
 								if (!self_type->IsNumericType())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FractionType>()));
+									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 								}
 							}
 							else if (std::ranges::contains(m_binary_bitwise_operators.cbegin(), m_binary_bitwise_operators.cend(), binary.m_op.m_token_name))
@@ -553,7 +553,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 							{
 								if (!self_type->IsNumericType() && !self_type->IsType<MidoriType::TextType>())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FractionType>(), MidoriType::MakeLiteralType<MidoriType::TextType>()));
+									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Binary expression type error", binary.m_op, self_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>(), MidoriType::MakeLiteralType<MidoriType::TextType>()));
 								}
 
 								self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
@@ -614,7 +614,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				{
 					if (!actual_type->IsNumericType())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Unary prefix expression type error", unary.m_op, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FractionType>()));
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerError("Unary prefix expression type error", unary.m_op, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::BANG)
@@ -814,10 +814,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoolLiteral& 
 	return	bool_expr.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::FractionLiteral& fraction)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::FloatLiteral& float_literal)
 {
-	fraction.m_type_data = MidoriType::MakeLiteralType<MidoriType::FractionType>();
-	return fraction.m_type_data;
+	float_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
+	return float_literal.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IntegerLiteral& integer)

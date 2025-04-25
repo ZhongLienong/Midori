@@ -5,7 +5,7 @@ using namespace std::string_literals;
 const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 {
 	// types
-	{"Frac"s, Token::Name::FRACTION},
+	{"Float"s, Token::Name::FLOAT},
 	{"Int"s, Token::Name::INTEGER},
 	{"Text"s, Token::Name::TEXT},
 	{"Bool"s, Token::Name::BOOL},
@@ -206,17 +206,17 @@ MidoriResult::TokenResult Lexer::MatchString()
 
 Token Lexer::MatchNumber()
 {
-	bool is_fraction = false;
+	bool is_float = false;
 
 	while (IsDigit(LookAhead(0)))
 	{
 		Advance();
 	}
 
-	// Look for a fractional part.
+	// Look for a decimal part.
 	if (LookAhead(0) == '.' && IsDigit(LookAhead(1)))
 	{
-		is_fraction = true;
+		is_float = true;
 
 		Advance();
 
@@ -226,7 +226,7 @@ Token Lexer::MatchNumber()
 		}
 	}
 
-	return MakeToken(is_fraction ? Token::Name::FRACTION_LITERAL : Token::Name::INTEGER_LITERAL);
+	return MakeToken(is_float ? Token::Name::FLOAT_LITERAL : Token::Name::INTEGER_LITERAL);
 }
 
 Token Lexer::MatchIdentifierOrReserved()

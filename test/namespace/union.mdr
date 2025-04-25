@@ -14,7 +14,7 @@ namespace NSP
 	{
 		A(Int),
 		B,
-		C(Frac, Int, Text),
+		C(Float, Int, Text),
 		D(U1),
 		E(S1),
 	};

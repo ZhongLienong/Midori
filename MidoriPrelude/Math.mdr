@@ -1,4 +1,4 @@
 namespace Math
 {
-	foreign "SquareRoot" SquareRoot : (Frac) -> Frac;
+	foreign "SquareRoot" SquareRoot : (Float) -> Float;
 }

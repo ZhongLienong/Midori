@@ -90,7 +90,7 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::BoolLiteral& bool_expr);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::FractionLiteral& fraction);
+	MidoriResult::TypeResult operator()(MidoriExpression::FloatLiteral& float_literal);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::IntegerLiteral& integer);
 

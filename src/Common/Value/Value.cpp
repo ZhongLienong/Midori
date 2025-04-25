@@ -52,12 +52,12 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 	return result;
 }
 
-MidoriValue::MidoriValue(MidoriFraction frac) noexcept
+MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 {
 #ifdef DEBUG
-	m_tag = FRAC;
+	m_tag = FLOAT;
 #endif
-	std::memcpy(m_data, &frac, sizeof(void*));
+	std::memcpy(m_data, &midori_float, sizeof(void*));
 }
 
 MidoriValue::MidoriValue(MidoriInteger integer) noexcept
@@ -84,9 +84,9 @@ MidoriValue::MidoriValue(MidoriTraceable* tagged_pointer) noexcept
 	std::memcpy(m_data, &tagged_pointer, sizeof(void*));
 }
 
-MidoriFraction MidoriValue::GetFraction() const noexcept
+MidoriFloat MidoriValue::GetFloat() const noexcept
 {
-	return std::bit_cast<MidoriFraction>(m_data);
+	return std::bit_cast<MidoriFloat>(m_data);
 }
 
 MidoriInteger MidoriValue::GetInteger() const noexcept
@@ -114,8 +114,8 @@ MidoriText MidoriValue::ToText() const
 {
 	switch (m_tag)
 	{
-	case MidoriValue::FRAC:
-		return MidoriText::FromFraction(GetFraction());
+	case MidoriValue::FLOAT:
+		return MidoriText::FromFloat(GetFloat());
 	case MidoriValue::INT:
 		return MidoriText::FromInteger(GetInteger());
 	case MidoriValue::BOOL:
@@ -228,8 +228,8 @@ MidoriText MidoriTraceable::ToText()
 
 				switch (arg.m_tag)
 				{
-				case MidoriBox::FRAC:
-					return result.Append(MidoriText::FromFraction(arg.m_inner_value.GetFraction())).Append(")");
+				case MidoriBox::FLOAT:
+					return result.Append(MidoriText::FromFloat(arg.m_inner_value.GetFloat())).Append(")");
 				case MidoriBox::INT:
 					return result.Append(MidoriText::FromInteger(arg.m_inner_value.GetInteger())).Append(")");
 				case MidoriBox::BOOL:
@@ -760,7 +760,7 @@ MidoriInteger MidoriText::ToInteger() const
 	return std::atoll(m_data);
 }
 
-MidoriFraction MidoriText::ToFraction() const
+MidoriFloat MidoriText::ToFloat() const
 {
 	return std::atof(m_data);
 }
@@ -773,7 +773,7 @@ MidoriText MidoriText::FromInteger(MidoriInteger value)
 	return MidoriText(buffer);
 }
 
-MidoriText MidoriText::FromFraction(MidoriFraction value)
+MidoriText MidoriText::FromFloat(MidoriFloat value)
 {
 	// 32 characters is the maximum length of a 64-bit floating point number
 	char buffer[32];

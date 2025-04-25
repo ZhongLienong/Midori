@@ -45,7 +45,7 @@ public:
 	enum class ConditionOperandType
 	{
 		INTEGER,
-		FRACTION,
+		FLOAT,
 		OTHER
 	};
 
@@ -94,11 +94,11 @@ public:
 		BoolLiteral(Token&& token);
 	};
 
-	struct FractionLiteral : BaseExpression
+	struct FloatLiteral : BaseExpression
 	{
 		Token m_token;
 
-		FractionLiteral(Token&& token);
+		FloatLiteral(Token&& token);
 	};
 
 	struct IntegerLiteral : BaseExpression
@@ -252,7 +252,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, TextLiteral, BoolLiteral, FractionLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, Ternary, Get, Set, Array, ArrayGet, ArraySet>;
+	using ExpressionUnion = std::variant<As, Binary, Group, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, Ternary, Get, Set, Array, ArrayGet, ArraySet>;
 	ExpressionUnion m_expr_data;
 
 public:

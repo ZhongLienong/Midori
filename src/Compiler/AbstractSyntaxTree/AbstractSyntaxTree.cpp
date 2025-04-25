@@ -29,7 +29,7 @@ MidoriExpression::BoolLiteral::BoolLiteral(Token&& token)
 {
 }
 
-MidoriExpression::FractionLiteral::FractionLiteral(Token&& token)
+MidoriExpression::FloatLiteral::FloatLiteral(Token&& token)
 	: m_token(std::move(token))
 {
 }

@@ -52,7 +52,7 @@ struct Token
 		// Literal
 		IDENTIFIER_LITERAL,
 		TEXT_LITERAL,
-		FRACTION_LITERAL,
+		FLOAT_LITERAL,
 		INTEGER_LITERAL,
 
 		// reserved
@@ -79,7 +79,7 @@ struct Token
 		NAMESPACE,
 
 		// types
-		FRACTION,
+		FLOAT,
 		INTEGER,
 		TEXT,
 		BOOL,

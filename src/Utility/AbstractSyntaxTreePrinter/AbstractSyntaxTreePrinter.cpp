@@ -335,10 +335,10 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::BoolLiteral& bo
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::FractionLiteral& fraction, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::FloatLiteral& float_literal, int depth) const
 {
-	PrintWithIndentation(depth, "Fraction {");
-	PrintWithIndentation(depth + 1, "Value: " + fraction.m_token.m_lexeme);
+	PrintWithIndentation(depth, "Float {");
+	PrintWithIndentation(depth + 1, "Value: " + float_literal.m_token.m_lexeme);
 	PrintWithIndentation(depth, "}");
 }
 

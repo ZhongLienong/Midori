@@ -3,16 +3,16 @@
 
 struct Complex 
 {
-    Real : Frac,
-    Imag : Frac,
+    Real : Float,
+    Imag : Float,
 };
 
-def abs = fn(x : Frac) : Frac 
+def abs = fn(x : Float) : Float 
 {
     return x < 0.0 ? -x : x;
 };
 
-def complex_abs = fn(x : Complex) : Frac 
+def complex_abs = fn(x : Complex) : Float 
 {
     return Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
 };
@@ -57,7 +57,7 @@ def mandelbrot_ppm = fn(width : Int, height : Int, limit : Int) : Text
     {
         loop (def x = 0; x < width; x = x + 1) 
         {
-            def c = new Complex(-2.05 + (x as Frac) * 2.6 / (width as Frac), -1.2 + (y as Frac) * 2.4 / (height as Frac));
+            def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
             def z = new Complex(0.0, 0.0);
             def iterations = 0;
             loop (iterations < limit) 
@@ -92,8 +92,8 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text
         loop (def x = 0; x < width; x = x + 1)
         {
             // Calculate complex number based on adjusted ranges
-            def real = real_min + (x as Frac) / (width as Frac) * (real_max - real_min);
-            def imag = imag_min + (y as Frac) / (height as Frac) * (imag_max - imag_min);
+            def real = real_min + (x as Float) / (width as Float) * (real_max - real_min);
+            def imag = imag_min + (y as Float) / (height as Float) * (imag_max - imag_min);
             def z = new Complex(real, imag);
 
 

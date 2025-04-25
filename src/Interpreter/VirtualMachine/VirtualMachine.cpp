@@ -110,10 +110,10 @@ MidoriInteger VirtualMachine::ReadIntegerConstant() noexcept
 	return value;
 }
 
-MidoriFraction VirtualMachine::ReadFractionConstant() noexcept
+MidoriFloat VirtualMachine::ReadFloatConstant() noexcept
 {
-	MidoriFraction value = *reinterpret_cast<const MidoriFraction*>(m_instruction_pointer);
-	m_instruction_pointer += sizeof(MidoriFraction);
+	MidoriFloat value = *reinterpret_cast<const MidoriFloat*>(m_instruction_pointer);
+	m_instruction_pointer += sizeof(MidoriFloat);
 	return value;
 }
 
@@ -380,9 +380,9 @@ int VirtualMachine::Execute() noexcept
 					Push(ReadIntegerConstant());
 					break;
 				}
-				case OpCode::FRACTION_CONSTANT:
+				case OpCode::FLOAT_CONSTANT:
 				{
-					Push(ReadFractionConstant());
+					Push(ReadFloatConstant());
 					break;
 				}
 				case OpCode::OP_UNIT:
@@ -533,19 +533,19 @@ int VirtualMachine::Execute() noexcept
 
 					break;
 				}
-				case OpCode::INT_TO_FRAC:
+				case OpCode::INT_TO_FLOAT:
 				{
-					Peek() = static_cast<MidoriFraction>(Peek().GetInteger());
+					Peek() = static_cast<MidoriFloat>(Peek().GetInteger());
 					break;
 				}
-				case OpCode::TEXT_TO_FRAC:
+				case OpCode::TEXT_TO_FLOAT:
 				{
-					Peek() = static_cast<MidoriFraction>(Peek().GetPointer()->GetTraceable<MidoriText>().ToFraction());
+					Peek() = static_cast<MidoriFloat>(Peek().GetPointer()->GetTraceable<MidoriText>().ToFloat());
 					break;
 				}
-				case OpCode::FRAC_TO_INT:
+				case OpCode::FLOAT_TO_INT:
 				{
-					Peek() = static_cast<MidoriInteger>(Peek().GetFraction());
+					Peek() = static_cast<MidoriInteger>(Peek().GetFloat());
 					break;
 				}
 				case OpCode::TEXT_TO_INT:
@@ -553,9 +553,9 @@ int VirtualMachine::Execute() noexcept
 					Peek() = static_cast<MidoriInteger>(Peek().GetPointer()->GetTraceable<MidoriText>().ToInteger());
 					break;
 				}
-				case OpCode::FRAC_TO_TEXT:
+				case OpCode::FLOAT_TO_TEXT:
 				{
-					Peek() = MidoriTraceable::AllocateTraceable(MidoriText::FromFraction(Peek().GetFraction()), PointerTag::TEXT);
+					Peek() = MidoriTraceable::AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()), PointerTag::TEXT);
 					CollectGarbage();
 					break;
 				}
@@ -617,48 +617,48 @@ int VirtualMachine::Execute() noexcept
 
 					break;
 				}
-				case OpCode::ADD_FRACTION:
+				case OpCode::ADD_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() + right.GetFraction();
+					left = left.GetFloat() + right.GetFloat();
 
 					break;
 				}
-				case OpCode::SUBTRACT_FRACTION:
+				case OpCode::SUBTRACT_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() - right.GetFraction();
+					left = left.GetFloat() - right.GetFloat();
 
 					break;
 				}
-				case OpCode::MULTIPLY_FRACTION:
+				case OpCode::MULTIPLY_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() * right.GetFraction();
+					left = left.GetFloat() * right.GetFloat();
 
 					break;
 				}
-				case OpCode::DIVIDE_FRACTION:
+				case OpCode::DIVIDE_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() / right.GetFraction();
+					left = left.GetFloat() / right.GetFloat();
 
 					break;
 				}
-				case OpCode::MODULO_FRACTION:
+				case OpCode::MODULO_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = std::fmod(left.GetFraction(), right.GetFraction());
+					left = std::fmod(left.GetFloat(), right.GetFloat());
 
 					break;
 				}
@@ -734,57 +734,57 @@ int VirtualMachine::Execute() noexcept
 					CollectGarbage();
 					break;
 				}
-				case OpCode::EQUAL_FRACTION:
+				case OpCode::EQUAL_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() == right.GetFraction();
+					left = left.GetFloat() == right.GetFloat();
 
 					break;
 				}
-				case OpCode::NOT_EQUAL_FRACTION:
+				case OpCode::NOT_EQUAL_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() != right.GetFraction();
+					left = left.GetFloat() != right.GetFloat();
 
 					break;
 				}
-				case OpCode::GREATER_FRACTION:
+				case OpCode::GREATER_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() > right.GetFraction();
+					left = left.GetFloat() > right.GetFloat();
 
 					break;
 				}
-				case OpCode::GREATER_EQUAL_FRACTION:
+				case OpCode::GREATER_EQUAL_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() >= right.GetFraction();
+					left = left.GetFloat() >= right.GetFloat();
 
 					break;
 				}
-				case OpCode::LESS_FRACTION:
+				case OpCode::LESS_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() < right.GetFraction();
+					left = left.GetFloat() < right.GetFloat();
 
 					break;
 				}
-				case OpCode::LESS_EQUAL_FRACTION:
+				case OpCode::LESS_EQUAL_FLOAT:
 				{
 					MidoriValue right = Pop();
 					MidoriValue& left = Peek();
 
-					left = left.GetFraction() <= right.GetFraction();
+					left = left.GetFloat() <= right.GetFloat();
 
 					break;
 				}
@@ -857,10 +857,10 @@ int VirtualMachine::Execute() noexcept
 					value = !value.GetBool();
 					break;
 				}
-				case OpCode::NEGATE_FRACTION:
+				case OpCode::NEGATE_FLOAT:
 				{
 					MidoriValue& value = Peek();
-					value = -value.GetFraction();
+					value = -value.GetFloat();
 					break;
 				}
 				case OpCode::NEGATE_INTEGER:
@@ -975,11 +975,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_LESS:
+				case OpCode::IF_FLOAT_LESS:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left < right))
 					{
@@ -987,11 +987,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_LESS_EQUAL:
+				case OpCode::IF_FLOAT_LESS_EQUAL:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left <= right))
 					{
@@ -999,11 +999,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_GREATER:
+				case OpCode::IF_FLOAT_GREATER:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left > right))
 					{
@@ -1011,11 +1011,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_GREATER_EQUAL:
+				case OpCode::IF_FLOAT_GREATER_EQUAL:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left >= right))
 					{
@@ -1023,11 +1023,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_EQUAL:
+				case OpCode::IF_FLOAT_EQUAL:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left == right))
 					{
@@ -1035,11 +1035,11 @@ int VirtualMachine::Execute() noexcept
 					}
 					break;
 				}
-				case OpCode::IF_FRACTION_NOT_EQUAL:
+				case OpCode::IF_FLOAT_NOT_EQUAL:
 				{
 					int offset = ReadShort();
-					MidoriFraction right = Pop().GetFraction();
-					MidoriFraction left = Pop().GetFraction();
+					MidoriFloat right = Pop().GetFloat();
+					MidoriFloat left = Pop().GetFloat();
 
 					if (!(left != right))
 					{
@@ -1319,10 +1319,10 @@ int VirtualMachine::Execute() noexcept
 					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::INT }, PointerTag::BOX));
 					break;
 				}
-				case OpCode::BOX_FRAC:
+				case OpCode::BOX_FLOAT:
 				{
-					MidoriValue value = ReadFractionConstant();
-					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::FRAC }, PointerTag::BOX));
+					MidoriValue value = ReadFloatConstant();
+					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::FLOAT }, PointerTag::BOX));
 					break;
 				}
 				case OpCode::BOX_BOOL:
@@ -1350,8 +1350,8 @@ int VirtualMachine::Execute() noexcept
 						case MidoriBox::INT:
 							Push(box_value.m_inner_value.GetInteger());
 							break;
-						case MidoriBox::FRAC:
-							Push(box_value.m_inner_value.GetFraction());
+						case MidoriBox::FLOAT:
+							Push(box_value.m_inner_value.GetFloat());
 							break;
 						case MidoriBox::BOOL:
 							Push(box_value.m_inner_value.GetBool());

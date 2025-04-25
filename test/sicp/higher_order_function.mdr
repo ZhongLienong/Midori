@@ -3,31 +3,31 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def cube = fn(x : Frac) : Frac
+def cube = fn(x : Float) : Float
 {
     return x * x * x;
 };
 
-def accumulate = fn(combiner : (Frac, Frac) -> Frac, null_value : Frac, term : (Frac) -> Frac, a : Frac, next : (Frac) -> Frac, b : Frac) : Frac
+def accumulate = fn(combiner : (Float, Float) -> Float, null_value : Float, term : (Float) -> Float, a : Float, next : (Float) -> Float, b : Float) : Float
 {
     return a > b
         ? null_value
         : combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b));
 };
 
-def sum = fn(term : (Frac) -> Frac, a : Frac, 
-    next : (Frac) -> Frac, b : Frac) : Frac
+def sum = fn(term : (Float) -> Float, a : Float, 
+    next : (Float) -> Float, b : Float) : Float
 {
-    return accumulate(fn(a : Frac, b : Frac) : Frac 
+    return accumulate(fn(a : Float, b : Float) : Float 
     {
         return a + b;
     },
     0.0, term, a, next, b);
 };
 
-def integral = fn(f : (Frac) -> Frac, a : Frac, b : Frac, dx : Frac) : Frac
+def integral = fn(f : (Float) -> Float, a : Float, b : Float, dx : Float) : Float
 {
-    def add_dx = fn(x : Frac) : Frac
+    def add_dx = fn(x : Float) : Float
     {
         return x + dx;
     };
@@ -35,27 +35,27 @@ def integral = fn(f : (Frac) -> Frac, a : Frac, b : Frac, dx : Frac) : Frac
     return sum(f, a + dx / 2.0, add_dx, b) * dx;
 };
 
-def simpson = fn(f : (Frac) -> Frac, a : Frac, b : Frac, n : Int) : Frac
+def simpson = fn(f : (Float) -> Float, a : Float, b : Float, n : Int) : Float
 {
-    def inc = fn(k : Frac) : Frac
+    def inc = fn(k : Float) : Float
     {
         return k + 1.0;
     }; 
-    def aux_fun = fn(h : Frac) : Frac
+    def aux_fun = fn(h : Float) : Float
     {
-        def y = fn(k : Frac) : Frac
+        def y = fn(k : Float) : Float
         {
-            return k == 0.0 || k == (n as Frac)
+            return k == 0.0 || k == (n as Float)
                 ? f(a + k * h)
                 : k % 2.0 == 0.0 
                 ? 2.0 * f(a + k * h)
                 : 4.0 * f(a + k * h);
         };
 
-        return (h / 3.0) * sum(y, 0.0, inc, n as Frac);
+        return (h / 3.0) * sum(y, 0.0, inc, n as Float);
     };
 
-    return aux_fun((b - a) / (n as Frac));
+    return aux_fun((b - a) / (n as Float));
 };
 
 def main = fn() : Unit

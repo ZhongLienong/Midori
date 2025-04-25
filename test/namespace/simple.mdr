@@ -10,7 +10,7 @@ namespace TestNamespace
 	{
 		def y = 1.1;
 		def ttt = TestNamespace::t;
-		def foo = fn(x: Frac) : Frac
+		def foo = fn(x: Float) : Float
 		{
 			def oo = InnerTestNamespace::y;
 			return oo;

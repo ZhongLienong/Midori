@@ -10,7 +10,7 @@ This project is still in early development. The language is not yet *that* usabl
 ## Examples
 ### Pow(x, n)
 ```
-fixed Pow = fn(fixed x : Frac, fixed n : Int) : Frac
+fixed Pow = fn(fixed x : Float, fixed n : Int) : Float
 {
 	if (n < 0)
 	{
@@ -106,14 +106,14 @@ fixed main = fn() : Int
 struct S1
 {
 	k : Int,
-	l : Frac,
+	l : Float,
 };
 
 union U1
 {
 	A(Int),
 	B,
-	C(Frac, Int, Text),
+	C(Float, Int, Text),
 	D(U1),
 	E(S1),
 };
@@ -124,7 +124,7 @@ fixed main = fn() : Unit
 
 	switch(complex)
 	{
-		case U1::C(var frac, var num, var str):
+		case U1::C(var Float, var num, var str):
 			IO::PrintLine("Matching complex C with values: " ++ (frac as Text) ++ ", " ++ (num as Text) ++ ", " ++ str);
 		default:
 			IO::PrintLine("default case");

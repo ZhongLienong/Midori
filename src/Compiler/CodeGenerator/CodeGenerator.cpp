@@ -65,7 +65,7 @@ void CodeGenerator::EmitNumericConstant(MidoriInteger val, int line, bool is_int
 	}
 	else
 	{
-		EmitByte(OpCode::FRACTION_CONSTANT, line);
+		EmitByte(OpCode::FLOAT_CONSTANT, line);
 	}
 	EmitByte(static_cast<OpCode>(byte1), line);
 	EmitByte(static_cast<OpCode>(byte2), line);
@@ -77,7 +77,7 @@ void CodeGenerator::EmitNumericConstant(MidoriInteger val, int line, bool is_int
 	EmitByte(static_cast<OpCode>(byte8), line);
 }
 
-void CodeGenerator::EmitFractionConstant(MidoriFraction value, int line)
+void CodeGenerator::EmitFloatConstant(MidoriFloat value, int line)
 {
 	MidoriInteger reinterpreted_int = *reinterpret_cast<MidoriInteger*>(&value);
 	EmitNumericConstant(reinterpreted_int, line, false);
@@ -257,7 +257,7 @@ void CodeGenerator::operator()(If& if_stmt)
 	int line = if_stmt.m_if_keyword.m_line;
 	std::visit([this](auto&& arg){ (*this)(arg); }, **if_stmt.m_condition);
 
-	if (if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::FRACTION)
+	if (if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
 	{
 		if (if_stmt.m_else_branch.has_value())
 		{
@@ -391,7 +391,7 @@ void CodeGenerator::operator()(Foreign& foreign)
 	int line = foreign.m_function_name.m_line;
 
 	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
-	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FractionType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>()))
+	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>()))
 	{
 		AddError(MidoriError::GenerateCodeGeneratorError("Unsupported return type for foreign function.", line));
 		return;
@@ -509,30 +509,30 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	{
 		// Do nothing
 	}
-	else if (target_type->IsType<MidoriType::FractionType>())
+	else if (target_type->IsType<MidoriType::FloatType>())
 	{
 		if (from_type->IsType<MidoriType::IntegerType>())
 		{
-			EmitByte(OpCode::INT_TO_FRAC, line);
+			EmitByte(OpCode::INT_TO_FLOAT, line);
 		}
 		else if (from_type->IsType<MidoriType::TextType>())
 		{
-			EmitByte(OpCode::TEXT_TO_FRAC, line);
+			EmitByte(OpCode::TEXT_TO_FLOAT, line);
 		}
-		else if (from_type->IsType<MidoriType::FractionType>())
+		else if (from_type->IsType<MidoriType::FloatType>())
 		{
 			// Do nothing
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to frac' instruction.", line));
+			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to float' instruction.", line));
 		}
 	}
 	else if (target_type->IsType<MidoriType::IntegerType>())
 	{
-		if (from_type->IsType<MidoriType::FractionType>())
+		if (from_type->IsType<MidoriType::FloatType>())
 		{
-			EmitByte(OpCode::FRAC_TO_INT, line);
+			EmitByte(OpCode::FLOAT_TO_INT, line);
 		}
 		else if (from_type->IsType<MidoriType::TextType>())
 		{
@@ -553,9 +553,9 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	}
 	else if (target_type->IsType<MidoriType::TextType>())
 	{
-		if (from_type->IsType<MidoriType::FractionType>())
+		if (from_type->IsType<MidoriType::FloatType>())
 		{
-			EmitByte(OpCode::FRAC_TO_TEXT, line);
+			EmitByte(OpCode::FLOAT_TO_TEXT, line);
 		}
 		else if (from_type->IsType<MidoriType::IntegerType>())
 		{
@@ -587,26 +587,26 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 	switch (binary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_PLUS:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::ADD_FRACTION, line) : EmitByte(OpCode::ADD_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line) : EmitByte(OpCode::ADD_INTEGER, line);
 		break;
 	case Token::Name::DOUBLE_PLUS:
 		operand_type->IsType<MidoriType::TextType>() ? EmitByte(OpCode::CONCAT_TEXT, line) : EmitByte(OpCode::CONCAT_ARRAY, line);
 		break;
 	case Token::Name::SINGLE_MINUS:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::SUBTRACT_FRACTION, line) : EmitByte(OpCode::SUBTRACT_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line) : EmitByte(OpCode::SUBTRACT_INTEGER, line);
 		break;
 	case Token::Name::STAR:
-		operand_type->IsType<MidoriType::FractionType>()
-			? EmitByte(OpCode::MULTIPLY_FRACTION, line) 
+		operand_type->IsType<MidoriType::FloatType>()
+			? EmitByte(OpCode::MULTIPLY_FLOAT, line) 
 			: operand_type->IsType<MidoriType::IntegerType>()
 			? EmitByte(OpCode::MULTIPLY_INTEGER, line)
 			: EmitByte(OpCode::DUP_ARRAY, line);
 		break;
 	case Token::Name::SLASH:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::DIVIDE_FRACTION, line) : EmitByte(OpCode::DIVIDE_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line) : EmitByte(OpCode::DIVIDE_INTEGER, line);
 		break;
 	case Token::Name::PERCENT:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::MODULO_FRACTION, line) : EmitByte(OpCode::MODULO_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line) : EmitByte(OpCode::MODULO_INTEGER, line);
 		break;
 	case Token::Name::LEFT_SHIFT:
 		EmitByte(OpCode::LEFT_SHIFT, line);
@@ -615,23 +615,23 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		EmitByte(OpCode::RIGHT_SHIFT, line);
 		break;
 	case Token::Name::LEFT_ANGLE:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::LESS_FRACTION, line) : EmitByte(OpCode::LESS_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line) : EmitByte(OpCode::LESS_INTEGER, line);
 		break;
 	case Token::Name::LESS_EQUAL:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::LESS_EQUAL_FRACTION, line) : EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line) : EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
 		break;
 	case Token::Name::RIGHT_ANGLE:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::GREATER_FRACTION, line) : EmitByte(OpCode::GREATER_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line) : EmitByte(OpCode::GREATER_INTEGER, line);
 		break;
 	case Token::Name::GREATER_EQUAL:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::GREATER_EQUAL_FRACTION, line) : EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line) : EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
 		break;
 	case Token::Name::BANG_EQUAL:
-		operand_type->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::NOT_EQUAL_FRACTION, line) : EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line) : EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
 		break;
 	case Token::Name::DOUBLE_EQUAL:
-		operand_type->IsType<MidoriType::FractionType>()
-			? EmitByte(OpCode::EQUAL_FRACTION, line)
+		operand_type->IsType<MidoriType::FloatType>()
+			? EmitByte(OpCode::EQUAL_FLOAT, line)
 			: operand_type->IsType<MidoriType::IntegerType>()
 			? EmitByte(OpCode::EQUAL_INTEGER, line)
 			: EmitByte(OpCode::EQUAL_TEXT, line);
@@ -685,7 +685,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	switch (unary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_MINUS:
-		unary.m_type_data->IsType<MidoriType::FractionType>() ? EmitByte(OpCode::NEGATE_FRACTION, unary.m_op.m_line) : EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
+		unary.m_type_data->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line) : EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
 		break;
 	case Token::Name::SINGLE_PLUS:
 		break;
@@ -830,10 +830,10 @@ void CodeGenerator::operator()(MidoriExpression::BoolLiteral& bool_expr)
 	EmitByte(bool_expr.m_token.m_lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::FractionLiteral& fraction)
+void CodeGenerator::operator()(MidoriExpression::FloatLiteral& float_literal)
 {
-	int line = fraction.m_token.m_line;
-	EmitFractionConstant(std::stod(fraction.m_token.m_lexeme), fraction.m_token.m_line);
+	int line = float_literal.m_token.m_line;
+	EmitFloatConstant(std::stod(float_literal.m_token.m_lexeme), float_literal.m_token.m_line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
@@ -1010,7 +1010,7 @@ void CodeGenerator::operator()(MidoriExpression::Ternary& ternary)
 	int line = ternary.m_colon.m_line;
 	std::visit([this](auto&& arg){ (*this)(arg); }, **ternary.m_condition);
 
-	if (ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::FRACTION)
+	if (ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
 	{
 		EmitNumericConditionalJump<std::unique_ptr<MidoriExpression>&>(ternary.m_condition_operand_type, ternary.m_true_branch, ternary.m_else_branch, line);
 	}

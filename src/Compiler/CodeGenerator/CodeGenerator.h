@@ -58,7 +58,7 @@ private:
 
 	void EmitNumericConstant(MidoriInteger val, int line, bool is_integer);
 
-	void EmitFractionConstant(MidoriFraction value, int line);
+	void EmitFloatConstant(MidoriFloat value, int line);
 
 	void EmitIntegerConstant(MidoriInteger value, int line);
 
@@ -126,7 +126,7 @@ private:
 
 	void operator()(MidoriExpression::BoolLiteral& bool_expr);
 
-	void operator()(MidoriExpression::FractionLiteral& fraction);
+	void operator()(MidoriExpression::FloatLiteral& float_literal);
 
 	void operator()(MidoriExpression::IntegerLiteral& integer);
 
@@ -206,26 +206,26 @@ private:
 			PopByte(line);
 			switch (m_last_opcode)
 			{
-			case OpCode::LESS_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_LESS, line);
+			case OpCode::LESS_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_LESS, line);
 				break;
-			case OpCode::LESS_EQUAL_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_LESS_EQUAL, line);
+			case OpCode::LESS_EQUAL_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_LESS_EQUAL, line);
 				break;
-			case OpCode::GREATER_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_GREATER, line);
+			case OpCode::GREATER_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_GREATER, line);
 				break;
-			case OpCode::GREATER_EQUAL_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_GREATER_EQUAL, line);
+			case OpCode::GREATER_EQUAL_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_GREATER_EQUAL, line);
 				break;
-			case OpCode::EQUAL_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_EQUAL, line);
+			case OpCode::EQUAL_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_EQUAL, line);
 				break;
-			case OpCode::NOT_EQUAL_FRACTION:
-				if_jump = EmitJump(OpCode::IF_FRACTION_NOT_EQUAL, line);
+			case OpCode::NOT_EQUAL_FLOAT:
+				if_jump = EmitJump(OpCode::IF_FLOAT_NOT_EQUAL, line);
 				break;
 			default:
-				AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for fraction ternary condition.", line));
+				AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for float ternary condition.", line));
 				return;
 			}
 			if constexpr (std::is_same_v<T, std::unique_ptr<MidoriExpression>&>)

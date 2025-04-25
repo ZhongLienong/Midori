@@ -839,9 +839,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(std::move(Previous())));
 	}
-	else if (Match(Token::Name::FRACTION_LITERAL))
+	else if (Match(Token::Name::FLOAT_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::FractionLiteral(std::move(Previous())));
+		return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(std::move(Previous())));
 	}
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
@@ -1742,9 +1742,9 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 	{
 		return MidoriType::MakeLiteralType<MidoriType::TextType>();
 	}
-	else if (Match(Token::Name::FRACTION))
+	else if (Match(Token::Name::FLOAT))
 	{
-		return MidoriType::MakeLiteralType<MidoriType::FractionType>();
+		return MidoriType::MakeLiteralType<MidoriType::FloatType>();
 	}
 	else if (Match(Token::Name::INTEGER))
 	{

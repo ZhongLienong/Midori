@@ -43,9 +43,9 @@ std::string MidoriType::ToString() const
             {
                 return "Undecided"s;
             }
-            else if constexpr (std::is_same_v<Type, FractionType>)
+            else if constexpr (std::is_same_v<Type, FloatType>)
             {
-                return "Frac"s;
+                return "Float"s;
             }
             else if constexpr (std::is_same_v<Type, IntegerType>)
             {
@@ -99,7 +99,7 @@ std::string MidoriType::ToString() const
 
 bool MidoriType::IsNumericType() const
 {
-    return IsType<FractionType>() || IsType<IntegerType>();
+    return IsType<FloatType>() || IsType<IntegerType>();
 }
 
 MidoriType::UnionType::UnionType(const std::string& name) : m_name(name)

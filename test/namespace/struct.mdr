@@ -30,7 +30,7 @@ namespace Test
 		struct D
 		{
 			x : Test::InnerTest::C,
-			y : (Int, Frac) -> Frac,
+			y : (Int, Float) -> Float,
 		};
 	}
 }

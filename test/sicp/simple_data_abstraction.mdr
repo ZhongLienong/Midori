@@ -5,8 +5,8 @@ import
 
 struct Point
 {
-	x : Frac,
-	y : Frac,
+	x : Float,
+	y : Float,
 };
 
 struct LineSegment
@@ -21,12 +21,12 @@ struct Rectangle
 	height : LineSegment,
 };
 
-def abs = fn(x : Frac) : Frac
+def abs = fn(x : Float) : Float
 {
 	return x < 0.0 ? -x : x;
 };
 
-def make_point = fn(x : Frac, y : Frac)
+def make_point = fn(x : Float, y : Float)
 {
 	return new Point(x, y);
 };
@@ -77,17 +77,17 @@ def make_rect = fn(top_left : Point, bottom_right : Point) : Rectangle
 	return new Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
 };
 
-def width_rect = fn(rect : Rectangle) : Frac
+def width_rect = fn(rect : Rectangle) : Float
 {
 	return abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)));
 };
 
-def height_rect = fn(rect : Rectangle) : Frac
+def height_rect = fn(rect : Rectangle) : Float
 {
 	return abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)));
 };
 
-def perimeter_rect = fn(rect : Rectangle) : Frac
+def perimeter_rect = fn(rect : Rectangle) : Float
 {
 	return abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect));
 };

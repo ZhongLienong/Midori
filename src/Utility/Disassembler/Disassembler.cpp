@@ -45,7 +45,7 @@ namespace
 		offset += 9;
 
 		std::ostringstream formated_str;
-		MidoriFraction as_fraction = *reinterpret_cast<MidoriFraction*>(operand_bytes);
+		MidoriFloat as_float = *reinterpret_cast<MidoriFloat*>(operand_bytes);
 		MidoriInteger as_integer = *reinterpret_cast<MidoriInteger*>(operand_bytes);
 
 		formated_str << std::left << std::setw(instr_width) << name;
@@ -56,8 +56,8 @@ namespace
 		}
 		else
 		{
-			formated_str << ' ' << std::dec << as_fraction;
-			formated_str << two_tabs << std::setw(comment_width) << " // value: " << std::to_string(as_fraction) << std::setfill(' ') << '\n';
+			formated_str << ' ' << std::dec << as_float;
+			formated_str << two_tabs << std::setw(comment_width) << " // value: " << std::to_string(as_float) << std::setfill(' ') << '\n';
 		}
 		Printer::Print(formated_str.str());
 	}
@@ -290,7 +290,7 @@ namespace Disassembler
 		case OpCode::INTEGER_CONSTANT:
 			NumericConstantInstruction(true, "INTEGER_CONSTANT", executable, proc_index, offset);
 			break;
-		case OpCode::FRACTION_CONSTANT:
+		case OpCode::FLOAT_CONSTANT:
 			NumericConstantInstruction(false, "INTEGER_CONSTANT", executable, proc_index, offset);
 			break;
 		case OpCode::OP_UNIT:
@@ -320,20 +320,20 @@ namespace Disassembler
 		case OpCode::ADD_FRONT_ARRAY:
 			SimpleInstruction("ADD_FRONT_ARRAY", offset);
 			break;
-		case OpCode::INT_TO_FRAC:
-			SimpleInstruction("INT_TO_FRAC", offset);
+		case OpCode::INT_TO_FLOAT:
+			SimpleInstruction("INT_TO_FLOAT", offset);
 			break;
-		case OpCode::TEXT_TO_FRAC:
-			SimpleInstruction("TEXT_TO_FRAC", offset);
+		case OpCode::TEXT_TO_FLOAT:
+			SimpleInstruction("TEXT_TO_FLOAT", offset);
 			break;
-		case OpCode::FRAC_TO_INT:
-			SimpleInstruction("FRAC_TO_INT", offset);
+		case OpCode::FLOAT_TO_INT:
+			SimpleInstruction("FLOAT_TO_INT", offset);
 			break;
 		case OpCode::TEXT_TO_INT:
 			SimpleInstruction("TEXT_TO_INT", offset);
 			break;
-		case OpCode::FRAC_TO_TEXT:
-			SimpleInstruction("FRAC_TO_TEXT", offset);
+		case OpCode::FLOAT_TO_TEXT:
+			SimpleInstruction("FLOAT_TO_TEXT", offset);
 			break;
 		case OpCode::INT_TO_TEXT:
 			SimpleInstruction("INT_TO_TEXT", offset);
@@ -356,20 +356,20 @@ namespace Disassembler
 		case OpCode::BITWISE_NOT:
 			SimpleInstruction("BITWISE_NOT", offset);
 			break;
-		case OpCode::ADD_FRACTION:
-			SimpleInstruction("ADD_FRACTION", offset);
+		case OpCode::ADD_FLOAT:
+			SimpleInstruction("ADD_FLOAT", offset);
 			break;
-		case OpCode::SUBTRACT_FRACTION:
-			SimpleInstruction("SUBTRACT_FRACTION", offset);
+		case OpCode::SUBTRACT_FLOAT:
+			SimpleInstruction("SUBTRACT_FLOAT", offset);
 			break;
-		case OpCode::MULTIPLY_FRACTION:
-			SimpleInstruction("MULTIPLY_FRACTION", offset);
+		case OpCode::MULTIPLY_FLOAT:
+			SimpleInstruction("MULTIPLY_FLOAT", offset);
 			break;
-		case OpCode::DIVIDE_FRACTION:
-			SimpleInstruction("DIVIDE_FRACTION", offset);
+		case OpCode::DIVIDE_FLOAT:
+			SimpleInstruction("DIVIDE_FLOAT", offset);
 			break;
-		case OpCode::MODULO_FRACTION:
-			SimpleInstruction("MODULO_FRACTION", offset);
+		case OpCode::MODULO_FLOAT:
+			SimpleInstruction("MODULO_FLOAT", offset);
 			break;
 		case OpCode::ADD_INTEGER:
 			SimpleInstruction("ADD_INTEGER", offset);
@@ -392,23 +392,23 @@ namespace Disassembler
 		case OpCode::CONCAT_TEXT:
 			SimpleInstruction("CONCAT_TEXT", offset);
 			break;
-		case OpCode::EQUAL_FRACTION:
-			SimpleInstruction("EQUAL_FRACTION", offset);
+		case OpCode::EQUAL_FLOAT:
+			SimpleInstruction("EQUAL_FLOAT", offset);
 			break;
-		case OpCode::NOT_EQUAL_FRACTION:
-			SimpleInstruction("NOT_EQUAL_FRACTION", offset);
+		case OpCode::NOT_EQUAL_FLOAT:
+			SimpleInstruction("NOT_EQUAL_FLOAT", offset);
 			break;
-		case OpCode::GREATER_FRACTION:
-			SimpleInstruction("GREATER_FRACTION", offset);
+		case OpCode::GREATER_FLOAT:
+			SimpleInstruction("GREATER_FLOAT", offset);
 			break;
-		case OpCode::GREATER_EQUAL_FRACTION:
-			SimpleInstruction("GREATER_EQUAL_FRACTION", offset);
+		case OpCode::GREATER_EQUAL_FLOAT:
+			SimpleInstruction("GREATER_EQUAL_FLOAT", offset);
 			break;
-		case OpCode::LESS_FRACTION:
-			SimpleInstruction("LESS_FRACTION", offset);
+		case OpCode::LESS_FLOAT:
+			SimpleInstruction("LESS_FLOAT", offset);
 			break;
-		case OpCode::LESS_EQUAL_FRACTION:
-			SimpleInstruction("LESS_EQUAL_FRACTION", offset);
+		case OpCode::LESS_EQUAL_FLOAT:
+			SimpleInstruction("LESS_EQUAL_FLOAT", offset);
 			break;
 		case OpCode::EQUAL_INTEGER:
 			SimpleInstruction("EQUAL_INTEGER", offset);
@@ -434,8 +434,8 @@ namespace Disassembler
 		case OpCode::NOT:
 			SimpleInstruction("NOT", offset);
 			break;
-		case OpCode::NEGATE_FRACTION:
-			SimpleInstruction("NEGATE_FRACTION", offset);
+		case OpCode::NEGATE_FLOAT:
+			SimpleInstruction("NEGATE_FLOAT", offset);
 			break;
 		case OpCode::NEGATE_INTEGER:
 			SimpleInstruction("NEGATE_INTEGER", offset);
@@ -470,23 +470,23 @@ namespace Disassembler
 		case OpCode::IF_INTEGER_NOT_EQUAL:
 			JumpInstruction("IF_INTEGER_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_LESS:
-			JumpInstruction("IF_FRACTION_LESS", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_LESS:
+			JumpInstruction("IF_FLOAT_LESS", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_LESS_EQUAL:
-			JumpInstruction("IF_FRACTION_LESS_EQUAL", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_LESS_EQUAL:
+			JumpInstruction("IF_FLOAT_LESS_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_GREATER:
-			JumpInstruction("IF_FRACTION_GREATER", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_GREATER:
+			JumpInstruction("IF_FLOAT_GREATER", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_GREATER_EQUAL:
-			JumpInstruction("IF_FRACTION_GREATER_EQUAL", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_GREATER_EQUAL:
+			JumpInstruction("IF_FLOAT_GREATER_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_EQUAL:
-			JumpInstruction("IF_FRACTION_EQUAL", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_EQUAL:
+			JumpInstruction("IF_FLOAT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FRACTION_NOT_EQUAL:
-			JumpInstruction("IF_FRACTION_NOT_EQUAL", 1, executable, proc_index, offset);
+		case OpCode::IF_FLOAT_NOT_EQUAL:
+			JumpInstruction("IF_FLOAT_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
 		case OpCode::LOAD_TAG:
 			SimpleInstruction("LOAD_TAG", offset);
@@ -560,8 +560,8 @@ namespace Disassembler
 		case OpCode::BOX_INT:
 			NumericConstantInstruction(true, "BOX_INT", executable, proc_index, offset);
 			break;
-		case OpCode::BOX_FRAC:
-			NumericConstantInstruction(false, "BOX_FRAC", executable, proc_index, offset);
+		case OpCode::BOX_FLOAT:
+			NumericConstantInstruction(false, "BOX_FLOAT", executable, proc_index, offset);
 			break;
 		case OpCode::BOX_BOOL:
 			SimpleInstruction("BOX_BOOL", offset);

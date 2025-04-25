@@ -10,7 +10,7 @@ def main = fn()
 		return x < 0.0 ? -x : x;
 	};
 
-	def square = fn(x : Frac)
+	def square = fn(x : Float)
 	{
 		return x * x;
 	};
@@ -27,7 +27,7 @@ def main = fn()
 			return (guess + x / guess) / 2.0;
 		};
 
-		def sqrt_iter = fn(guess : Frac) : Frac
+		def sqrt_iter = fn(guess : Float) : Float
 		{
 			return is_good_enough(guess) ? guess : sqrt_iter(improve(guess));
 		};

@@ -12,7 +12,7 @@ class MidoriType
 {
 public:
     struct UndecidedType {};
-    struct FractionType {};
+    struct FloatType {};
     struct IntegerType {};
     struct TextType {};
     struct BoolType {};
@@ -51,7 +51,7 @@ public:
         UnionType(const std::string& name);
     };
 
-    using MidoriTypeUnion = std::variant<UndecidedType, FractionType, IntegerType, TextType, BoolType, UnitType, ArrayType, FunctionType, StructType, UnionType>;
+    using MidoriTypeUnion = std::variant<UndecidedType, FloatType, IntegerType, TextType, BoolType, UnitType, ArrayType, FunctionType, StructType, UnionType>;
 
     MidoriTypeUnion m_type;
 
@@ -77,7 +77,7 @@ public:
     }
 
     template<typename T>
-    requires std::is_same_v<T, FractionType> || std::is_same_v<T, IntegerType> || std::is_same_v<T, BoolType> || std::is_same_v<T, TextType> || std::is_same_v<T, UnitType>
+    requires std::is_same_v<T, FloatType> || std::is_same_v<T, IntegerType> || std::is_same_v<T, BoolType> || std::is_same_v<T, TextType> || std::is_same_v<T, UnitType>
     static const std::shared_ptr<MidoriType>& MakeLiteralType()
     {
         static std::shared_ptr<MidoriType> literal_type = std::make_shared<MidoriType>(T{});

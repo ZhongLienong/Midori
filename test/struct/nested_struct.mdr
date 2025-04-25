@@ -5,15 +5,15 @@ import
 
 struct Vec3
 {
-	x : Frac,
-	y : Frac,
-	z : Frac
+	x : Float,
+	y : Float,
+	z : Float
 };
 
 struct Complex
 {
-	real : Frac,
-	img : Frac,
+	real : Float,
+	img : Float,
 };
 
 def TestNestedStruct = fn() : Unit

@@ -26,7 +26,7 @@ class MidoriTraceable;
 class MidoriText;
 
 using MidoriInteger = int64_t;
-using MidoriFraction = double;
+using MidoriFloat = double;
 using MidoriUnit = std::monostate;
 using MidoriBool = bool;
 
@@ -69,7 +69,7 @@ private:
 #ifdef DEBUG
 	enum DebugTypeTag : int64_t
 	{
-		FRAC = 0,
+		FLOAT = 0,
 		INT,
 		BOOL,
 		POINTER,
@@ -82,7 +82,7 @@ private:
 public:
 	MidoriValue() = default;
 
-	MidoriValue(MidoriFraction d) noexcept;
+	MidoriValue(MidoriFloat d) noexcept;
 
 	MidoriValue(MidoriInteger l) noexcept;
 
@@ -98,7 +98,7 @@ public:
 
 	MidoriValue& operator=(MidoriValue&& other) noexcept = default;
 
-	MidoriFraction GetFraction() const noexcept;
+	MidoriFloat GetFloat() const noexcept;
 
 	MidoriInteger GetInteger() const noexcept;
 
@@ -120,7 +120,7 @@ template<typename T>
 concept MidoriTraceableConstructible = std::constructible_from<MidoriTraceable, T>;
 
 template <typename T>
-concept MidoriNumeric = std::same_as<T, MidoriFraction> || std::same_as<T, MidoriInteger>;
+concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriInteger>;
 
 class MidoriText
 {
@@ -167,11 +167,11 @@ public:
 
 	MidoriInteger ToInteger() const;
 
-	MidoriFraction ToFraction() const;
+	MidoriFloat ToFloat() const;
 
 	static MidoriText FromInteger(MidoriInteger value);
 
-	static MidoriText FromFraction(MidoriFraction value);
+	static MidoriText FromFloat(MidoriFloat value);
 
 	static MidoriText Concatenate(const MidoriText& a, const MidoriText& b);
 
@@ -260,7 +260,7 @@ struct MidoriBox
 {
 	enum TypeTag : int64_t
 	{
-		FRAC = 0,
+		FLOAT = 0,
 		INT,
 		BOOL,
 		UNIT,

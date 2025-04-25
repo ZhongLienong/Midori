@@ -67,7 +67,7 @@ private:
 
 	MidoriInteger ReadIntegerConstant() noexcept;
 
-	MidoriFraction ReadFractionConstant() noexcept;
+	MidoriFloat ReadFloatConstant() noexcept;
 
 	MidoriValue ReadConstant(OpCode operand_length) noexcept;
 
