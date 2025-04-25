@@ -132,6 +132,13 @@ enum class OpCode : uint8_t
 	// Return
 	RETURN,
 	HALT,
+
+	// Box Operations
+	BOX_INT,
+	BOX_FRAC,
+	BOX_BOOL,
+	BOX_UNIT,
+	UNBOX,
 };
 
 class BytecodeStream

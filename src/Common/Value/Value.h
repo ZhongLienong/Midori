@@ -62,8 +62,10 @@ public:
 
 class MidoriValue
 {
+public:
+	constexpr static inline int DATA_BUFFER_SIZE = 8;
 private:
-	alignas(8) std::byte m_data[8];
+	alignas(DATA_BUFFER_SIZE) std::byte m_data[DATA_BUFFER_SIZE];
 #ifdef DEBUG
 	enum DebugTypeTag : int64_t
 	{
@@ -71,6 +73,7 @@ private:
 		INT,
 		BOOL,
 		POINTER,
+		UNKNOWN,
 	};
 
 	DebugTypeTag m_tag;
@@ -255,7 +258,17 @@ struct MidoriUnion
 
 struct MidoriBox
 {
+	enum TypeTag : int64_t
+	{
+		FRAC = 0,
+		INT,
+		BOOL,
+		UNIT,
+		POINTER,
+	};
+
 	MidoriValue m_inner_value{};
+	TypeTag m_tag;
 };
 
 class MidoriTraceable
@@ -298,11 +311,11 @@ public:
 
 	static void operator delete(void* object, size_t size) noexcept;
 
-#ifdef DEBUG
 	MidoriText ToText();
-#endif
 
 	void Trace();
+
+	std::optional<MidoriBox> UnBox();
 
 	template<typename T>
 	static MidoriTraceable* AllocateTraceable(T&& arg, PointerTag tag)
@@ -333,6 +346,8 @@ private:
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
+
+	MidoriTraceable(MidoriBox&& box) noexcept;
 
 	static void* operator new(size_t size) noexcept;
 };

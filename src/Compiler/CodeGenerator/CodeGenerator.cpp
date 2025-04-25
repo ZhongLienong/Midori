@@ -172,11 +172,13 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&
 
 	// invoke the program entry (main)
 	const CodeGenerator::MainProcedureContext& main_module_ctx = m_main_function_ctx.value();
+	int line = main_module_ctx.m_main_procedure_line;
+
 	m_current_procedure_index = main_module_ctx.m_main_procedure_index;
-	EmitVariable(main_module_ctx.m_main_procedure_global_table_index, OpCode::GET_GLOBAL, main_module_ctx.m_main_procedure_line);
-	EmitByte(OpCode::CALL_DEFINED, main_module_ctx.m_main_procedure_line);
-	EmitByte(static_cast<OpCode>(0), main_module_ctx.m_main_procedure_line);
-	EmitByte(OpCode::HALT, main_module_ctx.m_main_procedure_line);
+	EmitVariable(main_module_ctx.m_main_procedure_global_table_index, OpCode::GET_GLOBAL, line);
+	EmitByte(OpCode::CALL_DEFINED, line);
+	EmitByte(static_cast<OpCode>(0), line);
+	EmitByte(OpCode::HALT, line);
 
 #ifdef DEBUG
 	m_executable.AttachProcedureNames(std::move(m_procedure_names));
@@ -387,6 +389,14 @@ void CodeGenerator::operator()(Return& return_stmt)
 void CodeGenerator::operator()(Foreign& foreign)
 {
 	int line = foreign.m_function_name.m_line;
+
+	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
+	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FractionType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>()))
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError("Unsupported return type for foreign function.", line));
+		return;
+	}
+
 	bool is_global = !foreign.m_local_index.has_value();
 	std::optional<int> index = std::nullopt;
 	if (is_global)
@@ -756,22 +766,23 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 		[&variable, this](auto&& arg)
 		{
 			using T = std::decay_t<decltype(arg)>;
+			int line = variable.m_name.m_line;
 
 			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
 			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, variable.m_name.m_line);
+				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
 			{
-				EmitVariable(m_global_variables[variable.m_name.m_lexeme], OpCode::GET_GLOBAL, variable.m_name.m_line);
+				EmitVariable(m_global_variables[variable.m_name.m_lexeme], OpCode::GET_GLOBAL, line);
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
 			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, variable.m_name.m_line);
+				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorError("Bad BoundedName MidoriExpression.", variable.m_name.m_line));
+				AddError(MidoriError::GenerateCodeGeneratorError("Bad BoundedName MidoriExpression.", line));
 				return;
 			}
 		}, 
@@ -815,22 +826,26 @@ void CodeGenerator::operator()(MidoriExpression::TextLiteral& text)
 
 void CodeGenerator::operator()(MidoriExpression::BoolLiteral& bool_expr)
 {
-	EmitByte(bool_expr.m_token.m_lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, bool_expr.m_token.m_line);
+	int line = bool_expr.m_token.m_line;
+	EmitByte(bool_expr.m_token.m_lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::FractionLiteral& fraction)
 {
+	int line = fraction.m_token.m_line;
 	EmitFractionConstant(std::stod(fraction.m_token.m_lexeme), fraction.m_token.m_line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
 {
+	int line = integer.m_token.m_line;
 	EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), integer.m_token.m_line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::UnitLiteral& nil)
+void CodeGenerator::operator()(MidoriExpression::UnitLiteral& unit)
 {
-	EmitByte(OpCode::OP_UNIT, nil.m_token.m_line);
+	int line = unit.m_token.m_line;
+	EmitByte(OpCode::OP_UNIT, unit.m_token.m_line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Function& function)

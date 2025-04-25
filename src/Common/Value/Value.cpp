@@ -1,12 +1,11 @@
+#include "Common/Printer/Printer.h"
+#include "Value.h"
+
 #include <algorithm>
 #include <bit>
 #include <execution>
 #include <ranges>
 
-#include "Value.h"
-#include "Common/Printer/Printer.h"
-
-#ifdef DEBUG
 MidoriText ConvertToQuotedText(const MidoriText& input)
 {
 	MidoriText result("\"");
@@ -52,7 +51,6 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 
 	return result;
 }
-#endif
 
 MidoriValue::MidoriValue(MidoriFraction frac) noexcept
 {
@@ -125,7 +123,7 @@ MidoriText MidoriValue::ToText() const
 	case MidoriValue::POINTER:
 		return GetPointer()->ToText();
 	default:
-		return "";
+		return "UNKNOWN";
 	}
 }
 #endif
@@ -154,7 +152,10 @@ MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_value(
 {
 }
 
-#ifdef DEBUG
+MidoriTraceable::MidoriTraceable(MidoriBox&& box) noexcept : m_value(std::move(box))
+{
+}
+
 MidoriText MidoriTraceable::ToText()
 {
 	return std::visit([](auto&& arg) -> MidoriText
@@ -174,14 +175,14 @@ MidoriText MidoriTraceable::ToText()
 				MidoriText result("[");
 				for (int idx : std::views::iota(0, arg.GetLength()))
 				{
-					result.Append(arg[idx].ToText()).Append(", ");
+					result.Append(arg[idx].GetPointer()->ToText()).Append(", ");
 				}
 				result.Pop().Pop().Append("]");
 				return result;
 			}
 			else if constexpr (std::is_same_v<T, MidoriCellValue>)
 			{
-				return MidoriText("Cell(").Append(arg.GetValue().ToText()).Append(")");
+				return MidoriText("Cell(").Append(arg.GetValue().GetPointer()->ToText()).Append(")");
 			}
 			else if constexpr (std::is_same_v<T, MidoriClosure>)
 			{
@@ -202,7 +203,7 @@ MidoriText MidoriTraceable::ToText()
 
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
-					union_val.Append(arg.m_values[idx].ToText()).Append(", ");
+					union_val.Append(arg.m_values[idx].GetPointer()->ToText()).Append(", ");
 				}
 				return union_val.Pop().Pop().Append("}");
 			}
@@ -217,9 +218,27 @@ MidoriText MidoriTraceable::ToText()
 				struct_val.Append("{");
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
-					struct_val.Append(arg.m_values[idx].ToText()).Append(", ");
+					struct_val.Append(arg.m_values[idx].GetPointer()->ToText()).Append(", ");
 				}
 				return struct_val.Pop().Pop().Append("}");
+			}
+			else if constexpr (std::is_same_v<T, MidoriBox>)
+			{
+				MidoriText result("Box(");
+
+				switch (arg.m_tag)
+				{
+				case MidoriBox::FRAC:
+					return result.Append(MidoriText::FromFraction(arg.m_inner_value.GetFraction())).Append(")");
+				case MidoriBox::INT:
+					return result.Append(MidoriText::FromInteger(arg.m_inner_value.GetInteger())).Append(")");
+				case MidoriBox::BOOL:
+					return result.Append(arg.m_inner_value.GetBool() ? "true" : "false").Append(")");
+				case MidoriBox::UNIT:
+					return result.Append("()").Append(")");
+				default:
+					return "";
+				}
 			}
 			else
 			{
@@ -227,7 +246,6 @@ MidoriText MidoriTraceable::ToText()
 			}
 		}, m_value);
 }
-#endif
 
 size_t MidoriTraceable::GetSize() const
 {
@@ -333,6 +351,22 @@ void MidoriTraceable::Trace()
 				value.GetPointer()->Trace();
 			}
 		}
+	}
+	else if (IsTraceable<MidoriBox>())
+	{
+		// Box value only contains primitive data
+	}
+}
+
+std::optional<MidoriBox> MidoriTraceable::UnBox()
+{
+	if (IsTraceable<MidoriBox>())
+	{
+		return GetTraceable<MidoriBox>();
+	}
+	else
+	{
+		return std::nullopt;
 	}
 }
 

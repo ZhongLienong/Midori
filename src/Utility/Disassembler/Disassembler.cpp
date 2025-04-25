@@ -87,7 +87,7 @@ namespace
 
 		formated_str << std::left << std::setw(instr_width) << name;
 		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // static value: " << executable.GetConstant(operand).ToText().GetCString() << std::setfill(' ') << '\n';
+		formated_str << two_tabs << std::setw(comment_width) << " // static value: " << executable.GetConstant(operand).GetPointer()->ToText().GetCString() << std::setfill(' ') << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -556,6 +556,21 @@ namespace Disassembler
 			break;
 		case OpCode::HALT:
 			SimpleInstruction("HALT", offset);
+			break;
+		case OpCode::BOX_INT:
+			NumericConstantInstruction(true, "BOX_INT", executable, proc_index, offset);
+			break;
+		case OpCode::BOX_FRAC:
+			NumericConstantInstruction(false, "BOX_FRAC", executable, proc_index, offset);
+			break;
+		case OpCode::BOX_BOOL:
+			SimpleInstruction("BOX_BOOL", offset);
+			break;
+		case OpCode::BOX_UNIT:
+			SimpleInstruction("BOX_UNIT", offset);
+			break;
+		case OpCode::UNBOX:
+			SimpleInstruction("UNBOX", offset);
 			break;
 		default:
 #ifdef _MSC_VER

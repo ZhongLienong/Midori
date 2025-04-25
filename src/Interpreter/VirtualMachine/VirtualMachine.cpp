@@ -1091,11 +1091,21 @@ int VirtualMachine::Execute() noexcept
 
 						if (MidoriTraceable::s_traceables.contains(arg.GetPointer()))
 						{
-							args[i] = (void*)arg.GetPointer()->GetTraceable<MidoriText>().GetCString();
+							MidoriTraceable* ptr = arg.GetPointer();
+							if (ptr->IsTraceable<MidoriText>())
+							{
+								args[i] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+							}
+							else
+							{
+								// must be box in this case
+								const MidoriValue& boxed_value = ptr->UnBox().value().m_inner_value;
+								std::memcpy(&args[i], &boxed_value, sizeof(MidoriValue::DATA_BUFFER_SIZE));
+							}
 						}
 						else 
 						{
-							std::memcpy(&args[i], &arg, sizeof(MidoriValue));
+							std::memcpy(&args[i], &arg, sizeof(MidoriValue::DATA_BUFFER_SIZE));
 						}
 					}
 
@@ -1302,6 +1312,67 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::HALT:
 				{
 					return 0;
+				}
+				case OpCode::BOX_INT:
+				{
+					MidoriValue value = ReadIntegerConstant();
+					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::INT }, PointerTag::BOX));
+					break;
+				}
+				case OpCode::BOX_FRAC:
+				{
+					MidoriValue value = ReadFractionConstant();
+					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::FRAC }, PointerTag::BOX));
+					break;
+				}
+				case OpCode::BOX_BOOL:
+				{
+					OpCode value = ReadByte();
+					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value == OpCode::OP_TRUE ? true : false, .m_tag = MidoriBox::BOOL }, PointerTag::BOX));
+					break;
+				}
+				case OpCode::BOX_UNIT:
+				{
+					MidoriValue value = Pop();
+					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = MidoriValue(), .m_tag = MidoriBox::UNIT}, PointerTag::BOX));
+					break;
+				}
+				case OpCode::UNBOX:
+				{
+					MidoriValue value = Pop();
+					std::optional<MidoriBox> maybe_box_value = value.GetPointer()->UnBox();
+					
+					if (maybe_box_value.has_value())
+					{
+						const MidoriBox& box_value = *maybe_box_value;
+						switch (box_value.m_tag)
+						{
+						case MidoriBox::INT:
+							Push(box_value.m_inner_value.GetInteger());
+							break;
+						case MidoriBox::FRAC:
+							Push(box_value.m_inner_value.GetFraction());
+							break;
+						case MidoriBox::BOOL:
+							Push(box_value.m_inner_value.GetBool());
+							break;
+						case MidoriBox::UNIT:
+							Push(MidoriValue());
+							break;
+						default:
+#ifdef _MSC_VER
+							__assume(0);
+#else
+							__builtin_unreachable();
+#endif
+						}
+					}
+					else
+					{
+						// Must be a pointer value, so just push it back
+						Push(value);
+					}
+					break;
 				}
 				default:
 				{

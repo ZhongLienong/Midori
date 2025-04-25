@@ -164,7 +164,6 @@ TokenStream BuildGraph::Stitch()
     }
 
 #ifdef DEBUG
-    Printer::Print(std::format("Processed {} nodes out of {}\n", processed_count, m_nodes.size()));
     Printer::Print("Final topological order: ");
     for (size_t idx : std::views::iota(0u, topological_order.size()))
     {
