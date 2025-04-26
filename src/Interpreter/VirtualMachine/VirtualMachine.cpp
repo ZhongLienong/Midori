@@ -12,7 +12,7 @@
 
 using namespace std::string_literals;
 
-VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_executable(std::move(executable)), m_garbage_collector(m_executable.GetConstantRoots())
+VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_executable(std::move(executable))
 {
 	m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(s_value_stack_size * sizeof(MidoriValue)));
 	m_call_stack_begin = static_cast<CallFrame*>(std::malloc(s_call_stack_size * sizeof(CallFrame)));
@@ -224,17 +224,17 @@ int VirtualMachine::CheckArrayPopResult(const std::optional<MidoriValue>& result
 	return 0;
 }
 
-MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCollectionRoots() const noexcept
+GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCollectionRoots() const noexcept
 {
-	MidoriTraceable::GarbageCollectionRoots roots;
+	GarbageCollector::GarbageCollectionRoots roots;
 	roots.reserve(m_global_vars.size());
 
 	std::ranges::for_each
 	(
 		m_global_vars,
-		[&roots](MidoriValue val) -> void
+		[&roots, this](MidoriValue val) -> void
 		{
-			if (MidoriTraceable::s_traceables.contains(val.GetPointer()))
+			if (m_garbage_collector.Contains(val.GetPointer()))
 			{
 				roots.emplace(val.GetPointer());
 			}
@@ -244,9 +244,9 @@ MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCol
 	return roots;
 }
 
-MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCollectionRoots() const noexcept
+GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCollectionRoots() const noexcept
 {
-	MidoriTraceable::GarbageCollectionRoots roots;
+	GarbageCollector::GarbageCollectionRoots roots;
 	roots.reserve((m_value_stack_pointer - m_value_stack_begin) + (m_call_stack_pointer - m_call_stack_begin));
 
 	std::for_each_n
@@ -254,9 +254,9 @@ MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageColl
 		std::execution::seq,
 		m_value_stack_begin,
 		m_value_stack_pointer - m_value_stack_begin,
-		[&roots](MidoriValue value) -> void
+		[&roots, this](MidoriValue value) -> void
 		{
-			if (MidoriTraceable::s_traceables.contains(value.GetPointer()))
+			if (m_garbage_collector.Contains(value.GetPointer()))
 			{
 				roots.emplace(value.GetPointer());
 			}
@@ -266,39 +266,13 @@ MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageColl
 	return roots;
 }
 
-MidoriTraceable::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoots() const noexcept
+GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoots() const noexcept
 {
-	MidoriTraceable::GarbageCollectionRoots stack_roots = GetValueStackGarbageCollectionRoots();
-	MidoriTraceable::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
+	GarbageCollector::GarbageCollectionRoots stack_roots = GetValueStackGarbageCollectionRoots();
+	GarbageCollector::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
 
 	stack_roots.insert(global_roots.cbegin(), global_roots.cend());
 	return stack_roots;
-}
-
-void VirtualMachine::CollectGarbage() noexcept
-{
-	if (MidoriTraceable::s_total_bytes_allocated - MidoriTraceable::s_static_bytes_allocated < s_garbage_collection_threshold)
-	{
-		return;
-	}
-
-	MidoriTraceable::GarbageCollectionRoots roots = GetGarbageCollectionRoots();
-	if (roots.empty()) [[unlikely]]
-		{
-			return;
-		}
-	else [[likely]]
-		{
-#ifdef DEBUG
-			Printer::Print<Printer::Color::BLUE>("\nBefore garbage collection:");
-			m_garbage_collector.PrintMemoryTelemetry();
-#endif
-			m_garbage_collector.ReclaimMemory(std::move(roots));
-#ifdef DEBUG
-			Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
-			m_garbage_collector.PrintMemoryTelemetry();
-#endif
-		}
 }
 
 int VirtualMachine::Execute() noexcept
@@ -372,7 +346,7 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::LOAD_STRING:
 				{
 					size_t index = static_cast<size_t>(ReadByte());
-					Push(MidoriTraceable::AllocateTraceable(m_executable.GetStringPool()[index].data(), PointerTag::TEXT));
+					Push(m_garbage_collector.AllocateTraceable(m_executable.GetStringPool()[index].data(), PointerTag::TEXT));
 					break;
 				}
 				case OpCode::INTEGER_CONSTANT:
@@ -406,8 +380,8 @@ int VirtualMachine::Execute() noexcept
 						arr[i] = Pop();
 					}
 
-					Push(MidoriTraceable::AllocateTraceable(std::move(arr), PointerTag::ARRAY));
-					CollectGarbage();
+					Push(m_garbage_collector.AllocateTraceable(std::move(arr), PointerTag::ARRAY));
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::GET_ARRAY:
@@ -507,8 +481,8 @@ int VirtualMachine::Execute() noexcept
 						new_arr[i] = arr_ref[i % original_size];
 					}
 
-					Push(MidoriTraceable::AllocateTraceable(std::move(new_arr), PointerTag::ARRAY));
-					CollectGarbage();
+					Push(m_garbage_collector.AllocateTraceable(std::move(new_arr), PointerTag::ARRAY));
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::ADD_BACK_ARRAY:
@@ -555,14 +529,14 @@ int VirtualMachine::Execute() noexcept
 				}
 				case OpCode::FLOAT_TO_TEXT:
 				{
-					Peek() = MidoriTraceable::AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()), PointerTag::TEXT);
-					CollectGarbage();
+					Peek() = m_garbage_collector.AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()), PointerTag::TEXT);
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::INT_TO_TEXT:
 				{
-					Peek() = MidoriTraceable::AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()), PointerTag::TEXT);
-					CollectGarbage();
+					Peek() = m_garbage_collector.AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()), PointerTag::TEXT);
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::LEFT_SHIFT:
@@ -716,8 +690,8 @@ int VirtualMachine::Execute() noexcept
 					MidoriArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MidoriArray>();
 					MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
-					left = MidoriTraceable::AllocateTraceable(std::move(result), PointerTag::ARRAY);
-					CollectGarbage();
+					left = m_garbage_collector.AllocateTraceable(std::move(result), PointerTag::ARRAY);
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::CONCAT_TEXT:
@@ -730,8 +704,8 @@ int VirtualMachine::Execute() noexcept
 
 					MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
-					left = MidoriTraceable::AllocateTraceable(std::move(result), PointerTag::TEXT);
-					CollectGarbage();
+					left = m_garbage_collector.AllocateTraceable(std::move(result), PointerTag::TEXT);
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::EQUAL_FLOAT:
@@ -1089,7 +1063,7 @@ int VirtualMachine::Execute() noexcept
 					{
 						MidoriValue arg = Pop();
 
-						if (MidoriTraceable::s_traceables.contains(arg.GetPointer()))
+						if (m_garbage_collector.Contains(arg.GetPointer()))
 						{
 							MidoriTraceable* ptr = arg.GetPointer();
 							if (ptr->IsTraceable<MidoriText>())
@@ -1135,7 +1109,7 @@ int VirtualMachine::Execute() noexcept
 				}
 				case OpCode::CONSTRUCT_STRUCT:
 				{
-					MidoriTraceable* new_struct = MidoriTraceable::AllocateTraceable(MidoriStruct(), PointerTag::STRUCT);
+					MidoriTraceable* new_struct = m_garbage_collector.AllocateTraceable(MidoriStruct(), PointerTag::STRUCT);
 					int size = static_cast<int>(ReadByte());
 					MidoriArray args(size);
 
@@ -1148,12 +1122,12 @@ int VirtualMachine::Execute() noexcept
 					members = std::move(args);
 
 					Push(new_struct);
-					CollectGarbage();
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::CONSTRUCT_UNION:
 				{
-					MidoriTraceable* new_union = MidoriTraceable::AllocateTraceable(MidoriUnion(), PointerTag::UNION);
+					MidoriTraceable* new_union = m_garbage_collector.AllocateTraceable(MidoriUnion(), PointerTag::UNION);
 
 					int size = static_cast<int>(ReadByte());
 					MidoriArray args(size);
@@ -1167,14 +1141,14 @@ int VirtualMachine::Execute() noexcept
 					members = std::move(args);
 
 					Push(new_union);
-					CollectGarbage();
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::ALLOCATE_CLOSURE:
 				{
 					int proc_index = static_cast<int>(ReadByte());
-					Push(MidoriTraceable::AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriArray(), .m_proc_index = proc_index}, PointerTag::FUNCTION));
-					CollectGarbage();
+					Push(m_garbage_collector.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriArray(), .m_proc_index = proc_index}, PointerTag::FUNCTION));
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::CONSTRUCT_CLOSURE:
@@ -1199,13 +1173,13 @@ int VirtualMachine::Execute() noexcept
 						[&captured_variables, this](MidoriValue& value)
 						{
 							MidoriValue* stack_value_ref = &value;
-							MidoriValue cell_value = MidoriTraceable::AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
+							MidoriValue cell_value = m_garbage_collector.AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
 							captured_variables.AddBack(cell_value);
 							m_cells_to_promote.emplace_back(& cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
 						}
 					);
 
-					CollectGarbage();
+					m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 					break;
 				}
 				case OpCode::DEFINE_GLOBAL:
@@ -1316,25 +1290,25 @@ int VirtualMachine::Execute() noexcept
 				case OpCode::BOX_INT:
 				{
 					MidoriValue value = ReadIntegerConstant();
-					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::INT }, PointerTag::BOX));
+					Push(m_garbage_collector.AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::INT }, PointerTag::BOX));
 					break;
 				}
 				case OpCode::BOX_FLOAT:
 				{
 					MidoriValue value = ReadFloatConstant();
-					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::FLOAT }, PointerTag::BOX));
+					Push(m_garbage_collector.AllocateTraceable(MidoriBox{ .m_inner_value = value.GetInteger(), .m_tag = MidoriBox::FLOAT }, PointerTag::BOX));
 					break;
 				}
 				case OpCode::BOX_BOOL:
 				{
 					OpCode value = ReadByte();
-					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = value == OpCode::OP_TRUE ? true : false, .m_tag = MidoriBox::BOOL }, PointerTag::BOX));
+					Push(m_garbage_collector.AllocateTraceable(MidoriBox{ .m_inner_value = value == OpCode::OP_TRUE ? true : false, .m_tag = MidoriBox::BOOL }, PointerTag::BOX));
 					break;
 				}
 				case OpCode::BOX_UNIT:
 				{
 					MidoriValue value = Pop();
-					Push(MidoriTraceable::AllocateTraceable(MidoriBox{ .m_inner_value = MidoriValue(), .m_tag = MidoriBox::UNIT}, PointerTag::BOX));
+					Push(m_garbage_collector.AllocateTraceable(MidoriBox{ .m_inner_value = MidoriValue(), .m_tag = MidoriBox::UNIT}, PointerTag::BOX));
 					break;
 				}
 				case OpCode::UNBOX:

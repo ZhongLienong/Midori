@@ -273,21 +273,12 @@ struct MidoriBox
 
 class MidoriTraceable
 {
-public:
-	// Garbage collection utilities
-	using GarbageCollectionRoots = std::unordered_set<MidoriTraceable*>;
-	static inline size_t s_total_bytes_allocated;
-	static inline size_t s_static_bytes_allocated;
-	static inline std::unordered_set<MidoriTraceable*> s_traceables;
-
 private:
 	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure, MidoriBox> m_value;
 	size_t m_size;
 	bool m_is_marked = false;
 
 public:
-
-	~MidoriTraceable() = default;
 
 	template<typename T>
 	constexpr bool IsTraceable()
@@ -307,22 +298,17 @@ public:
 
 	void Unmark();
 
-	bool Marked() const;
+	bool IsMarked() const;
 
-	static void operator delete(void* object, size_t size) noexcept;
-
+#ifdef DEBUG
 	MidoriText ToText();
-
-	void Trace();
+#endif
 
 	std::optional<MidoriBox> UnBox();
 
-	template<typename T>
-	static MidoriTraceable* AllocateTraceable(T&& arg, PointerTag tag)
-	{
-		MidoriTaggedPointer tagged_pointer(new MidoriTraceable(std::forward<T>(arg)), tag);
-		return (MidoriTraceable*)tagged_pointer;
-	}
+	static void operator delete(void* object, size_t size) noexcept;
+
+	static void* operator new(size_t size) noexcept;
 
 private:
 	MidoriTraceable() = delete;
@@ -349,5 +335,5 @@ private:
 
 	MidoriTraceable(MidoriBox&& box) noexcept;
 
-	static void* operator new(size_t size) noexcept;
+	friend class GarbageCollector;
 };

@@ -141,11 +141,6 @@ const MidoriText& MidoriExecutable::GetGlobalVariable(int index) const
 	return m_globals[static_cast<size_t>(index)];
 }
 
-void MidoriExecutable::AddConstantRoot(MidoriTraceable* root)
-{
-	m_constant_roots.emplace(root);
-}
-
 void MidoriExecutable::AttachProcedures(Procedures&& bytecode)
 {
 	m_procedures = std::move(bytecode);
@@ -171,11 +166,6 @@ int MidoriExecutable::GetLine(int instr_index, int proc_index) const
 const BytecodeStream& MidoriExecutable::GetBytecodeStream(int proc_index) const
 {
 	return m_procedures[static_cast<size_t>(proc_index)];
-}
-
-const MidoriTraceable::GarbageCollectionRoots& MidoriExecutable::GetConstantRoots()
-{
-	return m_constant_roots;
 }
 
 OpCode MidoriExecutable::ReadByteCode(int instr_index, int proc_index) const

@@ -196,7 +196,6 @@ public:
 #endif
 
 private:
-	MidoriTraceable::GarbageCollectionRoots m_constant_roots;
 	StaticData m_constants;
 	GlobalNames m_globals;
 	Procedures m_procedures;
@@ -211,8 +210,6 @@ public:
 
 	const MidoriText& GetGlobalVariable(int index) const;
 
-	void AddConstantRoot(MidoriTraceable* root);
-
 	void AttachProcedures(Procedures&& bytecode);
 
 	void AddStringPool(StringPool&& string_pool);
@@ -224,8 +221,6 @@ public:
 	int GetLine(int instr_index, int proc_index) const;
 
 	const BytecodeStream& GetBytecodeStream(int proc_index) const;
-
-	const MidoriTraceable::GarbageCollectionRoots& GetConstantRoots();
 
 	OpCode ReadByteCode(int instr_index, int proc_index) const;
 

@@ -20,7 +20,6 @@ public:
 private:
     static constexpr size_t s_value_stack_size = 10000u;
     static constexpr size_t s_call_stack_size = 10000u;
-    static constexpr size_t s_garbage_collection_threshold = 512000u;
 
     using ValueStackPointer = MidoriValue*;
     using InstructionPointer = const OpCode*;
@@ -89,13 +88,11 @@ private:
 
 	int CheckArrayPopResult(const std::optional<MidoriValue>& result) noexcept;
 
-	MidoriTraceable::GarbageCollectionRoots GetValueStackGarbageCollectionRoots() const noexcept;
+    GarbageCollector::GarbageCollectionRoots GetValueStackGarbageCollectionRoots() const noexcept;
 
-	MidoriTraceable::GarbageCollectionRoots GetGlobalTableGarbageCollectionRoots() const noexcept;
+    GarbageCollector::GarbageCollectionRoots GetGlobalTableGarbageCollectionRoots() const noexcept;
 
-	MidoriTraceable::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
-
-	void CollectGarbage() noexcept;
+    GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
 
 	template<typename T>
         requires MidoriValueConstructible<T>

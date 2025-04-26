@@ -123,7 +123,7 @@ MidoriText MidoriValue::ToText() const
 	case MidoriValue::POINTER:
 		return GetPointer()->ToText();
 	default:
-		return "UNKNOWN";
+		return "!!!UNKNOWN!!!";
 	}
 }
 #endif
@@ -156,6 +156,7 @@ MidoriTraceable::MidoriTraceable(MidoriBox&& box) noexcept : m_value(std::move(b
 {
 }
 
+#ifdef DEBUG
 MidoriText MidoriTraceable::ToText()
 {
 	return std::visit([](auto&& arg) -> MidoriText
@@ -175,14 +176,14 @@ MidoriText MidoriTraceable::ToText()
 				MidoriText result("[");
 				for (int idx : std::views::iota(0, arg.GetLength()))
 				{
-					result.Append(arg[idx].GetPointer()->ToText()).Append(", ");
+					result.Append(arg[idx].ToText()).Append(", ");
 				}
 				result.Pop().Pop().Append("]");
 				return result;
 			}
 			else if constexpr (std::is_same_v<T, MidoriCellValue>)
 			{
-				return MidoriText("Cell(").Append(arg.GetValue().GetPointer()->ToText()).Append(")");
+				return MidoriText("Cell(").Append(arg.GetValue().ToText()).Append(")");
 			}
 			else if constexpr (std::is_same_v<T, MidoriClosure>)
 			{
@@ -203,7 +204,7 @@ MidoriText MidoriTraceable::ToText()
 
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
-					union_val.Append(arg.m_values[idx].GetPointer()->ToText()).Append(", ");
+					union_val.Append(arg.m_values[idx].ToText()).Append(", ");
 				}
 				return union_val.Pop().Pop().Append("}");
 			}
@@ -218,7 +219,7 @@ MidoriText MidoriTraceable::ToText()
 				struct_val.Append("{");
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
-					struct_val.Append(arg.m_values[idx].GetPointer()->ToText()).Append(", ");
+					struct_val.Append(arg.m_values[idx].ToText()).Append(", ");
 				}
 				return struct_val.Pop().Pop().Append("}");
 			}
@@ -246,6 +247,7 @@ MidoriText MidoriTraceable::ToText()
 			}
 		}, m_value);
 }
+#endif
 
 size_t MidoriTraceable::GetSize() const
 {
@@ -262,7 +264,7 @@ void MidoriTraceable::Unmark()
 	m_is_marked = false;
 }
 
-bool MidoriTraceable::Marked() const
+bool MidoriTraceable::IsMarked() const
 {
 	return m_is_marked;
 }
@@ -273,8 +275,6 @@ void* MidoriTraceable::operator new(size_t size) noexcept
 	MidoriTraceable* traceable = static_cast<MidoriTraceable*>(object);
 
 	traceable->m_size = size;
-	s_total_bytes_allocated += size;
-	s_traceables.emplace(traceable);
 
 	return static_cast<void*>(traceable);
 }
@@ -282,80 +282,8 @@ void* MidoriTraceable::operator new(size_t size) noexcept
 void MidoriTraceable::operator delete(void* object, size_t size) noexcept
 {
 	MidoriTraceable* traceable = static_cast<MidoriTraceable*>(object);
-	s_total_bytes_allocated -= traceable->m_size;
 
 	::operator delete(object, size);
-}
-
-void MidoriTraceable::Trace()
-{
-	if (Marked())
-	{
-		return;
-	}
-#ifdef DEBUG
-	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}, value: {}\n", static_cast<void*>(this), ToText().GetCString()));
-#endif
-	Mark();
-
-	if (IsTraceable<MidoriArray>())
-	{
-		MidoriArray& arr = GetTraceable<MidoriArray>();
-		for (int idx : std::views::iota(0, arr.GetLength()))
-		{
-			MidoriValue& value = arr[idx];
-			if (s_traceables.contains(value.GetPointer()))
-			{
-				value.GetPointer()->Trace();
-			}
-		}
-	}
-	else if (IsTraceable<MidoriClosure>())
-	{
-		MidoriArray& cell_values = GetTraceable<MidoriClosure>().m_cell_values;
-		for (int i = 0; i < cell_values.GetLength(); i += 1)
-		{
-			MidoriValue& val = cell_values[i];
-			val.GetPointer()->Trace();
-		}
-	}
-	else if (IsTraceable<MidoriCellValue>())
-	{
-		MidoriValue cell_value = GetTraceable<MidoriCellValue>().GetValue();
-		if (s_traceables.contains(cell_value.GetPointer()))
-		{
-			cell_value.GetPointer()->Trace();
-		}
-	}
-	else if (IsTraceable<MidoriStruct>())
-	{
-		MidoriArray& arr = GetTraceable<MidoriStruct>().m_values;
-		for (int idx : std::views::iota(0, arr.GetLength()))
-		{
-			MidoriValue& value = arr[idx];
-			if (s_traceables.contains(value.GetPointer()))
-			{
-				value.GetPointer()->Trace();
-			}
-		}
-	}
-	else if (IsTraceable<MidoriUnion>())
-	{
-		MidoriArray& arr = GetTraceable<MidoriUnion>().m_values;
-
-		for (int idx : std::views::iota(0, arr.GetLength()))
-		{
-			MidoriValue& value = arr[idx];
-			if (s_traceables.contains(value.GetPointer()))
-			{
-				value.GetPointer()->Trace();
-			}
-		}
-	}
-	else if (IsTraceable<MidoriBox>())
-	{
-		// Box value only contains primitive data
-	}
 }
 
 std::optional<MidoriBox> MidoriTraceable::UnBox()
