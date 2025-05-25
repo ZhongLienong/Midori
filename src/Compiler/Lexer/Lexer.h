@@ -14,12 +14,11 @@ private:
 	int m_line = 1;
 	size_t m_begin = 0u;
 	size_t m_current = 0u;
-	bool m_is_main_program = true;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
 
 public:
 
-	Lexer(std::string&& source_code, bool is_main_program = true) noexcept : m_source_code(std::move(source_code)), m_is_main_program(is_main_program) {}
+	Lexer(std::string&& source_code) noexcept;
 
 	MidoriResult::LexerResult Lex();
 

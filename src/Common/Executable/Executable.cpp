@@ -119,17 +119,6 @@ const OpCode* BytecodeStream::operator[](int index) const
 	return &m_bytecode[static_cast<size_t>(index)];
 }
 
-const MidoriValue& MidoriExecutable::GetConstant(int index) const
-{
-	return m_constants[static_cast<size_t>(index)];
-}
-
-int MidoriExecutable::AddConstant(MidoriValue&& value)
-{
-	m_constants.emplace_back(std::move(value));
-	return static_cast<int>(m_constants.size()) - 1;
-}
-
 int MidoriExecutable::AddGlobalVariable(MidoriText&& name)
 {
 	m_globals.emplace_back(std::move(name));

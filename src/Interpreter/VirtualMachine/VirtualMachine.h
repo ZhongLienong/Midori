@@ -68,8 +68,6 @@ private:
 
 	MidoriFloat ReadFloatConstant() noexcept;
 
-	MidoriValue ReadConstant(OpCode operand_length) noexcept;
-
 	int ReadGlobalVariable() noexcept;
 
 	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;

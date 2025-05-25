@@ -52,6 +52,14 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 	return result;
 }
 
+MidoriValue::MidoriValue() noexcept
+{
+#ifdef DEBUG
+	m_tag = UNIT;
+#endif
+	std::memset(m_data, 0, sizeof(void*));
+}
+
 MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 {
 #ifdef DEBUG
@@ -120,6 +128,8 @@ MidoriText MidoriValue::ToText() const
 		return MidoriText::FromInteger(GetInteger());
 	case MidoriValue::BOOL:
 		return GetBool() ? "true" : "false";
+	case MidoriValue::UNIT:
+		return "()";
 	case MidoriValue::POINTER:
 		return GetPointer()->ToText();
 	default:
@@ -200,8 +210,6 @@ MidoriText MidoriTraceable::ToText()
 				}
 
 				MidoriText union_val("Union{");
-				union_val.Append("{");
-
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
 					union_val.Append(arg.m_values[idx].ToText()).Append(", ");
@@ -216,7 +224,6 @@ MidoriText MidoriTraceable::ToText()
 				}
 
 				MidoriText struct_val("Struct{");
-				struct_val.Append("{");
 				for (int idx : std::views::iota(0, arg.m_values.GetLength()))
 				{
 					struct_val.Append(arg.m_values[idx].ToText()).Append(", ");
@@ -758,17 +765,31 @@ bool MidoriText::IsInlined() const noexcept
 
 MidoriCellValue::MidoriCellValue(MidoriValue heap_value) noexcept
 {
-	m_value.m_heap_value = heap_value;
+	m_data = heap_value;
 	m_is_on_heap = true;
 }
 
 MidoriCellValue::MidoriCellValue(MidoriValue* stack_ref) noexcept
 {
-	m_value.m_stack_value_ref = stack_ref;
+	std::memcpy(&m_data, &stack_ref, sizeof(void*));
 	m_is_on_heap = false;
 }
 
 MidoriValue& MidoriCellValue::GetValue()
 {
-	return m_is_on_heap ? m_value.m_heap_value : *m_value.m_stack_value_ref;
+	if (m_is_on_heap)
+	{
+		return m_data;
+	}
+	else
+	{
+		return *GetStackPointer();
+	}
+}
+
+MidoriValue* MidoriCellValue::GetStackPointer()
+{
+	MidoriValue* ptr;
+	std::memcpy(&ptr, &m_data, sizeof(void*));
+	return ptr;
 }

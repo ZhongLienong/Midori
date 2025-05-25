@@ -53,6 +53,11 @@ void TokenStream::Erase(TokenStream::iterator iter)
 	m_tokens.erase(m_tokens.begin(), iter);
 }
 
+void TokenStream::PopBack() noexcept
+{
+    m_tokens.pop_back();
+}
+
 std::vector<std::string> BuildGraph::GetStartingPoints() const
 {
 	std::vector<std::string> starting_points;
@@ -179,11 +184,14 @@ TokenStream BuildGraph::Stitch()
     Printer::Print("\n");
 #endif
 
-    for (const auto& file : topological_order) 
+    for (size_t idx : std::views::iota(0u, topological_order.size() - 1u))
     {
-        TokenStream node_tokens = m_nodes.at(file).m_tokens;
+        TokenStream& node_tokens = m_nodes.at(topological_order[idx]).m_tokens;
+        node_tokens.PopBack();
         stitched_stream.Insert(stitched_stream.end(), std::move(node_tokens));
     }
+    TokenStream& node_tokens = m_nodes.at(topological_order[topological_order.size() - 1u]).m_tokens;
+    stitched_stream.Insert(stitched_stream.end(), std::move(node_tokens));
 
     return stitched_stream;
 }

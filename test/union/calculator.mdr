@@ -1,0 +1,38 @@
+import 
+{
+	"../MidoriPrelude/IO.mdr"
+}
+
+union Expr = Num(Float)
+    | Add(Expr, Expr)
+    | Sub(Expr, Expr)
+    | Mul(Expr, Expr)
+    | Div(Expr, Expr);
+
+def eval : (Expr) -> Float = fn(expr) ->
+    match expr with
+        case Expr::Num(value) -> value
+        case Expr::Add(left, right) -> eval(left) + eval(right)
+        case Expr::Sub(left, right) -> eval(left) - eval(right)
+        case Expr::Mul(left, right) -> eval(left) * eval(right)
+        case Expr::Div(left, right) -> 
+        {
+            def denominator = eval(right);
+            if denominator == 0.0 then
+            {
+                // handle division by zero gracefully
+                IO::PrintLine("Error: Division by zero");
+                0.0
+            }
+            else
+                eval(left) / denominator
+        }
+;
+
+def expr = new Expr::Mul
+(
+    new Expr::Add(new Expr::Num(3.0), new Expr::Num(5.0)),
+    new Expr::Sub(new Expr::Num(10.0), new Expr::Num(2.0))
+);
+
+IO::PrintLine("Expected 64.0, expression evaluation result: " ++ (eval(expr) as Text));

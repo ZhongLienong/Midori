@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <variant>
 #include <optional>
@@ -7,22 +8,98 @@
 #include "Compiler/Token/Token.h"
 #include "Type.h"
 
-struct Block;
-struct Simple;
-struct Define;
-struct If;
-struct While;
-struct For;
-struct Break;
-struct Continue;
-struct Return;
-struct Foreign;
-struct Struct;
-struct Union;
-struct Switch;
-struct Namespace;
+class MidoriExpression;
 
-using MidoriStatement = std::variant<Block, Simple, Define, If, While, For, Break, Continue, Return, Foreign, Struct, Union, Switch, Namespace>;
+class MidoriStatement
+{
+public:
+
+	struct Simple
+	{
+		Token m_semicolon;
+		std::unique_ptr<MidoriExpression> m_expr;
+
+		Simple(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr);
+	};
+
+	struct Define
+	{
+		Token m_name;
+		std::unique_ptr<MidoriExpression> m_value;
+		std::optional<std::shared_ptr<MidoriType>> m_annotated_type;
+		std::optional<int> m_local_index;
+
+		Define(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
+	};
+
+	struct Continue
+	{
+		Token m_keyword;
+		int m_number_to_pop = 0;
+
+		Continue(const Token& keyword, int number_to_pop);
+	};
+
+	struct Foreign
+	{
+		Token m_function_name;
+		std::string m_foreign_name;
+		std::shared_ptr<MidoriType> m_type;
+		std::optional<int> m_local_index;
+
+		Foreign(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index);
+	};
+
+	struct Struct
+	{
+		Token m_name;
+		std::shared_ptr<MidoriType> m_self_type;
+
+		Struct(const Token& name, std::shared_ptr<MidoriType>&& self_type);
+	};
+
+	struct Union
+	{
+		Token m_name;
+		std::shared_ptr<MidoriType> m_self_type;
+
+		Union(const Token& name, std::shared_ptr<MidoriType>&& self_type);
+	};
+
+	struct Namespace
+	{
+		Token m_name;
+		std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
+
+		Namespace(const Token& name, std::vector<std::unique_ptr<MidoriStatement>>&& stmts);
+	};
+
+private:
+	using StatementUnion = std::variant<Simple, Define, Continue, Foreign, Struct, Union, Namespace>;
+	StatementUnion m_stmt_data;
+
+public:
+	template<typename T>
+	MidoriStatement(T&& stmt_data) : m_stmt_data(std::move(stmt_data))
+	{
+	}
+
+	template<typename T>
+	T& GetStatement()
+	{
+		return std::get<T>(m_stmt_data);
+	}
+
+	template<typename T>
+	constexpr bool IsStatement() const
+	{
+		return std::holds_alternative<T>(m_stmt_data);
+	}
+
+	StatementUnion& operator*();
+};
+
+using MidoriProgramTree = std::vector<std::unique_ptr<MidoriStatement>>;
 
 class MidoriExpression
 {
@@ -51,7 +128,7 @@ public:
 
 	struct BaseExpression
 	{
-		std::shared_ptr<MidoriType> m_type_data = nullptr;
+		std::shared_ptr<MidoriType> m_type_data = MidoriType::MakeUndecidedType();
 	};
 
 	struct As : BaseExpression
@@ -61,7 +138,7 @@ public:
 		std::shared_ptr<MidoriType> m_to_type;
 		std::unique_ptr<MidoriExpression> m_expr;
 
-		As(Token&& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr);
+		As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
 	struct Binary : BaseExpression
@@ -70,7 +147,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_left;
 		std::unique_ptr<MidoriExpression> m_right;
 
-		Binary(Token&& op, std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right);
+		Binary(const Token& op, std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right);
 	};
 
 	struct Group : BaseExpression
@@ -84,35 +161,35 @@ public:
 	{
 		Token m_token;
 
-		TextLiteral(Token&& token);
+		TextLiteral(const Token& token);
 	};
 
 	struct BoolLiteral : BaseExpression
 	{
 		Token m_token;
 
-		BoolLiteral(Token&& token);
+		BoolLiteral(const Token& token);
 	};
 
 	struct FloatLiteral : BaseExpression
 	{
 		Token m_token;
 
-		FloatLiteral(Token&& token);
+		FloatLiteral(const Token& token);
 	};
 
 	struct IntegerLiteral : BaseExpression
 	{
 		Token m_token;
 
-		IntegerLiteral(Token&& token);
+		IntegerLiteral(const Token& token);
 	};
 
 	struct UnitLiteral : BaseExpression
 	{
 		Token m_token;
 
-		UnitLiteral(Token&& token);
+		UnitLiteral(const Token& token);
 	};
 
 	struct UnaryPrefix : BaseExpression
@@ -120,7 +197,7 @@ public:
 		Token m_op;
 		std::unique_ptr<MidoriExpression> m_expr;
 
-		UnaryPrefix(Token&& op, std::unique_ptr<MidoriExpression>&& expr);
+		UnaryPrefix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
 	struct UnarySuffix : BaseExpression
@@ -128,7 +205,7 @@ public:
 		Token m_op;
 		std::unique_ptr<MidoriExpression> m_expr;
 
-		UnarySuffix(Token&& op, std::unique_ptr<MidoriExpression>&& expr);
+		UnarySuffix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
 	struct Bind : BaseExpression
@@ -137,7 +214,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_value;
 		NameContext::Tag m_name_ctx;
 
-		Bind(Token&& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+		Bind(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
 	struct BoundedName : BaseExpression
@@ -145,7 +222,7 @@ public:
 		Token m_name;
 		NameContext::Tag m_name_ctx;
 
-		BoundedName(Token&& name, NameContext::Tag&& name_ctx);
+		BoundedName(const Token& name, NameContext::Tag&& name_ctx);
 	};
 
 	struct Call : BaseExpression
@@ -155,19 +232,17 @@ public:
 		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
 		bool m_is_foreign;
 
-		Call(Token&& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign = false);
+		Call(const Token& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign = false);
 	};
 
 	struct Function : BaseExpression
 	{
 		Token m_function_keyword;
 		std::vector<Token> m_params;
-		std::vector<std::shared_ptr<MidoriType>> m_param_types;
-		std::shared_ptr<MidoriType> m_return_type;
-		std::unique_ptr<MidoriStatement> m_body;
+		std::unique_ptr<MidoriExpression> m_return_value;
 		int m_captured_count;
 
-		Function(Token&& function_keyword, std::vector<Token>&& params, std::unique_ptr<MidoriStatement>&& body, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, int captured_count = 0);
+		Function(const Token& function_keyword, std::vector<Token>&& params, std::unique_ptr<MidoriExpression>&& m_return_value, int captured_count = 0);
 	};
 
 	struct Construct : BaseExpression
@@ -184,7 +259,7 @@ public:
 		std::shared_ptr<MidoriType> m_return_type;
 		ConstructContext m_construct_ctx;
 
-		Construct(Token&& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, ConstructContext&& construct_ctx);
+		Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, ConstructContext&& construct_ctx);
 
 		template<typename T>
 		constexpr bool IsConstructTypeOf()
@@ -193,16 +268,17 @@ public:
 		}
 	};
 
-	struct Ternary : BaseExpression
+	struct IfElse : BaseExpression
 	{
-		Token m_question;
-		Token m_colon;
+		Token m_if_token;
+		Token m_then_token;
+		Token m_else_token;
 		std::unique_ptr<MidoriExpression> m_condition;
 		std::unique_ptr<MidoriExpression> m_true_branch;
 		std::unique_ptr<MidoriExpression> m_else_branch;
 		ConditionOperandType m_condition_operand_type;
 
-		Ternary(Token&& question, Token&& colon, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type);
+		IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type);
 	};
 
 	struct Get : BaseExpression
@@ -211,7 +287,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_struct;
 		int m_index;
 
-		Get(Token&& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index = -1);
+		Get(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index = -1);
 	};
 
 	struct Set : BaseExpression
@@ -221,7 +297,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_value;
 		int m_index;
 
-		Set(Token&& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
+		Set(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
 	};
 
 	struct Array : BaseExpression
@@ -229,7 +305,7 @@ public:
 		Token m_op;
 		std::vector<std::unique_ptr<MidoriExpression>> m_elems;
 
-		Array(Token&& op, std::vector<std::unique_ptr<MidoriExpression>>&& elems);
+		Array(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elems);
 	};
 
 	struct ArrayGet : BaseExpression
@@ -238,7 +314,7 @@ public:
 		std::vector<std::unique_ptr<MidoriExpression>> m_indices;
 		std::unique_ptr<MidoriExpression> m_arr_var;
 
-		ArrayGet(Token&& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var);
+		ArrayGet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var);
 	};
 
 	struct ArraySet : BaseExpression
@@ -248,11 +324,76 @@ public:
 		std::unique_ptr<MidoriExpression> m_arr_var;
 		std::unique_ptr<MidoriExpression> m_value;
 
-		ArraySet(Token&& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
+		ArraySet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
+	};
+
+	struct Block : BaseExpression
+	{
+		Token m_right_brace;
+		std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
+		std::optional<std::unique_ptr<MidoriExpression>> m_final_expr = std::nullopt;
+		int m_local_count = 0;
+
+		Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, int local_count, std::unique_ptr<MidoriExpression>&& final_expr = nullptr);
+
+		bool HasDefine() const;
+	};
+
+	struct Match : BaseExpression
+	{
+		Token m_match_keyword;
+		std::unique_ptr<MidoriExpression> m_arg_expr;
+		std::vector<std::unique_ptr<MidoriExpression>> m_cases;
+
+		Match(const Token& match_keyword, std::unique_ptr<MidoriExpression>&& arg_expr, std::vector<std::unique_ptr<MidoriExpression>>&& cases);
+	};
+
+	struct Case : BaseExpression
+	{
+		Token m_keyword;
+		std::vector<std::string> m_binding_names;
+		std::string m_member_name;
+		std::unique_ptr<MidoriExpression> m_expr;
+		int m_tag;
+
+		Case(const Token& keyword, std::vector<std::string>&& binding_names, const std::string& member_name, std::unique_ptr<MidoriExpression>&& expr, int tag);
+	};
+
+	struct Default : BaseExpression
+	{
+		Token m_keyword;
+		std::unique_ptr<MidoriExpression> m_expr;
+
+		Default(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr);
+	};
+
+	struct Loop : BaseExpression
+	{
+		Token m_loop_keyword;
+		std::unique_ptr<MidoriExpression> m_body;
+
+		Loop(const Token& loop_keyword, std::unique_ptr<MidoriExpression>&& body);
+	};
+
+	struct Return : BaseExpression
+	{
+		Token m_keyword;
+		std::unique_ptr<MidoriExpression> m_value;
+
+		Return(const Token& keyword, std::unique_ptr<MidoriExpression>&& value);
+	};
+
+	struct Break : BaseExpression
+	{
+		Token m_keyword;
+		int m_number_to_pop = 0;
+		std::unique_ptr<MidoriExpression> m_value;
+
+		Break(const Token& keyword, int number_to_pop, std::unique_ptr<MidoriExpression>&& value);
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, Ternary, Get, Set, Array, ArrayGet, ArraySet>;
+	using ExpressionUnion = std::variant<As, Binary, Group, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, Block, Match, Case, Default, Loop, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:
@@ -268,7 +409,7 @@ public:
 	}
 
 	template<typename T>
-	constexpr bool IsExpression()
+	constexpr bool IsExpression() const
 	{
 		return std::holds_alternative<T>(m_expr_data);
 	}
@@ -276,134 +417,92 @@ public:
 	ExpressionUnion& operator*();
 
 	std::shared_ptr<MidoriType>& GetType();
-};
 
-struct Block
-{
-	Token m_right_brace;
-	std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
-	int m_local_count = 0;
-};
-
-struct Simple
-{
-	Token m_semicolon;
-	std::unique_ptr<MidoriExpression> m_expr;
-};
-
-struct Define
-{
-	Token m_name;
-	std::unique_ptr<MidoriExpression> m_value;
-	std::optional<std::shared_ptr<MidoriType>> m_annotated_type;
-	std::optional<int> m_local_index;
-};
-
-struct If
-{
-	Token m_if_keyword;
-	std::optional<Token> m_else_keyword;
-	std::optional<std::unique_ptr<MidoriStatement>> m_else_branch;
-	std::unique_ptr<MidoriExpression> m_condition;
-	std::unique_ptr<MidoriStatement> m_true_branch;
-	MidoriExpression::ConditionOperandType m_condition_operand_type;
-};
-
-struct While
-{
-	Token m_loop_keyword;
-	std::unique_ptr<MidoriExpression> m_condition;
-	std::unique_ptr<MidoriStatement> m_body;
-};
-
-struct For
-{
-	Token m_loop_keyword;
-	std::unique_ptr<MidoriExpression> m_condition;
-	std::unique_ptr<MidoriStatement> m_condition_incrementer;
-	std::unique_ptr<MidoriStatement> m_condition_intializer;
-	std::unique_ptr<MidoriStatement> m_body;
-	int m_control_block_local_count = 0;
-};
-
-struct Break
-{
-	Token m_keyword;
-	int m_number_to_pop = 0;
-};
-
-struct Continue
-{
-	Token m_keyword;
-	int m_number_to_pop = 0;
-};
-
-struct Return
-{
-	Token m_keyword;
-	std::unique_ptr<MidoriExpression> m_value;
-};
-
-struct Foreign
-{
-	Token m_function_name;
-	std::string m_foreign_name;
-	std::shared_ptr<MidoriType> m_type;
-	std::optional<int> m_local_index;
-};
-
-struct Struct
-{
-	Token m_name;
-	std::shared_ptr<MidoriType> m_self_type;
-};
-
-struct Union
-{
-	Token m_name;
-	std::shared_ptr<MidoriType> m_self_type;
-};
-
-struct Switch
-{
-	struct MemberCase
+	template<typename Kind>
+	bool Contains() const 
 	{
-		Token m_keyword;
-		std::vector<std::string> m_binding_names;
-		std::string m_member_name;
-		std::unique_ptr<MidoriStatement> m_stmt;
-		int m_tag;
-	};
+		return std::visit
+		(
+			[this](auto&& node) -> bool
+			{
+				using T = std::decay_t<decltype(node)>;
 
-	struct DefaultCase
-	{
-		Token m_keyword;
-		std::unique_ptr<MidoriStatement> m_stmt;
-	};
-
-	using Case = std::variant<MemberCase, DefaultCase>;
-
-	Token m_switch_keyword;
-	std::unique_ptr<MidoriExpression> m_arg_expr;
-	std::vector<Case> m_cases;
-
-	static bool IsMemberCase(const Case& c);
-
-	static bool IsDefaultCase(const Case& c);
-
-	static MemberCase& GetMemberCase(const Case& c);
-
-	static DefaultCase& GetDefaultCase(const Case& c);
-
-	static const Token& GetKeyword(const Case& c);
-
-	static const std::unique_ptr<MidoriStatement>& GetCaseStatement(const Case& c);
+				if constexpr (std::is_same_v<T, Kind>)
+				{
+					return true;
+				}
+				if constexpr (std::is_same_v<T, MidoriExpression::As>)
+				{
+					return node.m_expr->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Binary>)
+				{
+					return node.m_left->Contains<Kind>() || node.m_right->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
+				{
+					return node.m_expr->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
+				{
+					return node.m_expr->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Group>)
+				{
+					return node.m_expr_in->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
+				{
+					return node.m_condition->Contains<Kind>() || node.m_true_branch->Contains<Kind>() || node.m_else_branch->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_stmts, [this](const std::unique_ptr<MidoriStatement>& stmt)
+						{
+							return stmt->IsStatement<MidoriStatement::Simple>() && stmt->GetStatement<MidoriStatement::Simple>().m_expr->Contains<Kind>();
+						}
+					)
+						|| (node.m_final_expr.has_value() && node.m_final_expr.value()->Contains<Kind>());
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
+				{
+					return node.m_body->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
+				{
+					return node.m_return_value->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Call>)
+				{
+					if (node.m_callee->Contains<Kind>())
+					{
+						return true;
+					}
+					for (const std::unique_ptr<MidoriExpression>& arg : node.m_arguments)
+					{
+						if (arg->Contains<Kind>())
+						{
+							return true;
+						}
+					}
+					return false;
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
+				{
+					return node.m_value->Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
+				{
+					return node.m_value->Contains<Kind>();
+				}
+				else
+				{
+					return false;
+				}
+			},
+			m_expr_data
+		);
+	}
 };
-
-struct Namespace
-{
-	Token m_name;
-	std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
-};
-
-using MidoriProgramTree = std::vector<std::unique_ptr<MidoriStatement>>;

@@ -1,0 +1,24 @@
+import 
+{
+	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+}
+
+union List = Nil | Cons(Int, List);
+
+def list_sum : (List) -> Int = fn(lst) ->
+	match lst with
+		case List::Nil -> 0
+		case List::Cons(x, xs) -> x + list_sum(xs)
+;
+
+def list1 = new List::Nil();
+def list2 = new List::Cons(1, new List::Nil());
+def list3 = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
+def list4 = new List::Cons(0, new List::Cons(0, new List::Cons(0, new List::Nil())));
+def list5 = new List::Cons(10, new List::Cons(-5, new List::Cons(20, new List::Nil())));
+
+IO::PrintLine("Expected 0, computation generated " ++ (list_sum(list1) as Text));
+IO::PrintLine("Expected 1, computation generated " ++ (list_sum(list2) as Text));
+IO::PrintLine("Expected 6, computation generated " ++ (list_sum(list3) as Text));
+IO::PrintLine("Expected 0, computation generated " ++ (list_sum(list4) as Text));
+IO::PrintLine("Expected 25, computation generated " ++ (list_sum(list5) as Text));

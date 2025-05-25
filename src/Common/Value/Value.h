@@ -73,6 +73,7 @@ private:
 		INT,
 		BOOL,
 		POINTER,
+		UNIT,
 		UNKNOWN,
 	};
 
@@ -80,7 +81,7 @@ private:
 #endif
 
 public:
-	MidoriValue() = default;
+	MidoriValue() noexcept;
 
 	MidoriValue(MidoriFloat d) noexcept;
 
@@ -224,19 +225,16 @@ private:
 
 struct MidoriCellValue
 {
-	union
-	{
-		MidoriValue m_heap_value;
-		MidoriValue* m_stack_value_ref;
-	} m_value;
+	MidoriValue m_data;
 	bool m_is_on_heap;
 
 	MidoriCellValue(MidoriValue heap_value) noexcept;
 
 	MidoriCellValue(MidoriValue* stack_ref) noexcept;
 
-
 	MidoriValue& GetValue();
+
+	MidoriValue* GetStackPointer();
 };
 
 struct MidoriClosure

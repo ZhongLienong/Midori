@@ -11,6 +11,7 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"Bool"s, Token::Name::BOOL},
 	{"Unit"s, Token::Name::UNIT},
 	{"Array"s, Token::Name::ARRAY},
+	{"Never"s, Token::Name::NEVER},
 
 	// reserved keywords
 	{"else"s, Token::Name::ELSE},
@@ -32,8 +33,10 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"foreign"s, Token::Name::FOREIGN},
 	{"case"s, Token::Name::CASE},
 	{"default"s, Token::Name::DEFAULT},
-	{"switch"s, Token::Name::SWITCH},
 	{"namespace"s, Token::Name::NAMESPACE},
+	{"then"s, Token::Name::THEN},
+	{"with"s, Token::Name::WITH},
+	{"match"s, Token::Name::MATCH},
 };
 
 bool Lexer::IsAtEnd(int offset) const
@@ -434,6 +437,10 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 		);
 }
 
+Lexer::Lexer(std::string&& source_code) noexcept : m_source_code(std::move(source_code)) 
+{
+}
+
 MidoriResult::LexerResult Lexer::Lex()
 {
 	TokenStream token_stream;
@@ -458,7 +465,7 @@ MidoriResult::LexerResult Lexer::Lex()
 		return std::unexpected<std::string>(errors);
 	}
 
-	if ((std::prev(token_stream.cend())->m_token_name != Token::Name::END_OF_FILE) && m_is_main_program)
+	if ((std::prev(token_stream.cend())->m_token_name != Token::Name::END_OF_FILE))
 	{
 		token_stream.AddToken(MakeToken(Token::Name::END_OF_FILE));
 	}

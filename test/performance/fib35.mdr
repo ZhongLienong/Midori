@@ -1,16 +1,13 @@
 import 
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr",
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestFib = fn() : Unit
+def TestFib : () -> Unit = fn() ->
 {
 
-	def fib = fn(n : Int) : Int
-	{
-		return n <= 1 ? n : fib(n - 1) + fib(n - 2);
-	};
+	def fib : (Int) -> Int = fn(n) -> if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
 	def start = DateTime::GetTime();
 
@@ -19,11 +16,9 @@ def TestFib = fn() : Unit
 	def end = DateTime::GetTime();
 
 	IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
-
-	return ();
 };
 
-def main = fn() : Unit
+def main : () -> Unit = fn() ->
 {
 	return TestFib();
 };

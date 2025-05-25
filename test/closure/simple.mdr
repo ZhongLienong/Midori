@@ -1,11 +1,11 @@
 import 
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+	"../MidoriPrelude/IO.mdr",
 }
 
 def main = fn() : Int
 {
-	def x = fn(y : Int) : () -> Int 
+	def x : (Int) -> () -> Int = fn(y)
 	{
 		return fn() : Int { return y; };
 	};

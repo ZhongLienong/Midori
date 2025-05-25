@@ -1,0 +1,47 @@
+import 
+{
+	"../MidoriPrelude/IO.mdr"
+}
+
+union Tree = Leaf(Int) | Node(Tree, Tree);
+
+def TreeSum : (Tree) -> Int = fn(tree) ->
+	match tree with
+		case Tree::Leaf(value) -> value
+		case Tree::Node(left, right) -> TreeSum(left) + TreeSum(right)
+	;
+def TreeHeight : (Tree) -> Int = fn(tree) ->
+{
+	def max : (Int, Int) -> Int = fn(a, b) -> if a > b then a else b;
+	match tree with
+		case Tree::Leaf(_) -> 1
+		case Tree::Node(left, right) -> 1 + max(TreeHeight(left), TreeHeight(right))
+};
+
+def tree1 = new Tree::Node(new Tree::Leaf(2), new Tree::Leaf(3));
+def tree2 = new Tree::Node(new Tree::Node(new Tree::Leaf(1), new Tree::Leaf(4)), new Tree::Leaf(5));
+def tree3 = new Tree::Node
+(
+	new Tree::Node
+	(
+		new Tree::Node(new Tree::Leaf(1), new Tree::Leaf(1)),
+		new Tree::Leaf(2)
+	),
+	new Tree::Leaf(3)
+);
+def tree4 = new Tree::Node(new Tree::Leaf(0), new Tree::Node(new Tree::Leaf(0), new Tree::Leaf(0)));
+def tree5 = new Tree::Leaf(42);
+
+// sum
+IO::PrintLine("Expected 5, TreeSum computation generated " ++ (TreeSum(tree1) as Text));
+IO::PrintLine("Expected 10, TreeSum computation generated " ++ (TreeSum(tree2) as Text));
+IO::PrintLine("Expected 7, TreeSum computation generated " ++ (TreeSum(tree3) as Text));
+IO::PrintLine("Expected 0, TreeSum computation generated " ++ (TreeSum(tree4) as Text));
+IO::PrintLine("Expected 42, TreeSum computation generated " ++ (TreeSum(tree5) as Text));
+
+// height
+IO::PrintLine("Expected 2, TreeHeight computation generated " ++ (TreeHeight(tree1) as Text));
+IO::PrintLine("Expected 3, TreeHeight computation generated " ++ (TreeHeight(tree2) as Text));
+IO::PrintLine("Expected 4, TreeHeight computation generated " ++ (TreeHeight(tree3) as Text));
+IO::PrintLine("Expected 3, TreeHeight computation generated " ++ (TreeHeight(tree4) as Text));
+IO::PrintLine("Expected 1, TreeHeight computation generated " ++ (TreeHeight(tree5) as Text));

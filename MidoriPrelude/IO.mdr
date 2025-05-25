@@ -6,8 +6,5 @@ namespace IO
 
 	foreign "AppendToFile" AppendToFile : (Text, Text) -> Bool;
 
-	def PrintLine = fn(text) : Unit
-	{
-		return Print(text ++ "\n");
-	};
+	def PrintLine : (Text) -> Unit = fn(text) -> Print(text ++ "\n");
 }

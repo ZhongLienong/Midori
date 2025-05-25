@@ -16,7 +16,6 @@ namespace MidoriResult
 	using ImportManagerResult = std::expected<BuildGraph, std::string>;
 	using ExpressionResult = std::expected<std::unique_ptr<MidoriExpression>, std::string>;
 	using StatementResult = std::expected<std::unique_ptr<MidoriStatement>, std::string>;
-	using CaseResult = std::expected<Switch::Case, std::string>;
 	using ParserResult = std::expected<MidoriProgramTree, std::string>;
 	using TypeResult = std::expected<std::shared_ptr<MidoriType>, std::string>;
 	using TypeCheckerResult = std::expected<MidoriProgramTree, std::string>;

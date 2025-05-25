@@ -16,7 +16,7 @@ union U1
 	E(S1),
 };
 
-def main = fn() : Unit
+def main : () -> Unit = fn() ->
 {
 	def z = new U1::D(new U1::D(new U1::E(new S1())));
 
@@ -28,35 +28,14 @@ def main = fn() : Unit
 
 	def zz = new Inner::A();
 
-	switch(z)
-	{
-		case U1::D(u):
-		{
-			IO::PrintLine("1 Nested D case");
-
-			switch(u)
+	def sssw = match z with
+		case U1::D(u) -> 
 			{
-				case U1::D(uu):
-				{
-					IO::PrintLine("2 Nested D case");
-
-					switch(uu)
-					{
-						case U1::B():
-						{}
-						default:
-							IO::PrintLine("3 Nested default case");
-					}
-				}
-				default:
-				{
-					IO::PrintLine("Default case");
-				}
+				()
 			}
-		}
-		default:
-			IO::PrintLine("default case");
-	}
+		default -> 
+			IO::PrintLine("Outer default case")
+		;
 
 	return ();
 };

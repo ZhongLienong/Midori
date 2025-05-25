@@ -9,14 +9,6 @@
 class CodeGenerator
 {
 private:
-	struct MainProcedureContext
-	{
-		int m_main_procedure_index = 0;
-		int m_main_procedure_global_table_index = 0;
-		int m_main_procedure_arity = 0;
-		int m_main_procedure_line = 0;
-	};
-
 	struct LoopContext
 	{
 		std::vector<int> m_break_positions;
@@ -31,11 +23,12 @@ private:
 	MidoriExecutable::StringPool m_string_pool;
 	std::stack<LoopContext> m_loop_contexts;
 	std::unordered_map<std::string, int> m_global_variables;
+	std::unordered_map<std::string, int> m_local_variables;
 
 	MidoriExecutable m_executable;
-	std::optional<MainProcedureContext> m_main_function_ctx = std::nullopt;
 	size_t m_current_procedure_index = 0;
 	int m_string_pool_index = 0;
+	int m_local_count = 0;
 	OpCode m_last_opcode = OpCode::HALT;
 
 public:
@@ -74,33 +67,19 @@ private:
 
 	void EndLoop(int line);
 
-	void operator()(Block& block);
+	void operator()(MidoriStatement::Simple& simple);
 
-	void operator()(Simple& simple);
+	void operator()(MidoriStatement::Define& def);
 
-	void operator()(Define& def);
+	void operator()(MidoriStatement::Continue& continue_stmt);
 
-	void operator()(If& if_stmt);
+	void operator()(MidoriStatement::Foreign& foreign);
 
-	void operator()(While& while_stmt);
+	void operator()(MidoriStatement::Struct& struct_stmt);
 
-	void operator()(For& for_stmt);
+	void operator()(MidoriStatement::Union& union_stmt);
 
-	void operator()(Break& break_stmt);
-
-	void operator()(Continue& continue_stmt);
-
-	void operator()(Return& return_stmt);
-
-	void operator()(Foreign& foreign);
-
-	void operator()(Struct& struct_stmt);
-
-	void operator()(Union& union_stmt);
-
-	void operator()(Switch& switch_stmt);
-
-	void operator()(Namespace& namespace_stmt);
+	void operator()(MidoriStatement::Namespace& namespace_stmt);
 
 	void operator()(MidoriExpression::As& as);
 
@@ -142,115 +121,21 @@ private:
 
 	void operator()(MidoriExpression::ArraySet& array_set);
 
-	void operator()(MidoriExpression::Ternary& ternary);
+	void operator()(MidoriExpression::IfElse& if_else);
 
-	template<typename T>
-		requires std::is_same_v<T, std::unique_ptr<MidoriExpression>&> || std::is_same_v<T, std::unique_ptr<MidoriStatement>&>
-	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, T true_branch, T else_branch, int line)
-	{
-		int if_jump;
-		if (operand_type == MidoriExpression::ConditionOperandType::INTEGER)
-		{
-			PopByte(line);
-			switch (m_last_opcode)
-			{
-			case OpCode::LESS_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_LESS, line);
-				break;
-			case OpCode::LESS_EQUAL_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_LESS_EQUAL, line);
-				break;
-			case OpCode::GREATER_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_GREATER, line);
-				break;
-			case OpCode::GREATER_EQUAL_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_GREATER_EQUAL, line);
-				break;
-			case OpCode::EQUAL_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_EQUAL, line);
-				break;
-			case OpCode::NOT_EQUAL_INTEGER:
-				if_jump = EmitJump(OpCode::IF_INTEGER_NOT_EQUAL, line);
-				break;
-			default:
-				AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for integer ternary condition.", line));
-				return;
-			}
+	void operator()(MidoriExpression::Block& block);
 
-			if constexpr (std::is_same_v<T, std::unique_ptr<MidoriExpression>&>)
-			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
-			}
-			else
-			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, *true_branch);
-			}
+	void operator()(MidoriExpression::Match& match);
 
-			int else_jump = EmitJump(OpCode::JUMP, line);
-			PatchJump(if_jump, line);
-			if (else_branch != nullptr)
-			{
-				if constexpr (std::is_same_v<T, std::unique_ptr<MidoriExpression>&>)
-				{
-					std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
-				}
-				else
-				{
-					std::visit([this](auto&& arg) { (*this)(arg); }, *else_branch);
-				}
-			}
-			PatchJump(else_jump, line);
-		}
-		else
-		{
-			PopByte(line);
-			switch (m_last_opcode)
-			{
-			case OpCode::LESS_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_LESS, line);
-				break;
-			case OpCode::LESS_EQUAL_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_LESS_EQUAL, line);
-				break;
-			case OpCode::GREATER_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_GREATER, line);
-				break;
-			case OpCode::GREATER_EQUAL_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_GREATER_EQUAL, line);
-				break;
-			case OpCode::EQUAL_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_EQUAL, line);
-				break;
-			case OpCode::NOT_EQUAL_FLOAT:
-				if_jump = EmitJump(OpCode::IF_FLOAT_NOT_EQUAL, line);
-				break;
-			default:
-				AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for float ternary condition.", line));
-				return;
-			}
-			if constexpr (std::is_same_v<T, std::unique_ptr<MidoriExpression>&>)
-			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
-			}
-			else
-			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, *true_branch);
-			}
+	void operator()(MidoriExpression::Case& case_expr);
 
-			int else_jump = EmitJump(OpCode::JUMP, line);
-			PatchJump(if_jump, line);
-			if (else_branch != nullptr)
-			{
-				if constexpr (std::is_same_v<T, std::unique_ptr<MidoriExpression>&>)
-				{
-					std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
-				}
-				else
-				{
-					std::visit([this](auto&& arg) { (*this)(arg); }, *else_branch);
-				}
-			}
-			PatchJump(else_jump, line);
-		}
-	}
+	void operator()(MidoriExpression::Default& default_expr);
+
+	void operator()(MidoriExpression::Loop& loop);
+
+	void operator()(MidoriExpression::Break& break_expr);
+
+	void operator()(MidoriExpression::Return& return_expr);
+
+	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 };

@@ -7,6 +7,8 @@ project("Midori")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp PROPERTIES COMPILE_FLAGS "-O0")
+
 # Test Endianness
 include(TestBigEndian)
 test_big_endian(IS_BIG_ENDIAN)

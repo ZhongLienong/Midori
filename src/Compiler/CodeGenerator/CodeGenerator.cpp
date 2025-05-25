@@ -157,28 +157,15 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&
 	std::ranges::for_each
 	(
 		program_tree,
-		[this](std::unique_ptr<MidoriStatement>& statement){ std::visit([this](auto&& arg){ (*this)(arg); }, *statement); }
+		[this](std::unique_ptr<MidoriStatement>& statement){ std::visit([this](auto&& arg){ (*this)(arg); }, **statement); }
 	);
-
-	if (!m_main_function_ctx.has_value())
-	{
-		AddError(MidoriError::GenerateCodeGeneratorError("Program entry (\"main\") not found.", 0));
-	}
 
 	if (!m_errors.empty())
 	{
 		return std::unexpected<std::string>(std::move(m_errors));
 	}
 
-	// invoke the program entry (main)
-	const CodeGenerator::MainProcedureContext& main_module_ctx = m_main_function_ctx.value();
-	int line = main_module_ctx.m_main_procedure_line;
-
-	m_current_procedure_index = main_module_ctx.m_main_procedure_index;
-	EmitVariable(main_module_ctx.m_main_procedure_global_table_index, OpCode::GET_GLOBAL, line);
-	EmitByte(OpCode::CALL_DEFINED, line);
-	EmitByte(static_cast<OpCode>(0), line);
-	EmitByte(OpCode::HALT, line);
+	EmitByte(OpCode::HALT, 0);
 
 #ifdef DEBUG
 	m_executable.AttachProcedureNames(std::move(m_procedure_names));
@@ -189,37 +176,13 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&
 	return m_executable;
 }
 
-void CodeGenerator::operator()(Block& block)
-{
-	std::ranges::for_each
-	(
-		block.m_stmts,
-		[this](std::unique_ptr<MidoriStatement>& statement)
-		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, *statement);
-		}
-	);
-	if (m_procedures[m_current_procedure_index].ReadByteCode(m_procedures[m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
-	{
-		return;
-	}
-
-	while (block.m_local_count > 0)
-	{
-		int count_to_pop = std::min(block.m_local_count, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_SCOPE, block.m_right_brace.m_line);
-		EmitByte(static_cast<OpCode>(count_to_pop), block.m_right_brace.m_line);
-		block.m_local_count -= count_to_pop;
-	}
-}
-
-void CodeGenerator::operator()(Simple& simple)
+void CodeGenerator::operator()(MidoriStatement::Simple& simple)
 {
 	std::visit([this](auto&& arg){ (*this)(arg); }, **simple.m_expr);
 	EmitByte(OpCode::POP, simple.m_semicolon.m_line);
 }
 
-void CodeGenerator::operator()(Define& def)
+void CodeGenerator::operator()(MidoriStatement::Define& def)
 {
 	int line = def.m_name.m_line;
 	bool is_global = !def.m_local_index.has_value();
@@ -231,86 +194,43 @@ void CodeGenerator::operator()(Define& def)
 		m_global_variables[def.m_name.m_lexeme] = index.value();
 	}
 
+	// Put a placeholder value for block expression
+	bool need_placeholder =
+		(
+			def.m_value->IsExpression<MidoriExpression::Block>()
+			&& def.m_value->GetExpression<MidoriExpression::Block>().HasDefine()
+		)
+		||
+		(
+			def.m_value->IsExpression<MidoriExpression::Match>()
+			&& std::ranges::any_of(def.m_value->GetExpression<MidoriExpression::Match>().m_cases, [](const std::unique_ptr<MidoriExpression>& case_expr) { return case_expr->IsExpression<MidoriExpression::Case>() && !case_expr->GetExpression<MidoriExpression::Case>().m_binding_names.empty(); })
+		);
+	if (need_placeholder)
+	{
+		EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+	}
+
 	std::visit([this](auto&& arg){ (*this)(arg); }, **def.m_value);
+
+	if (need_placeholder)
+	{
+		EmitByte(OpCode::UPDATE_PLACEHOLDER, line);
+	}
 
 	if (is_global)
 	{
 		EmitVariable(index.value(), OpCode::DEFINE_GLOBAL, line);
-		if (def.m_name.m_lexeme == "main"s)
-		{
-			if (m_main_function_ctx.has_value())
-			{
-				AddError(MidoriError::GenerateCodeGeneratorError("Cannot re-define program entry (\"main\").", line));
-				return;
-			}
-			else
-			{
-				constexpr int main_module_arity = 0;
-				m_main_function_ctx.emplace(static_cast<int>(m_current_procedure_index), index.value(), main_module_arity, line);
-			}
-		}
 	}
 }
 
-void CodeGenerator::operator()(If& if_stmt)
+/*
+* 
+* 
+* C-Style For loop is abandoned in Midori language
+* 
+void CodeGenerator::operator()(MidoriStatement::For& for_stmt)
 {
-	int line = if_stmt.m_if_keyword.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **if_stmt.m_condition);
-
-	if (if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_stmt.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
-	{
-		if (if_stmt.m_else_branch.has_value())
-		{
-			EmitNumericConditionalJump<std::unique_ptr<MidoriStatement>&>(if_stmt.m_condition_operand_type, if_stmt.m_true_branch, if_stmt.m_else_branch.value(), line);
-		}
-		else
-		{
-			std::unique_ptr<MidoriStatement> null_else_branch = nullptr;
-			EmitNumericConditionalJump<std::unique_ptr<MidoriStatement>&>(if_stmt.m_condition_operand_type, if_stmt.m_true_branch, null_else_branch, line);
-		}
-	}
-	else
-	{
-		int true_jump = EmitJump(OpCode::JUMP_IF_FALSE, line);
-		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg){ (*this)(arg); }, *if_stmt.m_true_branch);
-
-		int else_jump = EmitJump(OpCode::JUMP, line);
-		PatchJump(true_jump, line);
-		EmitByte(OpCode::POP, line);
-
-		if (if_stmt.m_else_branch.has_value())
-		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, *if_stmt.m_else_branch.value());
-		}
-
-		PatchJump(else_jump, line);
-	}
-}
-
-void CodeGenerator::operator()(While& while_stmt)
-{
-	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
-	BeginLoop(loop_start);
-
-	std::visit([this](auto&& arg){ (*this)(arg); }, **while_stmt.m_condition);
-
-	int line = while_stmt.m_loop_keyword.m_line;
-	int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
-	EmitByte(OpCode::POP, line);
-
-	std::visit([this](auto&& arg){ (*this)(arg); }, *while_stmt.m_body);
-
-	EmitLoop(loop_start, line);
-	PatchJump(jump_if_false, line);
-	EmitByte(OpCode::POP, line);
-
-	EndLoop(line);
-}
-
-void CodeGenerator::operator()(For& for_stmt)
-{
-	std::visit([this](auto&& arg){ (*this)(arg); }, *for_stmt.m_condition_intializer);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition_intializer);
 
 	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
 	int line = for_stmt.m_loop_keyword.m_line;
@@ -322,13 +242,13 @@ void CodeGenerator::operator()(For& for_stmt)
 
 	int body_jump = EmitJump(OpCode::JUMP, line);
 	int incrementer_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
-	std::visit([this](auto&& arg){ (*this)(arg); }, *for_stmt.m_condition_incrementer);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition_incrementer);
 	EmitLoop(loop_start, line);
 	loop_start = incrementer_start;
 	PatchJump(body_jump, line);
 
 	BeginLoop(loop_start);
-	std::visit([this](auto&& arg){ (*this)(arg); }, *for_stmt.m_body);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_body);
 
 	EmitLoop(loop_start, line);
 	if (exit_jump != -1)
@@ -340,36 +260,22 @@ void CodeGenerator::operator()(For& for_stmt)
 	while (for_stmt.m_control_block_local_count > 0)
 	{
 		int count_to_pop = std::min(for_stmt.m_control_block_local_count, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_SCOPE, line);
+		EmitByte(OpCode::POP_LOCAL_SCOPE, line);
 		EmitByte(static_cast<OpCode>(count_to_pop), line);
 		for_stmt.m_control_block_local_count -= count_to_pop;
 	}
 	EndLoop(line);
 }
+*/
 
-void CodeGenerator::operator()(Break& break_stmt)
-{
-	int line = break_stmt.m_keyword.m_line;
-
-	while (break_stmt.m_number_to_pop > 0)
-	{
-		int count_to_pop = std::min(break_stmt.m_number_to_pop, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_SCOPE, line);
-		EmitByte(static_cast<OpCode>(count_to_pop), line);
-		break_stmt.m_number_to_pop -= count_to_pop;
-	}
-
-	m_loop_contexts.top().m_break_positions.emplace_back(EmitJump(OpCode::JUMP, line));
-}
-
-void CodeGenerator::operator()(Continue& continue_stmt)
+void CodeGenerator::operator()(MidoriStatement::Continue& continue_stmt)
 {
 	int line = continue_stmt.m_keyword.m_line;
 
 	while (continue_stmt.m_number_to_pop > 0)
 	{
 		int count_to_pop = std::min(continue_stmt.m_number_to_pop, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_MULTIPLE, line);
+		EmitByte(OpCode::POP_VALUES, line);
 		EmitByte(static_cast<OpCode>(count_to_pop), line);
 		continue_stmt.m_number_to_pop -= count_to_pop;
 	}
@@ -377,16 +283,7 @@ void CodeGenerator::operator()(Continue& continue_stmt)
 	EmitLoop(m_loop_contexts.top().m_loop_start, line);
 }
 
-void CodeGenerator::operator()(Return& return_stmt)
-{
-	int line = return_stmt.m_keyword.m_line;
-
-	std::visit([this](auto&& arg){ (*this)(arg); }, **return_stmt.m_value);
-
-	EmitByte(OpCode::RETURN, line);
-}
-
-void CodeGenerator::operator()(Foreign& foreign)
+void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
 {
 	int line = foreign.m_function_name.m_line;
 
@@ -414,84 +311,24 @@ void CodeGenerator::operator()(Foreign& foreign)
 	}
 }
 
-void CodeGenerator::operator()(Struct&)
+void CodeGenerator::operator()(MidoriStatement::Struct&)
 {
 	return;
 }
 
-void CodeGenerator::operator()(Union&)
+void CodeGenerator::operator()(MidoriStatement::Union&)
 {
 	return;
 }
 
-void CodeGenerator::operator()(Switch& switch_stmt)
-{
-	int line = switch_stmt.m_switch_keyword.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **switch_stmt.m_arg_expr);
-	EmitByte(OpCode::LOAD_TAG, line);
-
-	// for each case
-	// compare tag
-	std::vector<int> jumps;
-	for (Switch::Case& switch_case : switch_stmt.m_cases)
-	{
-		if (Switch::IsMemberCase(switch_case))
-		{
-			const Switch::MemberCase& member_case = Switch::GetMemberCase(switch_case);
-
-			EmitByte(OpCode::DUP, line);
-			MidoriInteger member_tag = static_cast<MidoriInteger>(member_case.m_tag);
-			EmitIntegerConstant(member_tag, line);
-			EmitByte(OpCode::EQUAL_INTEGER, line);
-			int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
-			EmitByte(OpCode::POP, line); // pop tag
-			EmitByte(OpCode::POP, line); // pop comp result
-
-			std::visit([this](auto&& arg){ (*this)(arg); }, *member_case.m_stmt);
-
-			int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
-			while (num_to_pop > 0)
-			{
-				int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
-				EmitByte(OpCode::POP_MULTIPLE, line);
-				EmitByte(static_cast<OpCode>(count_to_pop), line);
-				num_to_pop -= count_to_pop;
-			}
-			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-
-			PatchJump(jump_if_false, line);
-			EmitByte(OpCode::POP, line); // pop comp result
-		}
-		else
-		{
-			const Switch::DefaultCase& default_case = Switch::GetDefaultCase(switch_case);
-
-			std::visit([this](auto&& arg){ (*this)(arg); }, *default_case.m_stmt);
-
-			EmitByte(OpCode::POP, line);
-			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-			break;
-		}
-	}
-
-	std::ranges::for_each
-	(
-		jumps,
-		[this, line](int jump_addr)
-		{
-			PatchJump(jump_addr, line);
-		}
-	);
-}
-
-void CodeGenerator::operator()(Namespace& namespace_stmt)
+void CodeGenerator::operator()(MidoriStatement::Namespace& namespace_stmt)
 {
 	std::ranges::for_each
 	(
 		namespace_stmt.m_stmts,
 		[this](std::unique_ptr<MidoriStatement>& stmt)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, *stmt);
+			std::visit([this](auto&& arg){ (*this)(arg); }, **stmt);
 		}
 	);
 }
@@ -580,97 +417,101 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 {
 	int line = binary.m_op.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **binary.m_left);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **binary.m_right);
-	const std::shared_ptr<MidoriType>& operand_type = binary.m_left->GetType();
 
-	switch (binary.m_op.m_token_name)
+	if (binary.m_op.m_token_name == Token::Name::DOUBLE_BAR)
 	{
-	case Token::Name::SINGLE_PLUS:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line) : EmitByte(OpCode::ADD_INTEGER, line);
-		break;
-	case Token::Name::DOUBLE_PLUS:
-		operand_type->IsType<MidoriType::TextType>() ? EmitByte(OpCode::CONCAT_TEXT, line) : EmitByte(OpCode::CONCAT_ARRAY, line);
-		break;
-	case Token::Name::SINGLE_MINUS:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line) : EmitByte(OpCode::SUBTRACT_INTEGER, line);
-		break;
-	case Token::Name::STAR:
-		operand_type->IsType<MidoriType::FloatType>()
-			? EmitByte(OpCode::MULTIPLY_FLOAT, line) 
-			: operand_type->IsType<MidoriType::IntegerType>()
-			? EmitByte(OpCode::MULTIPLY_INTEGER, line)
-			: EmitByte(OpCode::DUP_ARRAY, line);
-		break;
-	case Token::Name::SLASH:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line) : EmitByte(OpCode::DIVIDE_INTEGER, line);
-		break;
-	case Token::Name::PERCENT:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line) : EmitByte(OpCode::MODULO_INTEGER, line);
-		break;
-	case Token::Name::LEFT_SHIFT:
-		EmitByte(OpCode::LEFT_SHIFT, line);
-		break;
-	case Token::Name::RIGHT_SHIFT:
-		EmitByte(OpCode::RIGHT_SHIFT, line);
-		break;
-	case Token::Name::LEFT_ANGLE:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line) : EmitByte(OpCode::LESS_INTEGER, line);
-		break;
-	case Token::Name::LESS_EQUAL:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line) : EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
-		break;
-	case Token::Name::RIGHT_ANGLE:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line) : EmitByte(OpCode::GREATER_INTEGER, line);
-		break;
-	case Token::Name::GREATER_EQUAL:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line) : EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
-		break;
-	case Token::Name::BANG_EQUAL:
-		operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line) : EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
-		break;
-	case Token::Name::DOUBLE_EQUAL:
-		operand_type->IsType<MidoriType::FloatType>()
-			? EmitByte(OpCode::EQUAL_FLOAT, line)
-			: operand_type->IsType<MidoriType::IntegerType>()
-			? EmitByte(OpCode::EQUAL_INTEGER, line)
-			: EmitByte(OpCode::EQUAL_TEXT, line);
-		break;
-	case Token::Name::SINGLE_AMPERSAND:
-		EmitByte(OpCode::BITWISE_AND, line);
-		break;
-	case Token::Name::SINGLE_BAR:
-		EmitByte(OpCode::BITWISE_OR, line);
-		break;
-	case Token::Name::CARET:
-		EmitByte(OpCode::BITWISE_XOR, line);
-		break;
-	case Token::Name::DOUBLE_BAR:
-	{
-		std::visit([this](auto&& arg){ (*this)(arg); }, **binary.m_left);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
 		int jump_if_true = EmitJump(OpCode::JUMP_IF_TRUE, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg){ (*this)(arg); }, **binary.m_right);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
 		PatchJump(jump_if_true, line);
-		break;
+		return;
 	}
-	case Token::Name::DOUBLE_AMPERSAND:
+	else if (binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND)
 	{
 		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
 		int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
 		EmitByte(OpCode::POP, line);
 		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
 		PatchJump(jump_if_false, line);
-		break;
 	}
-	default:
+	else
+	{
+		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
+		const std::shared_ptr<MidoriType>& operand_type = binary.m_left->GetType();
+
+		switch (binary.m_op.m_token_name)
+		{
+		case Token::Name::SINGLE_PLUS:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line) : EmitByte(OpCode::ADD_INTEGER, line);
+			break;
+		case Token::Name::DOUBLE_PLUS:
+			operand_type->IsType<MidoriType::TextType>() ? EmitByte(OpCode::CONCAT_TEXT, line) : EmitByte(OpCode::CONCAT_ARRAY, line);
+			break;
+		case Token::Name::SINGLE_MINUS:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line) : EmitByte(OpCode::SUBTRACT_INTEGER, line);
+			break;
+		case Token::Name::STAR:
+			operand_type->IsType<MidoriType::FloatType>()
+				? EmitByte(OpCode::MULTIPLY_FLOAT, line)
+				: operand_type->IsType<MidoriType::IntegerType>()
+				? EmitByte(OpCode::MULTIPLY_INTEGER, line)
+				: EmitByte(OpCode::DUP_ARRAY, line);
+			break;
+		case Token::Name::SLASH:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line) : EmitByte(OpCode::DIVIDE_INTEGER, line);
+			break;
+		case Token::Name::PERCENT:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line) : EmitByte(OpCode::MODULO_INTEGER, line);
+			break;
+		case Token::Name::LEFT_SHIFT:
+			EmitByte(OpCode::LEFT_SHIFT, line);
+			break;
+		case Token::Name::RIGHT_SHIFT:
+			EmitByte(OpCode::RIGHT_SHIFT, line);
+			break;
+		case Token::Name::LEFT_ANGLE:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line) : EmitByte(OpCode::LESS_INTEGER, line);
+			break;
+		case Token::Name::LESS_EQUAL:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line) : EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+			break;
+		case Token::Name::RIGHT_ANGLE:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line) : EmitByte(OpCode::GREATER_INTEGER, line);
+			break;
+		case Token::Name::GREATER_EQUAL:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line) : EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+			break;
+		case Token::Name::BANG_EQUAL:
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line) : EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+			break;
+		case Token::Name::DOUBLE_EQUAL:
+			operand_type->IsType<MidoriType::FloatType>()
+				? EmitByte(OpCode::EQUAL_FLOAT, line)
+				: operand_type->IsType<MidoriType::IntegerType>()
+				? EmitByte(OpCode::EQUAL_INTEGER, line)
+				: operand_type->IsType<MidoriType::TextType>()
+				? EmitByte(OpCode::EQUAL_TEXT, line)
+				: EmitByte(OpCode::EQUAL_INTEGER, line); // This remaining case is bool, we just treat them as integers
+			break;
+		case Token::Name::SINGLE_AMPERSAND:
+			EmitByte(OpCode::BITWISE_AND, line);
+			break;
+		case Token::Name::SINGLE_BAR:
+			EmitByte(OpCode::BITWISE_OR, line);
+			break;
+		case Token::Name::CARET:
+			EmitByte(OpCode::BITWISE_XOR, line);
+			break;
+		default:
 #ifdef _MSC_VER
-		__assume(0);
+			__assume(0);
 #else
-		__builtin_unreachable();
+			__builtin_unreachable();
 #endif
+		}
 	}
-	return;
 }
 
 void CodeGenerator::operator()(MidoriExpression::Group& group)
@@ -867,7 +708,9 @@ void CodeGenerator::operator()(MidoriExpression::Function& function)
 	size_t prev_index = m_current_procedure_index;
 	m_current_procedure_index = m_procedures.size();
 	m_procedures.emplace_back();
-	std::visit([this](auto&& arg){ (*this)(arg); }, *function.m_body);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **function.m_return_value);
+
+	EmitByte(OpCode::RETURN, line);
 
 	size_t closure_proc_index = m_current_procedure_index;
 #ifdef DEBUG
@@ -1005,24 +848,271 @@ void CodeGenerator::operator()(MidoriExpression::ArraySet& array_set)
 	EmitByte(static_cast<OpCode>(array_set.m_indices.size()), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::Ternary& ternary)
+void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 {
-	int line = ternary.m_colon.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **ternary.m_condition);
+	int line = if_else.m_if_token.m_line;
+	std::visit([this](auto&& arg){ (*this)(arg); }, **if_else.m_condition);
 
-	if (ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || ternary.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
+	if (if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
 	{
-		EmitNumericConditionalJump<std::unique_ptr<MidoriExpression>&>(ternary.m_condition_operand_type, ternary.m_true_branch, ternary.m_else_branch, line);
+		EmitNumericConditionalJump(if_else.m_condition_operand_type, if_else.m_true_branch, if_else.m_else_branch, line);
 	}
 	else
 	{
 		int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg){ (*this)(arg); }, **ternary.m_true_branch);
+		std::visit([this](auto&& arg){ (*this)(arg); }, **if_else.m_true_branch);
 		int jump = EmitJump(OpCode::JUMP, line);
 		PatchJump(jump_if_false, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **ternary.m_else_branch);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **if_else.m_else_branch);
 		PatchJump(jump, line);
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::Block& block)
+{
+	std::ranges::for_each
+	(
+		block.m_stmts,
+		[this](std::unique_ptr<MidoriStatement>& statement)
+		{
+			std::visit([this](auto&& arg) { (*this)(arg); }, **statement);
+		}
+	);
+
+	// Discard everything else when encountered "return"
+	if (!m_procedures[m_current_procedure_index].IsByteCodeEmpty() && m_procedures[m_current_procedure_index].ReadByteCode(m_procedures[m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
+	{
+		return;
+	}
+	else
+	{
+		if (block.m_final_expr.has_value())
+		{
+			std::visit([this](auto&& arg) { (*this)(arg); }, ***block.m_final_expr);
+		}
+		else
+		{
+			EmitByte(OpCode::OP_UNIT, block.m_right_brace.m_line);
+		}
+
+		while (block.m_local_count > 0)
+		{
+			int count_to_pop = std::min(block.m_local_count, static_cast<int>(UINT8_MAX));
+
+			if (count_to_pop == block.m_local_count)
+			{
+				EmitByte(OpCode::POP_BLOCK_SCOPE, block.m_right_brace.m_line);
+			}
+			else
+			{
+				EmitByte(OpCode::POP_LOCAL_SCOPE, block.m_right_brace.m_line);
+			}
+
+			EmitByte(static_cast<OpCode>(count_to_pop), block.m_right_brace.m_line);
+			block.m_local_count -= count_to_pop;
+		}
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::Match& match)
+{
+	int line = match.m_match_keyword.m_line;
+	std::visit([this](auto&& arg) { (*this)(arg); }, **match.m_arg_expr);
+	EmitByte(OpCode::LOAD_TAG, line);
+
+	// for each case
+	// compare tag
+	std::vector<int> jumps;
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		if (case_expr->IsExpression<MidoriExpression::Case>())
+		{
+			MidoriExpression::Case& member_case = case_expr->GetExpression<MidoriExpression::Case>();
+
+			EmitByte(OpCode::DUP, line);
+			MidoriInteger member_tag = static_cast<MidoriInteger>(member_case.m_tag);
+			EmitIntegerConstant(member_tag, line);
+			EmitByte(OpCode::EQUAL_INTEGER, line);
+			int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
+			EmitByte(OpCode::POP, line); // pop tag
+			EmitByte(OpCode::POP, line); // pop comp result
+
+			std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+
+			int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
+			while (num_to_pop > 0)
+			{
+				int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
+
+				if (count_to_pop == num_to_pop)
+				{
+					EmitByte(OpCode::POP_MATCH_SCOPE, line);
+				}
+				else
+				{
+					EmitByte(OpCode::POP_VALUES, line);
+				}
+				EmitByte(static_cast<OpCode>(count_to_pop), line);
+				num_to_pop -= count_to_pop;
+			}
+			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+
+			PatchJump(jump_if_false, line);
+			EmitByte(OpCode::POP, line);
+		}
+		else
+		{
+			std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+
+			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+			break;
+		}
+	}
+
+	std::ranges::for_each
+	(
+		jumps,
+		[this, line](int jump_addr)
+		{
+			PatchJump(jump_addr, line);
+		}
+	);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Case& case_expr)
+{
+	int line = case_expr.m_keyword.m_line;
+	std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr.m_expr);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
+{
+	int line = default_expr.m_keyword.m_line;
+	std::visit([this](auto&& arg) { (*this)(arg); }, **default_expr.m_expr);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Loop& loop)
+{
+	int line = loop.m_loop_keyword.m_line;
+
+	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+	BeginLoop(loop_start);
+
+	std::visit([this](auto&& arg) { (*this)(arg); }, **loop.m_body);
+	EmitByte(OpCode::POP, line);
+
+	EmitLoop(loop_start, line);
+	EndLoop(line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
+{
+	int line = break_expr.m_keyword.m_line;
+
+	std::visit([this](auto&& arg) { (*this)(arg); }, **break_expr.m_value);
+
+	while (break_expr.m_number_to_pop > 0)
+	{
+		int count_to_pop = std::min(break_expr.m_number_to_pop, static_cast<int>(UINT8_MAX));
+		if (count_to_pop == break_expr.m_number_to_pop)
+		{
+			EmitByte(OpCode::POP_BLOCK_SCOPE, line);
+		}
+		else
+		{
+			EmitByte(OpCode::POP_LOCAL_SCOPE, line);
+		}
+		EmitByte(static_cast<OpCode>(count_to_pop), line);
+		break_expr.m_number_to_pop -= count_to_pop;
+	}
+
+	m_loop_contexts.top().m_break_positions.emplace_back(EmitJump(OpCode::BREAK, line));
+}
+
+void CodeGenerator::operator()(MidoriExpression::Return& return_expr)
+{
+	std::visit([this](auto&& arg) { (*this)(arg); }, **return_expr.m_value);
+}
+
+void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line)
+{
+	int if_jump;
+	if (operand_type == MidoriExpression::ConditionOperandType::INTEGER)
+	{
+		PopByte(line);
+		switch (m_last_opcode)
+		{
+		case OpCode::LESS_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_LESS, line);
+			break;
+		case OpCode::LESS_EQUAL_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_LESS_EQUAL, line);
+			break;
+		case OpCode::GREATER_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_GREATER, line);
+			break;
+		case OpCode::GREATER_EQUAL_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_GREATER_EQUAL, line);
+			break;
+		case OpCode::EQUAL_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_EQUAL, line);
+			break;
+		case OpCode::NOT_EQUAL_INTEGER:
+			if_jump = EmitJump(OpCode::IF_INTEGER_NOT_EQUAL, line);
+			break;
+		default:
+			AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for integer ternary condition.", line));
+			return;
+		}
+
+		std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
+
+		int else_jump = EmitJump(OpCode::JUMP, line);
+		PatchJump(if_jump, line);
+		if (else_branch != nullptr)
+		{
+			std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
+		}
+		PatchJump(else_jump, line);
+	}
+	else
+	{
+		PopByte(line);
+		switch (m_last_opcode)
+		{
+		case OpCode::LESS_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_LESS, line);
+			break;
+		case OpCode::LESS_EQUAL_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_LESS_EQUAL, line);
+			break;
+		case OpCode::GREATER_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_GREATER, line);
+			break;
+		case OpCode::GREATER_EQUAL_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_GREATER_EQUAL, line);
+			break;
+		case OpCode::EQUAL_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_EQUAL, line);
+			break;
+		case OpCode::NOT_EQUAL_FLOAT:
+			if_jump = EmitJump(OpCode::IF_FLOAT_NOT_EQUAL, line);
+			break;
+		default:
+			AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for float ternary condition.", line));
+			return;
+		}
+
+		std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
+
+		int else_jump = EmitJump(OpCode::JUMP, line);
+		PatchJump(if_jump, line);
+		if (else_branch != nullptr)
+		{
+			std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
+		}
+		PatchJump(else_jump, line);
 	}
 }

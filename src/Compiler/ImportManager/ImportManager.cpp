@@ -1,11 +1,12 @@
-#include "ImportManager.h"
 #include "Common/Error/Error.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
+#include "ImportManager.h"
 
-#include <queue>
+#include <filesystem>
 #include <filesystem>
 #include <fstream>
+#include <queue>
 #include <sstream>
 
 using namespace std::string_literals;
@@ -80,7 +81,15 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
 
         for (const auto& [import_path, line] : import_paths)
         {
-            std::string include_absolute_path_str = std::filesystem::absolute(import_path).string();
+            std::filesystem::path resolved_path(import_path);
+
+            // If the import path is not absolute, resolve relative to the importing file's directory
+            if (!resolved_path.is_absolute())
+            {
+                resolved_path = std::filesystem::path(m_main_file_name).parent_path() / resolved_path;
+            }
+
+            std::string include_absolute_path_str = std::filesystem::weakly_canonical(resolved_path).string();
 
             m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
 
@@ -92,19 +101,18 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
             std::ifstream include_file(include_absolute_path_str);
             if (!include_file.is_open())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Could not open import file: "s + import_path, line));
+                return std::unexpected(MidoriError::GenerateImportManagerError("Could not open import file: "s + include_absolute_path_str, line));
             }
 
             if (HasCircularDependency())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Circular dependency detected: "s + import_path, line));
+                return std::unexpected(MidoriError::GenerateImportManagerError("Circular dependency detected: "s + include_absolute_path_str, line));
             }
 
             std::ostringstream include_file_stream;
             include_file_stream << include_file.rdbuf();
 
-            const bool is_main_program = false;
-            MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str(), is_main_program).Lex();
+            MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str()).Lex();
             if (!lex_result.has_value())
             {
                 return std::unexpected(MidoriError::GenerateImportManagerError(lex_result.error(), line));
@@ -134,7 +142,7 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
                 {
                     if (!std::ranges::contains(m_dependency_graph[src], dependency))
                     {
-                        m_dependency_graph[src].push_back(dependency);
+                        m_dependency_graph[src].emplace_back(dependency);
                     }
                 }
             }

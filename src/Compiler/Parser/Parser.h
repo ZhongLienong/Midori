@@ -86,7 +86,7 @@ private:
 							return std::unexpected<std::string>(std::move(right.error()));
 						}
 
-						lower_expr = std::make_unique<MidoriExpression>(MidoriExpression::Binary(std::move(op), std::move(lower_expr), std::move(right.value())));
+						lower_expr = std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
 					}
 
 					return lower_expr;
@@ -110,7 +110,7 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc, typename Delim, typename EndCond>
-	std::expected<std::vector<OutputType>, std::string> ParseDelimitedZeroOrMore(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc)
+	std::expected<std::vector<OutputType>, std::string> ParseDelimitedZeroOrMoreLimited(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -123,7 +123,7 @@ private:
 						(
 							[&func, &end_cond, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, std::string>
 							{
-								return ParseDelimitedZeroOrMore(func, delim, end_cond, std::move(acc));
+								return ParseDelimitedZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::forward<EndCond>(end_cond), std::move(acc));
 							}
 						)
 						.or_else(
@@ -173,8 +173,43 @@ private:
 			);
 	}
 
+	template<typename OutputType, typename ParseFunc, typename Delim>
+	std::expected<std::vector<OutputType>, std::string> ParseDelimitedZeroOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
+	{
+		return TryParser<OutputType>(std::forward<ParseFunc>(func))
+			.and_then
+			(
+				[&func, &delim, &acc, this](OutputType&& elem)
+				{
+					acc.emplace_back(std::move(elem));
+					return delim()
+						.and_then
+						(
+							[&func, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+							{
+								return ParseDelimitedZeroOrMoreUnlimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::move(acc));
+							}
+						)
+						.or_else
+						(
+							[&acc](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+							{
+								return std::move(acc);
+							}
+						);
+				}
+			)
+			.or_else
+			(
+				[&acc](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+				{
+					return std::move(acc);
+				}
+			);
+	}
+
 	template<typename OutputType, typename ParseFunc, typename EndCond>
-	std::expected<std::vector<OutputType>, std::string> ParseZeroOrMore(ParseFunc&& func, EndCond&& end_cond, std::vector<OutputType>&& acc)
+	std::expected<std::vector<OutputType>, std::string> ParseZeroOrMoreLimited(ParseFunc&& func, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -182,7 +217,7 @@ private:
 				[&acc, &func, &end_cond, this](OutputType&& elem)
 				{
 					acc.emplace_back(std::move(elem));
-					return ParseZeroOrMore(func, end_cond, std::move(acc))
+					return ParseZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<EndCond>(end_cond), std::move(acc))
 						.or_else
 						(
 							[&end_cond, &acc](std::string&& error) -> std::expected<std::vector<OutputType>, std::string>
@@ -231,6 +266,27 @@ private:
 			);
 	}
 
+	template<typename OutputType, typename ParseFunc>
+	std::expected<std::vector<OutputType>, std::string> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
+	{
+		return TryParser<OutputType>(std::forward<ParseFunc>(func))
+			.and_then
+			(
+				[&func, &acc, this](OutputType&& elem) mutable
+				{
+					acc.emplace_back(std::move(elem));
+					return ParseZeroOrMoreUnlimited<OutputType>(std::forward<ParseFunc>(func), std::move(acc));
+				}
+			)
+			.or_else
+			(
+				[&acc, this](std::string&&) mutable -> std::expected<std::vector<OutputType>, std::string>
+				{
+					return std::move(acc);
+				}
+			);
+	}
+
 	bool IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const;
 
 	bool IsLocalName(const Scope::VariableTable::const_iterator& found_scope_it) const;
@@ -269,8 +325,6 @@ private:
 
 	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
 
-	bool HasReturnStatement(const MidoriStatement& stmt);
-
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
 
 	MidoriResult::ExpressionResult ParseExpression();
@@ -301,8 +355,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseArrayAccess();
 
-	MidoriResult::ExpressionResult ParseTernary();
-
 	MidoriResult::ExpressionResult ParseCall();
 
 	MidoriResult::ExpressionResult ParseAs();
@@ -317,13 +369,25 @@ private:
 
 	MidoriResult::ExpressionResult ParseLogicalOr();
 
-	MidoriResult::StatementResult ParseDeclarationCommon(bool allow_stmt);
+	MidoriResult::ExpressionResult ParseBlockExpression();
 
-	MidoriResult::StatementResult ParseLocalDeclaration();
+	MidoriResult::ExpressionResult ParseLoopExpression();
 
-	MidoriResult::StatementResult ParseGlobalDeclaration();
+	MidoriResult::ExpressionResult ParseReturnExpression();
 
-	MidoriResult::StatementResult ParseBlockStatement();
+	MidoriResult::ExpressionResult ParseBreakExpression();
+
+	MidoriResult::ExpressionResult ParseMatchExpression();
+
+	MidoriResult::ExpressionResult ParseIfElseExpression();
+
+	MidoriResult::ExpressionResult ParseFunctionExpression();
+
+	MidoriResult::ExpressionResult ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword);
+
+	MidoriResult::ExpressionResult ParseDefaultExpression(bool& default_visited, Token& keyword);
+
+	MidoriResult::StatementResult ParseDeclaration();
 
 	MidoriResult::StatementResult ParseDefineStatement();
 
@@ -331,27 +395,13 @@ private:
 
 	MidoriResult::StatementResult ParseUnionDeclaration();
 
-	MidoriResult::StatementResult ParseIfStatement();
-
-	MidoriResult::StatementResult ParseLoopStatement();
-
-	MidoriResult::StatementResult ParseBreakStatement();
-
 	MidoriResult::StatementResult ParseContinueStatement();
 
 	MidoriResult::StatementResult ParseSimpleStatement();
 
-	MidoriResult::StatementResult ParseReturnStatement();
-
 	MidoriResult::StatementResult ParseForeignStatement();
 
-	MidoriResult::StatementResult ParseSwitchStatement();
-
 	MidoriResult::StatementResult ParseNamespaceStatement();
-
-	MidoriResult::CaseResult ParseCaseStatement(std::unordered_set<std::string>& visited_members, Token&& keyword);
-
-	MidoriResult::CaseResult ParseDefaultStatement(bool& default_visited, Token&& keyword);
 
 	MidoriResult::StatementResult ParseStatement();
 };

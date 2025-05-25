@@ -62,35 +62,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void ConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int operand;
-		if (name == "LOAD_CONSTANT_LONG_LONG")
-		{
-			operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
-				(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8) |
-				(static_cast<int>(executable.ReadByteCode(offset + 3, proc_index)) << 16);
-			offset += 4;
-		}
-		else if (name == "LOAD_CONSTANT_LONG")
-		{
-			operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
-				(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
-			offset += 3;
-		}
-		else
-		{
-			operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-			offset += 2;
-		}
-		std::ostringstream formated_str;
-
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // static value: " << executable.GetConstant(operand).GetPointer()->ToText().GetCString() << std::setfill(' ') << '\n';
-		Printer::Print(formated_str.str());
-	}
-
 	void LoadStringInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -275,15 +246,6 @@ namespace Disassembler
 		OpCode instruction = executable.ReadByteCode(offset, proc_index);
 		switch (instruction) 
 		{
-		case OpCode::LOAD_CONSTANT:
-			ConstantInstruction("LOAD_CONSTANT", executable, proc_index, offset);
-			break;
-		case OpCode::LOAD_CONSTANT_LONG:
-			ConstantInstruction("LOAD_CONSTANT_LONG", executable, proc_index, offset);
-			break;
-		case OpCode::LOAD_CONSTANT_LONG_LONG:
-			ConstantInstruction("LOAD_CONSTANT_LONG_LONG", executable, proc_index, offset);
-			break;
 		case OpCode::LOAD_STRING:
 			LoadStringInstruction("LOAD_STRING", executable, proc_index, offset);
 			break;
@@ -488,6 +450,9 @@ namespace Disassembler
 		case OpCode::IF_FLOAT_NOT_EQUAL:
 			JumpInstruction("IF_FLOAT_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
+		case OpCode::BREAK:
+			JumpInstruction("BREAK", 1, executable, proc_index, offset);
+			break;
 		case OpCode::LOAD_TAG:
 			SimpleInstruction("LOAD_TAG", offset);
 			break;
@@ -545,11 +510,17 @@ namespace Disassembler
 		case OpCode::DUP:
 			SimpleInstruction("DUP", offset);
 			break;
-		case OpCode::POP_SCOPE:
-			PopMultipleInstruction("POP_SCOPE", executable, proc_index, offset);
+		case OpCode::POP_LOCAL_SCOPE:
+			PopMultipleInstruction("POP_LOCAL_SCOPE", executable, proc_index, offset);
 			break;
-		case OpCode::POP_MULTIPLE:
-			PopMultipleInstruction("POP_MULTIPLE", executable, proc_index, offset);
+		case OpCode::POP_VALUES:
+			PopMultipleInstruction("POP_VALUES", executable, proc_index, offset);
+			break;
+		case OpCode::POP_BLOCK_SCOPE:
+			PopMultipleInstruction("POP_BLOCK_SCOPE", executable, proc_index, offset);
+			break;
+		case OpCode::POP_MATCH_SCOPE:
+			PopMultipleInstruction("POP_MATCH_SCOPE", executable, proc_index, offset);
 			break;
 		case OpCode::RETURN:
 			SimpleInstruction("RETURN", offset);
@@ -571,6 +542,12 @@ namespace Disassembler
 			break;
 		case OpCode::UNBOX:
 			SimpleInstruction("UNBOX", offset);
+			break;
+		case OpCode::PUSH_PLACEHOLDER:
+			SimpleInstruction("PUSH_PLACEHOLDER", offset);
+			break;
+		case OpCode::UPDATE_PLACEHOLDER:
+			SimpleInstruction("UPDATE_PLACEHOLDER", offset);
 			break;
 		default:
 #ifdef _MSC_VER

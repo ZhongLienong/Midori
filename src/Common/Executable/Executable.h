@@ -8,9 +8,6 @@
 enum class OpCode : uint8_t
 {
 	// Constants and Literals
-	LOAD_CONSTANT,
-	LOAD_CONSTANT_LONG,
-	LOAD_CONSTANT_LONG_LONG,
 	LOAD_STRING,
 	INTEGER_CONSTANT,
 	FLOAT_CONSTANT,
@@ -89,7 +86,7 @@ enum class OpCode : uint8_t
 	IF_INTEGER_LESS_EQUAL,
 	IF_INTEGER_GREATER,
 	IF_INTEGER_GREATER_EQUAL,
-	IF_INTEGER_EQUAL,	
+	IF_INTEGER_EQUAL,
 	IF_INTEGER_NOT_EQUAL,
 	IF_FLOAT_LESS,
 	IF_FLOAT_LESS_EQUAL,
@@ -97,8 +94,9 @@ enum class OpCode : uint8_t
 	IF_FLOAT_GREATER_EQUAL,
 	IF_FLOAT_EQUAL,
 	IF_FLOAT_NOT_EQUAL,
+	BREAK,
 
-	// Switch
+	// Match
 	LOAD_TAG,
 	SET_TAG,
 
@@ -126,8 +124,10 @@ enum class OpCode : uint8_t
 	// Stack Operations
 	POP,
 	DUP,
-	POP_SCOPE,
-	POP_MULTIPLE,
+	POP_LOCAL_SCOPE,
+	POP_VALUES,
+	POP_BLOCK_SCOPE,
+	POP_MATCH_SCOPE,
 
 	// Return
 	RETURN,
@@ -139,6 +139,10 @@ enum class OpCode : uint8_t
 	BOX_BOOL,
 	BOX_UNIT,
 	UNBOX,
+
+	// Placeholder
+	PUSH_PLACEHOLDER,
+	UPDATE_PLACEHOLDER,
 };
 
 class BytecodeStream
@@ -186,7 +190,6 @@ public:
 class MidoriExecutable
 {
 public:
-	using StaticData = std::vector<MidoriValue>;
 	using GlobalNames = std::vector<MidoriText>;
 	using Procedures = std::vector<BytecodeStream>;
 	using StringPool = std::vector<std::string>;
@@ -196,15 +199,11 @@ public:
 #endif
 
 private:
-	StaticData m_constants;
 	GlobalNames m_globals;
 	Procedures m_procedures;
 	StringPool m_string_pool;
 
 public:
-	const MidoriValue& GetConstant(int index) const;
-
-	int AddConstant(MidoriValue&& value);
 
 	int AddGlobalVariable(MidoriText&& name);
 

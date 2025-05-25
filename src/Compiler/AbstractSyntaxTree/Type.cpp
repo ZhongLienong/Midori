@@ -13,17 +13,17 @@ const std::shared_ptr<MidoriType> MidoriType::MakeUndecidedType()
 
 std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<MidoriType>& element_type)
 {
-    return std::make_shared<MidoriType>(MidoriTypeUnion(ArrayType{ element_type }));
+    return std::make_shared<MidoriType>(MidoriTypeUnion(ArrayType{ .m_element_type = element_type }));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign)
 {
-    return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{ param_types, return_type, is_foreign }));
+    return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{ .m_param_types = param_types, .m_return_type = return_type, .m_is_foreign = is_foreign }));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names)
 {
-    return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{ std::move(member_types), std::move(member_names), name }));
+    return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{ .m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name }));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name)
@@ -62,6 +62,10 @@ std::string MidoriType::ToString() const
             else if constexpr (std::is_same_v<Type, UnitType>)
             {
                 return "Unit"s;
+            }
+            else if constexpr (std::is_same_v<Type, NeverType>)
+            {
+                return "Never"s;
             }
             else if constexpr (std::is_same_v<Type, ArrayType>)
             {

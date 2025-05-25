@@ -1,9 +1,9 @@
 #include "Compiler.h"
 #include "Compiler/CodeGenerator/CodeGenerator.h"
+#include "Compiler/ImportManager/ImportManager.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Parser/Parser.h"
 #include "TypeChecker/TypeChecker.h"
-#include "Compiler/ImportManager/ImportManager.h"
 
 
 #ifdef DEBUG
@@ -35,15 +35,15 @@ MidoriResult::CompilerResult Compiler::Compile()
 								(
 									[](MidoriProgramTree&& parser_result) -> MidoriResult::CompilerResult
 									{
-										return TypeChecker()
-											.TypeCheck(std::move(parser_result))
+										return TypeChecker(std::move(parser_result))
+											.TypeCheck()
 											.and_then
 											(
 												[](MidoriProgramTree&& program) -> MidoriResult::CompilerResult
 												{
 #ifdef DEBUG
 													PrintAbstractSyntaxTree ast_printer;
-													std::ranges::for_each(program, [&ast_printer](auto&& statement) { std::visit(ast_printer, *statement); });
+													std::ranges::for_each(program, [&ast_printer](auto&& statement) { std::visit(ast_printer, **statement); });
 #endif
 													return CodeGenerator()
 														.GenerateCode(std::move(program))

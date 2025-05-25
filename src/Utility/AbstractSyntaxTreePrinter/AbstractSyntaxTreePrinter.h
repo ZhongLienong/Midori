@@ -9,33 +9,19 @@ struct PrintAbstractSyntaxTree
 
 	void PrintVariableSemantic(int depth, const MidoriExpression::NameContext::Tag& tag) const;
 
-	void operator()(const Block& block, int depth = 0) const;
+	void operator()(const MidoriStatement::Simple& simple, int depth = 0) const;
 
-	void operator()(const Simple& simple, int depth = 0) const;
+	void operator()(const MidoriStatement::Define& def, int depth = 0) const;
 
-	void operator()(const Define& def, int depth = 0) const;
+	void operator()(const MidoriStatement::Continue&, int depth = 0) const;
 
-	void operator()(const If& if_stmt, int depth = 0) const;
+	void operator()(const MidoriStatement::Foreign& foreign, int depth = 0) const;
 
-	void operator()(const While& while_stmt, int depth = 0) const;
+	void operator()(const MidoriStatement::Struct& struct_stmt, int depth = 0) const;
 
-	void operator()(const For& for_stmt, int depth = 0) const;
+	void operator()(const MidoriStatement::Union& union_stmt, int depth = 0) const;
 
-	void operator()(const Break&, int depth = 0) const;
-
-	void operator()(const Continue&, int depth = 0) const;
-
-	void operator()(const Return& return_stmt, int depth = 0) const;
-
-	void operator()(const Foreign& foreign, int depth = 0) const;
-
-	void operator()(const Struct& struct_stmt, int depth = 0) const;
-
-	void operator()(const Union& union_stmt, int depth = 0) const;
-
-	void operator()(const Switch& switch_stmt, int depth = 0) const;
-
-	void operator()(const Namespace& namespace_stmt, int depth = 0) const;
+	void operator()(const MidoriStatement::Namespace& namespace_stmt, int depth = 0) const;
 
 	void operator()(const MidoriExpression::As& as, int depth = 0) const;
 
@@ -77,6 +63,20 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::ArraySet& array_set, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Ternary& ternary, int depth = 0) const;
+	void operator()(const MidoriExpression::IfElse& if_else, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Block& block, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Match& match, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Case& case_expr, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Default& default_expr, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Loop& loop, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Return& return_expr, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Break& break_expr, int depth = 0) const;
 };
 #endif

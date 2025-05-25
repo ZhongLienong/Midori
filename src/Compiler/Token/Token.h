@@ -75,8 +75,10 @@ struct Token
 		FOREIGN,
 		CASE,
 		DEFAULT,
-		SWITCH,
+		MATCH,
 		NAMESPACE,
+		THEN,
+		WITH,
 
 		// types
 		FLOAT,
@@ -85,9 +87,7 @@ struct Token
 		BOOL,
 		UNIT,
 		ARRAY,
-
-		// directive
-		DIRECTIVE,
+		NEVER,
 
 		WHITESPACE,
 		END_OF_FILE,
@@ -102,8 +102,6 @@ struct Token
 
 class TokenStream
 {
-public:
-
 private:
 	std::vector<Token> m_tokens;
 
@@ -128,6 +126,8 @@ public:
 	void Insert(iterator iter, TokenStream&& tokens);
 
 	void Erase(iterator iter);
+
+	void PopBack() noexcept;
 };
 
 struct BuildGraph 

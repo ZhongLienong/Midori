@@ -1,26 +1,29 @@
 import 
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr",
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestPrimeNumbers = fn() : Unit
+def TestPrimeNumbers : () -> Unit = fn() ->
 {
-	def IsPrime = fn(n : Int) : Bool
+	def IsPrime : (Int) -> Bool = fn(n) ->
 	{
-		if (n <= 1)
+		when n <= 1
 		{
 			return false;
 		}
 
-		loop (def i = 2; i * i <= n; i = i + 1)
+		def i = 2;
+		loop (i * i <= n)
 		{
-			if (n % i == 0)
+			when n % i == 0
 			{
 				return false;
 			}
+			i = i + 1;
 		}
-		return true;
+		
+		true
 	};
 
 	def start = DateTime::GetTime();
@@ -28,7 +31,7 @@ def TestPrimeNumbers = fn() : Unit
 	def prime_count = 0;
 	loop (def i = 0; i < 100000; i = i + 1)
 	{
-		if (IsPrime(i))
+		when IsPrime(i)
 		{
 			prime_count = prime_count + 1;
 		}
@@ -36,12 +39,10 @@ def TestPrimeNumbers = fn() : Unit
 
 	def end = DateTime::GetTime();
 
-	IO::PrintLine("Prime(100000) benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
-
-	return ();
+	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-def main = fn() : Unit
+def main : () -> Unit = fn() ->
 {
 	return TestPrimeNumbers();
 };

@@ -1,0 +1,7 @@
+loop 
+{
+    {
+        def x = 10;
+        break x;
+    }
+};
