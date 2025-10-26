@@ -7,8 +7,6 @@ project("Midori")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp PROPERTIES COMPILE_FLAGS "-O0")
-
 # Test Endianness
 include(TestBigEndian)
 test_big_endian(IS_BIG_ENDIAN)
@@ -18,30 +16,59 @@ else()
     add_definitions(-DMIDORI_LITTLE_ENDIAN)
 endif()
 
+# Define custom Development configuration
+set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release" CACHE STRING "" FORCE)
+
 # MSVC-specific compiler flags
 if (MSVC)
-    # Enable fastest optimizations
+    # Remove default flags that cause conflicts
+    string(REPLACE "/GR" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "/W3" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+    # Common flags for all configurations
     add_compile_options(
-        /GL          # Whole program optimization
-        /Gy          # Enable function-level linking
         /GR-         # Disable RTTI
         /permissive- # Standards-conformant mode
-        /WX          # Treat warnings as errors
-        /Zi          # Debug symbols
+        /W4          # Warning level 4
     )
 
-    # Linker flags
-    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /DEBUG /OPT:REF /OPT:ICF")
-    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG /DEBUG /OPT:REF /OPT:ICF")
-endif()
+    # Debug configuration - best debuggability, no optimization
+    add_compile_options(
+        $<$<CONFIG:Debug>:/Od>      # No optimization
+        $<$<CONFIG:Debug>:/MDd>     # Debug runtime library
+        $<$<CONFIG:Debug>:/Zi>      # Full debug info
+        $<$<CONFIG:Debug>:/RTC1>    # Runtime checks (stack frames, uninitialized variables)
+        $<$<CONFIG:Debug>:/Ob0>     # Disable inlining
+        $<$<CONFIG:Debug>:/DDEBUG>  # DEBUG macro
+    )
 
-# Debug flags
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DDEBUG)
-    # Disable optimizations and enable debug information for debug builds
-    add_compile_options(/Od)
-else()
-    add_compile_options(/O2 /MT)
+    # Development configuration - optimized with debug symbols (like Unreal's Development)
+    add_compile_options(
+        $<$<CONFIG:Development>:/O1>    # Optimize for size
+        $<$<CONFIG:Development>:/MD>    # Release runtime library
+        $<$<CONFIG:Development>:/Zi>    # Full debug info
+        $<$<CONFIG:Development>:/Oi>    # Intrinsic functions
+        $<$<CONFIG:Development>:/Gy>    # Function-level linking
+        $<$<CONFIG:Development>:/DDEVELOPMENT>  # DEVELOPMENT macro
+    )
+
+    # Release configuration - maximum speed, no debug symbols
+    add_compile_options(
+        $<$<CONFIG:Release>:/O2>    # Maximize speed
+        $<$<CONFIG:Release>:/MT>    # Static runtime library
+        $<$<CONFIG:Release>:/GL>    # Whole program optimization
+        $<$<CONFIG:Release>:/Gy>    # Function-level linking
+        $<$<CONFIG:Release>:/Oi>    # Intrinsic functions
+        $<$<CONFIG:Release>:/DNDEBUG>  # NDEBUG macro
+    )
+
+    # Development linker flags
+    set(CMAKE_EXE_LINKER_FLAGS_DEVELOPMENT "${CMAKE_EXE_LINKER_FLAGS_DEVELOPMENT} /DEBUG /OPT:REF /OPT:ICF")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEVELOPMENT "${CMAKE_SHARED_LINKER_FLAGS_DEVELOPMENT} /DEBUG /OPT:REF /OPT:ICF")
+
+    # Release linker flags - link-time code generation, no debug symbols
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
 endif()
 
 # Include directories

@@ -55,6 +55,26 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Define& def, int
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineFunction& defun, int depth) const
+{
+	PrintWithIndentation(depth, "DefineFunction {");
+	PrintWithIndentation(depth + 1, "Name: " + defun.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "Parameters: ");
+	std::ranges::for_each
+	(
+		std::ranges::views::zip(defun.m_params, defun.m_param_types),
+		[depth, this](const auto& param)
+		{
+			PrintWithIndentation(depth + 2, "ParameterName: " + std::get<0>(param).m_lexeme);
+			PrintWithIndentation(depth + 2, "ParameterType: " + std::get<1>(param)->ToString());
+		}
+	);
+	PrintWithIndentation(depth + 1, "ReturnType: " + defun.m_return_type->ToString());
+	PrintWithIndentation(depth + 1, "Body: ");
+	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **defun.m_body);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Continue&, int depth) const
 {
 	PrintWithIndentation(depth, "Continue");
@@ -229,8 +249,9 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::BoundedName& va
 {
 	PrintWithIndentation(depth, "BoundedName {");
 	PrintWithIndentation(depth + 1, "Name: " + variable.m_name.m_lexeme);
-	PrintWithIndentation(depth + 1, "NameContext: ");
-	PrintVariableSemantic(depth, variable.m_name_ctx);
+	PrintWithIndentation(depth + 1, "NameContext {");
+	PrintVariableSemantic(depth + 2, variable.m_name_ctx);
+	PrintWithIndentation(depth + 1, "}");
 	PrintWithIndentation(depth, "}");
 }
 
@@ -240,8 +261,9 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Bind& bind, int
 	PrintWithIndentation(depth + 1, "Name: " + bind.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "Value: ");
 	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **bind.m_value);
-	PrintWithIndentation(depth + 1, "NameContext: ");
-	PrintVariableSemantic(depth, bind.m_name_ctx);
+	PrintWithIndentation(depth + 1, "NameContext: {");
+	PrintVariableSemantic(depth + 2, bind.m_name_ctx);
+	PrintWithIndentation(depth + 1, "}");
 	PrintWithIndentation(depth, "}");
 }
 
@@ -280,18 +302,20 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnitLiteral&, i
 
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Function& closure, int depth) const
 {
-	PrintWithIndentation(depth, "Function {");
-	PrintWithIndentation(depth + 1, "Params: ");
+	PrintAbstractSyntaxTree::PrintWithIndentation(depth, "Function {");
+	PrintWithIndentation(depth + 1, "Parameters: ");
 	std::ranges::for_each
 	(
-		closure.m_params,
-		[depth, this](const Token& param)
+		std::ranges::views::zip(closure.m_params, closure.m_param_types),
+		[depth, this](const auto& param)
 		{
-			PrintWithIndentation(depth + 2, param.m_lexeme);
+			PrintWithIndentation(depth + 2, "ParameterName: " + std::get<0>(param).m_lexeme);
+			PrintWithIndentation(depth + 2, "ParameterType: " + std::get<1>(param)->ToString());
 		}
 	);
-	PrintWithIndentation(depth + 1, "ReturnValue: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **closure.m_return_value);
+	PrintWithIndentation(depth + 1, "ReturnType: " + closure.m_return_type->ToString());
+	PrintWithIndentation(depth + 1, "Body: ");
+	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **closure.m_body);
 	PrintWithIndentation(depth, "}");
 }
 

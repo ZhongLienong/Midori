@@ -1,0 +1,25 @@
+// Test: Generic union types
+// Expected: Should compile and allow pattern matching on generic unions
+
+union Option<T> = Some(T) | None;
+
+// Create different Option instances
+def some_int = new Option::Some(42);
+def some_text = new Option::Some("hello");
+def none_val = new Option::None();
+
+// Pattern match on generic union
+def result = match some_int with
+    case Option::Some(x) => x
+    case Option::None() => 0
+;
+
+union Result<T, E> = Ok(T) | Err(E);
+
+def success = new Result::Ok(100);
+def failure = new Result::Err("error message");
+
+def value = match success with
+    case Result::Ok(v) => v
+    case Result::Err(e) => 0
+;

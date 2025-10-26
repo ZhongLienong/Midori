@@ -268,6 +268,52 @@ void CodeGenerator::operator()(MidoriStatement::For& for_stmt)
 }
 */
 
+void CodeGenerator::operator()(MidoriStatement::DefineFunction& defun)
+{
+	int line = defun.m_name.m_line;
+	bool is_global = !defun.m_local_index.has_value();
+	std::optional<int> index = std::nullopt;
+
+	// Check if this is a generic function by looking at generic parameters
+	bool is_generic = !defun.m_generic_params.empty();
+
+	if (is_generic && is_global)
+	{
+		// Store generic function template for later specialization
+		GenericFunctionInfo info;
+		info.m_name = defun.m_name.m_lexeme;
+		info.m_params = defun.m_params;
+		info.m_body = &defun.m_body;
+		info.m_captured_count = defun.m_captured_count;
+		info.m_generic_param_types = defun.m_param_types;
+		info.m_generic_return_type = defun.m_return_type;
+
+		m_generic_functions[defun.m_name.m_lexeme] = std::move(info);
+
+		// Don't generate code yet - will be done on-demand when called
+		return;
+	}
+
+	if (is_global)
+	{
+		MidoriText variable_name(defun.m_name.m_lexeme.c_str());
+		index.emplace(m_executable.AddGlobalVariable(std::move(variable_name)));
+		m_global_variables[defun.m_name.m_lexeme] = index.value();
+	}
+
+	EmitFunction(defun.m_params, defun.m_body, defun.m_name.m_lexeme, line, defun.m_captured_count);
+
+	if (is_global)
+	{
+		EmitVariable(index.value(), OpCode::DEFINE_GLOBAL, line);
+	}
+	else
+	{
+		// Local function - store in local variable
+		EmitVariable(defun.m_local_index.value(), OpCode::SET_LOCAL, line);
+	}
+}
+
 void CodeGenerator::operator()(MidoriStatement::Continue& continue_stmt)
 {
 	int line = continue_stmt.m_keyword.m_line;
@@ -439,7 +485,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 	{
 		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
 		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
-		const std::shared_ptr<MidoriType>& operand_type = binary.m_left->GetType();
+		const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
 
 		switch (binary.m_op.m_token_name)
 		{
@@ -526,7 +572,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	switch (unary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_MINUS:
-		unary.m_type_data->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line) : EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
+		GetConcreteTypeForExpression(unary.m_expr)->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line) : EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
 		break;
 	case Token::Name::SINGLE_PLUS:
 		break;
@@ -559,26 +605,84 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		return;
 	}
 
-	std::ranges::for_each
-	(
-		call.m_arguments,
-		[this](std::unique_ptr<MidoriExpression>& param)
-		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **param);
-		}
-	);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+	// Check if this is a call to a generic function
+	bool is_generic_call = false;
+	std::string function_name;
 
-	if (call.m_is_foreign)
+	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
 	{
-		EmitByte(OpCode::CALL_FOREIGN, line);
+		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+		function_name = callee_name.m_name.m_lexeme;
+
+		// Check if this name refers to a generic function
+		std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(function_name);
+		if (generic_it != m_generic_functions.end())
+		{
+			is_generic_call = true;
+		}
+	}
+
+	if (is_generic_call)
+	{
+		// Collect concrete argument types
+		std::vector<std::shared_ptr<MidoriType>> concrete_arg_types;
+		for (std::unique_ptr<MidoriExpression>& arg : call.m_arguments)
+		{
+			concrete_arg_types.push_back(arg->GetType());
+		}
+
+		// Specialize the generic function
+		int specialized_proc_index = SpecializeGenericFunction(function_name, concrete_arg_types, line);
+		if (specialized_proc_index == -1)
+		{
+			// Error already reported in SpecializeGenericFunction
+			return;
+		}
+
+		// Push arguments
+		std::ranges::for_each
+		(
+			call.m_arguments,
+			[this](std::unique_ptr<MidoriExpression>& param)
+			{
+				std::visit([this](auto&& arg){ (*this)(arg); }, **param);
+			}
+		);
+
+		// Push the specialized closure
+		EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(0), line); // No captured variables for specialized functions
+
+		// Call it
+		EmitByte(OpCode::CALL_DEFINED, line);
+		EmitByte(static_cast<OpCode>(arity), line);
 	}
 	else
 	{
-		EmitByte(OpCode::CALL_DEFINED, line);
-	}
+		// Normal non-generic call
+		std::ranges::for_each
+		(
+			call.m_arguments,
+			[this](std::unique_ptr<MidoriExpression>& param)
+			{
+				std::visit([this](auto&& arg){ (*this)(arg); }, **param);
+			}
+		);
+		std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
 
-	EmitByte(static_cast<OpCode>(arity), line);
+		if (call.m_is_foreign)
+		{
+			EmitByte(OpCode::CALL_FOREIGN, line);
+		}
+		else
+		{
+			EmitByte(OpCode::CALL_DEFINED, line);
+		}
+
+		EmitByte(static_cast<OpCode>(arity), line);
+	}
 }
 
 void CodeGenerator::operator()(MidoriExpression::Get& get)
@@ -674,63 +778,25 @@ void CodeGenerator::operator()(MidoriExpression::BoolLiteral& bool_expr)
 void CodeGenerator::operator()(MidoriExpression::FloatLiteral& float_literal)
 {
 	int line = float_literal.m_token.m_line;
-	EmitFloatConstant(std::stod(float_literal.m_token.m_lexeme), float_literal.m_token.m_line);
+	EmitFloatConstant(std::stod(float_literal.m_token.m_lexeme), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
 {
 	int line = integer.m_token.m_line;
-	EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), integer.m_token.m_line);
+	EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::UnitLiteral& unit)
 {
 	int line = unit.m_token.m_line;
-	EmitByte(OpCode::OP_UNIT, unit.m_token.m_line);
+	EmitByte(OpCode::OP_UNIT, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Function& function)
 {
 	int line = function.m_function_keyword.m_line;
-	int arity = static_cast<int>(function.m_params.size());
-	int captured_count = static_cast<int>(function.m_captured_count);
-	if (arity > MAX_FUNCTION_ARITY)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many arguments (max {}).", MAX_FUNCTION_ARITY + 1), line));
-		return;
-	}
-	if (captured_count > MAX_CAPTURED_COUNT)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many captured variables (max {}).", MAX_CAPTURED_COUNT + 1), line));
-		return;
-	}
-
-	size_t prev_index = m_current_procedure_index;
-	m_current_procedure_index = m_procedures.size();
-	m_procedures.emplace_back();
-	std::visit([this](auto&& arg){ (*this)(arg); }, **function.m_return_value);
-
-	EmitByte(OpCode::RETURN, line);
-
-	size_t closure_proc_index = m_current_procedure_index;
-#ifdef DEBUG
-	std::string closure_line = "Function at line: " + std::to_string(line) + "(index: " + std::to_string(closure_proc_index) + ")";
-	m_procedure_names.emplace_back(closure_line.c_str());
-#endif
-
-	m_current_procedure_index = prev_index;
-
-	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many functions (max {}).", MAX_FUNCTION_COUNT + 1), line));
-		return;
-	}
-
-	EmitByte(OpCode::ALLOCATE_CLOSURE, line);
-	EmitByte(static_cast<OpCode>(closure_proc_index), line);
-
-	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
-	EmitByte(static_cast<OpCode>(function.m_captured_count), line);
+	EmitFunction(function.m_params, function.m_body, "Anonymous Function at line: " + std::to_string(line), line, function.m_captured_count);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Construct& construct)
@@ -983,13 +1049,11 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 
 void CodeGenerator::operator()(MidoriExpression::Case& case_expr)
 {
-	int line = case_expr.m_keyword.m_line;
 	std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr.m_expr);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
 {
-	int line = default_expr.m_keyword.m_line;
 	std::visit([this](auto&& arg) { (*this)(arg); }, **default_expr.m_expr);
 }
 
@@ -1033,7 +1097,9 @@ void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
 
 void CodeGenerator::operator()(MidoriExpression::Return& return_expr)
 {
+	int line = return_expr.m_keyword.m_line;
 	std::visit([this](auto&& arg) { (*this)(arg); }, **return_expr.m_value);
+	EmitByte(OpCode::RETURN, line);
 }
 
 void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line)
@@ -1115,4 +1181,208 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 		}
 		PatchJump(else_jump, line);
 	}
+}
+
+bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
+{
+	return std::visit
+	(
+		[this](auto&& type_variant) -> bool
+		{
+			using T = std::decay_t<decltype(type_variant)>;
+
+			if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+			{
+				return true;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+			{
+				bool result = IsGenericType(type_variant.m_return_type);
+				for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
+				{
+					result = result || IsGenericType(param_type);
+				}
+				return result;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+			{
+				return IsGenericType(type_variant.m_element_type);
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
+			{
+				for (const std::shared_ptr<MidoriType>& member_type : type_variant.m_member_types)
+				{
+					if (IsGenericType(member_type))
+					{
+						return true;
+					}
+				}
+				return false;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
+			{
+				for (const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::value_type& member_pair : type_variant.m_member_info)
+				{
+					for (const std::shared_ptr<MidoriType>& member_type : member_pair.second.m_member_types)
+					{
+						if (IsGenericType(member_type))
+						{
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+			else
+			{
+				return false;
+			}
+		},
+		type->m_type
+	);
+}
+
+int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line)
+{
+	// Build function signature
+	std::vector<std::string> concrete_type_names;
+	for (const std::shared_ptr<MidoriType>& arg_type : concrete_arg_types)
+	{
+		concrete_type_names.push_back(arg_type->ToString());
+	}
+	FunctionSignature signature{ base_name, concrete_type_names };
+
+	// Check if already specialized
+	std::unordered_map<FunctionSignature, int, FunctionSignatureHash>::iterator it = m_specialized_functions.find(signature);
+	if (it != m_specialized_functions.end())
+	{
+		return it->second;
+	}
+
+	// Get generic function info
+	std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(base_name);
+	if (generic_it == m_generic_functions.end())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Generic function '{}' not found.", base_name), line));
+		return -1;
+	}
+
+	GenericFunctionInfo& generic_info = generic_it->second;
+
+	// Generate specialized version
+	std::string specialized_name = base_name + "<";
+	for (size_t i = 0; i < concrete_type_names.size(); ++i)
+	{
+		if (i > 0)
+		{
+			specialized_name += ",";
+		}
+		specialized_name += concrete_type_names[i];
+	}
+	specialized_name += ">";
+
+	// Build parameter name -> concrete type map
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> prev_param_map = m_param_type_map;
+	m_param_type_map.clear();
+
+	for (size_t i = 0; i < generic_info.m_params.size() && i < concrete_arg_types.size(); ++i)
+	{
+		m_param_type_map[generic_info.m_params[i].m_lexeme] = concrete_arg_types[i];
+	}
+
+	// Create new procedure for specialized function
+	size_t prev_index = m_current_procedure_index;
+	m_current_procedure_index = m_procedures.size();
+	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
+	m_procedures.emplace_back();
+
+	// Generate code for function body
+	std::visit([this](auto&& arg) { (*this)(arg); }, **(*generic_info.m_body));
+	EmitByte(OpCode::RETURN, line);
+
+#ifdef DEBUG
+	std::string closure_line = specialized_name + "(index: " + std::to_string(m_current_procedure_index) + ")";
+	m_procedure_names.emplace_back(closure_line.c_str());
+#endif
+
+	m_current_procedure_index = prev_index;
+
+	// Restore previous parameter map
+	m_param_type_map = std::move(prev_param_map);
+
+	// Store the specialized function
+	m_specialized_functions[signature] = specialized_proc_index;
+
+	return specialized_proc_index;
+}
+
+std::shared_ptr<MidoriType> CodeGenerator::ResolveType(const std::shared_ptr<MidoriType>& type)
+{
+	// When generating code for specialized generic functions, we need to resolve
+	// type variables to their concrete types. However, we can't do this purely
+	// based on the type itself - we need the expression context.
+	//
+	// This method should not be called directly anymore - instead, use
+	// GetConcreteTypeForExpression() which has access to the expression.
+	return type;
+}
+
+std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr)
+{
+	// If we're currently specializing a generic function, check if this expression
+	// is a reference to a parameter, and if so, look up its concrete type
+	if (!m_param_type_map.empty() && expr->IsExpression<MidoriExpression::BoundedName>())
+	{
+		const MidoriExpression::BoundedName& bounded_name = expr->GetExpression<MidoriExpression::BoundedName>();
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = m_param_type_map.find(bounded_name.m_name.m_lexeme);
+		if (it != m_param_type_map.end())
+		{
+			return it->second;
+		}
+	}
+
+	// Not a parameter reference, or not specializing - return the expression's type
+	return expr->GetType();
+}
+
+void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count)
+{
+	int arity = static_cast<int>(params.size());
+	if (arity > MAX_FUNCTION_ARITY)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many arguments (max {}).", MAX_FUNCTION_ARITY + 1), line));
+		return;
+	}
+	if (captured_count > MAX_CAPTURED_COUNT)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many captured variables (max {}).", MAX_CAPTURED_COUNT + 1), line));
+		return;
+	}
+
+	size_t prev_index = m_current_procedure_index;
+	m_current_procedure_index = m_procedures.size();
+	m_procedures.emplace_back();
+	std::visit([this](auto&& arg) { (*this)(arg); }, **body);
+
+	EmitByte(OpCode::RETURN, line);
+
+	size_t closure_proc_index = m_current_procedure_index;
+#ifdef DEBUG
+	std::string closure_line = debug_name + "(index: " + std::to_string(closure_proc_index) + ")";
+	m_procedure_names.emplace_back(closure_line.c_str());
+#endif
+
+	m_current_procedure_index = prev_index;
+
+	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many functions (max {}).", MAX_FUNCTION_COUNT + 1), line));
+		return;
+	}
+
+	EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+	EmitByte(static_cast<OpCode>(closure_proc_index), line);
+
+	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+	EmitByte(static_cast<OpCode>(captured_count), line);
 }

@@ -5,10 +5,7 @@ namespace Test
 		x : Int,
 	};
 
-	def foo = fn() : Int
-	{
-		return 2;
-	};
+	def foo = fn() : Int => 2;
 
 	namespace InnerTest
 	{
@@ -30,12 +27,7 @@ namespace Test
 		struct D
 		{
 			x : Test::InnerTest::C,
-			y : (Int, Float) -> Float,
+			y : fn(Int, Float) -> Float,
 		};
 	}
 }
-
-def main = fn() : Unit
-{
-	return ();
-};

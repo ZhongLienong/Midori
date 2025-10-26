@@ -9,13 +9,13 @@ union Expr = Num(Float)
     | Mul(Expr, Expr)
     | Div(Expr, Expr);
 
-def eval : (Expr) -> Float = fn(expr) ->
+defun eval(expr : Expr) : Float =>
     match expr with
-        case Expr::Num(value) -> value
-        case Expr::Add(left, right) -> eval(left) + eval(right)
-        case Expr::Sub(left, right) -> eval(left) - eval(right)
-        case Expr::Mul(left, right) -> eval(left) * eval(right)
-        case Expr::Div(left, right) -> 
+        case Expr::Num(value) => value
+        case Expr::Add(left, right) => eval(left) + eval(right)
+        case Expr::Sub(left, right) => eval(left) - eval(right)
+        case Expr::Mul(left, right) => eval(left) * eval(right)
+        case Expr::Div(left, right) => 
         {
             def denominator = eval(right);
             if denominator == 0.0 then

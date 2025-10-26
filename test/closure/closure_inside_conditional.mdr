@@ -3,20 +3,20 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def foo = fn() : Int
+defun foo() : Int =>
 {
-	def getFunc : () -> Int = fn() : Int { return 1; };
+	defun getFunc() : Int => 1;
 	if (true)
+	then
 	{
 		def y : Int = 5;
-		getFunc = fn() : Int { return y; };
+		getFunc = fn() : Int => y;
 	}
+	else
+	{
+		
+	};
 	return getFunc();
 };
 
-def main = fn() : Unit
-{
-	IO::PrintLine(foo() as Text);  // Should print 5
-
-	return ();
-};
+IO::PrintLine(foo() as Text);  // Should print 5

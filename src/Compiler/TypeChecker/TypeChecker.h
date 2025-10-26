@@ -11,9 +11,24 @@ class TypeChecker
 private:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeEnvironmentStack = std::vector<TypeEnvironment>;
+	using TypeSubstitution = std::unordered_map<int, std::shared_ptr<MidoriType>>;
+	using GenericFunctionNames = std::unordered_set<std::string>;
+	using GenericStructNames = std::unordered_set<std::string>;
+	using GenericUnionNames = std::unordered_set<std::string>;
+	struct FresheningContext
+	{
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> generic_params;  // Maps generic param names to fresh type vars
+		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> type_cache;  // Maps type pointers to their fresh versions (for cycle detection)
+	};
 
 	MidoriProgramTree m_program_tree;
 	TypeEnvironmentStack m_name_type_table;
+	TypeSubstitution m_type_substitution;
+	GenericFunctionNames m_generic_functions;
+	GenericStructNames m_generic_structs;
+	GenericUnionNames m_generic_unions;
+	int m_next_type_var_id;
+	std::shared_ptr<MidoriType> m_expected_return_type;  // Expected return type for the current function
 	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
 	const std::array<Token::Name, 1u> m_binary_concatenation_operators{ Token::Name::DOUBLE_PLUS };
 	const std::array<Token::Name, 4u> m_binary_partial_order_comparison_operators{ Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL };
@@ -35,11 +50,25 @@ private:
 
 	void UpdateConditionOperandType(MidoriExpression::ConditionOperandType& op_type, const std::unique_ptr<MidoriExpression>& expr);
 
+	std::shared_ptr<MidoriType> FreshTypeVar();
+
+	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type);
+
+	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type, FresheningContext& context);
+
+	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
+
+	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);
+
+	bool OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type);
+
 	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Simple& simple);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Define& def);
+
+	MidoriResult::TypeResult operator()(MidoriStatement::DefineFunction& defun);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Continue& continue_stmt);
 

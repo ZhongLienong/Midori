@@ -3,26 +3,27 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def foo = fn() : Unit
+defun foo() : Unit =>
 {
-	def arr : Array<() -> Int> = [];
-	loop (def i = 0; i < 3; i = i + 1)
+	def arr : Array<fn() -> Int> = [];
+	def i = 0;
+	loop
 	{
-		arr = arr ++ [fn() : Int
+		if i >= 3 
+		then
 		{
-			return i;
-		}];
-	}
+			break ();
+		}
+		else
+		{
+			arr = arr ++ [fn() : Int => i];
+			i = i + 1;
+		};
+	};
 
 	IO::PrintLine(arr[0]() as Text);  // Should print 3
 	IO::PrintLine(arr[1]() as Text);  // Should print 3
 	IO::PrintLine(arr[2]() as Text);  // Should print 3
-	
-	return ();
 };
 
-def main = fn() : Unit
-{
-	foo();
-	return ();
-};
+foo();

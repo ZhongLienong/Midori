@@ -1,16 +1,10 @@
-import 
+import
 {
 	"../MidoriPrelude/IO.mdr",
 }
 
-def main = fn() : Int
-{
-	def x : (Int) -> () -> Int = fn(y)
-	{
-		return fn() : Int { return y; };
-	};
-	def f = x(5);
-	IO::PrintLine(f() as Text); // Should print 5
+defun x(y : Int) : fn() -> Int => fn() : Int => y;
 
-	return 0;
-};
+def f = x(5);
+
+IO::PrintLine(f() as Text); // Should print 5

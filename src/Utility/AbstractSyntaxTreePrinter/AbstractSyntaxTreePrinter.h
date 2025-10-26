@@ -13,6 +13,8 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriStatement::Define& def, int depth = 0) const;
 
+	void operator()(const MidoriStatement::DefineFunction& defun, int depth = 0) const;
+
 	void operator()(const MidoriStatement::Continue&, int depth = 0) const;
 
 	void operator()(const MidoriStatement::Foreign& foreign, int depth = 0) const;

@@ -30,102 +30,49 @@ struct Expr
 	error : Bool
 };
 
-def make_variable = fn(name : Text) : Term
-{
-	return new Term(name, 0, true);
-};
+defun make_variable(name : Text) : Term => new Term(name, 0, true);
+defun make_number(num : Int) : Term => new Term("", num, false);
+defun is_variable(t : Term) : Bool => t.is_var;
+defun is_number(t : Term) : Bool => !t.is_var;
+defun is_same_variable(v1 : Term, v2 : Term) : Bool => is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
 
-def make_number = fn(num : Int) : Term
-{
-	return new Term("", num, false);
-};
-
-def is_variable = fn(t : Term) : Bool
-{
-	return t.is_var;
-};
-
-def is_number = fn(t : Term) : Bool
-{
-	return !t.is_var;
-};
-
-def is_same_variable = fn(v1 : Term, v2 : Term) : Bool
-{
-	return is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
-};
-
-def make_sum = fn(v1 : Term, v2 : Term) : Expr
+defun make_sum(v1 : Term, v2 : Term) : Expr => 
 {
 	def is_sum = true;
 	def error = false;
 	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
 };
 
-def make_product = fn(v1 : Term, v2 : Term) : Expr
+defun make_product(v1 : Term, v2 : Term) : Expr => 
 {
 	def is_sum = false;
 	def error = false;
 	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
 };
 
-def is_sum = fn(exp : Expr) : Bool
-{
-	return exp.is_sum;
-};
+defun is_sum(exp : Expr) : Bool => exp.is_sum;
+defun is_product(exp : Expr) : Bool => !exp.is_sum;
+defun addend(exp : Expr) : Term => exp.sum_expr.left;
+defun augend(exp : Expr) : Term => exp.sum_expr.right;
+defun multiplier(exp : Expr) : Term => exp.prod_expr.left;
+defun multiplicand(exp : Expr) : Term => exp.prod_expr.right;
 
-def is_product = fn(exp : Expr) : Bool
+defun deriv(t : Term, var_ : Text) : Term =>
 {
-	return !exp.is_sum;
-};
-
-def addend = fn(exp : Expr) : Term
-{
-	return exp.sum_expr.left;
-};
-
-def augend = fn(exp : Expr) : Term
-{
-	return exp.sum_expr.right;
-};
-
-def multiplier = fn(exp : Expr) : Term
-{
-	return exp.prod_expr.left;
-};
-
-def multiplicand = fn(exp : Expr) : Term
-{
-	return exp.prod_expr.right;
-};
-
-def deriv = fn(t : Term, var_ : Text) : Term
-{
-    if (is_number(t))
-    {
-        // The derivative of a constant is 0
-        return make_number(0);
-    }
-    else if (is_variable(t))
-    {
-        // The derivative of the variable with respect to itself is 1, else it's 0
-        return t.variable == var_ ? make_number(1) : make_number(0);
-    }
+    if is_number(t)
+	then make_number(0)
+    else if is_variable(t)
+	then (if t.variable == var_ then make_number(1) else make_number(0)) // The derivative of the variable with respect to itself is 1, else it's 0
     else
     {
         // Handle more complex cases here (like sum or product)
         // Currently returning a default value for unsupported types
-        return make_number(0);
+        make_number(0)
     }
 };
 
-def main = fn() : Unit
-{
-	def var1 = make_variable("x");
-	def var2 = make_number(3);
+def var1 = make_variable("x");
+def var2 = make_number(3);
+def var3 : Expr = make_product(var1, var2);
 
-	def var3 : Expr = make_product(var1, var2);
-
-	IO::PrintLine(deriv(var1, "x").num as Text);
-	return ();
-};
+IO::PrintLine(deriv(var1, "x").num as Text);

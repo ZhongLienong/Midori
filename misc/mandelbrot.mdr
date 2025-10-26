@@ -1,5 +1,8 @@
-#include C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr
-#include "C:\Users\jk381\source\repos\chwwhc\Midori\MidoriPrelude\Math.mdr"
+import
+{
+	"../MidoriPrelude/IO.mdr",
+    "../MidoriPrelude/Math.mdr"
+}
 
 struct Complex 
 {
@@ -7,75 +10,56 @@ struct Complex
     Imag : Float,
 };
 
-def abs = fn(x : Float) : Float 
-{
-    return x < 0.0 ? -x : x;
-};
+defun abs(x : Float) : Float => if x < 0.0 then -x else x;
+defun complex_abs(x : Complex) : Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
+defun complex_add(a : Complex, b : Complex) : Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
+defun complex_mul(a : Complex, b : Complex) : Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+defun complex_square(a : Complex) : Complex => complex_mul(a, a);
 
-def complex_abs = fn(x : Complex) : Float 
+defun map_color(iterations : Int, max_iterations: Int) : Text =>
 {
-    return Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
-};
-
-def complex_add = fn(a : Complex, b : Complex) : Complex 
-{
-    return new Complex(a.Real + b.Real, a.Imag + b.Imag);
-};
-
-def complex_mul = fn(a : Complex, b : Complex) : Complex 
-{
-    return new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
-};
-
-def complex_square = fn(a : Complex) : Complex 
-{
-    return complex_mul(a, a); // Use complex_mul for squaring
-};
-
-def map_color = fn(iterations : Int, max_iterations: Int) : Text 
-{
-    if (iterations == max_iterations) 
-    {
-        return "0 0 0\n"; // Black (inside set)
-    } 
+    if iterations == max_iterations 
+    then "0 0 0\n" // Black (inside set)
     else 
     {
         // Simple color gradient (adjust as needed)
         def r = (iterations * 5) % 256;
         def g = (iterations * 10) % 256;
         def b = (iterations * 15) % 256;
-        return (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n";
+        (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n"
     }
 };
 
-def mandelbrot_ppm = fn(width : Int, height : Int, limit : Int) : Text 
+defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
 {
     def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
     def ppm_data = "";
-
-    loop (def y = 0; y < height; y = y + 1) 
+    def y = 0;
+    loop 
     {
-        loop (def x = 0; x < width; x = x + 1) 
+        def x = 0;
+        loop
         {
             def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
             def z = new Complex(0.0, 0.0);
             def iterations = 0;
-            loop (iterations < limit) 
+            loop 
             {
+                if iterations >= limit then break () else ();
                 z = complex_add(complex_square(z), c);
-                if (complex_abs(z) >= 2.0) 
-                { 
-                    break; 
-                }
+                if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
-            }
+            };
             ppm_data = ppm_data ++ map_color(iterations, limit);
-        }
-    }
-    return ppm_header ++ ppm_data;
+            x = x + 1;
+            if x >= width then break () else ();
+        };
+    };
+
+    ppm_header ++ ppm_data
 };
 
-def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text
+def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =>
 {
     def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
     def ppm_data = "";
@@ -86,44 +70,35 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text
     def imag_min = -1.2;  // Original: -1.2
     def imag_max = 1.2;   // Original: 1.2
 
-
-    loop (def y = 0; y < height; y = y + 1)
+    def y = 0;
+    loop
     {
-        loop (def x = 0; x < width; x = x + 1)
+        def x = 0;
+        loop
         {
-            // Calculate complex number based on adjusted ranges
             def real = real_min + (x as Float) / (width as Float) * (real_max - real_min);
             def imag = imag_min + (y as Float) / (height as Float) * (imag_max - imag_min);
             def z = new Complex(real, imag);
-
-
             def iterations = 0;
-            loop (iterations < limit)
+            loop
             {
+                if iterations >= limit then break () else ();
                 z = complex_add(complex_square(z), c);
-                if (complex_abs(z) >= 2.0)
-                {
-                    break;
-                }
+                if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
-            }
+            };
             ppm_data = ppm_data ++ map_color(iterations, limit);
         }
-    }
+    };
 
-    return ppm_header ++ ppm_data;
+    ppm_header ++ ppm_data
 };
 
-def main = fn() : Unit 
-{
-    def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
-    def limit = 100;
+def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
+def limit = 20;
 
-    def mandelbrot_output = mandelbrot_ppm(400, 300, limit);
-    IO::OverwriteToFile("D:\Xuexi\mandelbrot.ppm", mandelbrot_output);
+def mandelbrot_output = mandelbrot_ppm(400, 300, limit);
+IO::OverwriteToFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
 
-    def julia_output = julia_ppm(400, 300, julia_constant, limit);
-    IO::OverwriteToFile("D:\Xuexi\julia.ppm", julia_output);
-
-    return ();
-};
+def julia_output = julia_ppm(400, 300, julia_constant, limit);
+IO::OverwriteToFile("D:/Xuexi/julia.ppm", julia_output);

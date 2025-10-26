@@ -1,0 +1,12 @@
+// Test: Different generic instantiations should not be compatible
+// Expected: SHOULD FAIL - cannot put different generic instances in same array
+
+struct Box<T> {
+    value: T
+};
+
+def int_box = new Box(42);
+def text_box = new Box("hello");
+
+// This should fail - Box<Int> and Box<Text> are different types
+def boxes = [int_box, text_box];

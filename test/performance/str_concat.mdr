@@ -1,29 +1,24 @@
 import 
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr",
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestStringManipulation = fn() : Unit
+def start = DateTime::GetTime();
+
+def test_string = "";
+def count = 0;
+loop
 {
-    def start = DateTime::GetTime();
-
-    def testString = "";
-    loop (def i = 0; i < 10000; i = i + 1)
-    {
-        testString = testString ++ "a";
-    }
-
-    def end = DateTime::GetTime();
-
-    IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
-    
-    return ();
+	if count >= 10000
+	then break ()
+	else
+	{
+		test_string = test_string ++ "a";
+		count = count + 1;
+	}
 };
 
+def end = DateTime::GetTime();
 
-def main = fn() : Int
-{
-    TestStringManipulation();
-    return 0;
-};
+IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

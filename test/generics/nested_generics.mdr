@@ -1,0 +1,21 @@
+// Test: Nested generic types
+// Expected: Should compile - generics can be nested
+
+struct Box<T> {
+    value: T
+};
+
+struct Pair<A, B> {
+    first: A,
+    second: B
+};
+
+// Box containing a Pair
+def nested1 = new Box(new Pair(1, 2));
+
+// Pair of Boxes
+def nested2 = new Pair(new Box(10), new Box(20));
+
+// Access nested values
+def inner_pair = nested1.value;
+def first_box = nested2.first;

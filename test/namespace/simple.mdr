@@ -1,6 +1,3 @@
-
-def x = 3;
-
 namespace TestNamespace
 {
 	def x = 4;
@@ -10,10 +7,10 @@ namespace TestNamespace
 	{
 		def y = 1.1;
 		def ttt = TestNamespace::t;
-		def foo = fn(x: Float) : Float
+		defun foo(x: Float) : Float =>
 		{
 			def oo = InnerTestNamespace::y;
-			return oo;
+			oo
 		};
 		namespace InnerInnerTestNamespace
 		{
@@ -30,8 +27,4 @@ namespace asdawd
 
 }
 
-def main = fn() : Unit
-{
-	def x = TestNamespace::InnerTestNamespace::y;
-	return ();
-};
+def x = TestNamespace::InnerTestNamespace::y;

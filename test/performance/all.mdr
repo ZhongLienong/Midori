@@ -4,11 +4,11 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestPrimeNumbers : () -> Unit = fn() ->
+defun TestPrimeNumbers() : Unit =>
 {
-	def IsPrime : (Int) -> Bool = fn(n) ->
+	defun IsPrime(n : Int) : Bool =>
 	{
-		def IsPrimeHelper : (Int, Int) -> Bool = fn(n, divisor) ->
+		defun IsPrimeHelper(n : Int, divisor : Int) : Bool =>
 		{
 			if divisor * divisor > n
 			then true
@@ -48,21 +48,20 @@ def TestPrimeNumbers : () -> Unit = fn() ->
 	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-def TestFib : () -> Unit = fn() ->
+defun TestFib(n : Int) : Unit =>
 {
-
-	def fib : (Int) -> Int = fn(n) -> if n <= 1 then n else fib(n - 1) + fib(n - 2);
+	defun fib(n : Int) : Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
 	def start = DateTime::GetTime();
 
-	def fib_35 = fib(35);
+	def fib_n = fib(n);
 
 	def end = DateTime::GetTime();
 
-	IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-def TestStringManipulation : () -> Unit = fn() ->
+defun TestStringManipulation() : Unit =>
 {
     def start = DateTime::GetTime();
 
@@ -84,10 +83,10 @@ def TestStringManipulation : () -> Unit = fn() ->
     IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-def TestParenthesisGeneration : (Int) -> Unit = fn(max_len) ->
+defun TestParenthesisGeneration(max_len : Int) : Unit =>
 {
-    def output = [];
-    def BackTrack : (Int, Int, Int, Text) -> Unit = fn(len, left, right, acc) ->
+    def output : Array<Text> = [];
+    defun BackTrack(len : Int, left : Int, right : Int, acc : Text) : Unit =>
     {   
 		if left < right
 		then
@@ -127,7 +126,7 @@ def TestParenthesisGeneration : (Int) -> Unit = fn(max_len) ->
     IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-TestFib();
+TestFib(35);
 TestPrimeNumbers();
 TestStringManipulation();
 TestParenthesisGeneration(8);

@@ -16,7 +16,7 @@ struct Complex
 	img : Float,
 };
 
-def TestNestedStruct = fn() : Unit
+def TestNestedStruct = fn() : Unit =>
 {
 	struct Test
 	{
@@ -25,14 +25,14 @@ def TestNestedStruct = fn() : Unit
 
 	def test = new Test(1);
 
-	def struct_in_closure = fn() : Unit
+	defun struct_in_closure() : Unit =>
 	{
 		struct Test2
 		{
 			x : Int
 		};
 
-		fn() : Unit
+		fn() : Unit =>
 		{
 			struct Test3
 			{
@@ -43,19 +43,14 @@ def TestNestedStruct = fn() : Unit
 			def test3 = new Test3(new Vec3(1.2, 2.4, 3.2), new Complex(1.12, 2.22));
 
 			IO::PrintLine(test.x as Text);
-			return IO::PrintLine(test3.y.real as Text);
+			IO::PrintLine(test3.y.real as Text);
 		}();
 
 		def test2 = new Test2(2);
-		return IO::PrintLine(test2.x as Text);
+		IO::PrintLine(test2.x as Text)
 	};
 
 	struct_in_closure();
-
-	return ();
 };
 
-def main = fn() : Unit
-{
-	return TestNestedStruct();
-};
+TestNestedStruct();

@@ -21,47 +21,22 @@ struct Rectangle
 	height : LineSegment,
 };
 
-def abs = fn(x : Float) : Float
-{
-	return x < 0.0 ? -x : x;
-};
+defun abs(x : Float) : Float => if x < 0.0 then -x else x;
 
-def make_point = fn(x : Float, y : Float)
-{
-	return new Point(x, y);
-};
+defun make_point(x : Float, y : Float) : Point => new Point(x, y);
 
-def x_point = fn(pt : Point)
-{
-	return pt.x;
-};
+defun x_point(pt : Point) : Float => pt.x;
+defun y_point(pt : Point) : Float => pt.y;
 
-def y_point = fn(pt : Point)
-{
-	return pt.y;
-};
+defun print_point(pt : Point) : Unit => IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
 
-def print_point = fn(pt : Point) : Unit
-{
-	return IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
-};
+defun make_segment(start : Point, end : Point) : LineSegment => new LineSegment(start, end);
 
-def make_segment = fn(start : Point, end : Point) : LineSegment
-{
-	return new LineSegment(start, end);
-};
+defun start_segment(seg : LineSegment) : Point => seg.start;
 
-def start_segment = fn(seg : LineSegment) : Point
-{
-	return seg.start;
-};
+defun end_segment(seg : LineSegment) : Point => seg.end;
 
-def end_segment = fn(seg : LineSegment) : Point
-{
-	return seg.end;
-};
-
-def midpoint_segment = fn(seg : LineSegment) : Point
+defun midpoint_segment(seg : LineSegment) : Point =>
 {
 	def start_pt = start_segment(seg);
 	def end_pt = end_segment(seg);
@@ -70,61 +45,56 @@ def midpoint_segment = fn(seg : LineSegment) : Point
 	return make_point(x_point(start_pt) + x_diff / 2.0, y_point(start_pt) + y_diff / 2.0);
 };
 
-def make_rect = fn(top_left : Point, bottom_right : Point) : Rectangle
+defun make_rect(top_left : Point, bottom_right : Point) : Rectangle =>
 {
 	def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
 	def top_right = make_point(-x_point(bottom_right), y_point(top_left));
 	return new Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
 };
 
-def width_rect = fn(rect : Rectangle) : Float
+defun width_rect(rect : Rectangle) : Float =>
 {
 	return abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)));
 };
 
-def height_rect = fn(rect : Rectangle) : Float
+defun height_rect(rect : Rectangle) : Float =>
 {
 	return abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)));
 };
 
-def perimeter_rect = fn(rect : Rectangle) : Float
+defun perimeter_rect(rect : Rectangle) : Float =>
 {
 	return abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect));
 };
 
-def pair = fn(x : Int, y : Int) : ((Int, Int) -> Int) -> Int
+defun pair(x : Int, y : Int) : fn(fn(Int, Int) -> Int) -> Int =>
 {
-	return fn(f : (Int, Int) -> Int) : Int { return f(x, y); };
+	return fn(f : fn(Int, Int) -> Int) : Int => f(x, y);
 };
 
-def head = fn(z : ((Int, Int) -> Int) -> Int) : Int
+defun head(z : fn(fn(Int, Int) -> Int) -> Int) : Int =>
 {
-    return z(fn(x : Int, y : Int) : Int { return x; });
+    return z(fn(x : Int, y : Int) : Int => x);
 };
 
-def tail = fn(z : ((Int, Int) -> Int) -> Int) : Int
+defun tail(z : fn(fn(Int, Int) -> Int) -> Int) : Int =>
 {
-    return z(fn(x : Int, y : Int) : Int { return y; });
+    return z(fn(x : Int, y : Int) : Int => y);
 };
 
-def main = fn() : Unit
-{
-	def start_pt = make_point(0.0, 0.0);
-	def end_pt = make_point(2.12312, 4.312312);
-	def line_segment = make_segment(start_pt, end_pt);
-	def midpoint = midpoint_segment(line_segment);
+def start_pt = make_point(0.0, 0.0);
+def end_pt = make_point(2.12312, 4.312312);
+def line_segment = make_segment(start_pt, end_pt);
+def midpoint = midpoint_segment(line_segment);
 
-	IO::PrintLine("Finding midpoint");
-	print_point(midpoint);
+IO::PrintLine("Finding midpoint");
+print_point(midpoint);
 
-	def rect = make_rect(make_point(0.0, 0.0), make_point(2.0, -1.0));
-	IO::PrintLine("Finding perimeter");
-	IO::PrintLine(perimeter_rect(rect) as Text);
+def rect = make_rect(make_point(0.0, 0.0), make_point(2.0, -1.0));
+IO::PrintLine("Finding perimeter");
+IO::PrintLine(perimeter_rect(rect) as Text);
 
-	IO::PrintLine("Constructing church-encoding pair (1, 2)");
-	def church_encoding_pair = pair(1, 2);
-	IO::PrintLine("Accessing head: " ++ (head(church_encoding_pair) as Text));
-	IO::PrintLine("Accessing tail: " ++ (tail(church_encoding_pair) as Text));
-
-	return ();
-};
+IO::PrintLine("Constructing church-encoding pair (1, 2)");
+def church_encoding_pair = pair(1, 2);
+IO::PrintLine("Accessing head: " ++ (head(church_encoding_pair) as Text));
+IO::PrintLine("Accessing tail: " ++ (tail(church_encoding_pair) as Text));

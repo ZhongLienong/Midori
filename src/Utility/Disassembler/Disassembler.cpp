@@ -528,21 +528,6 @@ namespace Disassembler
 		case OpCode::HALT:
 			SimpleInstruction("HALT", offset);
 			break;
-		case OpCode::BOX_INT:
-			NumericConstantInstruction(true, "BOX_INT", executable, proc_index, offset);
-			break;
-		case OpCode::BOX_FLOAT:
-			NumericConstantInstruction(false, "BOX_FLOAT", executable, proc_index, offset);
-			break;
-		case OpCode::BOX_BOOL:
-			SimpleInstruction("BOX_BOOL", offset);
-			break;
-		case OpCode::BOX_UNIT:
-			SimpleInstruction("BOX_UNIT", offset);
-			break;
-		case OpCode::UNBOX:
-			SimpleInstruction("UNBOX", offset);
-			break;
 		case OpCode::PUSH_PLACEHOLDER:
 			SimpleInstruction("PUSH_PLACEHOLDER", offset);
 			break;

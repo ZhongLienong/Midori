@@ -133,13 +133,6 @@ enum class OpCode : uint8_t
 	RETURN,
 	HALT,
 
-	// Box Operations
-	BOX_INT,
-	BOX_FLOAT,
-	BOX_BOOL,
-	BOX_UNIT,
-	UNBOX,
-
 	// Placeholder
 	PUSH_PLACEHOLDER,
 	UPDATE_PLACEHOLDER,

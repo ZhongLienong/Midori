@@ -4,21 +4,12 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestFib : () -> Unit = fn() ->
-{
+defun fib(n : Int) : Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
-	def fib : (Int) -> Int = fn(n) -> if n <= 1 then n else fib(n - 1) + fib(n - 2);
+def start = DateTime::GetTime();
 
-	def start = DateTime::GetTime();
+def fib_35 = fib(35);
 
-	def fib_35 = fib(35);
+def end = DateTime::GetTime();
 
-	def end = DateTime::GetTime();
-
-	IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
-};
-
-def main : () -> Unit = fn() ->
-{
-	return TestFib();
-};
+IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

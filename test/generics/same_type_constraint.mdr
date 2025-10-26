@@ -1,0 +1,10 @@
+// Test: Same type parameter used multiple times should unify
+// Expected: SHOULD FAIL - passing different types for same generic parameter
+
+struct Pair<T> {
+    first: T,
+    second: T
+};
+
+// This should fail - trying to pass Int and Text for the same type parameter T
+def bad_pair = new Pair(42, "hello");

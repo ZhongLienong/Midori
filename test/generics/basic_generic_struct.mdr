@@ -1,0 +1,23 @@
+// Test: Basic generic struct with single type parameter
+// Expected: Should compile and allow different instantiations
+
+import 
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+struct Box<T> 
+{
+    value: T
+};
+
+// Different instantiations with different types
+def int_box = new Box(42);
+def text_box = new Box("hello");
+def float_box = new Box(3.14);
+def bool_box = new Box(true);
+
+// Access members
+IO::PrintLine(int_box.value as Text); // Should print 42
+IO::PrintLine(text_box.value); // Should print hello

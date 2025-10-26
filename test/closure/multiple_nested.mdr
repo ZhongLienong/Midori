@@ -3,22 +3,11 @@ import
    "C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def makeAdder = fn(a : Int) : (Int) -> (Int) -> Int 
+defun makeAdder(a : Int) : fn(Int) -> fn(Int) -> Int =>
 {
-  return fn(b : Int) : (Int) -> Int
-  {
-    return fn(c : Int) : Int
-    {
-        return a + b + c;
-    };
-  };
+  return fn(b : Int) : fn(Int) -> Int => fn(c : Int) : Int => a + b + c;
 };
 
-def adder : (Int) -> Int = makeAdder(3)(4);
+def adder = makeAdder(3)(4);
 
-def main = fn() : Unit
-{
-    IO::PrintLine(adder(5) as Text);  // Should print 12
-
-    return ();
-};
+IO::PrintLine(adder(5) as Text);  // Should print 12

@@ -5,10 +5,10 @@ import
 
 union List = Nil | Cons(Int, List);
 
-def list_sum : (List) -> Int = fn(lst) ->
+defun list_sum(lst : List) : Int =>
 	match lst with
-		case List::Nil -> 0
-		case List::Cons(x, xs) -> x + list_sum(xs)
+		case List::Nil => 0
+		case List::Cons(x, xs) => x + list_sum(xs)
 ;
 
 def list1 = new List::Nil();

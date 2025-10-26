@@ -162,10 +162,6 @@ MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_value(
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriBox&& box) noexcept : m_value(std::move(box))
-{
-}
-
 #ifdef DEBUG
 MidoriText MidoriTraceable::ToText()
 {
@@ -230,24 +226,6 @@ MidoriText MidoriTraceable::ToText()
 				}
 				return struct_val.Pop().Pop().Append("}");
 			}
-			else if constexpr (std::is_same_v<T, MidoriBox>)
-			{
-				MidoriText result("Box(");
-
-				switch (arg.m_tag)
-				{
-				case MidoriBox::FLOAT:
-					return result.Append(MidoriText::FromFloat(arg.m_inner_value.GetFloat())).Append(")");
-				case MidoriBox::INT:
-					return result.Append(MidoriText::FromInteger(arg.m_inner_value.GetInteger())).Append(")");
-				case MidoriBox::BOOL:
-					return result.Append(arg.m_inner_value.GetBool() ? "true" : "false").Append(")");
-				case MidoriBox::UNIT:
-					return result.Append("()").Append(")");
-				default:
-					return "";
-				}
-			}
 			else
 			{
 				return MidoriText("Unknown MidoriTraceable");
@@ -289,20 +267,9 @@ void* MidoriTraceable::operator new(size_t size) noexcept
 void MidoriTraceable::operator delete(void* object, size_t size) noexcept
 {
 	MidoriTraceable* traceable = static_cast<MidoriTraceable*>(object);
+	(void)traceable;  // Unused but needed for potential future debugging
 
 	::operator delete(object, size);
-}
-
-std::optional<MidoriBox> MidoriTraceable::UnBox()
-{
-	if (IsTraceable<MidoriBox>())
-	{
-		return GetTraceable<MidoriBox>();
-	}
-	else
-	{
-		return std::nullopt;
-	}
 }
 
 MidoriArray::MidoriArray(int size)

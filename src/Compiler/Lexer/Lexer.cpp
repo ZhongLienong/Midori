@@ -21,6 +21,7 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"return"s, Token::Name::RETURN},
 	{"true"s, Token::Name::TRUE},
 	{"def"s, Token::Name::DEF},
+	{"defun"s, Token::Name::DEFUN},
 	{"fn"s, Token::Name::FUNCTION},
 	{"do"s, Token::Name::DO},
 	{"as"s, Token::Name::AS},
@@ -182,12 +183,15 @@ MidoriResult::TokenResult Lexer::MatchString()
 					result += '\\';
 					break;
 				default:
-					result += Advance();
-					continue;
+					// Unknown escape sequence - treat as literal backslash followed by the character
+					// e.g., \X becomes "\X" (two characters: backslash and X)
+					result += '\\';
+					result += LookAhead(1);  // Add the character after the backslash
+					break;  // Fall through to the Advance() Advance() below
 				}
 
-				Advance();
-				Advance();
+				Advance();  // Skip the backslash
+				Advance();  // Skip the escape character
 				continue;
 			}
 		}
@@ -369,6 +373,10 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					if (MatchNext('='))
 					{
 						return MakeToken(Token::Name::DOUBLE_EQUAL);
+					}
+					else if (MatchNext('>'))
+					{
+						return MakeToken(Token::Name::FAT_ARROW);
 					}
 					else
 					{

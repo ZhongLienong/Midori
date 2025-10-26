@@ -3,15 +3,6 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def GetSum = fn(a : Int, b : Int) : Int
-{
-	return b == 0 
-		? a 
-		: GetSum(a ^ b, (a & b) <~ 1);
-};
+defun GetSum(a : Int, b : Int) : Int => if b == 0 then a else GetSum(a ^ b, (a & b) <~ 1);
 
-def main = fn() : Unit
-{
-	IO::PrintLine(GetSum(20, 22) as Text);
-	return ();
-};
+IO::PrintLine(GetSum(20, 22) as Text);

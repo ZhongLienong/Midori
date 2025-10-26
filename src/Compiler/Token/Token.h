@@ -10,6 +10,7 @@ struct Token
 	{
 		// symbol
 		THIN_ARROW,
+		FAT_ARROW,
 		LEFT_PAREN,
 		RIGHT_PAREN,
 		LEFT_BRACE,
@@ -64,6 +65,7 @@ struct Token
 		RETURN,
 		TRUE,
 		DEF,
+		DEFUN,
 		DO,
 		BREAK,
 		CONTINUE,

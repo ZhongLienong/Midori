@@ -63,7 +63,9 @@ extern "C"
 	 */
 	MIDORI_API void SquareRoot(void** args, void* ret) noexcept
 	{
-		double data = *reinterpret_cast<double*>(args[0u]);
+		double data;
+		std::memcpy(&data, args, sizeof(double));
+
 		double result = std::sqrt(data);
 
 		std::memcpy(ret, &result, sizeof(double));

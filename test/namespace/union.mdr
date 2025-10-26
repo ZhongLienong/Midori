@@ -1,8 +1,5 @@
 
-union G
-{
-	A,
-};
+union G = A;
 
 namespace NSP
 {
@@ -10,33 +7,15 @@ namespace NSP
 	{
 	};
 
-	union U1
-	{
-		A(Int),
-		B,
-		C(Float, Int, Text),
-		D(U1),
-		E(S1),
-	};
+	union U1 = A(Int) | B | C(Float, Int, Text) | D(U1) | E(S1);
 
 	namespace NNSP
 	{
-		union UU1
-		{
-			A(U1),
-			B(NSP::U1, G),
-			C(S1),
-			D(NSP::S1),
-		};
+		union UU1 = A(U1) | B(NSP::U1, G) | C(S1) | D(NSP::S1);
 	}
 }
 
-def  main = fn() : Unit
-{
-	def x = new NSP::U1::D(new NSP::U1::E(new NSP::S1()));
-	x = new NSP::U1::C(1.2, 2, "sss");
-	def  y = new NSP::NNSP::UU1::A(x);
-	def  yy = new NSP::NNSP::UU1::B(x, new G::A());
-
-	return ();
-};
+def x = new NSP::U1::D(new NSP::U1::E(new NSP::S1()));
+x = new NSP::U1::C(1.2, 2, "sss");
+def  y = new NSP::NNSP::UU1::A(x);
+def  yy = new NSP::NNSP::UU1::B(x, new G::A());

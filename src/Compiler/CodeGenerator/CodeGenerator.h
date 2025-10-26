@@ -15,6 +15,40 @@ private:
 		int m_loop_start = 0;
 	};
 
+	struct GenericFunctionInfo
+	{
+		std::string m_name;
+		std::vector<Token> m_params;
+		std::unique_ptr<MidoriExpression>* m_body;
+		int m_captured_count;
+		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
+		std::shared_ptr<MidoriType> m_generic_return_type;
+	};
+
+	struct FunctionSignature
+	{
+		std::string m_base_name;
+		std::vector<std::string> m_concrete_types;
+
+		bool operator==(const FunctionSignature& other) const
+		{
+			return m_base_name == other.m_base_name && m_concrete_types == other.m_concrete_types;
+		}
+	};
+
+	struct FunctionSignatureHash
+	{
+		std::size_t operator()(const FunctionSignature& sig) const
+		{
+			std::size_t hash = std::hash<std::string>{}(sig.m_base_name);
+			for (const std::string& type : sig.m_concrete_types)
+			{
+				hash ^= std::hash<std::string>{}(type) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+			}
+			return hash;
+		}
+	};
+
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
 #ifdef DEBUG
 	std::vector<MidoriText> m_procedure_names{ MidoriText("runtime startup") };
@@ -24,6 +58,9 @@ private:
 	std::stack<LoopContext> m_loop_contexts;
 	std::unordered_map<std::string, int> m_global_variables;
 	std::unordered_map<std::string, int> m_local_variables;
+	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
+	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
 
 	MidoriExecutable m_executable;
 	size_t m_current_procedure_index = 0;
@@ -70,6 +107,8 @@ private:
 	void operator()(MidoriStatement::Simple& simple);
 
 	void operator()(MidoriStatement::Define& def);
+
+	void operator()(MidoriStatement::DefineFunction& defun);
 
 	void operator()(MidoriStatement::Continue& continue_stmt);
 
@@ -138,4 +177,14 @@ private:
 	void operator()(MidoriExpression::Return& return_expr);
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
+
+	void EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0);
+
+	bool IsGenericType(const std::shared_ptr<MidoriType>& type);
+
+	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
+
+	std::shared_ptr<MidoriType> ResolveType(const std::shared_ptr<MidoriType>& type);
+
+	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 };

@@ -6,27 +6,21 @@ import
 struct FunStruct
 {
 	num : Int,
-	no_op : (Int) -> Int,
-	inc : () -> Unit,
-	plus : (Int) -> Int,
+	no_op : fn(Int) -> Int,
+	inc : fn() -> Unit,
+	plus : fn(Int) -> Int,
 };
 
-def main = fn() : Int
+struct Fib
 {
-
-	struct Fib
-	{
-		n : Int,
-		calc : (Int) -> Int
-	};
-
-	def s = new FunStruct
-	(
-		0, 
-		fn(x : Int) : Int { return x; }, 
-		fn() : Unit { return (); }, 
-		fn(x : Int) : Int { return x + x; }
-	);
-
-    return 0;
+	n : Int,
+	calc : fn(Int) -> Int
 };
+
+def s = new FunStruct
+(
+	0, 
+	fn(x : Int) : Int => x,
+	fn() : Unit => (),
+	fn(x : Int) : Int => x + x
+);

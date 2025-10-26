@@ -3,16 +3,8 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def makeAdder = fn(a : Int, b : Int) : (Int) -> Int 
-{
-  return fn(x : Int) : Int { return a + b + x; };
-};
+def makeAdder = fn(a : Int, b : Int) : fn(Int) -> Int => fn(x : Int) : Int => a + b + x;
 
 def adder = makeAdder(3, 4);
 
-def main = fn() : Int
-{
-	IO::PrintLine(adder(5) as Text);  // Should print 12
-
-	return 0;
-};
+IO::PrintLine(adder(5) as Text);  // Should print 12

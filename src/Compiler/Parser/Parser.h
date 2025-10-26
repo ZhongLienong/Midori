@@ -315,6 +315,10 @@ private:
 
 	MidoriResult::TokenResult MatchNameResolution();
 
+	MidoriResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types = nullptr);
+
+	MidoriResult::FunctionParamsResult ParseFunctionParameters();
+
 	void BeginScope();
 
 	int EndScope();
@@ -390,6 +394,8 @@ private:
 	MidoriResult::StatementResult ParseDeclaration();
 
 	MidoriResult::StatementResult ParseDefineStatement();
+
+	MidoriResult::StatementResult ParseDefineFunctionStatement();
 
 	MidoriResult::StatementResult ParseStructDeclaration();
 

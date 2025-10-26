@@ -10,16 +10,16 @@ union LogicExpr =
   | Not(LogicExpr)
 ;
 
-def Evaluate : (LogicExpr, (Text) -> Bool) -> Bool = fn(expr, env) ->
+defun Evaluate(expr : LogicExpr, env : fn(Text) -> Bool) : Bool =>
     match expr with
-        case LogicExpr::Var(name) -> env(name)
-        case LogicExpr::And(left, right) -> Evaluate(left, env) && Evaluate(right, env)
-        case LogicExpr::Or(left, right) -> Evaluate(left, env) || Evaluate(right, env)
-        case LogicExpr::Not(inner) -> !Evaluate(inner, env)
+        case LogicExpr::Var(name) => env(name)
+        case LogicExpr::And(left, right) => Evaluate(left, env) && Evaluate(right, env)
+        case LogicExpr::Or(left, right) => Evaluate(left, env) || Evaluate(right, env)
+        case LogicExpr::Not(inner) => !Evaluate(inner, env)
 ;
 
 // Helper function to print axiom/fact description and its evaluation
-def PrintAxiomEvaluation : (Text, LogicExpr, (Text) -> Bool, (Bool) -> Text) -> Unit = fn(axiom_description, expr_obj, environment, bool_to_string_fn) ->
+defun PrintAxiomEvaluation(axiom_description : Text, expr_obj : LogicExpr, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) : Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
@@ -27,7 +27,7 @@ def PrintAxiomEvaluation : (Text, LogicExpr, (Text) -> Bool, (Bool) -> Text) -> 
 };
 
 // Helper function to print test case results
-def PrintTestResult : (Text, Text, LogicExpr, Bool, (Text) -> Bool, (Bool) -> Text) -> Unit = fn(case_name, expr_as_string, expr_obj, expected_bool, environment, bool_to_string_fn) ->
+defun PrintTestResult(case_name : Text, expr_as_string : Text, expr_obj : LogicExpr, expected_bool : Bool, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) : Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
@@ -41,18 +41,17 @@ def PrintTestResult : (Text, Text, LogicExpr, Bool, (Text) -> Bool, (Bool) -> Te
 };
 
 // Environment: mapping variables to boolean values
-def env : (Text) -> Bool = fn(name) ->
+defun env(name : Text) : Bool =>
 {
     if name == "A" then true
     else if name == "B" then false
     else if name == "C" then true
-
     // Variables like D, E, etc., are not explicitly defined, will default to false
     else false // default false
 };
 
 // Local helper to convert boolean to text for printing
-def bool_to_text_local : (Bool) -> Text = fn(b) -> if b then "true" else "false";
+def bool_to_text_local : fn(Bool) -> Text = fn(b : Bool) : Text => if b then "true" else "false";
 
 IO::PrintLine("--- Environment ---");
 IO::PrintLine("  A = " ++ bool_to_text_local(env("A")));

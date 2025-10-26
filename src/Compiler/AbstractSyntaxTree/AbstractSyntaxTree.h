@@ -32,6 +32,20 @@ public:
 		Define(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
 	};
 
+	struct DefineFunction
+	{
+		Token m_name;
+		std::vector<Token> m_generic_params;
+		std::vector<Token> m_params;
+		std::vector<std::shared_ptr<MidoriType>> m_param_types;
+		std::shared_ptr<MidoriType> m_return_type;
+		std::unique_ptr<MidoriExpression> m_body;
+		std::optional<int> m_local_index;
+		int m_captured_count;
+
+		DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0);
+	};
+
 	struct Continue
 	{
 		Token m_keyword;
@@ -53,17 +67,19 @@ public:
 	struct Struct
 	{
 		Token m_name;
+		std::vector<Token> m_generic_params;
 		std::shared_ptr<MidoriType> m_self_type;
 
-		Struct(const Token& name, std::shared_ptr<MidoriType>&& self_type);
+		Struct(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
 	};
 
 	struct Union
 	{
 		Token m_name;
+		std::vector<Token> m_generic_params;
 		std::shared_ptr<MidoriType> m_self_type;
 
-		Union(const Token& name, std::shared_ptr<MidoriType>&& self_type);
+		Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
 	};
 
 	struct Namespace
@@ -75,7 +91,7 @@ public:
 	};
 
 private:
-	using StatementUnion = std::variant<Simple, Define, Continue, Foreign, Struct, Union, Namespace>;
+	using StatementUnion = std::variant<Simple, Define, DefineFunction, Continue, Foreign, Struct, Union, Namespace>;
 	StatementUnion m_stmt_data;
 
 public:
@@ -238,11 +254,14 @@ public:
 	struct Function : BaseExpression
 	{
 		Token m_function_keyword;
+		std::vector<Token> m_generic_params; 
 		std::vector<Token> m_params;
-		std::unique_ptr<MidoriExpression> m_return_value;
+		std::vector<std::shared_ptr<MidoriType>> m_param_types;
+		std::shared_ptr<MidoriType> m_return_type;
+		std::unique_ptr<MidoriExpression> m_body;
 		int m_captured_count;
 
-		Function(const Token& function_keyword, std::vector<Token>&& params, std::unique_ptr<MidoriExpression>&& m_return_value, int captured_count = 0);
+		Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count = 0);
 	};
 
 	struct Construct : BaseExpression
@@ -431,7 +450,7 @@ public:
 				{
 					return true;
 				}
-				if constexpr (std::is_same_v<T, MidoriExpression::As>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::As>)
 				{
 					return node.m_expr->Contains<Kind>();
 				}
@@ -472,7 +491,7 @@ public:
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
 				{
-					return node.m_return_value->Contains<Kind>();
+					return node.m_body->Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Call>)
 				{

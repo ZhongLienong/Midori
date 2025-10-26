@@ -1,4 +1,4 @@
 namespace DateTime
 {
-	foreign "GetTime" GetTime : () -> Float;
+	foreign "GetTime" GetTime : fn() -> Float;
 }

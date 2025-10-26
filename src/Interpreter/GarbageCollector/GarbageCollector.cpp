@@ -128,10 +128,6 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 			}
 		}
 	}
-	else if (ptr->IsTraceable<MidoriBox>())
-	{
-		// Box value only contains primitive data
-	}
 }
 
 void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_clean)

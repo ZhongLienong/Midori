@@ -77,10 +77,13 @@ MidoriExpression::Call::Call(const Token& paren, std::unique_ptr<MidoriExpressio
 {
 }
 
-MidoriExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& params, std::unique_ptr<MidoriExpression>&& return_value, int captured_count)
+MidoriExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count)
 	: m_function_keyword(function_keyword),
+	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
-	m_return_value(std::move(return_value)),
+	m_param_types(std::move(param_types)),
+	m_return_type(std::move(return_type)),
+	m_body(std::move(body)),
 	m_captured_count(captured_count)
 {
 }
@@ -237,14 +240,16 @@ MidoriStatement::Foreign::Foreign(const Token& function_name, const std::string&
 {
 }
 
-MidoriStatement::Struct::Struct(const Token& name, std::shared_ptr<MidoriType>&& self_type)
+MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type)
 	: m_name(name),
+	m_generic_params(std::move(generic_params)),
 	m_self_type(std::move(self_type))
 {
 }
 
-MidoriStatement::Union::Union(const Token& name, std::shared_ptr<MidoriType>&& self_type)
+MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type)
 	: m_name(name),
+	m_generic_params(std::move(generic_params)),
 	m_self_type(std::move(self_type))
 {
 }
@@ -252,5 +257,17 @@ MidoriStatement::Union::Union(const Token& name, std::shared_ptr<MidoriType>&& s
 MidoriStatement::Namespace::Namespace(const Token& name, std::vector<std::unique_ptr<MidoriStatement>>&& stmts)
 	: m_name(name),
 	m_stmts(std::move(stmts))
+{
+}
+
+MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count)
+	: m_name(name),
+	m_generic_params(std::move(generic_params)),
+	m_params(std::move(params)),
+	m_param_types(std::move(param_types)),
+	m_return_type(std::move(return_type)),
+	m_body(std::move(body)),
+	m_local_index(std::move(local_index)),
+	m_captured_count(captured_count)
 {
 }

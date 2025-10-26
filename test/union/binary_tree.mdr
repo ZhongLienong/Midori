@@ -5,17 +5,17 @@ import
 
 union Tree = Leaf(Int) | Node(Tree, Tree);
 
-def TreeSum : (Tree) -> Int = fn(tree) ->
+defun TreeSum(tree : Tree) : Int =>
 	match tree with
-		case Tree::Leaf(value) -> value
-		case Tree::Node(left, right) -> TreeSum(left) + TreeSum(right)
+		case Tree::Leaf(value) => value
+		case Tree::Node(left, right) => TreeSum(left) + TreeSum(right)
 	;
-def TreeHeight : (Tree) -> Int = fn(tree) ->
+defun TreeHeight(tree : Tree) : Int =>
 {
-	def max : (Int, Int) -> Int = fn(a, b) -> if a > b then a else b;
+	def max = fn(a : Int, b : Int) : Int => if a > b then a else b;
 	match tree with
-		case Tree::Leaf(_) -> 1
-		case Tree::Node(left, right) -> 1 + max(TreeHeight(left), TreeHeight(right))
+		case Tree::Leaf(_) => 1
+		case Tree::Node(left, right) => 1 + max(TreeHeight(left), TreeHeight(right))
 };
 
 def tree1 = new Tree::Node(new Tree::Leaf(2), new Tree::Leaf(3));

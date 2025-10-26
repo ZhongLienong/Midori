@@ -3,17 +3,9 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def x = fn(y : Int) : (Int) -> Int
-{
-  return fn(z : Int) : Int { y = y - 1; return y + z; };
-};
+def x = fn(y : Int) : fn(Int) -> Int => fn(z : Int) : Int => { y = y - 1; y + z };
 
 def f = x(5);
 
-def main = fn() : Int
-{
-	IO::PrintLine(f(2) as Text); // Should print 6
-	IO::PrintLine(f(2) as Text); // Should print 5
-
-	return 0;
-};
+IO::PrintLine(f(2) as Text); // Should print 6
+IO::PrintLine(f(2) as Text); // Should print 5

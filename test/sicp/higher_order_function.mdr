@@ -3,66 +3,45 @@ import
 	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
 }
 
-def cube = fn(x : Float) : Float
+defun cube(x : Float) : Float => x * x * x;
+
+
+defun accumulate(combiner : fn(Float, Float) -> Float, null_value : Float, term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) : Float =>
 {
-    return x * x * x;
+    if a > b
+    then null_value
+    else combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b))
 };
 
-def accumulate = fn(combiner : (Float, Float) -> Float, null_value : Float, term : (Float) -> Float, a : Float, next : (Float) -> Float, b : Float) : Float
+defun sum(term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) : Float => accumulate(fn(a : Float, b : Float) : Float => a + b, 0.0, term, a, next, b);
+
+defun integral(f : fn(Float) -> Float, a : Float, b : Float, dx : Float) : Float =>
 {
-    return a > b
-        ? null_value
-        : combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b));
+    defun add_dx(x : Float) : Float => x + dx;
+
+    sum(f, a + dx / 2.0, add_dx, b) * dx
 };
 
-def sum = fn(term : (Float) -> Float, a : Float, 
-    next : (Float) -> Float, b : Float) : Float
+defun simpson(f : fn(Float) -> Float, a : Float, b : Float, n : Int) : Float =>
 {
-    return accumulate(fn(a : Float, b : Float) : Float 
+    defun inc(k : Float) : Float => k + 1.0;
+    defun aux_fun(h : Float) : Float =>
     {
-        return a + b;
-    },
-    0.0, term, a, next, b);
-};
-
-def integral = fn(f : (Float) -> Float, a : Float, b : Float, dx : Float) : Float
-{
-    def add_dx = fn(x : Float) : Float
-    {
-        return x + dx;
-    };
-
-    return sum(f, a + dx / 2.0, add_dx, b) * dx;
-};
-
-def simpson = fn(f : (Float) -> Float, a : Float, b : Float, n : Int) : Float
-{
-    def inc = fn(k : Float) : Float
-    {
-        return k + 1.0;
-    }; 
-    def aux_fun = fn(h : Float) : Float
-    {
-        def y = fn(k : Float) : Float
+        defun y(k : Float) : Float =>
         {
-            return k == 0.0 || k == (n as Float)
-                ? f(a + k * h)
-                : k % 2.0 == 0.0 
-                ? 2.0 * f(a + k * h)
-                : 4.0 * f(a + k * h);
+            if k == 0.0 || k == (n as Float)
+            then f(a + k * h)
+            else if k % 2.0 == 0.0 
+            then 2.0 * f(a + k * h)
+            else 4.0 * f(a + k * h)
         };
 
-        return (h / 3.0) * sum(y, 0.0, inc, n as Float);
+        (h / 3.0) * sum(y, 0.0, inc, n as Float)
     };
 
-    return aux_fun((b - a) / (n as Float));
+    aux_fun((b - a) / (n as Float))
 };
 
-def main = fn() : Unit
-{
-    IO::PrintLine("integral(cube, 0.0, 1.0, 0.001): " ++ (integral(cube, 0.0, 1.0, 0.002) as Text));
+IO::PrintLine("integral(cube, 0.0, 1.0, 0.001): " ++ (integral(cube, 0.0, 1.0, 0.002) as Text));
 
-    IO::PrintLine("simpson(cube, 0.0, 1.0, 1000): " ++ (simpson(cube, 0.0, 1.0, 100) as Text));
-
-    return ();
-};
+IO::PrintLine("simpson(cube, 0.0, 1.0, 1000): " ++ (simpson(cube, 0.0, 1.0, 100) as Text));

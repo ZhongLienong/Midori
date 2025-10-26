@@ -4,45 +4,42 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-def TestPrimeNumbers : () -> Unit = fn() ->
+defun IsPrime(n : Int) : Bool =>
 {
-	def IsPrime : (Int) -> Bool = fn(n) ->
+	defun IsPrimeHelper(n : Int, divisor : Int) : Bool =>
 	{
-		when n <= 1
+		if divisor * divisor > n
+		then true
+		else
 		{
-			return false;
+			if n % divisor == 0
+			then false
+			else IsPrimeHelper(n, divisor + 1)
 		}
-
-		def i = 2;
-		loop (i * i <= n)
-		{
-			when n % i == 0
-			{
-				return false;
-			}
-			i = i + 1;
-		}
-		
-		true
 	};
+	if n <= 1 then false else IsPrimeHelper(n, 2)
+};
 
-	def start = DateTime::GetTime();
+def start = DateTime::GetTime();
 
-	def prime_count = 0;
-	loop (def i = 0; i < 100000; i = i + 1)
+def prime_count = 0;
+def count = 0;
+loop
+{
+	if count >= 100000
+	then break ()
+	else
 	{
-		when IsPrime(i)
+		if IsPrime(count)
+		then
 		{
 			prime_count = prime_count + 1;
 		}
+		else ();
+		count = count + 1;
 	}
-
-	def end = DateTime::GetTime();
-
-	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-def main : () -> Unit = fn() ->
-{
-	return TestPrimeNumbers();
-};
+def end = DateTime::GetTime();
+
+IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

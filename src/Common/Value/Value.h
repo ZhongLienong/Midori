@@ -19,7 +19,6 @@ enum PointerTag : uint8_t
 	UNION = 0b100,
 	CELL = 0b011,
 	FUNCTION = 0b110,
-	BOX = 0b101, 
 };
 
 class MidoriTraceable;
@@ -63,7 +62,7 @@ public:
 class MidoriValue
 {
 public:
-	constexpr static inline int DATA_BUFFER_SIZE = 8;
+	constexpr static inline int DATA_BUFFER_SIZE = sizeof(double);
 private:
 	alignas(DATA_BUFFER_SIZE) std::byte m_data[DATA_BUFFER_SIZE];
 #ifdef DEBUG
@@ -254,25 +253,10 @@ struct MidoriUnion
 	int m_index{ 0 };
 };
 
-struct MidoriBox
-{
-	enum TypeTag : int64_t
-	{
-		FLOAT = 0,
-		INT,
-		BOOL,
-		UNIT,
-		POINTER,
-	};
-
-	MidoriValue m_inner_value{};
-	TypeTag m_tag;
-};
-
 class MidoriTraceable
 {
 private:
-	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure, MidoriBox> m_value;
+	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure> m_value;
 	size_t m_size;
 	bool m_is_marked = false;
 
@@ -302,8 +286,6 @@ public:
 	MidoriText ToText();
 #endif
 
-	std::optional<MidoriBox> UnBox();
-
 	static void operator delete(void* object, size_t size) noexcept;
 
 	static void* operator new(size_t size) noexcept;
@@ -330,8 +312,6 @@ private:
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
-
-	MidoriTraceable(MidoriBox&& box) noexcept;
 
 	friend class GarbageCollector;
 };
