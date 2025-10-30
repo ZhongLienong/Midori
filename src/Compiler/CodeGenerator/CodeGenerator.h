@@ -30,23 +30,12 @@ private:
 		std::string m_base_name;
 		std::vector<std::string> m_concrete_types;
 
-		bool operator==(const FunctionSignature& other) const
-		{
-			return m_base_name == other.m_base_name && m_concrete_types == other.m_concrete_types;
-		}
+		bool operator==(const FunctionSignature& other) const;
 	};
 
 	struct FunctionSignatureHash
 	{
-		std::size_t operator()(const FunctionSignature& sig) const
-		{
-			std::size_t hash = std::hash<std::string>{}(sig.m_base_name);
-			for (const std::string& type : sig.m_concrete_types)
-			{
-				hash ^= std::hash<std::string>{}(type) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-			}
-			return hash;
-		}
+		std::size_t operator()(const FunctionSignature& sig) const;
 	};
 
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
@@ -183,8 +172,6 @@ private:
 	bool IsGenericType(const std::shared_ptr<MidoriType>& type);
 
 	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
-
-	std::shared_ptr<MidoriType> ResolveType(const std::shared_ptr<MidoriType>& type);
 
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 };

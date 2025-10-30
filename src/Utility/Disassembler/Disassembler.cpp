@@ -465,6 +465,9 @@ namespace Disassembler
 		case OpCode::CALL_DEFINED:
 			CallInstruction("CALL_DEFINED", executable, proc_index, offset);
 			break;
+		case OpCode::TAIL_CALL:
+			CallInstruction("TAIL_CALL", executable, proc_index, offset);
+			break;
 		case OpCode::CONSTRUCT_STRUCT:
 			DataInstruction("CONSTRUCT_STRUCT", executable, proc_index, offset);
 			break;

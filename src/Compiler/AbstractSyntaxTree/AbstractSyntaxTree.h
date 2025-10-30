@@ -247,6 +247,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_callee;
 		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
 		bool m_is_foreign;
+		bool m_is_tail_call = false;
 
 		Call(const Token& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign = false);
 	};

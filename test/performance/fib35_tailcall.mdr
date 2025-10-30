@@ -1,0 +1,20 @@
+import 
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun fib_tail(n : Int, a : Int, b : Int) : Int =>
+{
+	if n == 0
+	then a
+	else fib_tail(n - 1, b, a + b)
+};
+
+def start = DateTime::GetTime();
+
+def fib_35 = fib_tail(35, 0, 1);
+
+def end = DateTime::GetTime();
+
+IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

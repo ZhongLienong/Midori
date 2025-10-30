@@ -655,13 +655,18 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(0), line); // No captured variables for specialized functions
 
-		// Call it
-		EmitByte(OpCode::CALL_DEFINED, line);
+		if (call.m_is_tail_call)
+		{
+			EmitByte(OpCode::TAIL_CALL, line);
+		}
+		else
+		{
+			EmitByte(OpCode::CALL_DEFINED, line);
+		}
 		EmitByte(static_cast<OpCode>(arity), line);
 	}
 	else
 	{
-		// Normal non-generic call
 		std::ranges::for_each
 		(
 			call.m_arguments,
@@ -675,6 +680,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		if (call.m_is_foreign)
 		{
 			EmitByte(OpCode::CALL_FOREIGN, line);
+		}
+		else if (call.m_is_tail_call)
+		{
+			EmitByte(OpCode::TAIL_CALL, line);
 		}
 		else
 		{
@@ -1244,7 +1253,6 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 
 int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line)
 {
-	// Build function signature
 	std::vector<std::string> concrete_type_names;
 	for (const std::shared_ptr<MidoriType>& arg_type : concrete_arg_types)
 	{
@@ -1271,9 +1279,9 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 	// Generate specialized version
 	std::string specialized_name = base_name + "<";
-	for (size_t i = 0; i < concrete_type_names.size(); ++i)
+	for (size_t i = 0u; i < concrete_type_names.size(); i += 1u)
 	{
-		if (i > 0)
+		if (i > 0u)
 		{
 			specialized_name += ",";
 		}
@@ -1285,7 +1293,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> prev_param_map = m_param_type_map;
 	m_param_type_map.clear();
 
-	for (size_t i = 0; i < generic_info.m_params.size() && i < concrete_arg_types.size(); ++i)
+	for (size_t i = 0u; i < generic_info.m_params.size() && i < concrete_arg_types.size(); i += 1u)
 	{
 		m_param_type_map[generic_info.m_params[i].m_lexeme] = concrete_arg_types[i];
 	}
@@ -1316,21 +1324,8 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	return specialized_proc_index;
 }
 
-std::shared_ptr<MidoriType> CodeGenerator::ResolveType(const std::shared_ptr<MidoriType>& type)
-{
-	// When generating code for specialized generic functions, we need to resolve
-	// type variables to their concrete types. However, we can't do this purely
-	// based on the type itself - we need the expression context.
-	//
-	// This method should not be called directly anymore - instead, use
-	// GetConcreteTypeForExpression() which has access to the expression.
-	return type;
-}
-
 std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr)
 {
-	// If we're currently specializing a generic function, check if this expression
-	// is a reference to a parameter, and if so, look up its concrete type
 	if (!m_param_type_map.empty() && expr->IsExpression<MidoriExpression::BoundedName>())
 	{
 		const MidoriExpression::BoundedName& bounded_name = expr->GetExpression<MidoriExpression::BoundedName>();
@@ -1341,7 +1336,6 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 		}
 	}
 
-	// Not a parameter reference, or not specializing - return the expression's type
 	return expr->GetType();
 }
 
@@ -1385,4 +1379,22 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 
 	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
 	EmitByte(static_cast<OpCode>(captured_count), line);
+}
+
+std::size_t CodeGenerator::FunctionSignatureHash::operator()(const FunctionSignature& sig) const
+{
+	std::size_t hash = std::hash<std::string>{}(sig.m_base_name);
+	std::ranges::for_each
+	(
+		sig.m_concrete_types,
+		[&hash](const std::string& type)
+		{
+			hash ^= std::hash<std::string>{}(type)+0x9e3779b9 + (hash << 6) + (hash >> 2);
+		}
+	);
+	return hash;
+}
+bool CodeGenerator::FunctionSignature::operator==(const FunctionSignature& other) const
+{
+	return m_base_name == other.m_base_name && m_concrete_types == other.m_concrete_types;
 }

@@ -23,6 +23,7 @@ namespace MidoriResult
 	using TypeResult = std::expected<std::shared_ptr<MidoriType>, std::string>;
 	using TypeListResult = std::expected<std::vector<std::shared_ptr<MidoriType>>, std::string>;
 	using TypeCheckerResult = std::expected<MidoriProgramTree, std::string>;
+	using OptimizerResult = std::expected<MidoriProgramTree, std::string>;
 	using CodeGeneratorResult = std::expected<MidoriExecutable, std::string>;
 	using CompilerResult = std::expected<MidoriExecutable, std::string>;
 }

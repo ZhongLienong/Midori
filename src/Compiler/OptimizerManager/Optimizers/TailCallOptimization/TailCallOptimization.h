@@ -1,0 +1,29 @@
+#pragma once
+
+#include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
+
+class TailCallOptimization : public MidoriOptimizer
+{
+private:
+	std::string m_current_function;
+	bool m_has_tail_recursion = false;
+
+public:
+
+	int Optimize(MidoriProgramTree& program_tree) override;
+
+	std::string_view GetName() const override; 
+
+protected:
+	using MidoriOptimizer::operator();
+
+	void operator()(MidoriStatement::DefineFunction& defun) override;
+
+private:
+
+	static bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
+
+	bool IsTailRecursive(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
+
+	bool ContainsRecursiveCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
+};

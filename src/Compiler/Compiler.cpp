@@ -3,7 +3,8 @@
 #include "Compiler/ImportManager/ImportManager.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Parser/Parser.h"
-#include "TypeChecker/TypeChecker.h"
+#include "Compiler/TypeChecker/TypeChecker.h"
+#include "Compiler/OptimizerManager/OptimizerManager.h"
 
 
 #ifdef DEBUG
@@ -45,20 +46,28 @@ MidoriResult::CompilerResult Compiler::Compile()
 													PrintAbstractSyntaxTree ast_printer;
 													std::ranges::for_each(program, [&ast_printer](auto&& statement) { std::visit(ast_printer, **statement); });
 #endif
-													return CodeGenerator()
-														.GenerateCode(std::move(program))
+													return OptimizerManager(std::move(program))
+														.Optimize()
 														.and_then
 														(
-															[](MidoriExecutable&& compilation_result) ->MidoriResult::CompilerResult
+															[](MidoriProgramTree&& optimized_program) -> MidoriResult::CompilerResult
 															{
+																return CodeGenerator()
+																	.GenerateCode(std::move(optimized_program))
+																	.and_then
+																	(
+																		[](MidoriExecutable&& compilation_result) ->MidoriResult::CompilerResult
+																		{
 #ifdef DEBUG
-																for (size_t i : std::views::iota(0u, compilation_result.m_procedure_names.size()))
-																{
-																	MidoriText variable_name = compilation_result.m_procedure_names[i];
-																	Disassembler::DisassembleBytecodeStream(compilation_result, static_cast<int>(i), variable_name.GetCString());
-																}
+																			for (size_t i : std::views::iota(0u, compilation_result.m_procedure_names.size()))
+																			{
+																				MidoriText variable_name = compilation_result.m_procedure_names[i];
+																				Disassembler::DisassembleBytecodeStream(compilation_result, static_cast<int>(i), variable_name.GetCString());
+																			}
 #endif
-																return compilation_result;
+																			return compilation_result;
+																		}
+																	);
 															}
 														);
 												}

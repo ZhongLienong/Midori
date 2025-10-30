@@ -1062,7 +1062,7 @@ int VirtualMachine::Execute() noexcept
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
 
-			// Return address := pop all the arguments and the callee
+			// Return address: pop all the arguments and the callee
 			PushCallFrame(m_value_stack_base_pointer, m_value_stack_pointer - arity, m_instruction_pointer, m_curr_environment);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
@@ -1070,6 +1070,31 @@ int VirtualMachine::Execute() noexcept
 
 			m_instruction_pointer = m_executable.GetBytecodeStream(closure.m_proc_index)[0u];
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::TAIL_CALL:
+		{
+			MidoriValue callable = Pop();
+			int arity = static_cast<int>(ReadByte());
+
+			std::vector<MidoriValue> new_args(arity);
+			for (int i = arity - 1; i >= 0; i -= 1)
+			{
+				new_args[static_cast<size_t>(i)] = Pop();
+			}
+
+			m_value_stack_pointer = m_value_stack_base_pointer;
+			for (int i = 0; i < arity; i += 1)
+			{
+				Push(new_args[static_cast<size_t>(i)]);
+			}
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+
+			// Jump to the start of the function without creating a new call frame
+			m_instruction_pointer = m_executable.GetBytecodeStream(closure.m_proc_index)[0u];
 
 			break;
 		}
