@@ -187,10 +187,8 @@ public:
 	using GlobalNames = std::vector<MidoriText>;
 	using Procedures = std::vector<BytecodeStream>;
 	using StringPool = std::vector<std::string>;
-
-#ifdef DEBUG
 	std::vector<MidoriText> m_procedure_names;
-#endif
+	std::string m_file_name;
 
 private:
 	GlobalNames m_globals;
@@ -207,9 +205,11 @@ public:
 
 	void AddStringPool(StringPool&& string_pool);
 
-#ifdef DEBUG
 	void AttachProcedureNames(std::vector<MidoriText>&& procedure_names);
-#endif
+
+	void SetFileName(std::string&& file_name);
+
+	std::string_view GetFileName() const;
 
 	int GetLine(int instr_index, int proc_index) const;
 

@@ -44,13 +44,14 @@ private:
 	Scopes m_scopes{ Scope() };
 	std::stack<int> m_local_count_before_loop;
 	std::vector<std::string> m_namespaces;
+	const std::vector<std::string>& m_source_lines;
 	int m_function_depth = 0;
 	int m_current_token_index = 0;
 	int m_total_locals_in_curr_scope = 0;
 	int m_total_variables = 0;
 
 public:
-	Parser(TokenStream&& tokens, const std::string& file_name);
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 	MidoriResult::ParserResult Parse();
 

@@ -1,4 +1,6 @@
 #include <format>
+#include <fstream>
+#include <sstream>
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
@@ -26,7 +28,7 @@ void CodeGenerator::EmitTextConstant(std::string_view data, int line)
 {
 	if (m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError("Too many text constants.", line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Too many text constants", line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -97,7 +99,7 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 		return;
 	}
 
-	AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many variables (max {}).", MAX_LOCAL_VARIABLES + 1), line));
+	AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many variables (max {})", MAX_LOCAL_VARIABLES + 1), line, m_file_name, m_source_lines));
 }
 
 int CodeGenerator::EmitJump(OpCode op, int line)
@@ -113,7 +115,7 @@ void CodeGenerator::PatchJump(int offset, int line)
 	int jump = m_procedures[m_current_procedure_index].GetByteCodeSize() - offset - 2;
 	if (jump > MAX_JUMP_SIZE)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too much code to jump over (max {}).", MAX_JUMP_SIZE + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too much code to jump over (max {})", MAX_JUMP_SIZE + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -128,7 +130,7 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 	int offset = m_procedures[m_current_procedure_index].GetByteCodeSize() - loop_start + 2;
 	if (offset > MAX_JUMP_SIZE)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("For body too large (max {}).", MAX_JUMP_SIZE + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Loop body too large (max {})", MAX_JUMP_SIZE + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -152,11 +154,18 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&& program_tree)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
+	: m_program_tree(std::move(program_tree)),
+	m_file_name(file_name),
+	m_source_lines(source_lines)
+{
+}
+
+MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode()
 {
 	std::ranges::for_each
 	(
-		program_tree,
+		m_program_tree,
 		[this](std::unique_ptr<MidoriStatement>& statement){ std::visit([this](auto&& arg){ (*this)(arg); }, **statement); }
 	);
 
@@ -167,11 +176,10 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode(MidoriProgramTree&
 
 	EmitByte(OpCode::HALT, 0);
 
-#ifdef DEBUG
 	m_executable.AttachProcedureNames(std::move(m_procedure_names));
-#endif
 	m_executable.AttachProcedures(std::move(m_procedures));
 	m_executable.AddStringPool(std::move(m_string_pool));
+	m_executable.SetFileName(std::string(m_file_name));
 
 	return m_executable;
 }
@@ -336,7 +344,7 @@ void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
 	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
 	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>()))
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError("Unsupported return type for foreign function.", line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -408,7 +416,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to float' instruction.", line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to float' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::IntegerType>())
@@ -427,7 +435,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to int' instruction.", line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to int' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::UnitType>())
@@ -450,13 +458,13 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorError("Unsupported 'cast to text' instruction.", line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to text' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else
 	{
 		// TODO: implement custom cast
-		AddError(MidoriError::GenerateCodeGeneratorError("Unsupported type casting instruction.", line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported type casting instruction", as.m_as_keyword, m_file_name, m_source_lines));
 	}
 }
 
@@ -601,7 +609,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 	int arity = static_cast<int>(call.m_arguments.size());
 	if (arity > MAX_FUNCTION_ARITY)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many arguments (max {}).", MAX_FUNCTION_ARITY + 1), call.m_paren.m_line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), call.m_paren, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -624,14 +632,12 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 
 	if (is_generic_call)
 	{
-		// Collect concrete argument types
 		std::vector<std::shared_ptr<MidoriType>> concrete_arg_types;
 		for (std::unique_ptr<MidoriExpression>& arg : call.m_arguments)
 		{
 			concrete_arg_types.push_back(arg->GetType());
 		}
 
-		// Specialize the generic function
 		int specialized_proc_index = SpecializeGenericFunction(function_name, concrete_arg_types, line);
 		if (specialized_proc_index == -1)
 		{
@@ -639,7 +645,6 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			return;
 		}
 
-		// Push arguments
 		std::ranges::for_each
 		(
 			call.m_arguments,
@@ -652,8 +657,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		// Push the specialized closure
 		EmitByte(OpCode::ALLOCATE_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+
+		GenericFunctionInfo& generic_info = m_generic_functions[function_name];
 		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
-		EmitByte(static_cast<OpCode>(0), line); // No captured variables for specialized functions
+		EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
 
 		if (call.m_is_tail_call)
 		{
@@ -736,7 +743,7 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorError("Bad BoundedName MidoriExpression.", line));
+				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad BoundedName expression", variable.m_name, m_file_name, m_source_lines));
 				return;
 			}
 		}, 
@@ -767,7 +774,7 @@ void CodeGenerator::operator()(MidoriExpression::Bind& bind)
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorError("Bad Bind MidoriExpression.", line));
+				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad Bind expression", bind.m_name, m_file_name, m_source_lines));
 				return;
 			}
 		}, bind.m_name_ctx);
@@ -839,7 +846,7 @@ void CodeGenerator::operator()(MidoriExpression::Construct& construct)
 
 		if (tag > MAX_UNION_TAG)
 		{
-			AddError(MidoriError::GenerateCodeGeneratorError(std::format("Union tag too large (max {}).", MAX_UNION_TAG + 1), line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), construct.m_data_name, m_file_name, m_source_lines));
 			return;
 		}
 
@@ -855,7 +862,7 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 	int length = static_cast<int>(array.m_elems.size());
 	if (length > MAX_ARRAY_SIZE)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many array elements (max {}).", MAX_ARRAY_SIZE + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array elements (max {})", MAX_ARRAY_SIZE + 1), array.m_op, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -877,7 +884,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayGet& array_get)
 
 	if (array_get.m_indices.size() > MAX_NESTED_ARRAY_INDEX)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many array indices (max {}).", MAX_NESTED_ARRAY_INDEX + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array indices (max {})", MAX_NESTED_ARRAY_INDEX + 1), array_get.m_op, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -902,7 +909,7 @@ void CodeGenerator::operator()(MidoriExpression::ArraySet& array_set)
 
 	if (array_set.m_indices.size() > MAX_NESTED_ARRAY_INDEX)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many array indices (max {}).", MAX_NESTED_ARRAY_INDEX + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array indices (max {})", MAX_NESTED_ARRAY_INDEX + 1), array_set.m_op, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -1138,7 +1145,7 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 			if_jump = EmitJump(OpCode::IF_INTEGER_NOT_EQUAL, line);
 			break;
 		default:
-			AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for integer ternary condition.", line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid opcode for integer ternary condition", line, m_file_name, m_source_lines));
 			return;
 		}
 
@@ -1176,7 +1183,7 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 			if_jump = EmitJump(OpCode::IF_FLOAT_NOT_EQUAL, line);
 			break;
 		default:
-			AddError(MidoriError::GenerateCodeGeneratorError("Invalid opcode for float ternary condition.", line));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid opcode for float ternary condition", line, m_file_name, m_source_lines));
 			return;
 		}
 
@@ -1260,34 +1267,30 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 	FunctionSignature signature{ base_name, concrete_type_names };
 
-	// Check if already specialized
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash>::iterator it = m_specialized_functions.find(signature);
 	if (it != m_specialized_functions.end())
 	{
 		return it->second;
 	}
 
-	// Get generic function info
 	std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(base_name);
 	if (generic_it == m_generic_functions.end())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Generic function '{}' not found.", base_name), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Generic function '{}' not found", base_name), line, m_file_name, m_source_lines));
 		return -1;
 	}
 
 	GenericFunctionInfo& generic_info = generic_it->second;
-
-	// Generate specialized version
-	std::string specialized_name = base_name + "<";
+	std::string specialized_name = base_name + "<"s;
 	for (size_t i = 0u; i < concrete_type_names.size(); i += 1u)
 	{
 		if (i > 0u)
 		{
-			specialized_name += ",";
+			specialized_name += ","s;
 		}
 		specialized_name += concrete_type_names[i];
 	}
-	specialized_name += ">";
+	specialized_name += ">"s;
 
 	// Build parameter name -> concrete type map
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> prev_param_map = m_param_type_map;
@@ -1298,27 +1301,19 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 		m_param_type_map[generic_info.m_params[i].m_lexeme] = concrete_arg_types[i];
 	}
 
-	// Create new procedure for specialized function
 	size_t prev_index = m_current_procedure_index;
 	m_current_procedure_index = m_procedures.size();
 	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
 	m_procedures.emplace_back();
 
-	// Generate code for function body
 	std::visit([this](auto&& arg) { (*this)(arg); }, **(*generic_info.m_body));
 	EmitByte(OpCode::RETURN, line);
 
-#ifdef DEBUG
-	std::string closure_line = specialized_name + "(index: " + std::to_string(m_current_procedure_index) + ")";
-	m_procedure_names.emplace_back(closure_line.c_str());
-#endif
+	m_procedure_names.emplace_back(specialized_name.c_str());
 
 	m_current_procedure_index = prev_index;
 
-	// Restore previous parameter map
 	m_param_type_map = std::move(prev_param_map);
-
-	// Store the specialized function
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	return specialized_proc_index;
@@ -1344,12 +1339,12 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	int arity = static_cast<int>(params.size());
 	if (arity > MAX_FUNCTION_ARITY)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many arguments (max {}).", MAX_FUNCTION_ARITY + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 	if (captured_count > MAX_CAPTURED_COUNT)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many captured variables (max {}).", MAX_CAPTURED_COUNT + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -1361,16 +1356,13 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	EmitByte(OpCode::RETURN, line);
 
 	size_t closure_proc_index = m_current_procedure_index;
-#ifdef DEBUG
-	std::string closure_line = debug_name + "(index: " + std::to_string(closure_proc_index) + ")";
-	m_procedure_names.emplace_back(closure_line.c_str());
-#endif
+	m_procedure_names.emplace_back(debug_name.c_str());
 
 	m_current_procedure_index = prev_index;
 
 	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorError(std::format("Too many functions (max {}).", MAX_FUNCTION_COUNT + 1), line));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 

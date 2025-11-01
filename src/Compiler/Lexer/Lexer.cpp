@@ -1,4 +1,5 @@
 #include "Lexer.h"
+#include <sstream>
 
 using namespace std::string_literals;
 
@@ -101,6 +102,7 @@ MidoriResult::TokenResult Lexer::SkipWhitespaceAndComments()
 		case '\n':
 			m_line++;
 			Advance();
+			m_line_start = m_current;
 			break;
 		case '/':
 			if (LookAhead(1) == '/')
@@ -123,13 +125,15 @@ MidoriResult::TokenResult Lexer::SkipWhitespaceAndComments()
 					if (LookAhead(0) == '\n')
 					{
 						m_line++;
+						m_line_start = m_current + 1;
 					}
 					Advance();
 				}
 
 				if (IsAtEnd(0))
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateLexerError("Unterminated block comment.", m_line));
+					int column = static_cast<int>(m_current - m_line_start);
+					return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_line, column, m_file_name, m_source_lines));
 				}
 
 				// The closing "*/".
@@ -183,10 +187,8 @@ MidoriResult::TokenResult Lexer::MatchString()
 					result += '\\';
 					break;
 				default:
-					// Unknown escape sequence - treat as literal backslash followed by the character
-					// e.g., \X becomes "\X" (two characters: backslash and X)
 					result += '\\';
-					result += LookAhead(1);  // Add the character after the backslash
+					result += LookAhead(1); 
 					break;  // Fall through to the Advance() Advance() below
 				}
 
@@ -201,7 +203,8 @@ MidoriResult::TokenResult Lexer::MatchString()
 
 	if (IsAtEnd(0))
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateLexerError("Unterminated string.", m_line));
+		int column = static_cast<int>(m_begin - m_line_start);
+		return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_line, column, m_file_name, m_source_lines));
 	}
 	else
 	{
@@ -438,15 +441,24 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					}
 					else
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateLexerError("Invalid character: "s + next_char, m_line));
+						int column = static_cast<int>(m_current - m_line_start);
+						return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_line, column, m_file_name, m_source_lines));
 					}
 				}
 			}
 		);
 }
 
-Lexer::Lexer(std::string&& source_code) noexcept : m_source_code(std::move(source_code)) 
+Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
+	: m_source_code(std::move(source_code)), 
+	m_file_name(file_name)
 {
+	std::istringstream iss(m_source_code);
+	std::string line;
+	while (std::getline(iss, line))
+	{
+		m_source_lines.emplace_back(line);
+	}
 }
 
 MidoriResult::LexerResult Lexer::Lex()

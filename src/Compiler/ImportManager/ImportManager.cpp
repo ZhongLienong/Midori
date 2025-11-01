@@ -4,16 +4,15 @@
 #include "ImportManager.h"
 
 #include <filesystem>
-#include <filesystem>
 #include <fstream>
 #include <queue>
 #include <sstream>
 
 using namespace std::string_literals;
 
-ImportManager::ImportManager(TokenStream&& main_file_tokens, std::string&& main_file_name) :
+ImportManager::ImportManager(TokenStream&& main_file_tokens, std::string_view main_file_name) :
     m_main_token_stream(std::move(main_file_tokens)),
-    m_main_file_name(std::move(main_file_name))
+    m_main_file_name(main_file_name)
 {
 }
 
@@ -40,13 +39,13 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
             */
             if (m_main_token_stream.Size() < 4)
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Invalid import block.", m_main_token_stream[0].m_line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Invalid import block", m_main_token_stream[0u].m_line, m_main_file_name));
             }
 
             int current_index = 1; // Start after "Import"
             if (m_main_token_stream[current_index].m_token_name != Token::Name::LEFT_BRACE)
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Expected '{' after 'Import'.", m_main_token_stream[current_index].m_line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Expected '{' after 'Import'", m_main_token_stream[current_index].m_line, m_main_file_name));
             }
             current_index += 1;
 
@@ -54,7 +53,7 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
             {
                 if (m_main_token_stream[current_index].m_token_name != Token::Name::TEXT_LITERAL)
                 {
-                    return std::unexpected(MidoriError::GenerateImportManagerError("Expected text literal for import path.", m_main_token_stream[current_index].m_line));
+                    return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Expected text literal for import path", m_main_token_stream[current_index].m_line, m_main_file_name));
                 }
 
                 import_paths.emplace_back(m_main_token_stream[current_index].m_lexeme, m_main_token_stream[current_index].m_line);
@@ -68,10 +67,10 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
 
             if (current_index >= m_main_token_stream.Size() || m_main_token_stream[current_index].m_token_name != Token::Name::RIGHT_BRACE)
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Expected '}' after import paths.", m_main_token_stream[current_index].m_line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Expected '}' after import paths", m_main_token_stream[current_index].m_line, m_main_file_name));
             }
 
-            current_index += 1;
+            current_index += 1u;
             m_main_token_stream.Erase(m_main_token_stream.begin() + current_index);
         }
 
@@ -101,21 +100,21 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
             std::ifstream include_file(include_absolute_path_str);
             if (!include_file.is_open())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Could not open import file: "s + include_absolute_path_str, line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
             }
 
             if (HasCircularDependency())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError("Circular dependency detected: "s + include_absolute_path_str, line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Circular dependency detected: "s + include_absolute_path_str, line, m_main_file_name));
             }
 
             std::ostringstream include_file_stream;
             include_file_stream << include_file.rdbuf();
 
-            MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str()).Lex();
+            MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str(), include_absolute_path_str).Lex();
             if (!lex_result.has_value())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError(lex_result.error(), line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext(lex_result.error(), line, m_main_file_name));
             }
 
             TokenStream imported_token_stream = std::move(lex_result.value());
@@ -124,7 +123,7 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
             MidoriResult::ImportManagerResult nested_build_graph_result = import_manager.GenerateBuildGraph();
             if (!nested_build_graph_result.has_value())
             {
-                return std::unexpected(MidoriError::GenerateImportManagerError(nested_build_graph_result.error(), line));
+                return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext(nested_build_graph_result.error(), line, m_main_file_name));
             }
 
             BuildGraph& nested_build_graph = nested_build_graph_result.value();
@@ -155,7 +154,7 @@ MidoriResult::ImportManagerResult ImportManager::GenerateBuildGraph()
 
     if (HasCircularDependency())
     {
-        return std::unexpected(MidoriError::GenerateImportManagerError("Circular dependency detected in final build graph", 0));
+        return std::unexpected(MidoriError::GenerateImportManagerErrorWithContext("Circular dependency detected in final build graph", 0, m_main_file_name));
     }
 
     return build_graph;

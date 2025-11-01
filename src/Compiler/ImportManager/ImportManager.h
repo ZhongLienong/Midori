@@ -17,7 +17,7 @@ private:
 
 public:
 
-    ImportManager(TokenStream&& main_file_tokens, std::string&& main_file_name);
+    ImportManager(TokenStream&& main_file_tokens, std::string_view main_file_name);
 
     MidoriResult::ImportManagerResult GenerateBuildGraph();
 

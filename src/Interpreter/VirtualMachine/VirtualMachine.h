@@ -72,6 +72,12 @@ private:
 
 	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;
 
+	std::string GenerateStackTrace() noexcept;
+
+	int GetProcedureIndexFromIP(InstructionPointer ip) noexcept;
+
+	int GetLineFromIP(InstructionPointer ip, int proc_index) noexcept;
+
     void PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept;
 
     MidoriValue& Peek() noexcept;

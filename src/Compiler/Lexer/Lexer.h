@@ -11,14 +11,17 @@ class Lexer
 {
 private:
 	std::string m_source_code;
+	std::string m_file_name;
+	std::vector<std::string> m_source_lines;
 	int m_line = 1;
 	size_t m_begin = 0u;
 	size_t m_current = 0u;
+	size_t m_line_start = 0u;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
 
 public:
 
-	Lexer(std::string&& source_code) noexcept;
+	Lexer(std::string&& source_code, std::string_view file_name) noexcept;
 
 	MidoriResult::LexerResult Lex();
 

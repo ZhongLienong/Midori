@@ -40,7 +40,7 @@ MidoriResult::OptimizerResult OptimizerManager::Optimize()
 #ifdef DEBUG
 		std::string_view name = optimizer->GetName();
 		m_stats[i].m_name = name;
-		m_stats[i].m_passes_run++;
+		m_stats[i].m_passes_run += 1;
 #endif
 
 		int optimizations = optimizer->Optimize(m_program_tree);

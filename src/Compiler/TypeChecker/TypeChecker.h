@@ -17,16 +17,18 @@ private:
 	using GenericUnionNames = std::unordered_set<std::string>;
 	struct FresheningContext
 	{
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> generic_params;  // Maps generic param names to fresh type vars
-		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> type_cache;  // Maps type pointers to their fresh versions (for cycle detection)
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_generic_params;  // Maps generic param names to fresh type vars
+		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> m_type_cache;  // Maps type pointers to their fresh versions (for cycle detection)
 	};
 
 	MidoriProgramTree m_program_tree;
+	std::string m_file_name;
 	TypeEnvironmentStack m_name_type_table;
 	TypeSubstitution m_type_substitution;
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
+	const std::vector<std::string>& m_source_lines;
 	int m_next_type_var_id;
 	std::shared_ptr<MidoriType> m_expected_return_type;  // Expected return type for the current function
 	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
@@ -38,7 +40,7 @@ private:
 
 public:
 
-	TypeChecker(MidoriProgramTree&& parser_result);
+	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 	MidoriResult::TypeCheckerResult TypeCheck();
 

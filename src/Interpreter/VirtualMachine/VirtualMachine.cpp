@@ -51,9 +51,13 @@ int VirtualMachine::GetLine() noexcept
 {
 	for (int i : std::views::iota(0, m_executable.GetProcedureCount()))
 	{
-		if (m_instruction_pointer >= &*m_executable.GetBytecodeStream(i).cbegin() && m_instruction_pointer <= &*std::prev(m_executable.GetBytecodeStream(i).cend()))
+		const BytecodeStream& bytecode = m_executable.GetBytecodeStream(i);
+		const OpCode* start = &*bytecode.cbegin();
+		const OpCode* end = start + bytecode.GetByteCodeSize();
+
+		if (m_instruction_pointer >= start && m_instruction_pointer < end)
 		{
-			return m_executable.GetLine(static_cast<int>(m_instruction_pointer - &*m_executable.GetBytecodeStream(i).cbegin()), i);
+			return m_executable.GetLine(static_cast<int>(m_instruction_pointer - start), i);
 		}
 	}
 
@@ -126,7 +130,84 @@ int VirtualMachine::ReadGlobalVariable() noexcept
 std::string VirtualMachine::GenerateRuntimeError(std::string_view message, int line) noexcept
 {
 	m_garbage_collector.CleanUp();
-	return MidoriError::GenerateRuntimeError(message, line);
+	std::string stack_trace = GenerateStackTrace();
+	return MidoriError::GenerateRuntimeError(message, line)
+		.append("\n")
+		.append(stack_trace);
+}
+
+int VirtualMachine::GetProcedureIndexFromIP(InstructionPointer ip) noexcept
+{
+	for (int i : std::views::iota(0, m_executable.GetProcedureCount()))
+	{
+		const BytecodeStream& bytecode = m_executable.GetBytecodeStream(i);
+		const OpCode* start = &*bytecode.cbegin();
+		const OpCode* end = start + bytecode.GetByteCodeSize();
+
+		if (ip >= start && ip < end)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+int VirtualMachine::GetLineFromIP(InstructionPointer ip, int proc_index) noexcept
+{
+	if (proc_index < 0 || proc_index >= m_executable.GetProcedureCount())
+	{
+		return 0;
+	}
+
+	const BytecodeStream& bytecode = m_executable.GetBytecodeStream(proc_index);
+	const OpCode* start = &*bytecode.cbegin();
+	int offset = static_cast<int>(ip - start);
+
+	return m_executable.GetLine(offset, proc_index);
+}
+
+std::string VirtualMachine::GenerateStackTrace() noexcept
+{
+	std::string trace = "Stack trace:\n"s;
+	std::string_view file_name = m_executable.GetFileName();
+	std::string_view function_color = Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
+	std::string_view reset = "\033[0m";
+
+	// Current frame (where error occurred)
+	int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
+	int current_line = GetLineFromIP(m_instruction_pointer, current_proc);
+
+	if (current_proc >= 0 && current_proc < static_cast<int>(m_executable.m_procedure_names.size()))
+	{
+		trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable.m_procedure_names[current_proc].GetCString(), reset, file_name, current_line));
+	}
+	else
+	{
+		trace.append(std::format("  at {}<anonymous>{} in {} (line {})\n", function_color, reset, file_name, current_line));
+	}
+
+	// Walk the call stack
+	CallStackPointer frame_ptr = m_call_stack_pointer - 1;
+	while (frame_ptr >= m_call_stack_begin)
+	{
+		auto [return_bp, return_sp, return_ip, closure_ptr] = *frame_ptr;
+
+		int proc_index = GetProcedureIndexFromIP(return_ip);
+		int line = GetLineFromIP(return_ip, proc_index);
+
+		if (proc_index >= 0 && proc_index < static_cast<int>(m_executable.m_procedure_names.size()))
+		{
+			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable.m_procedure_names[proc_index].GetCString(), reset, file_name, line));
+		}
+		else
+		{
+			trace.append(std::format("  at {}<anonymous>{} in {} (line {})\n", function_color, reset, file_name, line));
+		}
+
+		--frame_ptr;
+	}
+
+	return trace;
 }
 
 void VirtualMachine::PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept
@@ -290,10 +371,14 @@ int VirtualMachine::Execute() noexcept
 
 		for (int i : std::views::iota(0, m_executable.GetProcedureCount()))
 		{
-			if (&*m_instruction_pointer >= &*m_executable.GetBytecodeStream(i).cbegin() && &*m_instruction_pointer <= &*std::prev(m_executable.GetBytecodeStream(i).cend()))
+			const BytecodeStream& bytecode = m_executable.GetBytecodeStream(i);
+			const OpCode* start = &*bytecode.cbegin();
+			const OpCode* end = start + bytecode.GetByteCodeSize();
+
+			if (m_instruction_pointer >= start && m_instruction_pointer < end)
 			{
 				dbg_proc_index = i;
-				dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - &*m_executable.GetBytecodeStream(i).cbegin());
+				dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - start);
 			}
 		}
 

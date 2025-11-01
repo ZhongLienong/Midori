@@ -12,12 +12,12 @@ BytecodeStream::iterator BytecodeStream::end()
 
 BytecodeStream::const_iterator BytecodeStream::cbegin() const
 {
-	return m_bytecode.begin();
+	return m_bytecode.cbegin();
 }
 
 BytecodeStream::const_iterator BytecodeStream::cend() const
 {
-	return m_bytecode.end();
+	return m_bytecode.cend();
 }
 
 BytecodeStream::reverse_iterator BytecodeStream::rbegin()
@@ -140,12 +140,20 @@ void MidoriExecutable::AddStringPool(StringPool&& string_pool)
 	m_string_pool = std::move(string_pool);
 }
 
-#ifdef DEBUG
 void MidoriExecutable::AttachProcedureNames(std::vector<MidoriText>&& procedure_names)
 {
 		m_procedure_names = std::move(procedure_names);
 }
-#endif
+
+void MidoriExecutable::SetFileName(std::string&& file_name)
+{
+	m_file_name = std::move(file_name);
+}
+
+std::string_view MidoriExecutable::GetFileName() const
+{
+	return m_file_name;
+}
 
 int MidoriExecutable::GetLine(int instr_index, int proc_index) const
 {

@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <filesystem>
 #include <fstream>
 #include <queue>
 #include <sstream>
@@ -12,10 +11,11 @@ namespace
 	constexpr std::string_view NameSeparator = "::";
 }
 
-Parser::Parser(TokenStream&& tokens, const std::string& file_name) : m_tokens(std::move(tokens))
+Parser::Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines)
+	: m_tokens(std::move(tokens)), 
+	m_file_name(file_name),
+	m_source_lines(source_lines)
 {
-	std::string absolute_file_path = std::filesystem::absolute(file_name).string();
-	m_file_name = std::move(absolute_file_path);
 }
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
@@ -36,7 +36,7 @@ bool Parser::IsAtGlobalScope() const
 std::string Parser::GenerateParserError(std::string&& message, const Token& token)
 {
 	Synchronize();
-	return MidoriError::GenerateParserError(std::move(message), token);
+	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, m_file_name, m_source_lines);
 }
 
 bool Parser::IsAtEnd()
@@ -146,7 +146,7 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateParserError(message, Peek(0)));
+		return std::unexpected<std::string>(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_file_name, m_source_lines));
 	}
 }
 
@@ -433,26 +433,49 @@ MidoriResult::ExpressionResult Parser::ParseAs()
 MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<MidoriExpression>&& arr_var)
 {
 	Token& op = Previous();
-	return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
-		.and_then
+
+	// If Previous() is RIGHT_LEFT_BRACKET (from array literal ending like [1,2,3][0]),
+	// we already have the '[' part consumed, so skip the Consume
+	if (op.m_token_name == Token::Name::RIGHT_LEFT_BRACKET)
+	{
+		return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 		(
-			[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
-			{
-				return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-				(
-					[this]() { return ParseBind(); },
-					[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
-					[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
-				)
-					.and_then
+			[this]() { return ParseBind(); },
+			[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
+			[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
+		)
+			.and_then
+			(
+				[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
+				{
+					return std::make_unique<MidoriExpression>(MidoriExpression::ArrayGet(op, std::move(indices), std::move(arr_var)));
+				}
+			);
+	}
+	else
+	{
+		// Normal case: consume LEFT_BRACKET
+		return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
+			.and_then
+			(
+				[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
+				{
+					return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 					(
-						[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
-						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::ArrayGet(op, std::move(indices), std::move(arr_var)));
-						}
-					);
-			}
-		);
+						[this]() { return ParseBind(); },
+						[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
+						[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
+					)
+						.and_then
+						(
+							[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
+							{
+								return std::make_unique<MidoriExpression>(MidoriExpression::ArrayGet(op, std::move(indices), std::move(arr_var)));
+							}
+						);
+				}
+			);
+	}
 }
 
 MidoriResult::ExpressionResult Parser::ParseArrayAccess()
@@ -462,7 +485,11 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccess()
 		(
 			[this](std::unique_ptr<MidoriExpression>&& arr_var) -> MidoriResult::ExpressionResult
 			{
-				return Check(Token::Name::LEFT_BRACKET, 0)
+				// Check if we can do array access:
+				// Either next token is '[' OR previous token was '][' (from array literal ending)
+				bool has_bracket_for_access = Check(Token::Name::LEFT_BRACKET, 0) || Previous().m_token_name == Token::Name::RIGHT_LEFT_BRACKET;
+
+				return has_bracket_for_access
 					? ParseArrayAccessHelper(std::move(arr_var))
 					: std::move(arr_var);
 			}
@@ -784,7 +811,24 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		(
 			[this]() { return ParseExpression(); },
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-			[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' for array expression."); }
+			[this]() -> MidoriResult::TokenResult 
+			{
+				// Accept either ']' or '][' to end array literal
+				if (Match(Token::Name::RIGHT_BRACKET)) 
+				{
+					return Previous();
+				} 
+				else if (Match(Token::Name::RIGHT_LEFT_BRACKET)) 
+				{
+					// RIGHT_LEFT_BRACKET '][' can end an array literal followed by array access
+					// e.g., [1,2,3][0] where '][' is lexed as one token
+					return Previous();
+				}
+				else 
+				{
+					return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+				}
+			}
 		)
 			.and_then
 			(

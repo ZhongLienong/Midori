@@ -9,6 +9,7 @@
 class CodeGenerator
 {
 private:
+
 	struct LoopContext
 	{
 		std::vector<int> m_break_positions;
@@ -38,11 +39,12 @@ private:
 		std::size_t operator()(const FunctionSignature& sig) const;
 	};
 
+	static constexpr char s_main_program_name[] = "<global>";
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
-#ifdef DEBUG
-	std::vector<MidoriText> m_procedure_names{ MidoriText("runtime startup") };
-#endif
+	std::vector<MidoriText> m_procedure_names{ MidoriText(s_main_program_name) };
+	MidoriProgramTree m_program_tree;
 	std::string m_errors;
+	std::string m_file_name;
 	MidoriExecutable::StringPool m_string_pool;
 	std::stack<LoopContext> m_loop_contexts;
 	std::unordered_map<std::string, int> m_global_variables;
@@ -52,14 +54,17 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
 
 	MidoriExecutable m_executable;
-	size_t m_current_procedure_index = 0;
+	const std::vector<std::string>& m_source_lines;
+	size_t m_current_procedure_index = 0u;
 	int m_string_pool_index = 0;
 	int m_local_count = 0;
 	OpCode m_last_opcode = OpCode::HALT;
 
 public:
+	
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 
-	MidoriResult::CodeGeneratorResult GenerateCode(MidoriProgramTree&& program_tree);
+	MidoriResult::CodeGeneratorResult GenerateCode();
 
 private:
 
