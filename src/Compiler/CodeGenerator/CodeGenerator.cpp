@@ -87,7 +87,36 @@ void CodeGenerator::EmitFloatConstant(MidoriFloat value, int line)
 
 void CodeGenerator::EmitIntegerConstant(MidoriInteger value, int line)
 {
-	EmitNumericConstant(value, line, true);
+	// Optimize common small integer constants
+	switch (value)
+	{
+	case -1:
+		EmitByte(OpCode::INT_MINUS_1, line);
+		return;
+	case 0:
+		EmitByte(OpCode::INT_0, line);
+		return;
+	case 1:
+		EmitByte(OpCode::INT_1, line);
+		return;
+	case 2:
+		EmitByte(OpCode::INT_2, line);
+		return;
+	case 3:
+		EmitByte(OpCode::INT_3, line);
+		return;
+	case 4:
+		EmitByte(OpCode::INT_4, line);
+		return;
+	case 5:
+		EmitByte(OpCode::INT_5, line);
+		return;
+	case 10:
+		EmitByte(OpCode::INT_10, line);
+		return;
+	default:
+		EmitNumericConstant(value, line, true);
+	}
 }
 
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)

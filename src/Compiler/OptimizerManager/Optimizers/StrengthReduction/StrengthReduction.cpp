@@ -80,7 +80,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 {
 	if (left_int || right_int)
 	{
-		// x * 0 → 0
+		// x * 0 -> 0
 		if (op.m_token_name == Token::Name::STAR)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
@@ -95,7 +95,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x * 1 → x
+		// x * 1 -> x
 		if (op.m_token_name == Token::Name::STAR)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 1ll)
@@ -108,7 +108,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x / 1 → x
+		// x / 1 -> x
 		if (op.m_token_name == Token::Name::SLASH)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 1ll)
@@ -117,7 +117,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x + 0 → x
+		// x + 0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_PLUS)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
@@ -130,7 +130,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x - 0 → x
+		// x - 0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
@@ -139,7 +139,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// 0 - x → -x
+		// 0 - x -> -x
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
 			if (left_int && std::stoll(left_int->m_token.m_lexeme) == 0ll)
@@ -149,7 +149,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x * -1 → -x
+		// x * -1 -> -x
 		if (op.m_token_name == Token::Name::STAR)
 		{
 			if (right_int && std::stoll(right_int->m_token.m_lexeme) == -1ll)
@@ -164,7 +164,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x * 2^n → x << n (only if right side is power of 2)
+		// x * 2^n -> x << n (only if right side is power of 2)
 		if (op.m_token_name == Token::Name::STAR && right_int)
 		{
 			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
@@ -177,7 +177,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x / 2^n → x >> n (only if right side is power of 2)
+		// x / 2^n -> x >> n (only if right side is power of 2)
 		if (op.m_token_name == Token::Name::SLASH && right_int)
 		{
 			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
@@ -190,7 +190,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x % 2^n → x & (2^n - 1)
+		// x % 2^n -> x & (2^n - 1)
 		if (op.m_token_name == Token::Name::PERCENT && right_int)
 		{
 			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
@@ -208,7 +208,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 	// Float operations
 	if (left_float || right_float)
 	{
-		// x * 0.0 → 0.0
+		// x * 0.0 -> 0.0
 		if (op.m_token_name == Token::Name::STAR)
 		{
 			if (right_float && GetFloatValue(right_float) == 0.0)
@@ -223,7 +223,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x * 1.0 → x
+		// x * 1.0 -> x
 		if (op.m_token_name == Token::Name::STAR)
 		{
 			if (right_float && GetFloatValue(right_float) == 1.0)
@@ -236,7 +236,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x / 1.0 → x
+		// x / 1.0 -> x
 		if (op.m_token_name == Token::Name::SLASH)
 		{
 			if (right_float && GetFloatValue(right_float) == 1.0)
@@ -245,7 +245,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x + 0.0 → x
+		// x + 0.0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_PLUS)
 		{
 			if (right_float && GetFloatValue(right_float) == 0.0)
@@ -258,7 +258,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x - 0.0 → x
+		// x - 0.0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
 			if (right_float && GetFloatValue(right_float) == 0.0)

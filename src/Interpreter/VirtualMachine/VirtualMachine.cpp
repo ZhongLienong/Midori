@@ -461,6 +461,46 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(false);
 			break;
 		}
+		case OpCode::INT_MINUS_1:
+		{
+			Push(-1LL);
+			break;
+		}
+		case OpCode::INT_0:
+		{
+			Push(0LL);
+			break;
+		}
+		case OpCode::INT_1:
+		{
+			Push(1LL);
+			break;
+		}
+		case OpCode::INT_2:
+		{
+			Push(2LL);
+			break;
+		}
+		case OpCode::INT_3:
+		{
+			Push(3LL);
+			break;
+		}
+		case OpCode::INT_4:
+		{
+			Push(4LL);
+			break;
+		}
+		case OpCode::INT_5:
+		{
+			Push(5LL);
+			break;
+		}
+		case OpCode::INT_10:
+		{
+			Push(10LL);
+			break;
+		}
 		case OpCode::CREATE_ARRAY:
 		{
 			int count = ReadThreeBytes();

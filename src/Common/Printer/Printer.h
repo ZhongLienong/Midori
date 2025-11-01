@@ -181,13 +181,20 @@ namespace Printer
 		std::printf("\033[0m");
 	}
 
+	// Get colored string (for building formatted output)
+	template<Color color = Color::WHITE>
+	inline std::string Colored(std::string_view text)
+	{
+		return std::string(Detail::GetColorCode(color)) + std::string(text) + "\033[0m";
+	}
+
 	// Separator line
 	inline void PrintSeparator(Color color = Color::GRAY, int width = 80)
 	{
 		std::printf("%s", Detail::GetColorCode(color));
 		for (int i = 0; i < width; i += 1)
 		{
-			std::printf("─");
+			std::printf("-");
 		}
 		std::printf("\033[0m\n");
 	}
@@ -198,29 +205,29 @@ namespace Printer
 	{
 		int width = static_cast<int>(std::max(title.length(), content.length())) + 4;
 
-		std::printf("%s╔", Detail::GetColorCode(color));
-		for (int i = 0; i < width; i += 1) 
-		{
-			std::printf("═");
-		}
-		std::printf("╗\n");
-
-		std::printf("║ %s%-*s%s ║\n", Detail::GetColorCode(Color::BRIGHT_WHITE), static_cast<int>(width - 2), title.data(), Detail::GetColorCode(color));
-
-		std::printf("╟");
-		for (int i = 0; i < width; i += 1) 
-		{
-			std::printf("─");
-		}
-		std::printf("╢\n");
-
-		std::printf("║ %s%-*s%s ║\n",Detail::GetColorCode(Color::WHITE), static_cast<int>(width - 2), content.data(), Detail::GetColorCode(color));
-
-		std::printf("╚");
+		std::printf("%s+", Detail::GetColorCode(color));
 		for (int i = 0; i < width; i += 1)
 		{
-			std::printf("═");
+			std::printf("=");
 		}
-		std::printf("╝\033[0m\n");
+		std::printf("+\n");
+
+		std::printf("| %s%-*s%s |\n", Detail::GetColorCode(Color::BRIGHT_WHITE), static_cast<int>(width - 2), title.data(), Detail::GetColorCode(color));
+
+		std::printf("+");
+		for (int i = 0; i < width; i += 1)
+		{
+			std::printf("-");
+		}
+		std::printf("+\n");
+
+		std::printf("| %s%-*s%s |\n",Detail::GetColorCode(Color::WHITE), static_cast<int>(width - 2), content.data(), Detail::GetColorCode(color));
+
+		std::printf("+");
+		for (int i = 0; i < width; i += 1)
+		{
+			std::printf("=");
+		}
+		std::printf("+\033[0m\n");
 	}
 }

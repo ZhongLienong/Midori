@@ -10,17 +10,18 @@
 
 namespace
 {
-	constexpr int address_width = 8;
-	constexpr int instr_width = 20;
-	constexpr int comment_width = 20;
-	constexpr std::string_view two_tabs = "\t\t";
+	constexpr int address_width = 6;
+	constexpr int instr_width = 25;
+	constexpr int operand_width = 12;
+	constexpr int comment_width = 30;
 
 	void SimpleInstruction(std::string_view name, int& offset)
 	{
 		offset += 1;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -30,8 +31,9 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -48,17 +50,18 @@ namespace
 		MidoriFloat as_float = *reinterpret_cast<MidoriFloat*>(operand_bytes);
 		MidoriInteger as_integer = *reinterpret_cast<MidoriInteger*>(operand_bytes);
 
-		formated_str << std::left << std::setw(instr_width) << name;
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		if (is_integer)
 		{
-			formated_str << ' ' << std::dec << as_integer;
-			formated_str << two_tabs << std::setw(comment_width) << " // value: " << std::to_string(as_integer) << std::setfill(' ') << '\n';
+			formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(as_integer));
+			formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(as_integer));
 		}
 		else
 		{
-			formated_str << ' ' << std::dec << as_float;
-			formated_str << two_tabs << std::setw(comment_width) << " // value: " << std::to_string(as_float) << std::setfill(' ') << '\n';
+			formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(as_float));
+			formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(as_float));
 		}
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -68,9 +71,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << index;
-		formated_str << two_tabs << std::setw(comment_width) << " // text index: " << std::dec << index << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// string pool index");
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -81,9 +85,14 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // destination: " << '[' << std::right << std::setfill('0') << std::setw(address_width) << std::hex << (offset + sign * operand) << ']' << std::setfill(' ') << '\n';
+		int destination = offset + sign * operand;
+		std::ostringstream dest_str;
+		dest_str << "-> 0x" << std::hex << std::setfill('0') << std::setw(address_width) << destination;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_YELLOW>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>(dest_str.str());
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -93,9 +102,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // global variable: " << executable.GetGlobalVariable(operand).GetCString() << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::string(executable.GetGlobalVariable(operand).GetCString()));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -105,9 +115,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // stack offset: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// offset " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -117,9 +128,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // number of indices: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of indices: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -131,21 +143,23 @@ namespace
 		offset += 4;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // array length: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// array length: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
 	void ClosureCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{	
+	{
 		int captured_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << captured_count;
-		formated_str << two_tabs << std::setw(comment_width) << " // number of captured variables: " << std::dec << captured_count << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(captured_count));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of captured variables: " + std::to_string(captured_count));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -155,9 +169,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << index;
-		formated_str << two_tabs << std::setw(comment_width) << " // code index: " << std::dec << index << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// code index: " + std::to_string(index));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -167,9 +182,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // number of parameters: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of parameters: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -179,9 +195,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // member index: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// member index: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -191,9 +208,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // data size: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// data size: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 
@@ -203,9 +221,10 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << std::left << std::setw(instr_width) << name;
-		formated_str << ' ' << std::dec << operand;
-		formated_str << two_tabs << std::setw(comment_width) << " // union tag: " << std::dec << operand << std::setfill(' ') << '\n';
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// union tag: " + std::to_string(operand));
+		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
 }
@@ -214,16 +233,21 @@ namespace Disassembler
 {
 	void DisassembleBytecodeStream(const MidoriExecutable& executable, int proc_index, std::string_view proc_name)
 	{
-		Printer::Print("================================================== ");
-		Printer::Print(proc_name);
-		Printer::Print(" ==================================================\n");
+		std::ostringstream header;
+		header << std::string(95, '=') << "\n";
+		header << " " << Printer::Colored<Printer::Color::BRIGHT_CYAN>(std::string(proc_name)) << "\n";
+		header << std::string(95, '=') << "\n";
+		Printer::Print(header.str());
 
 		int offset = 0;
 		while (offset < executable.GetByteCodeSize(proc_index))
 		{
 			DisassembleInstruction(executable, proc_index, offset);
 		}
-		Printer::Print("-----------------------------------------------------------------------------------------------\n\n");
+
+		std::ostringstream footer;
+		footer << Printer::Colored<Printer::Color::DARK_GRAY>(std::string(95, '-')) << "\n\n";
+		Printer::Print(footer.str());
 	}
 
 	void DisassembleInstruction(const MidoriExecutable& executable, int proc_index, int& offset)
@@ -263,6 +287,30 @@ namespace Disassembler
 			break;
 		case OpCode::OP_FALSE:
 			SimpleInstruction("OP_FALSE", offset);
+			break;
+		case OpCode::INT_MINUS_1:
+			SimpleInstruction("INT_MINUS_1", offset);
+			break;
+		case OpCode::INT_0:
+			SimpleInstruction("INT_0", offset);
+			break;
+		case OpCode::INT_1:
+			SimpleInstruction("INT_1", offset);
+			break;
+		case OpCode::INT_2:
+			SimpleInstruction("INT_2", offset);
+			break;
+		case OpCode::INT_3:
+			SimpleInstruction("INT_3", offset);
+			break;
+		case OpCode::INT_4:
+			SimpleInstruction("INT_4", offset);
+			break;
+		case OpCode::INT_5:
+			SimpleInstruction("INT_5", offset);
+			break;
+		case OpCode::INT_10:
+			SimpleInstruction("INT_10", offset);
 			break;
 		case OpCode::CREATE_ARRAY:
 			ArrayCreateInstruction("CREATE_ARRAY", executable, proc_index, offset);

@@ -15,6 +15,16 @@ enum class OpCode : uint8_t
 	OP_TRUE,
 	OP_FALSE,
 
+	// Small integer constants (optimization for common values)
+	INT_MINUS_1,
+	INT_0,
+	INT_1,
+	INT_2,
+	INT_3,
+	INT_4,
+	INT_5,
+	INT_10,
+
 	// Array Operations
 	CREATE_ARRAY,
 	GET_ARRAY,
