@@ -64,7 +64,13 @@ class MidoriValue
 public:
 	constexpr static inline int DATA_BUFFER_SIZE = sizeof(double);
 private:
-	alignas(DATA_BUFFER_SIZE) std::byte m_data[DATA_BUFFER_SIZE];
+	union
+	{
+		MidoriFloat m_float;
+		MidoriInteger m_integer;
+		MidoriBool m_bool;
+		MidoriTraceable* m_pointer;
+	} m_data;
 #ifdef DEBUG
 	enum DebugTypeTag : int64_t
 	{

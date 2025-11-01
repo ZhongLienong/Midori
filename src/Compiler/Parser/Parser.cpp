@@ -2204,7 +2204,7 @@ MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters()
 						return DefineName(param_name, true)
 							.and_then
 							(
-								[this, &param_name](Token&& param_name) -> MidoriResult::FunctionParamResult
+								[this](Token&& param_name) -> MidoriResult::FunctionParamResult
 								{
 									return Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.")
 										.and_then

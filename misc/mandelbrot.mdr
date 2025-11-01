@@ -54,6 +54,8 @@ defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
             x = x + 1;
             if x >= width then break () else ();
         };
+        y = y + 1;
+        if y >= height then break () else ();
     };
 
     ppm_header ++ ppm_data
@@ -88,7 +90,11 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =
                 iterations = iterations + 1;
             };
             ppm_data = ppm_data ++ map_color(iterations, limit);
-        }
+            x = x + 1;
+            if x >= width then break () else ();
+        };
+        y = y + 1;
+        if y >= height then break () else ();
     };
 
     ppm_header ++ ppm_data

@@ -53,53 +53,53 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 }
 
 MidoriValue::MidoriValue() noexcept
-{
+	: m_data{ .m_integer = 0 }
 #ifdef DEBUG
-	m_tag = UNIT;
+	, m_tag(UNIT)
 #endif
-	std::memset(m_data, 0, sizeof(void*));
+{
 }
 
 MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
-{
+	: m_data{ .m_float = midori_float }
 #ifdef DEBUG
-	m_tag = FLOAT;
+	, m_tag(FLOAT)
 #endif
-	std::memcpy(m_data, &midori_float, sizeof(void*));
+{
 }
 
 MidoriValue::MidoriValue(MidoriInteger integer) noexcept
-{
+	: m_data{ .m_integer = integer }
 #ifdef DEBUG
-	m_tag = INT;
+	, m_tag(INT)
 #endif
-	std::memcpy(m_data, &integer, sizeof(void*));
+{
 }
 
 MidoriValue::MidoriValue(MidoriBool b) noexcept
-{
+	: m_data{ .m_bool = b }
 #ifdef DEBUG
-	m_tag = BOOL;
+	, m_tag(BOOL)
 #endif
-	std::memset(m_data, b ? 1 : 0, sizeof(void*));
+{
 }
 
 MidoriValue::MidoriValue(MidoriTraceable* tagged_pointer) noexcept
-{
+	: m_data{ .m_pointer = tagged_pointer }
 #ifdef DEBUG
-	m_tag = POINTER;
+	, m_tag(POINTER)
 #endif
-	std::memcpy(m_data, &tagged_pointer, sizeof(void*));
+{
 }
 
 MidoriFloat MidoriValue::GetFloat() const noexcept
 {
-	return std::bit_cast<MidoriFloat>(m_data);
+	return m_data.m_float;
 }
 
 MidoriInteger MidoriValue::GetInteger() const noexcept
 {
-	return std::bit_cast<MidoriInteger>(m_data);
+	return m_data.m_integer;
 }
 
 MidoriUnit MidoriValue::GetUnit() const noexcept
@@ -109,12 +109,13 @@ MidoriUnit MidoriValue::GetUnit() const noexcept
 
 MidoriBool MidoriValue::GetBool() const noexcept
 {
-	return std::bit_cast<MidoriInteger>(m_data) != 0;
+	return m_data.m_bool;
 }
 
 MidoriTraceable* MidoriValue::GetPointer() const noexcept
 {
-	return (MidoriTraceable*)(*reinterpret_cast<const MidoriTaggedPointer*>(m_data));
+	uintptr_t raw = reinterpret_cast<uintptr_t>(m_data.m_pointer);
+	return reinterpret_cast<MidoriTraceable*>(raw & TAG_MASK);
 }
 
 #ifdef DEBUG

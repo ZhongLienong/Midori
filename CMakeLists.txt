@@ -24,12 +24,14 @@ if (MSVC)
     # Remove default flags that cause conflicts
     string(REPLACE "/GR" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     string(REPLACE "/W3" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
     # Common flags for all configurations
     add_compile_options(
         /GR-         # Disable RTTI
         /permissive- # Standards-conformant mode
         /W4          # Warning level 4
+        /EHa         # Enable async exception handling (allows __try/__except with C++)
     )
 
     # Debug configuration - best debuggability, no optimization
@@ -44,7 +46,7 @@ if (MSVC)
 
     # Development configuration - optimized with debug symbols (like Unreal's Development)
     add_compile_options(
-        $<$<CONFIG:Development>:/O1>    # Optimize for size
+        $<$<CONFIG:Development>:/O2>    # Maximize speed
         $<$<CONFIG:Development>:/MD>    # Release runtime library
         $<$<CONFIG:Development>:/Zi>    # Full debug info
         $<$<CONFIG:Development>:/Oi>    # Intrinsic functions
@@ -52,23 +54,28 @@ if (MSVC)
         $<$<CONFIG:Development>:/DDEVELOPMENT>  # DEVELOPMENT macro
     )
 
-    # Release configuration - maximum speed, no debug symbols
+    # Release configuration - maximum speed for modern x64 CPUs (12th gen Intel, Zen 4+)
     add_compile_options(
-        $<$<CONFIG:Release>:/O2>    # Maximize speed
-        $<$<CONFIG:Release>:/MT>    # Static runtime library
-        $<$<CONFIG:Release>:/GL>    # Whole program optimization
-        $<$<CONFIG:Release>:/Gy>    # Function-level linking
-        $<$<CONFIG:Release>:/Oi>    # Intrinsic functions
-        $<$<CONFIG:Release>:/DNDEBUG>  # NDEBUG macro
+        $<$<CONFIG:Release>:/O2>        # Maximize speed
+        $<$<CONFIG:Release>:/Ob3>       # Aggressive inlining (beyond /Ob2)
+        $<$<CONFIG:Release>:/Ot>        # Favor fast code over small code
+        $<$<CONFIG:Release>:/Oi>        # Intrinsic functions
+        $<$<CONFIG:Release>:/GL>        # Whole program optimization (LTCG)
+        $<$<CONFIG:Release>:/Gy>        # Function-level linking
+        $<$<CONFIG:Release>:/Gw>        # Optimize global data
+        $<$<CONFIG:Release>:/arch:AVX2> # Use AVX2 instructions
+        $<$<CONFIG:Release>:/Qpar>      # Auto-parallelization
+        $<$<CONFIG:Release>:/MT>        # Static runtime library
+        $<$<CONFIG:Release>:/DNDEBUG>   # NDEBUG macro
     )
 
     # Development linker flags
     set(CMAKE_EXE_LINKER_FLAGS_DEVELOPMENT "${CMAKE_EXE_LINKER_FLAGS_DEVELOPMENT} /DEBUG /OPT:REF /OPT:ICF")
     set(CMAKE_SHARED_LINKER_FLAGS_DEVELOPMENT "${CMAKE_SHARED_LINKER_FLAGS_DEVELOPMENT} /DEBUG /OPT:REF /OPT:ICF")
 
-    # Release linker flags - link-time code generation, no debug symbols
-    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
-    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
+    # Release linker flags - maximum optimization
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF /RELEASE")
+    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF /RELEASE")
 endif()
 
 # Include directories

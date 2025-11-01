@@ -17,6 +17,8 @@ private:
 public:
 	void ReclaimMemory(GarbageCollectionRoots&& roots, bool force_clean = false);
 
+	bool ShouldCollect() const;
+
 	void CleanUp();
 
 #ifdef DEBUG

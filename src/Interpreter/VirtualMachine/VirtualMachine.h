@@ -42,7 +42,9 @@ private:
     CallStackPointer m_call_stack_pointer = nullptr;
     CallStackPointer m_call_stack_begin = nullptr;
 
-#ifdef WIN32
+#ifdef _WIN32
+    void* m_value_stack_region = nullptr;
+    void* m_call_stack_region = nullptr;
     HMODULE m_library_handle = nullptr;
 #else
     void* m_library_handle = nullptr;
@@ -52,6 +54,7 @@ public:
     int Execute() noexcept;
 
 private:
+	int ExecuteLoop() noexcept;
 
 	int TerminateExecution(std::string_view message) noexcept;
 

@@ -211,6 +211,11 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 #endif
 }
 
+bool GarbageCollector::ShouldCollect() const
+{
+	return m_total_bytes_allocated >= GARBAGE_COLLECTION_THRESHOLD;
+}
+
 void GarbageCollector::CleanUp()
 {
 	ReclaimMemory({}, true);

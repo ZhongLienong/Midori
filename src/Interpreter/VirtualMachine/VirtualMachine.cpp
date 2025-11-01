@@ -14,8 +14,48 @@ using namespace std::string_literals;
 
 VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_executable(std::move(executable))
 {
+#ifdef _WIN32
+	// Use VirtualAlloc with guard pages for zero-overhead stack overflow detection
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	size_t page_size = si.dwPageSize;
+
+	// Allocate value stack with guard page
+	size_t value_stack_bytes = s_value_stack_size * sizeof(MidoriValue);
+	size_t value_total_pages = (value_stack_bytes + page_size - 1u) / page_size + 1u; // +1 for guard page
+	size_t value_total_size = value_total_pages * page_size;
+
+	m_value_stack_region = VirtualAlloc(nullptr, value_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (m_value_stack_region)
+	{
+		m_value_stack_begin = static_cast<MidoriValue*>(m_value_stack_region);
+
+		// Set guard page at the end
+		void* value_guard_page = static_cast<char*>(m_value_stack_region) + (value_total_size - page_size);
+		DWORD old_protect;
+		VirtualProtect(value_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+	}
+
+	// Allocate call stack with guard page
+	size_t call_stack_bytes = s_call_stack_size * sizeof(CallFrame);
+	size_t call_total_pages = (call_stack_bytes + page_size - 1u) / page_size + 1u; // +1 for guard page
+	size_t call_total_size = call_total_pages * page_size;
+
+	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (m_call_stack_region)
+	{
+		m_call_stack_begin = static_cast<CallFrame*>(m_call_stack_region);
+
+		// Set guard page at the end
+		void* call_guard_page = static_cast<char*>(m_call_stack_region) + (call_total_size - page_size);
+		DWORD old_protect;
+		VirtualProtect(call_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+	}
+#else
+	// Fallback to malloc for non-Windows platforms (future Linux support)
 	m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(s_value_stack_size * sizeof(MidoriValue)));
 	m_call_stack_begin = static_cast<CallFrame*>(std::malloc(s_call_stack_size * sizeof(CallFrame)));
+#endif
 
 	// Initialize stack pointers
 	m_value_stack_base_pointer = m_value_stack_begin;
@@ -32,13 +72,30 @@ VirtualMachine::~VirtualMachine()
 {
 	m_garbage_collector.CleanUp();
 #ifdef _WIN32
-	FreeLibrary(m_library_handle);
-#else
-	dlclose(m_library_handle);
-#endif
+	if (m_library_handle)
+	{
+		FreeLibrary(m_library_handle);
+	}
 
+	// Free guard-protected stacks
+	if (m_value_stack_region)
+	{
+		VirtualFree(m_value_stack_region, 0, MEM_RELEASE);
+	}
+	if (m_call_stack_region)
+	{
+		VirtualFree(m_call_stack_region, 0, MEM_RELEASE);
+	}
+#else
+	if (m_library_handle)
+	{
+		dlclose(m_library_handle);
+	}
+
+	// Fallback malloc cleanup
 	std::free(m_value_stack_begin);
 	std::free(m_call_stack_begin);
+#endif
 }
 
 int VirtualMachine::TerminateExecution(std::string_view message) noexcept
@@ -295,8 +352,9 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCo
 GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCollectionRoots() const noexcept
 {
 	GarbageCollector::GarbageCollectionRoots roots;
-	roots.reserve((m_value_stack_pointer - m_value_stack_begin) + (m_call_stack_pointer - m_call_stack_begin));
+	roots.reserve((m_value_stack_pointer - m_value_stack_begin));
 
+	// Sequential - unordered_set::emplace is not thread-safe
 	std::for_each_n
 	(
 		std::execution::seq,
@@ -323,24 +381,8 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoo
 	return stack_roots;
 }
 
-int VirtualMachine::Execute() noexcept
+int VirtualMachine::ExecuteLoop() noexcept
 {
-#ifdef _WIN32
-	m_library_handle = LoadLibrary("./MidoriStdLib.dll");
-#else
-	m_library_handle = dlopen("./libMidoriStdLib.so", RTLD_LAZY);
-#endif
-
-	if (m_library_handle == NULL) [[unlikely]]
-	{
-#ifdef _WIN32
-		FreeLibrary(m_library_handle);
-#else
-		dlclose(m_library_handle);
-#endif
-		return TerminateExecution("Failed to load the standard library.");
-	}
-
 	while (true)
 	{
 #ifdef DEBUG
@@ -430,7 +472,6 @@ int VirtualMachine::Execute() noexcept
 			}
 
 			Push(m_garbage_collector.AllocateTraceable(std::move(arr), PointerTag::ARRAY));
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::GET_ARRAY:
@@ -531,7 +572,6 @@ int VirtualMachine::Execute() noexcept
 			}
 
 			Push(m_garbage_collector.AllocateTraceable(std::move(new_arr), PointerTag::ARRAY));
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::ADD_BACK_ARRAY:
@@ -579,13 +619,11 @@ int VirtualMachine::Execute() noexcept
 		case OpCode::FLOAT_TO_TEXT:
 		{
 			Peek() = m_garbage_collector.AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()), PointerTag::TEXT);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::INT_TO_TEXT:
 		{
 			Peek() = m_garbage_collector.AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()), PointerTag::TEXT);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::LEFT_SHIFT:
@@ -740,7 +778,11 @@ int VirtualMachine::Execute() noexcept
 			MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
 			left = m_garbage_collector.AllocateTraceable(std::move(result), PointerTag::ARRAY);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
 			break;
 		}
 		case OpCode::CONCAT_TEXT:
@@ -754,7 +796,11 @@ int VirtualMachine::Execute() noexcept
 			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
 			left = m_garbage_collector.AllocateTraceable(std::move(result), PointerTag::TEXT);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
 			break;
 		}
 		case OpCode::EQUAL_FLOAT:
@@ -1163,17 +1209,10 @@ int VirtualMachine::Execute() noexcept
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
 
-			std::vector<MidoriValue> new_args(arity);
-			for (int i = arity - 1; i >= 0; i -= 1)
-			{
-				new_args[static_cast<size_t>(i)] = Pop();
-			}
-
-			m_value_stack_pointer = m_value_stack_base_pointer;
-			for (int i = 0; i < arity; i += 1)
-			{
-				Push(new_args[static_cast<size_t>(i)]);
-			}
+			// Move arguments down to base pointer
+			MidoriValue* args_source = m_value_stack_pointer - arity;
+			std::memmove(m_value_stack_base_pointer, args_source, arity * sizeof(MidoriValue));
+			m_value_stack_pointer = m_value_stack_base_pointer + arity;
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
@@ -1198,7 +1237,6 @@ int VirtualMachine::Execute() noexcept
 			members = std::move(args);
 
 			Push(new_struct);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::CONSTRUCT_UNION:
@@ -1217,14 +1255,12 @@ int VirtualMachine::Execute() noexcept
 			members = std::move(args);
 
 			Push(new_union);
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::ALLOCATE_CLOSURE:
 		{
 			int proc_index = static_cast<int>(ReadByte());
 			Push(m_garbage_collector.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriArray(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
 			break;
 		}
 		case OpCode::CONSTRUCT_CLOSURE:
@@ -1255,7 +1291,10 @@ int VirtualMachine::Execute() noexcept
 				}
 			);
 
-			m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
 			break;
 		}
 		case OpCode::DEFINE_GLOBAL:
@@ -1401,4 +1440,38 @@ int VirtualMachine::Execute() noexcept
 		}
 		}
 	}
+}
+
+int VirtualMachine::Execute() noexcept
+{
+#ifdef _WIN32
+	m_library_handle = LoadLibrary("./MidoriStdLib.dll");
+#else
+	m_library_handle = dlopen("./libMidoriStdLib.so", RTLD_LAZY);
+#endif
+
+	if (m_library_handle == NULL) [[unlikely]]
+	{
+#ifdef _WIN32
+		FreeLibrary(m_library_handle);
+#else
+		dlclose(m_library_handle);
+#endif
+		return TerminateExecution("Failed to load the standard library.");
+	}
+
+#ifdef _WIN32
+	// Structured exception handling for guard page access violations (stack overflow)
+	__try
+	{
+		return ExecuteLoop();
+	}
+	__except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+	{
+		Printer::Print<Printer::Color::RED>("Runtime Error: Stack overflow - exceeded maximum stack depth\n");
+		return EXIT_FAILURE;
+	}
+#else
+	return ExecuteLoop();
+#endif
 }

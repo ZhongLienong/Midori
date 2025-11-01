@@ -1,0 +1,136 @@
+import time
+from typing import List
+
+def test_prime_numbers() -> None:
+    """
+    Counts all prime numbers up to 100,000 and benchmarks the time.
+    """
+    
+    def is_prime(n: int) -> bool:
+        """Checks if a number is prime using a helper."""
+        
+        def is_prime_helper(n: int, divisor: int) -> bool:
+            """Recursive helper to check for divisors."""
+            if divisor * divisor > n:
+                return True
+            else:
+                if n % divisor == 0:
+                    return False
+                else:
+                    return is_prime_helper(n, divisor + 1)
+
+        if n <= 1:
+            return False
+        else:
+            return is_prime_helper(n, 2)
+
+    start = time.perf_counter()
+
+    prime_count = 0
+    count = 0
+    while True:
+        if count >= 100_000:
+            break
+        else:
+            if is_prime(count):
+                prime_count += 1
+            count += 1
+
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"Prime(100000): {prime_count} benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
+def test_fib(n: int) -> None:
+    """
+    Calculates the n-th Fibonacci number recursively and benchmarks the time.
+    """
+    
+    def fib(n: int) -> int:
+        """Recursive Fibonacci calculation."""
+        if n <= 1:
+            return n
+        else:
+            return fib(n - 1) + fib(n - 2)
+
+    start = time.perf_counter()
+    fib_n = fib(n)
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"Fibonacci({n}): {fib_n} benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
+def test_string_manipulation() -> None:
+    """
+    Benchmarks concatenating a string in a loop.
+    """
+    start = time.perf_counter()
+
+    test_string = ""
+    count = 0
+    while True:
+        if count >= 10_000:
+            break
+        else:
+            # Note: This is an inefficient O(n^2) operation in Python,
+            # preserved to match the intent of the original benchmark.
+            test_string += "a"
+            count += 1
+
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"String manipulation benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
+def test_parenthesis_generation(max_len: int) -> None:
+    """
+    Generates all valid parenthesis combinations for max_len pairs
+    and benchmarks the time.
+    """
+    output: List[str] = []
+
+    def backtrack(length: int, left: int, right: int, acc: str) -> None:
+        """
+        Recursive backtracking function to generate parenthesis.
+        'length' is the target number of pairs.
+        'left' and 'right' are the current counts of open/close parens.
+        'acc' is the string being built.
+        """
+        if left < right:
+            return
+        else:
+            if left > length or right > length:
+                return
+            else:
+                if left == length and right == length:
+                    output.append(acc)
+                    return
+                else:
+                    backtrack(length, left + 1, right, acc + "(")
+                    backtrack(length, left, right + 1, acc + ")")
+
+    start = time.perf_counter()
+
+    backtrack(max_len, 0, 0, "")
+
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"Parenthesis generation benchmark took {duration_ms:.2f} milliseconds")
+    # Uncomment the line below to see the count of combinations found
+    # print(f"Found {len(output)} combinations.")
+
+# ---
+
+if __name__ == "__main__":
+    # Run the benchmarks
+    test_fib(35)
+    test_prime_numbers()
+    test_string_manipulation()
+    test_parenthesis_generation(8)
