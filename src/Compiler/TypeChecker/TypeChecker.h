@@ -70,6 +70,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Define& def);
 
+	MidoriResult::TypeResult operator()(MidoriStatement::DefineTuple& def_tuple);
+
 	MidoriResult::TypeResult operator()(MidoriStatement::DefineFunction& defun);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Continue& continue_stmt);
@@ -87,6 +89,8 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Binary& binary);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Group& group);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::Tuple& tuple);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::UnaryPrefix& unary);
 

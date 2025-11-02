@@ -102,6 +102,8 @@ private:
 
 	void operator()(MidoriStatement::Define& def);
 
+	void operator()(MidoriStatement::DefineTuple& def_tuple);
+
 	void operator()(MidoriStatement::DefineFunction& defun);
 
 	void operator()(MidoriStatement::Continue& continue_stmt);
@@ -119,6 +121,8 @@ private:
 	void operator()(MidoriExpression::Binary& binary);
 
 	void operator()(MidoriExpression::Group& group);
+
+	void operator()(MidoriExpression::Tuple& tuple);
 
 	void operator()(MidoriExpression::UnaryPrefix& unary);
 

@@ -731,21 +731,56 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::LEFT_PAREN))
 	{
-		return Match(Token::Name::RIGHT_PAREN)
-			? std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Previous()))
-			: ParseExpression()
+		Token left_paren = Previous();
+
+		if (Match(Token::Name::RIGHT_PAREN))
+		{
+			// Empty tuple is unit
+			return std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Previous()));
+		}
+
+		return ParseExpression()
 			.and_then
 			(
-				[this](std::unique_ptr<MidoriExpression>&& expr_in) -> MidoriResult::ExpressionResult
+				[this, left_paren](std::unique_ptr<MidoriExpression>&& first_expr) -> MidoriResult::ExpressionResult
 				{
-					return Consume(Token::Name::RIGHT_PAREN, "Expected right parentheses.")
-						.and_then
-						(
-							[&expr_in](Token&&) -> MidoriResult::ExpressionResult
+					if (Match(Token::Name::COMMA))
+					{
+						// It's a tuple - parse remaining elements
+						std::vector<std::unique_ptr<MidoriExpression>> elements;
+						elements.push_back(std::move(first_expr));
+
+						// Parse remaining tuple elements
+						do
+						{
+							MidoriResult::ExpressionResult elem_result = ParseExpression();
+							if (!elem_result)
 							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::Group(std::move(expr_in)));
+								return elem_result;
 							}
-						);
+							elements.push_back(std::move(elem_result.value()));
+						} while (Match(Token::Name::COMMA));
+
+						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple elements.")
+							.and_then
+							(
+								[&elements, left_paren](Token&&) -> MidoriResult::ExpressionResult
+								{
+									return std::make_unique<MidoriExpression>(MidoriExpression::Tuple(left_paren, std::move(elements)));
+								}
+							);
+					}
+					else
+					{
+						return Consume(Token::Name::RIGHT_PAREN, "Expected right parentheses.")
+							.and_then
+							(
+								[&first_expr](Token&&) -> MidoriResult::ExpressionResult
+								{
+									return std::make_unique<MidoriExpression>(MidoriExpression::Group(std::move(first_expr)));
+								}
+							);
+					}
 				}
 			);
 	}
@@ -996,6 +1031,69 @@ MidoriResult::ExpressionResult Parser::ParseLoopExpression()
 
 MidoriResult::StatementResult Parser::ParseDefineStatement()
 {
+	// Check for tuple destructuring: def (x, y, z) = ...
+	if (Match(Token::Name::LEFT_PAREN))
+	{
+		std::vector<Token> names;
+		std::vector<std::optional<int>> local_indices;
+
+		do
+		{
+			MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier in tuple pattern.");
+			if (!name_result)
+			{
+				return std::unexpected(name_result.error());
+			}
+
+			Token var_name = std::move(name_result.value());
+			constexpr bool is_variable = true;
+
+			MidoriResult::TokenResult defined_name_result = DefineName(var_name, is_variable);
+			if (!defined_name_result)
+			{
+				return std::unexpected(defined_name_result.error());
+			}
+
+			Token defined_name = std::move(defined_name_result.value());
+			std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
+
+			names.emplace_back(std::move(defined_name));
+			local_indices.emplace_back(std::move(local_index));
+
+		} while (Match(Token::Name::COMMA));
+
+		return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
+			.and_then
+			(
+				[&names, &local_indices, this](Token&&) -> MidoriResult::StatementResult
+				{
+					return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after tuple pattern.")
+						.and_then
+						(
+							[&names, &local_indices, this](Token&&) -> MidoriResult::StatementResult
+							{
+								return ParseExpression()
+									.and_then
+									(
+										[&names, &local_indices, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::StatementResult
+										{
+											return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after tuple binding.")
+												.and_then
+												(
+													[&names, &local_indices, &expr](Token&&) -> MidoriResult::StatementResult
+													{
+														return std::make_unique<MidoriStatement>(MidoriStatement::DefineTuple(std::move(names), std::move(expr), std::move(local_indices)));
+													}
+												);
+										}
+									);
+							}
+						);
+				}
+			);
+	}
+
+	// Single variable: def x = ...
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected name.")
 		.and_then
 		(
@@ -2000,6 +2098,61 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 					else
 					{
 						return func_type_aux_func({});
+					}
+				}
+			);
+	}
+	else if (Match(Token::Name::LEFT_PAREN))
+	{
+		// Parse tuple type: (Type1, Type2, ...)
+		// Empty tuple is Unit
+		if (Match(Token::Name::RIGHT_PAREN))
+		{
+			return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		}
+
+		return ParseType()
+			.and_then
+			(
+				[this](std::shared_ptr<MidoriType>&& first_type) -> MidoriResult::TypeResult
+				{
+					if (Match(Token::Name::COMMA))
+					{
+						// It's a tuple - parse remaining types
+						std::vector<std::shared_ptr<MidoriType>> element_types;
+						element_types.push_back(std::move(first_type));
+
+						// Parse remaining tuple element types
+						do
+						{
+							MidoriResult::TypeResult elem_result = ParseType();
+							if (!elem_result)
+							{
+								return elem_result;
+							}
+							element_types.push_back(std::move(elem_result.value()));
+						} while (Match(Token::Name::COMMA));
+
+						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple types.")
+							.and_then
+							(
+								[&element_types](Token&&) -> MidoriResult::TypeResult
+								{
+									return MidoriType::MakeTupleType(std::move(element_types));
+								}
+							);
+					}
+					else
+					{
+						// Just a parenthesized type - return it
+						return Consume
+						(
+							Token::Name::RIGHT_PAREN, "Expected ')' after type.")
+							.and_then([&first_type](Token&&) -> MidoriResult::TypeResult
+							{
+								return first_type;
+							}
+						);
 					}
 				}
 			);

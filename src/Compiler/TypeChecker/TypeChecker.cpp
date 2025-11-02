@@ -148,6 +148,29 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		return left;
 	}
+	else if (left_subst->IsType<MidoriType::TupleType>() && right_subst->IsType<MidoriType::TupleType>())
+	{
+		MidoriType::TupleType& left_tuple = left_subst->GetType<MidoriType::TupleType>();
+		MidoriType::TupleType& right_tuple = right_subst->GetType<MidoriType::TupleType>();
+
+		// Tuple types must have the same number of elements
+		if (left_tuple.m_element_types.size() != right_tuple.m_element_types.size())
+		{
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify tuples with different element counts", token, m_file_name, m_source_lines, left_subst, right_subst));
+		}
+
+		// Unify each element type
+		for (size_t idx : std::views::iota(0u, left_tuple.m_element_types.size()))
+		{
+			MidoriResult::TypeResult result = Unify(token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx]);
+			if (!result.has_value())
+			{
+				return result;
+			}
+		}
+
+		return left;
+	}
 	else
 	{
 		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
@@ -301,6 +324,20 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 		return fresh_union;
 	}
+	else if (type->IsType<MidoriType::TupleType>())
+	{
+		MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
+		std::vector<std::shared_ptr<MidoriType>> fresh_element_types;
+		std::ranges::for_each
+		(
+			tuple_type.m_element_types,
+			[&fresh_element_types, &context, this](const std::shared_ptr<MidoriType>& element_type)
+			{
+				fresh_element_types.emplace_back(Freshen(element_type, context));
+			}
+		);
+		return MidoriType::MakeTupleType(std::move(fresh_element_types));
+	}
 	return type;
 }
 
@@ -430,6 +467,28 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		}
 		return type;
 	}
+	else if (type->IsType<MidoriType::TupleType>())
+	{
+		MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
+		bool changed = false;
+		std::vector<std::shared_ptr<MidoriType>> new_element_types;
+
+		for (const std::shared_ptr<MidoriType>& element_type : tuple_type.m_element_types)
+		{
+			std::shared_ptr<MidoriType> subst_element = ApplySubstitution(element_type, cache);
+			new_element_types.push_back(subst_element);
+			if (subst_element != element_type)
+			{
+				changed = true;
+			}
+		}
+
+		if (changed)
+		{
+			return MidoriType::MakeTupleType(std::move(new_element_types));
+		}
+		return type;
+	}
 
 	return type;
 }
@@ -481,6 +540,18 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 				{
 					return true;
 				}
+			}
+		}
+		return false;
+	}
+	else if (subst_type->IsType<MidoriType::TupleType>())
+	{
+		MidoriType::TupleType& tuple_type = subst_type->GetType<MidoriType::TupleType>();
+		for (const std::shared_ptr<MidoriType>& element_type : tuple_type.m_element_types)
+		{
+			if (OccursCheck(var_id, element_type))
+			{
+				return true;
 			}
 		}
 		return false;
@@ -631,6 +702,36 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Define& def)
 				}
 
 				m_name_type_table.back().emplace(def.m_name.m_lexeme, type);
+				return MidoriType::MakeUndecidedType();
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineTuple& def_tuple)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **def_tuple.m_value)
+		.and_then
+		(
+			[&def_tuple, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+			{
+				if (!type->IsType<MidoriType::TupleType>())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
+				}
+
+				const MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
+
+
+				if (def_tuple.m_names.size() != tuple_type.m_element_types.size())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
+				}
+
+				for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
+				{
+					m_name_type_table.back().emplace(def_tuple.m_names[i].m_lexeme, tuple_type.m_element_types[i]);
+				}
+
 				return MidoriType::MakeUndecidedType();
 			}
 		);
@@ -1094,6 +1195,33 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Group& group)
 				return group.m_type_data;
 			}
 		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
+{
+	if (tuple.m_elements.empty())
+	{
+		// Empty tuple is Unit type
+		tuple.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		return tuple.m_type_data;
+	}
+
+	std::vector<std::shared_ptr<MidoriType>> element_types;
+	element_types.reserve(tuple.m_elements.size());
+
+	for (std::unique_ptr<MidoriExpression>& element : tuple.m_elements)
+	{
+		MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **element);
+		if (!result.has_value())
+		{
+			return result;
+		}
+
+		element_types.emplace_back(std::move(result.value()));
+	}
+
+	tuple.m_type_data = MidoriType::MakeTupleType(std::move(element_types));
+	return tuple.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& unary)

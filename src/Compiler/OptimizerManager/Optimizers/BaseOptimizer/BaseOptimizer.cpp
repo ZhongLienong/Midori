@@ -28,6 +28,11 @@ void MidoriOptimizer::operator()(MidoriStatement::Define& def)
 	VisitAndReplace(def.m_value);
 }
 
+void MidoriOptimizer::operator()(MidoriStatement::DefineTuple& def_tuple)
+{
+	VisitAndReplace(def_tuple.m_value);
+}
+
 void MidoriOptimizer::operator()(MidoriStatement::DefineFunction& defun)
 {
 	VisitAndReplace(defun.m_body);
@@ -75,6 +80,18 @@ void MidoriOptimizer::operator()(MidoriExpression::Binary& binary)
 void MidoriOptimizer::operator()(MidoriExpression::Group& group)
 {
 	VisitAndReplace(group.m_expr_in);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Tuple& tuple)
+{
+	std::ranges::for_each
+	(
+		tuple.m_elements,
+		[this](std::unique_ptr<MidoriExpression>& element)
+		{
+			VisitAndReplace(element);
+		}
+	);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::UnaryPrefix& unary)

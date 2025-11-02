@@ -32,6 +32,15 @@ public:
 		Define(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
 	};
 
+	struct DefineTuple
+	{
+		std::vector<Token> m_names;
+		std::unique_ptr<MidoriExpression> m_value;
+		std::vector<std::optional<int>> m_local_indices;
+
+		DefineTuple(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices);
+	};
+
 	struct DefineFunction
 	{
 		Token m_name;
@@ -91,7 +100,7 @@ public:
 	};
 
 private:
-	using StatementUnion = std::variant<Simple, Define, DefineFunction, Continue, Foreign, Struct, Union, Namespace>;
+	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Namespace>;
 	StatementUnion m_stmt_data;
 
 public:
@@ -171,6 +180,14 @@ public:
 		std::unique_ptr<MidoriExpression> m_expr_in;
 
 		Group(std::unique_ptr<MidoriExpression>&& expr_in);
+	};
+
+	struct Tuple : BaseExpression
+	{
+		Token m_op;
+		std::vector<std::unique_ptr<MidoriExpression>> m_elements;
+
+		Tuple(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elements);
 	};
 
 	struct TextLiteral : BaseExpression
@@ -413,7 +430,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, Block, Match, Case, Default, Loop, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, Block, Match, Case, Default, Loop, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:

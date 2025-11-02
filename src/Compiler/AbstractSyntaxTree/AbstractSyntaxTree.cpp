@@ -19,6 +19,11 @@ MidoriExpression::Group::Group(std::unique_ptr<MidoriExpression>&& expr_in)
 {
 }
 
+MidoriExpression::Tuple::Tuple(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elements)
+	: m_op(op), m_elements(std::move(elements))
+{
+}
+
 MidoriExpression::TextLiteral::TextLiteral(const Token& token)
 	: m_token(token)
 {
@@ -223,6 +228,13 @@ MidoriStatement::Define::Define(const Token& name, std::unique_ptr<MidoriExpress
 	m_value(std::move(value)),
 	m_annotated_type(std::move(annotated_type)),
 	m_local_index(std::move(local_index))
+{
+}
+
+MidoriStatement::DefineTuple::DefineTuple(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices)
+	: m_names(std::move(names)),
+	m_value(std::move(value)),
+	m_local_indices(std::move(local_indices))
 {
 }
 

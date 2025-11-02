@@ -55,6 +55,23 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Define& def, int
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineTuple& def_tuple, int depth) const
+{
+	PrintWithIndentation(depth, "DefineTuple {");
+	PrintWithIndentation(depth + 1, "Names: ");
+	std::ranges::for_each
+	(
+		def_tuple.m_names,
+		[depth, this](const Token& name)
+		{
+			PrintWithIndentation(depth + 2, name.m_lexeme);
+		}
+	);
+	PrintWithIndentation(depth + 1, "Value: ");
+	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **def_tuple.m_value);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineFunction& defun, int depth) const
 {
 	PrintWithIndentation(depth, "DefineFunction {");
@@ -180,6 +197,21 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Group& group, i
 {
 	PrintWithIndentation(depth, "Group {");
 	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 1); }, **group.m_expr_in);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Tuple& tuple, int depth) const
+{
+	PrintWithIndentation(depth, "Tuple {");
+	PrintWithIndentation(depth + 1, "Elements: ");
+	std::ranges::for_each
+	(
+		tuple.m_elements,
+		[depth, this](const std::unique_ptr<MidoriExpression>& elem)
+		{
+			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **elem);
+		}
+	);
 	PrintWithIndentation(depth, "}");
 }
 

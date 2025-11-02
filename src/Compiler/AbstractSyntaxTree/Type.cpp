@@ -26,6 +26,11 @@ std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<Mido
     return std::make_shared<MidoriType>(MidoriTypeUnion(ArrayType{ .m_element_type = element_type }));
 }
 
+std::shared_ptr<MidoriType> MidoriType::MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types)
+{
+    return std::make_shared<MidoriType>(MidoriTypeUnion(TupleType{ .m_element_types = std::move(element_types) }));
+}
+
 std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign)
 {
     return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{ .m_param_types = param_types, .m_return_type = return_type, .m_is_foreign = is_foreign }));
@@ -67,6 +72,16 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
                 // Recursively substitute in array element type
                 auto new_element_type = SubstituteTypeParams(type_variant.m_element_type, substitutions);
                 return MakeArrayType(new_element_type);
+            }
+            else if constexpr (std::is_same_v<T, TupleType>)
+            {
+                // Recursively substitute in tuple element types
+                std::vector<std::shared_ptr<MidoriType>> new_element_types;
+                for (const auto& element_type : type_variant.m_element_types)
+                {
+                    new_element_types.push_back(SubstituteTypeParams(element_type, substitutions));
+                }
+                return MakeTupleType(std::move(new_element_types));
             }
             else if constexpr (std::is_same_v<T, FunctionType>)
             {
@@ -166,6 +181,21 @@ std::string MidoriType::ToString() const
             else if constexpr (std::is_same_v<Type, ArrayType>)
             {
                 return "Array<"s + a.m_element_type->ToString() + ">"s;
+            }
+            else if constexpr (std::is_same_v<Type, TupleType>)
+            {
+                if (a.m_element_types.empty())
+                {
+                    return "Unit"s;  // Empty tuple is unit
+                }
+                std::string tuple_str = "("s;
+                for (const std::shared_ptr<MidoriType>& elem_type : a.m_element_types)
+                {
+                    tuple_str.append(elem_type->ToString()).append(", ");
+                }
+                tuple_str.pop_back();
+                tuple_str.pop_back();
+                return tuple_str.append(")"s);
             }
             else if constexpr (std::is_same_v<Type, FunctionType>)
             {

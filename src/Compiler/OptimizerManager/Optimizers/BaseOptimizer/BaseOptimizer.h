@@ -44,6 +44,8 @@ protected:
 
 	virtual void operator()(MidoriStatement::Define& def);
 
+	virtual void operator()(MidoriStatement::DefineTuple& def_tuple);
+
 	virtual void operator()(MidoriStatement::DefineFunction& defun);
 
 	virtual void operator()(MidoriStatement::Continue& continue_stmt);
@@ -61,6 +63,8 @@ protected:
 	virtual void operator()(MidoriExpression::Binary& binary);
 
 	virtual void operator()(MidoriExpression::Group& group);
+
+	virtual void operator()(MidoriExpression::Tuple& tuple);
 
 	virtual void operator()(MidoriExpression::UnaryPrefix& unary);
 

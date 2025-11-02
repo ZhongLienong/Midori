@@ -49,6 +49,11 @@ public:
         std::shared_ptr<MidoriType> m_element_type;
     };
 
+    struct TupleType
+    {
+        std::vector<std::shared_ptr<MidoriType>> m_element_types;
+    };
+
     struct FunctionType
     {
         std::vector<std::shared_ptr<MidoriType>> m_param_types;
@@ -79,7 +84,7 @@ public:
         UnionType(const std::string& name);
     };
 
-    using MidoriTypeUnion = std::variant<UndecidedType, GenericParam, TypeVariable, FloatType, IntegerType, TextType, BoolType, UnitType, NeverType, ArrayType, FunctionType, StructType, UnionType>;
+    using MidoriTypeUnion = std::variant<UndecidedType, GenericParam, TypeVariable, FloatType, IntegerType, TextType, BoolType, UnitType, NeverType, ArrayType, TupleType, FunctionType, StructType, UnionType>;
 
     MidoriTypeUnion m_type;
 
@@ -119,6 +124,8 @@ public:
     static std::shared_ptr<MidoriType> MakeTypeVariable(int id);
 
     static std::shared_ptr<MidoriType> MakeArrayType(const std::shared_ptr<MidoriType>& element_type);
+
+    static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);
 
     static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false); 
 
@@ -161,6 +168,16 @@ inline bool operator==(const MidoriType& lhs, const MidoriType& rhs)
                 else if constexpr (std::is_same_v<TypeA, MidoriType::ArrayType>)
                 {
                     return *a.m_element_type == *b.m_element_type;
+                }
+                else if constexpr (std::is_same_v<TypeA, MidoriType::TupleType>)
+                {
+                    return a.m_element_types.size() == b.m_element_types.size() &&
+                           std::ranges::equal
+                           (
+                               a.m_element_types,
+                               b.m_element_types,
+                               [](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2) { return *t1 == *t2; }
+                           );
                 }
                 else if constexpr (std::is_same_v<TypeA, MidoriType::FunctionType>)
                 {

@@ -13,6 +13,8 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriStatement::Define& def, int depth = 0) const;
 
+	void operator()(const MidoriStatement::DefineTuple& def_tuple, int depth = 0) const;
+
 	void operator()(const MidoriStatement::DefineFunction& defun, int depth = 0) const;
 
 	void operator()(const MidoriStatement::Continue&, int depth = 0) const;
@@ -30,6 +32,8 @@ struct PrintAbstractSyntaxTree
 	void operator()(const MidoriExpression::Binary& binary, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Group& group, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Tuple& tuple, int depth = 0) const;
 
 	void operator()(const MidoriExpression::UnaryPrefix& unary, int depth = 0) const;
 

@@ -260,11 +260,42 @@ void CodeGenerator::operator()(MidoriStatement::Define& def)
 	}
 }
 
+void CodeGenerator::operator()(MidoriStatement::DefineTuple& def_tuple)
+{
+	int line = def_tuple.m_names.empty() ? 0 : def_tuple.m_names[0].m_line;
+
+	// For each binding, extract the corresponding array element
+	// We regenerate the tuple expression each time since GET_ARRAY consumes it
+	for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
+	{
+		bool is_global = !def_tuple.m_local_indices[i].has_value();
+
+		// Generate the tuple expression (loads it onto stack)
+		std::visit([this](auto&& arg){ (*this)(arg); }, **def_tuple.m_value);
+
+		// Push the index
+		EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+
+		// Get array element at index i (consumes the array from stack)
+		EmitByte(OpCode::GET_ARRAY, line);
+		EmitByte(static_cast<OpCode>(1), line); // 1 index
+
+		if (is_global)
+		{
+			MidoriText variable_name(def_tuple.m_names[i].m_lexeme.c_str());
+			int index = m_executable.AddGlobalVariable(std::move(variable_name));
+			m_global_variables[def_tuple.m_names[i].m_lexeme] = index;
+			EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
+		}
+		// For local variables, the element is left on stack and becomes the local
+	}
+}
+
 /*
-* 
-* 
+*
+*
 * C-Style For loop is abandoned in Midori language
-* 
+*
 void CodeGenerator::operator()(MidoriStatement::For& for_stmt)
 {
 	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition_intializer);
@@ -600,6 +631,27 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 void CodeGenerator::operator()(MidoriExpression::Group& group)
 {
 	std::visit([this](auto&& arg){ (*this)(arg); }, **group.m_expr_in);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
+{
+	int line = tuple.m_op.m_line;
+	int size = static_cast<int>(tuple.m_elements.size());
+
+	// Emit code for each element (they will be pushed onto the stack)
+	std::ranges::for_each
+	(
+		tuple.m_elements,
+		[this](std::unique_ptr<MidoriExpression>& elem)
+		{
+			std::visit([this](auto&& arg){ (*this)(arg); }, **elem);
+		}
+	);
+
+	// At runtime, tuples are represented as arrays (heterogeneous)
+	// Type checking ensures type safety
+	EmitByte(OpCode::CREATE_ARRAY, line);
+	EmitThreeBytes(size, size >> 8, size >> 16, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
