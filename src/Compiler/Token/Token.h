@@ -35,6 +35,7 @@ struct Token
 		SLASH,
 		SINGLE_BAR,
 		DOUBLE_BAR,
+		BAR_BRACKET,
 		CARET,
 		SINGLE_AMPERSAND,
 		DOUBLE_AMPERSAND,
@@ -46,11 +47,8 @@ struct Token
 		GREATER_EQUAL,
 		LEFT_ANGLE,
 		LESS_EQUAL,
-		QUESTION,
 		SINGLE_COLON,
 		DOUBLE_COLON,
-		AT,
-		HASH,
 		TILDE,
 
 		// Literal
@@ -69,7 +67,6 @@ struct Token
 		TRUE,
 		DEF,
 		DEFUN,
-		DO,
 		BREAK,
 		CONTINUE,
 		IMPORT,

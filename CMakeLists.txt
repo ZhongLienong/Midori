@@ -32,6 +32,7 @@ if (MSVC)
         /permissive- # Standards-conformant mode
         /W4          # Warning level 4
         /EHa         # Enable async exception handling (allows __try/__except with C++)
+        /bigobj      # Allow big object files
     )
 
     # Debug configuration - best debuggability, no optimization
@@ -44,7 +45,7 @@ if (MSVC)
         $<$<CONFIG:Debug>:/DDEBUG>  # DEBUG macro
     )
 
-    # Development configuration - optimized with debug symbols (like Unreal's Development)
+    # Development configuration - optimized with debug symbols
     add_compile_options(
         $<$<CONFIG:Development>:/O2>    # Maximize speed
         $<$<CONFIG:Development>:/MD>    # Release runtime library
@@ -54,7 +55,7 @@ if (MSVC)
         $<$<CONFIG:Development>:/DDEVELOPMENT>  # DEVELOPMENT macro
     )
 
-    # Release configuration - maximum speed for modern x64 CPUs (12th gen Intel, Zen 4+)
+    # Release configuration - maximum speed for modern x64 CPUs
     add_compile_options(
         $<$<CONFIG:Release>:/O2>        # Maximize speed
         $<$<CONFIG:Release>:/Ob3>       # Aggressive inlining (beyond /Ob2)

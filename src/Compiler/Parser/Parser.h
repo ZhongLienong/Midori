@@ -309,7 +309,7 @@ private:
 
 	std::vector<Scope>::const_reverse_iterator FindTypeScope(std::string& name);
 
-	bool CanAccessSymbol(const std::string& symbol_full_path, const std::string& symbol_name) const;
+	bool CanAccessSymbol(const std::string& symbol_name) const;
 
 	bool SharesNamespace(const std::string& namespace1, const std::string& namespace2) const;
 
@@ -386,6 +386,8 @@ private:
 	MidoriResult::ExpressionResult ParseLogicalAnd();
 
 	MidoriResult::ExpressionResult ParseLogicalOr();
+
+	MidoriResult::ExpressionResult ParsePipe();
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
 

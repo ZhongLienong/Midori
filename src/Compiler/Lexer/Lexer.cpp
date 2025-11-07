@@ -24,7 +24,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"def"s, Token::Name::DEF},
 	{"defun"s, Token::Name::DEFUN},
 	{"fn"s, Token::Name::FUNCTION},
-	{"do"s, Token::Name::DO},
 	{"as"s, Token::Name::AS},
 	{"break"s, Token::Name::BREAK},
 	{"continue"s, Token::Name::CONTINUE},
@@ -283,8 +282,6 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					return MakeToken(Token::Name::RIGHT_BRACE);
 				case '[':
 					return MakeToken(Token::Name::LEFT_BRACKET);
-				case '@':
-					return MakeToken(Token::Name::AT);
 				case ']':
 					if (MatchNext('['))
 					{
@@ -329,8 +326,6 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					{
 						return MakeToken(Token::Name::SINGLE_MINUS);
 					}
-				case '?':
-					return MakeToken(Token::Name::QUESTION);
 				case ':':
 					if (MatchNext(':'))
 					{
@@ -350,6 +345,10 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					if (MatchNext('|'))
 					{
 						return MakeToken(Token::Name::DOUBLE_BAR);
+					}
+					else if (MatchNext('>'))
+					{
+						return MakeToken(Token::Name::BAR_BRACKET);
 					}
 					else
 					{

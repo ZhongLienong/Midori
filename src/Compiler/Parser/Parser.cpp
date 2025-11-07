@@ -116,7 +116,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	return std::unexpected<std::string>(GenerateParserError("Undefined name.", name_token));
 }
 
-bool Parser::CanAccessSymbol(const std::string& symbol_full_path, const std::string& symbol_name) const
+bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 {
 	// No module system enabled, allow all access
 	if (m_module_declarations == nullptr || m_current_module == nullptr)
@@ -456,7 +456,7 @@ MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
 
 MidoriResult::ExpressionResult Parser::ParseBind()
 {
-	return ParseLogicalOr()
+	return ParsePipe()
 		.and_then
 		(
 			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
@@ -944,8 +944,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					std::string symbol_name = ExtractSymbolName(variable.m_lexeme);
 					std::string qualifier = ExtractQualifier(variable.m_lexeme);
 
-					// Check if we can access this symbol
-					if (!CanAccessSymbol(variable.m_lexeme, symbol_name))
+					if (!CanAccessSymbol(symbol_name))
 					{
 						// Generate error with visibility information
 						std::string error_msg = "Symbol '" + symbol_name + "' is not accessible";
@@ -1085,6 +1084,44 @@ MidoriResult::ExpressionResult Parser::ParseLogicalAnd()
 MidoriResult::ExpressionResult Parser::ParseLogicalOr()
 {
 	return ParseBinary(&Parser::ParseLogicalAnd, Token::Name::DOUBLE_BAR);
+}
+
+MidoriResult::ExpressionResult Parser::ParsePipe()
+{
+	return ParseLogicalOr()
+		.and_then
+		(
+			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
+			{
+				while (Match(Token::Name::BAR_BRACKET))
+				{
+					Token& pipe_op = Previous();
+					MidoriResult::ExpressionResult right = ParseLogicalOr();
+					if (!right.has_value())
+					{
+						return std::unexpected<std::string>(std::move(right.error()));
+					}
+
+					// Transform pipe into call expression
+					// x |> f(y) becomes f(x, y)
+					// x |> f becomes f(x)
+					if (right.value()->IsExpression<MidoriExpression::Call>())
+					{
+						MidoriExpression::Call& call_expr = right.value()->GetExpression<MidoriExpression::Call>();
+						call_expr.m_arguments.insert(call_expr.m_arguments.begin(), std::move(left_expr));
+						left_expr = std::move(right.value());
+					}
+					else
+					{
+						std::vector<std::unique_ptr<MidoriExpression>> arguments;
+						arguments.emplace_back(std::move(left_expr));
+						left_expr = std::make_unique<MidoriExpression>(MidoriExpression::Call(pipe_op, std::move(right.value()), std::move(arguments)));
+					}
+				}
+
+				return left_expr;
+			}
+		);
 }
 
 MidoriResult::ExpressionResult Parser::ParseBlockExpression()

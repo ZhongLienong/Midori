@@ -1220,15 +1220,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 		(
 			[this, &unary](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
 			{
-				if (unary.m_op.m_token_name == Token::Name::AT)
-				{
-					if (!actual_type->IsType<MidoriType::ArrayType>())
-					{
-						// TODO: Generic array type
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unary prefix expression type error: expected array type", unary.m_op, m_file_name, m_source_lines, actual_type));
-					}
-				}
-				else if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS || unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
+				if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS || unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
 				{
 					if (!actual_type->IsNumericType())
 					{
