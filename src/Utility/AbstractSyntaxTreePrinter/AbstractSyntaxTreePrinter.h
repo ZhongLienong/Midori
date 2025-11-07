@@ -25,8 +25,6 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriStatement::Union& union_stmt, int depth = 0) const;
 
-	void operator()(const MidoriStatement::Namespace& namespace_stmt, int depth = 0) const;
-
 	void operator()(const MidoriExpression::As& as, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Binary& binary, int depth = 0) const;

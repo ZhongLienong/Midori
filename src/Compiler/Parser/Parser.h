@@ -7,6 +7,7 @@
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Compiler/Module/Module.h"
 
 class Parser
 {
@@ -25,9 +26,9 @@ private:
 	struct Scope
 	{
 		using VariableTable = std::unordered_map<std::string, VariableContext>;
-		using StructConstructorTable = std::unordered_map<std::string, std::weak_ptr<MidoriType>>;
-		using UnionConstructorTable = std::unordered_map<std::string, std::weak_ptr<MidoriType>>;
-		using DefinedTypeTable = std::unordered_map<std::string, std::weak_ptr<MidoriType>>;
+		using StructConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+		using UnionConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+		using DefinedTypeTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 		using DefinedNames = std::unordered_set<std::string>;
 
 		VariableTable m_variables;
@@ -45,13 +46,15 @@ private:
 	std::stack<int> m_local_count_before_loop;
 	std::vector<std::string> m_namespaces;
 	const std::vector<std::string>& m_source_lines;
+	const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations;
+	const ModuleDeclaration* m_current_module;
 	int m_function_depth = 0;
 	int m_current_token_index = 0;
 	int m_total_locals_in_curr_scope = 0;
 	int m_total_variables = 0;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines);
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, ModuleDeclaration>* module_declarations = nullptr);
 
 	MidoriResult::ParserResult Parse();
 
@@ -306,6 +309,16 @@ private:
 
 	std::vector<Scope>::const_reverse_iterator FindTypeScope(std::string& name);
 
+	bool CanAccessSymbol(const std::string& symbol_full_path, const std::string& symbol_name) const;
+
+	bool SharesNamespace(const std::string& namespace1, const std::string& namespace2) const;
+
+	std::string ExtractSymbolName(const std::string& qualified_name) const;
+
+	std::string ExtractQualifier(const std::string& qualified_name) const;
+
+	MidoriResult::ExpressionResult ResolveQualifiedName(const Token& name_token, const std::string& mangled_name);
+
 	Token& Peek(int offset);
 
 	Token& Previous();
@@ -407,8 +420,6 @@ private:
 	MidoriResult::StatementResult ParseSimpleStatement();
 
 	MidoriResult::StatementResult ParseForeignStatement();
-
-	MidoriResult::StatementResult ParseNamespaceStatement();
 
 	MidoriResult::StatementResult ParseStatement();
 };

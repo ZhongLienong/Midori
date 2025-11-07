@@ -266,12 +266,6 @@ MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MidoriStatement::Namespace::Namespace(const Token& name, std::vector<std::unique_ptr<MidoriStatement>>&& stmts)
-	: m_name(name),
-	m_stmts(std::move(stmts))
-{
-}
-
 MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),

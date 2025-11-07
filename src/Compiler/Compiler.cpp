@@ -1,6 +1,6 @@
 #include "Compiler.h"
 #include "Compiler/CodeGenerator/CodeGenerator.h"
-#include "Compiler/ImportManager/ImportManager.h"
+#include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
@@ -36,13 +36,13 @@ MidoriResult::CompilerResult Compiler::Compile()
 		(
 			[this](TokenStream&& lexer_result) -> MidoriResult::CompilerResult
 			{
-				return ImportManager(std::move(lexer_result), m_file_name)
+				return ModuleManager(std::move(lexer_result), m_file_name)
 					.GenerateBuildGraph()
 					.and_then
 					(
 						[this](BuildGraph&& build_graph) -> MidoriResult::CompilerResult
 						{
-							return Parser(build_graph.Stitch(), m_file_name, m_source_lines)
+							return Parser(build_graph.Stitch(), m_file_name, m_source_lines, &build_graph.m_module_declarations)
 								.Parse()
 								.and_then
 								(

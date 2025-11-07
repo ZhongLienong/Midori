@@ -1,0 +1,10 @@
+// Basic module example - standalone, no imports
+module MyModule
+public export { greet, add }
+
+defun greet() : Int => 42;
+
+defun add(a: Int, b: Int) : Int => a + b;
+
+// Internal function - not exported
+defun helper() : Int => 100;

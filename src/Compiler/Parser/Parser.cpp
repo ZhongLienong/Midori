@@ -11,11 +11,159 @@ namespace
 	constexpr std::string_view NameSeparator = "::";
 }
 
-Parser::Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines)
-	: m_tokens(std::move(tokens)), 
+Parser::Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, ModuleDeclaration>* module_declarations)
+	: m_tokens(std::move(tokens)),
 	m_file_name(file_name),
-	m_source_lines(source_lines)
+	m_source_lines(source_lines),
+	m_module_declarations(module_declarations),
+	m_current_module(nullptr)
 {
+	if (m_module_declarations != nullptr)
+	{
+		if (m_module_declarations->contains(m_file_name))
+		{
+			m_current_module = &(m_module_declarations->at(m_file_name));
+		}
+	}
+}
+
+bool Parser::SharesNamespace(const std::string& namespace1, const std::string& namespace2) const
+{
+	// Extract top-level namespace (everything before first '.')
+	auto get_top_level_namespace = [](const std::string& full_name) -> std::string
+	{
+		size_t pos = full_name.find('.');
+		if (pos != std::string::npos)
+		{
+			return full_name.substr(0u, pos);
+		}
+		return full_name;
+	};
+
+	std::string top_ns1 = get_top_level_namespace(namespace1);
+	std::string top_ns2 = get_top_level_namespace(namespace2);
+
+	// Both in global namespace (empty module names)
+	if (top_ns1.empty() && top_ns2.empty())
+	{
+		return true;
+	}
+
+	// One is in global, other is not
+	if (top_ns1.empty() || top_ns2.empty())
+	{
+		return false;
+	}
+
+	// Check if they share the same top-level namespace
+	// Math.Vector and Math.Matrix both share "Math"
+	// Math.Vector.Internal and Math.Utils both share "Math"
+	return top_ns1 == top_ns2;
+}
+
+std::string Parser::ExtractSymbolName(const std::string& qualified_name) const
+{
+	size_t last_separator = qualified_name.rfind(NameSeparator);
+	if (last_separator != std::string::npos)
+	{
+		return qualified_name.substr(last_separator + NameSeparator.length());
+	}
+	else
+	{
+		return qualified_name;
+	}
+}
+
+std::string Parser::ExtractQualifier(const std::string& qualified_name) const
+{
+	size_t last_separator = qualified_name.rfind(NameSeparator);
+	if (last_separator != std::string::npos)
+	{
+		return qualified_name.substr(0u, last_separator);
+	}
+	else
+	{
+		return {};
+	}
+}
+
+MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_token, const std::string& mangled_name)
+{
+	std::string lookup_name = mangled_name;
+	std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(lookup_name);
+
+	if (found_scope_it != m_scopes.rend())
+	{
+		Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(lookup_name);
+
+		// Global
+		if (IsGlobalName(found_scope_it))
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Global()));
+		}
+		// Local
+		else if (IsLocalName(find_result))
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+		}
+		// Cell
+		else
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+		}
+	}
+
+	return std::unexpected<std::string>(GenerateParserError("Undefined name.", name_token));
+}
+
+bool Parser::CanAccessSymbol(const std::string& symbol_full_path, const std::string& symbol_name) const
+{
+	// No module system enabled, allow all access
+	if (m_module_declarations == nullptr || m_current_module == nullptr)
+	{
+		return true;
+	}
+
+	// Check symbol visibility across all modules
+	// If multiple modules export the same symbol name, we check each one
+	// and allow access if at least one is accessible according to visibility rules
+	bool found_any_export = false;
+	bool has_accessible_export = false;
+
+	for (const auto& [file_path, module_decl] : *m_module_declarations)
+	{
+		if (module_decl.HasExport(symbol_name))
+		{
+			found_any_export = true;
+			auto visibility = module_decl.GetExportVisibility(symbol_name);
+
+			if (visibility == VisibilityLevel::Public)
+			{
+				has_accessible_export = true;
+			}
+			else if (visibility == VisibilityLevel::Private)
+			{
+				if (m_current_module->m_has_module_declaration && module_decl.m_has_module_declaration)
+				{
+					if (SharesNamespace(m_current_module->m_module_name, module_decl.m_module_name))
+					{
+						has_accessible_export = true;
+					}
+				}
+			}
+		}
+	}
+
+	// If symbol was found in exports, return whether we found an accessible version
+	if (found_any_export)
+	{
+		return has_accessible_export;
+	}
+	else
+	{
+		// Symbol not found in any module's exports - allow access (might be locally defined)
+		return true;
+	}
 }
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
@@ -169,39 +317,40 @@ std::string Parser::Mangle(std::string_view name)
 {
 	size_t sep_idx = name.find(NameSeparator);
 
-	if (sep_idx != std::string::npos) 
+	if (sep_idx != std::string::npos)
 	{
-		std::string_view top_namespace = name.substr(0, sep_idx);
-		std::vector<std::string>::const_iterator find_result = std::find(m_namespaces.cbegin(), m_namespaces.cend(), top_namespace);
+		// Name already has a qualifier (e.g., "UnionName::Member")
+		std::string_view top_qualifier = name.substr(0u, sep_idx);
+		std::vector<std::string>::const_iterator find_result = std::find(m_namespaces.cbegin(), m_namespaces.cend(), top_qualifier);
 
-		if (find_result != m_namespaces.cend()) 
+		if (find_result != m_namespaces.cend())
 		{
-			// Found the namespace in our stack - resolve to absolute path
+			// Found the qualifier in our stack, resolve to absolute path
 			std::string mangled_name;
 
-			// Prepend namespaces up to (but not including) the found one
+			// Prepend qualifiers up to (but not including) the found one
 			for (std::vector<std::string>::const_iterator it = m_namespaces.cbegin(); it != find_result; ++it)
 			{
 				mangled_name.append(*it).append(NameSeparator);
 			}
 
-			// Append the original name (which already includes the found namespace)
+			// Append the original name (which already includes the found qualifier)
 			mangled_name.append(name);
 			return mangled_name;
 		}
-		else 
+		else
 		{
-			// Namespace not in our stack - return as-is (already absolute)
+			// Qualifier not in our stack - return as-is (already absolute)
 			return std::string(name);
 		}
 	}
-	else 
+	else
 	{
-		// No separator - prepend all current namespaces
+		// No separator - prepend all current qualification contexts (e.g., union names)
 		std::string mangled_name;
-		for (const std::string& namespace_name : m_namespaces) 
+		for (const std::string& qualifier : m_namespaces)
 		{
-			mangled_name.append(namespace_name).append(NameSeparator);
+			mangled_name.append(qualifier).append(NameSeparator);
 		}
 		mangled_name.append(name);
 		return mangled_name;
@@ -566,9 +715,11 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				type_args = std::move(type_args_result.value());
 			}
 
+			// Build the constructor name (either with manual resolution for generics or using MatchNameResolution)
 			std::string constructor_name;
 			if (!type_args.empty())
 			{
+				// For generic types, manually build the qualified name
 				constructor_name = base_name_token.m_lexeme;
 				while (Match(Token::Name::DOUBLE_COLON))
 				{
@@ -576,15 +727,13 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 					{
 						return std::unexpected<std::string>(GenerateParserError("Expected identifier after '::'.", Previous()));
 					}
-					constructor_name.append("::").append(Previous().m_lexeme);
+					constructor_name.append(std::string(NameSeparator)).append(Previous().m_lexeme);
 				}
-
-				// Now mangle the full name (e.g., "Option::Some")
 				constructor_name = Mangle(constructor_name);
 			}
 			else
 			{
-				// No type arguments, use the standard MatchNameResolution
+				// No type arguments, use standard name resolution
 				MidoriResult::TokenResult data_name_token = MatchNameResolution();
 				if (!data_name_token.has_value())
 				{
@@ -792,30 +941,59 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 				[this](Token&& variable) -> MidoriResult::ExpressionResult
 				{
 					std::string mangled_name = Mangle(variable.m_lexeme);
-					std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable.m_lexeme);
+					std::string symbol_name = ExtractSymbolName(variable.m_lexeme);
+					std::string qualifier = ExtractQualifier(variable.m_lexeme);
 
-					if (found_scope_it != m_scopes.rend())
+					// Check if we can access this symbol
+					if (!CanAccessSymbol(variable.m_lexeme, symbol_name))
 					{
-						Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable.m_lexeme);
+						// Generate error with visibility information
+						std::string error_msg = "Symbol '" + symbol_name + "' is not accessible";
 
-						// global
-						if (IsGlobalName(found_scope_it))
+						// Try to find which module owns it and provide better error
+						if (m_module_declarations != nullptr)
 						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Global()));
+							for (const auto& [file_path, module_decl] : *m_module_declarations)
+							{
+								if (module_decl.HasExport(symbol_name))
+								{
+									VisibilityLevel visibility = module_decl.GetExportVisibility(symbol_name);
+									if (visibility == VisibilityLevel::Private)
+									{
+										error_msg += "\n  Note: '" + symbol_name + "' is marked as 'private export' in module " + module_decl.m_module_name;
+										error_msg += "\n  Note: Only modules in the " + module_decl.m_module_name.substr(0, module_decl.m_module_name.find_last_of('.')) + " namespace can access it";
+									}
+									else if (visibility == VisibilityLevel::Internal)
+									{
+										error_msg += "\n  Note: '" + symbol_name + "' is not exported from module " + module_decl.m_module_name;
+										error_msg += "\n  Suggestion: Add it to a 'public export' or 'private export' block";
+									}
+									break;
+								}
+							}
 						}
-						// local
-						else if (IsLocalName(find_result))
+
+						return std::unexpected<std::string>(GenerateParserError(std::move(error_msg), variable));
+					}
+
+					// Check if this is a module-qualified name
+					if (!qualifier.empty() && m_module_declarations != nullptr)
+					{
+						// Find the module that exports this symbol
+						for (const auto& [file_path, module_decl] : *m_module_declarations)
 						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
-						}
-						// cell
-						else
-						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+							if (module_decl.m_module_name == qualifier && module_decl.HasExport(symbol_name))
+							{
+								// Found the module - create token with unqualified name for lookup
+								Token unqualified_token = variable;
+								unqualified_token.m_lexeme = symbol_name;
+								return ResolveQualifiedName(unqualified_token, symbol_name);
+							}
 						}
 					}
 
-					return std::unexpected<std::string>(GenerateParserError("Undefined name.", variable));
+					// Regular name resolution (non-module qualified or namespace qualified)
+					return ResolveQualifiedName(variable, mangled_name);
 				}
 			);
 	}
@@ -1828,52 +2006,6 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		);
 }
 
-MidoriResult::StatementResult Parser::ParseNamespaceStatement()
-{
-	return !IsAtGlobalScope()
-		? std::unexpected<std::string>(GenerateParserError("Namespaces can only be declared at global scope.", Previous()))
-		: Consume(Token::Name::IDENTIFIER_LITERAL, "Expected namespace name.")
-		.and_then
-		(
-			[this](Token&& name) ->MidoriResult::StatementResult
-			{
-				return Consume(Token::Name::LEFT_BRACE, "Expected '{' before namespace body.")
-					.and_then
-					(
-						[&name, this](Token&&) ->MidoriResult::StatementResult
-						{
-							std::string namespace_name = name.m_lexeme;
-
-							name.m_lexeme = Mangle(name.m_lexeme);
-							m_namespaces.emplace_back(std::move(namespace_name));
-
-							return ParseZeroOrMoreLimited<std::unique_ptr<MidoriStatement>>
-							(
-								[this]() { return ParseDeclaration(); },
-								[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after namespace body."); }
-							)
-								.and_then
-								(
-									[&name, this](std::vector<std::unique_ptr<MidoriStatement>>&& decls) -> MidoriResult::StatementResult
-									{
-										m_namespaces.pop_back();
-										return std::make_unique<MidoriStatement>(MidoriStatement::Namespace(name, std::move(decls)));
-									}
-								)
-								.or_else
-								(
-									[this](std::string&& error) ->MidoriResult::StatementResult
-									{
-										m_namespaces.pop_back();
-										return std::unexpected<std::string>(std::move(error));
-									}
-								);
-						}
-					);
-			}
-		);
-}
-
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
 	auto handle_body = [this](Token& keyword, std::vector<std::string>&& binding_names, Token&& member_name) -> MidoriResult::ExpressionResult
@@ -2172,7 +2304,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 						return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
 					}
 
-					std::shared_ptr<MidoriType> base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme).lock();
+					const std::shared_ptr<MidoriType>& base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
 
 					// Check if there are generic type arguments
 					if (Match(Token::Name::LEFT_ANGLE))
@@ -2252,10 +2384,6 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 	else if (Match(Token::Name::FOREIGN))
 	{
 		return ParseForeignStatement();
-	}
-	else if (Match(Token::Name::NAMESPACE))
-	{
-		return ParseNamespaceStatement();
 	}
 	else
 	{

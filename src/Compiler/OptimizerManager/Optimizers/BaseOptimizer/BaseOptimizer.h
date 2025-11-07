@@ -56,8 +56,6 @@ protected:
 
 	virtual void operator()(MidoriStatement::Union& union_stmt);
 
-	virtual void operator()(MidoriStatement::Namespace& namespace_stmt);
-
 	virtual void operator()(MidoriExpression::As& as);
 
 	virtual void operator()(MidoriExpression::Binary& binary);

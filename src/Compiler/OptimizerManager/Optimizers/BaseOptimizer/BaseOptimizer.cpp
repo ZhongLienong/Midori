@@ -54,18 +54,6 @@ void MidoriOptimizer::operator()(MidoriStatement::Union&)
 {
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Namespace& namespace_stmt)
-{
-	std::ranges::for_each
-	(
-		namespace_stmt.m_stmts,
-		[this](std::unique_ptr<MidoriStatement>& stmt)
-		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **stmt);
-		}
-	);
-}
-
 void MidoriOptimizer::operator()(MidoriExpression::As& as)
 {
 	VisitAndReplace(as.m_expr);

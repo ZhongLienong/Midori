@@ -114,8 +114,6 @@ private:
 
 	void operator()(MidoriStatement::Union& union_stmt);
 
-	void operator()(MidoriStatement::Namespace& namespace_stmt);
-
 	void operator()(MidoriExpression::As& as);
 
 	void operator()(MidoriExpression::Binary& binary);

@@ -894,17 +894,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 	return MidoriType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Namespace& namespace_stmt)
-{
-	std::ranges::for_each
-	(
-		namespace_stmt.m_stmts,
-		[this](const std::unique_ptr<MidoriStatement>& stmt) { (void)std::visit([this](auto&& arg) { return (*this)(arg); }, **stmt); }
-	);
-
-	return MidoriType::MakeUndecidedType();
-}
-
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **match.m_arg_expr)

@@ -1,4 +1,4 @@
-namespace Math
-{
-	foreign "SquareRoot" SquareRoot : fn(Float) -> Float;
-}
+module Math
+public export { SquareRoot }
+
+foreign "SquareRoot" SquareRoot : fn(Float) -> Float;

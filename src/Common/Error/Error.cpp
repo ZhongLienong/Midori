@@ -135,14 +135,14 @@ std::string MidoriError::GenerateLexerErrorWithContext(std::string_view message,
 	return GenerateRichError("Lexer Error", message, line, file_name, source_lines, column, 1, suggestion);
 }
 
-std::string MidoriError::GenerateImportManagerErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+std::string MidoriError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
 	std::ostringstream oss;
 
 	// Error header with colors
 	oss << Printer::Detail::GetStyleCode(Printer::Style::BOLD);
 	oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_RED);
-	oss << "Import Manager Error";
+	oss << "Module Error";
 	oss << "\033[0m";
 	oss << " at ";
 	oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_CYAN);

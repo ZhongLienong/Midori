@@ -16,7 +16,7 @@ namespace MidoriResult
 	using FunctionParamResult = std::expected<std::pair<Token, std::shared_ptr<MidoriType>>, std::string>;
 	using FunctionParamsResult = std::expected<std::vector<std::pair<Token, std::shared_ptr<MidoriType>>>, std::string>;
 	using LexerResult = std::expected<TokenStream, std::string>;
-	using ImportManagerResult = std::expected<BuildGraph, std::string>;
+	using ModuleManagerResult = std::expected<BuildGraph, std::string>;
 	using ExpressionResult = std::expected<std::unique_ptr<MidoriExpression>, std::string>;
 	using StatementResult = std::expected<std::unique_ptr<MidoriStatement>, std::string>;
 	using ParserResult = std::expected<MidoriProgramTree, std::string>;

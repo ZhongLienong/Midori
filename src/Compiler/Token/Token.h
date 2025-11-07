@@ -4,6 +4,9 @@
 #include <unordered_map>
 #include <vector>
 
+// Forward declaration moved to include
+#include "Compiler/Module/Module.h"
+
 struct Token
 {
 	enum class Name
@@ -78,9 +81,12 @@ struct Token
 		CASE,
 		DEFAULT,
 		MATCH,
-		NAMESPACE,
 		THEN,
 		WITH,
+		MODULE,
+		EXPORT,
+		PUBLIC,
+		PRIVATE,
 
 		// types
 		FLOAT,
@@ -132,7 +138,7 @@ public:
 	void PopBack() noexcept;
 };
 
-struct BuildGraph 
+struct BuildGraph
 {
 	struct BuildNode
 	{
@@ -144,6 +150,7 @@ struct BuildGraph
 	};
 
 	std::unordered_map<std::string, BuildNode> m_nodes;
+	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
 
 	std::vector<std::string> GetStartingPoints() const;
 

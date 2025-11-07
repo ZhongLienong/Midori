@@ -82,8 +82,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Union& union_stmt);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Namespace& namespace_stmt);
-
 	MidoriResult::TypeResult operator()(MidoriExpression::As& as);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Binary& binary);

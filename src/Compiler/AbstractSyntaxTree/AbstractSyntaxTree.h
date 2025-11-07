@@ -91,16 +91,8 @@ public:
 		Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
 	};
 
-	struct Namespace
-	{
-		Token m_name;
-		std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
-
-		Namespace(const Token& name, std::vector<std::unique_ptr<MidoriStatement>>&& stmts);
-	};
-
 private:
-	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Namespace>;
+	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union>;
 	StatementUnion m_stmt_data;
 
 public:

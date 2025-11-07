@@ -150,28 +150,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Union& union_stm
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Namespace& namespace_stmt, int depth) const
-{
-	PrintWithIndentation(depth, "Namespace {");
-	PrintWithIndentation(depth + 1, "Name: " + namespace_stmt.m_name.m_lexeme);
-	PrintWithIndentation(depth + 1, "Body: ");
-	std::ranges::for_each
-	(
-		namespace_stmt.m_stmts, [depth, this](const std::unique_ptr<MidoriStatement>& stmt)
-		{
-			std::visit
-			(
-				[depth, this](auto&& arg)
-				{
-					(*this)(arg, depth + 1);
-				},
-				**stmt
-			);
-		}
-	);
-	PrintWithIndentation(depth, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::As& as, int depth) const
 {
 	PrintWithIndentation(depth, "As {");

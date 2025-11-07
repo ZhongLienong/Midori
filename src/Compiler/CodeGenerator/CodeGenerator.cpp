@@ -435,18 +435,6 @@ void CodeGenerator::operator()(MidoriStatement::Union&)
 	return;
 }
 
-void CodeGenerator::operator()(MidoriStatement::Namespace& namespace_stmt)
-{
-	std::ranges::for_each
-	(
-		namespace_stmt.m_stmts,
-		[this](std::unique_ptr<MidoriStatement>& stmt)
-		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **stmt);
-		}
-	);
-}
-
 void CodeGenerator::operator()(MidoriExpression::As& as)
 {
 	int line = as.m_as_keyword.m_line;

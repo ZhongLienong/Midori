@@ -1,4 +1,4 @@
-namespace DateTime
-{
-	foreign "GetTime" GetTime : fn() -> Float;
-}
+module DateTime
+public export { GetTime }
+
+foreign "GetTime" GetTime : fn() -> Float;
