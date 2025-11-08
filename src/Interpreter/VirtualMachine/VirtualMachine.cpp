@@ -1184,6 +1184,44 @@ int VirtualMachine::ExecuteLoop() noexcept
 			union_ref.m_index = tag;
 			break;
 		}
+		case OpCode::MATCH_JUMP_TABLE:
+		{
+			MidoriInteger tag = Peek().GetInteger();
+			int case_count = static_cast<int>(ReadByte());
+
+			// Read jump table offsets and jump to the matching case
+			if (tag >= 0 && tag < case_count)
+			{
+				int tag_int = static_cast<int>(tag);
+
+				// Skip to the offset for this tag
+				for (int i = 0; i < tag_int; i += 1)
+				{
+					ReadShort(); // Skip offsets for previous cases
+				}
+
+				// Read the offset for our case
+				int offset = ReadShort();
+
+				// Skip remaining offsets
+				for (int i = tag_int + 1; i < case_count; i += 1)
+				{
+					ReadShort();
+				}
+
+				// Jump to the case body
+				m_instruction_pointer += offset;
+			}
+			else
+			{
+				// Invalid tag: skip all offsets
+				for (int i = 0; i < case_count; i += 1)
+				{
+					ReadShort();
+				}
+			}
+			break;
+		}
 		case OpCode::CALL_FOREIGN:
 		{
 			MidoriValue foreign_function_name = Pop();
@@ -1204,6 +1242,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			void* args[UINT8_MAX];
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
+				size_t idx = static_cast<size_t>(i);
 				MidoriValue arg = Pop();
 
 				if (m_garbage_collector.Contains(arg.GetPointer()))
@@ -1211,12 +1250,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 					MidoriTraceable* ptr = arg.GetPointer();
 					if (ptr->IsTraceable<MidoriText>())
 					{
-						args[i] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+						args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
 					}
 				}
 				else
 				{
-					std::memcpy(&args[i], &arg, MidoriValue::DATA_BUFFER_SIZE);
+					std::memcpy(&args[idx], &arg, MidoriValue::DATA_BUFFER_SIZE);
 				}
 			}
 

@@ -227,6 +227,40 @@ namespace
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
+
+	void MatchJumpTableInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int case_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int table_start = offset + 2;
+
+		std::ostringstream formated_str;
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_YELLOW>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(case_count));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(case_count) + " cases");
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+
+		// Advance offset past opcode and case count
+		offset += 2;
+
+		// Print each jump table entry
+		for (int i = 0; i < case_count; i += 1)
+		{
+			int jump_offset = static_cast<int>(executable.ReadByteCode(offset, proc_index)) |
+				(static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) << 8);
+
+			int destination = table_start + case_count * 2 + jump_offset;
+
+			std::ostringstream entry_str;
+			entry_str << "    [" << Printer::Colored<Printer::Color::CYAN>(std::to_string(i)) << "] ";
+			entry_str << "-> 0x" << std::hex << std::setfill('0') << std::setw(::address_width) << destination;
+			entry_str << Printer::Colored<Printer::Color::DARK_GRAY>(" (offset +" + std::to_string(jump_offset) + ")");
+			entry_str << '\n';
+			Printer::Print(entry_str.str());
+
+			offset += 2;
+		}
+	}
 }
 
 namespace Disassembler
@@ -506,6 +540,9 @@ namespace Disassembler
 			break;
 		case OpCode::SET_TAG:
 			SetTagInstruction("SET_TAG", executable, proc_index, offset);
+			break;
+		case OpCode::MATCH_JUMP_TABLE:
+			MatchJumpTableInstruction("MATCH_JUMP_TABLE", executable, proc_index, offset);
 			break;
 		case OpCode::CALL_FOREIGN:
 			CallInstruction("CALL_FOREIGN", executable, proc_index, offset);

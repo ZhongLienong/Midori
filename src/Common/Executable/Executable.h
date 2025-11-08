@@ -109,6 +109,7 @@ enum class OpCode : uint8_t
 	// Match
 	LOAD_TAG,
 	SET_TAG,
+	MATCH_JUMP_TABLE,
 
 	// Callable
 	CALL_FOREIGN,

@@ -1073,26 +1073,76 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 	std::visit([this](auto&& arg) { (*this)(arg); }, **match.m_arg_expr);
 	EmitByte(OpCode::LOAD_TAG, line);
 
-	// for each case
-	// compare tag
-	std::vector<int> jumps;
-	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	// Check if we can use jump table optimization
+	// Requirements:
+	// 1. All cases are Case expressions (not Default)
+	// 2. Tags are dense and sequential starting from 0: 0, 1, 2, 3, ..., n-1
+	// 3. At least 3 cases (jump table overhead not worth it for 2 cases)
+	bool can_use_jump_table = match.m_cases.size() >= 3u;
+	std::vector<MidoriExpression::Case*> sorted_cases;
+	sorted_cases.reserve(match.m_cases.size());
+
+	if (can_use_jump_table)
 	{
-		if (case_expr->IsExpression<MidoriExpression::Case>())
+		for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 		{
-			MidoriExpression::Case& member_case = case_expr->GetExpression<MidoriExpression::Case>();
+			if (!case_expr->IsExpression<MidoriExpression::Case>())
+			{
+				can_use_jump_table = false;
+				break;
+			}
+			sorted_cases.emplace_back(&case_expr->GetExpression<MidoriExpression::Case>());
+		}
 
-			EmitByte(OpCode::DUP, line);
-			MidoriInteger member_tag = static_cast<MidoriInteger>(member_case.m_tag);
-			EmitIntegerConstant(member_tag, line);
-			EmitByte(OpCode::EQUAL_INTEGER, line);
-			int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
-			EmitByte(OpCode::POP, line); // pop tag
-			EmitByte(OpCode::POP, line); // pop comp result
+		// Sort cases by tag and check for dense sequential tags
+		if (can_use_jump_table)
+		{
+			std::ranges::sort(sorted_cases, [](const MidoriExpression::Case* a, const MidoriExpression::Case* b) { return a->m_tag < b->m_tag; });
 
-			std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+			for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
+			{
+				if (sorted_cases[i]->m_tag != static_cast<int>(i))
+				{
+					can_use_jump_table = false;
+					break;
+				}
+			}
+		}
+	}
 
-			int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
+	if (can_use_jump_table)
+	{
+		EmitByte(OpCode::MATCH_JUMP_TABLE, line);
+		EmitByte(static_cast<OpCode>(sorted_cases.size()), line);
+
+		// Reserve space for jump offsets (2 bytes each)
+		std::vector<int> case_offset_positions;
+		case_offset_positions.reserve(sorted_cases.size());
+		for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
+		{
+			case_offset_positions.emplace_back(m_procedures[m_current_procedure_index].GetByteCodeSize());
+			EmitByte(static_cast<OpCode>(0xff), line);
+			EmitByte(static_cast<OpCode>(0xff), line);
+		}
+
+		// Emit all case bodies and patch offsets
+		std::vector<int> end_jumps;
+		end_jumps.reserve(sorted_cases.size());
+		for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
+		{
+			MidoriExpression::Case* member_case = sorted_cases[i];
+
+			// Patch the jump table offset for this case
+			int case_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+			int offset_from_table = case_start - static_cast<int>(case_offset_positions[0u] + sorted_cases.size() * 2u);
+			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i], static_cast<OpCode>(offset_from_table & 0xff));
+			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i] + 1, static_cast<OpCode>((offset_from_table >> 8) & 0xff));
+
+			// Emit case body
+			std::visit([this](auto&& arg) { (*this)(arg); }, **member_case->m_expr);
+
+			// Pop match scope bindings
+			int num_to_pop = static_cast<int>(member_case->m_binding_names.size());
 			while (num_to_pop > 0)
 			{
 				int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
@@ -1108,28 +1158,75 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 				EmitByte(static_cast<OpCode>(count_to_pop), line);
 				num_to_pop -= count_to_pop;
 			}
-			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
 
-			PatchJump(jump_if_false, line);
-			EmitByte(OpCode::POP, line);
+			end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
 		}
-		else
-		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
 
-			jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-			break;
-		}
-	}
-
-	std::ranges::for_each
-	(
-		jumps,
-		[this, line](int jump_addr)
+		// Patch all end jumps to point after the match
+		for (int jump_addr : end_jumps)
 		{
 			PatchJump(jump_addr, line);
 		}
-	);
+	}
+	else
+	{
+		// Fall back to linear search
+		std::vector<int> jumps;
+		for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+		{
+			if (case_expr->IsExpression<MidoriExpression::Case>())
+			{
+				MidoriExpression::Case& member_case = case_expr->GetExpression<MidoriExpression::Case>();
+
+				EmitByte(OpCode::DUP, line);
+				MidoriInteger member_tag = static_cast<MidoriInteger>(member_case.m_tag);
+				EmitIntegerConstant(member_tag, line);
+				EmitByte(OpCode::EQUAL_INTEGER, line);
+				int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
+				EmitByte(OpCode::POP, line); // pop tag
+				EmitByte(OpCode::POP, line); // pop comp result
+
+				std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+
+				int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
+				while (num_to_pop > 0)
+				{
+					int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
+
+					if (count_to_pop == num_to_pop)
+					{
+						EmitByte(OpCode::POP_MATCH_SCOPE, line);
+					}
+					else
+					{
+						EmitByte(OpCode::POP_VALUES, line);
+					}
+					EmitByte(static_cast<OpCode>(count_to_pop), line);
+					num_to_pop -= count_to_pop;
+				}
+				jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+
+				PatchJump(jump_if_false, line);
+				EmitByte(OpCode::POP, line);
+			}
+			else
+			{
+				std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+
+				jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+				break;
+			}
+		}
+
+		std::ranges::for_each
+		(
+			jumps,
+			[this, line](int jump_addr)
+			{
+				PatchJump(jump_addr, line);
+			}
+		);
+	}
 }
 
 void CodeGenerator::operator()(MidoriExpression::Case& case_expr)

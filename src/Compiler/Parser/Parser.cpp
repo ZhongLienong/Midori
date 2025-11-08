@@ -1682,7 +1682,6 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 																	(
 																		[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
 																		{
-																			tag += 1;
 																			if (Match(Token::Name::LEFT_PAREN))
 																			{
 																				return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
@@ -1695,13 +1694,17 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 																					(
 																						[&tag, &member_name](std::vector<std::shared_ptr<MidoriType>>&& types) -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
 																						{
-																							return std::make_tuple(member_name.m_lexeme, std::move(types), tag);
+																							std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int> return_val = std::make_tuple(member_name.m_lexeme, std::move(types), tag);
+																							tag += 1;
+																							return return_val;
 																						}
 																					);
 																			}
 																			else
 																			{
-																				return std::make_tuple(member_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(), tag);
+																				std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int> return_val = std::make_tuple(member_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(), tag);
+																				tag += 1;
+																				return return_val;
 																			}
 																		}
 																	);
