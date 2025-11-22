@@ -13,7 +13,8 @@ defun test_public_works() : Float => add_vectors(3.0, 4.0, 5.0, 6.0);
 // This should FAIL - private function not accessible from different namespace
 defun test_private_fails() : Float => internal_normalize(1.0, 2.0);
 
-defun run_test() : Int => {
+defun run_test() : Int => 
+{
     def public_result = test_public_works();
     def private_result = test_private_fails();
     42

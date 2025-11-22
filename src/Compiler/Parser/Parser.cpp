@@ -3,42 +3,36 @@
 #include <queue>
 #include <sstream>
 
+#include "Common/Constant/Constant.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Parser.h"
 
-namespace
-{
-	constexpr std::string_view NameSeparator = "::";
-}
+using namespace std::string_literals;
 
-Parser::Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, ModuleDeclaration>* module_declarations)
+Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
 	: m_tokens(std::move(tokens)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
-	m_module_declarations(module_declarations),
-	m_current_module(nullptr)
+	m_module_declarations(nullptr),
+	m_use_imports(nullptr),
+	m_current_module(module_decl),
+	m_current_use_imports(use_imports),
+	m_imported_symbols(imports)
 {
-	if (m_module_declarations != nullptr)
-	{
-		if (m_module_declarations->contains(m_file_name))
-		{
-			m_current_module = &(m_module_declarations->at(m_file_name));
-		}
-	}
 }
 
 bool Parser::SharesNamespace(const std::string& namespace1, const std::string& namespace2) const
 {
 	// Extract top-level namespace (everything before first '.')
 	auto get_top_level_namespace = [](const std::string& full_name) -> std::string
-	{
-		size_t pos = full_name.find('.');
-		if (pos != std::string::npos)
 		{
-			return full_name.substr(0u, pos);
-		}
-		return full_name;
-	};
+			size_t pos = full_name.find('.');
+			if (pos != std::string::npos)
+			{
+				return full_name.substr(0u, pos);
+			}
+			return full_name;
+		};
 
 	std::string top_ns1 = get_top_level_namespace(namespace1);
 	std::string top_ns2 = get_top_level_namespace(namespace2);
@@ -96,20 +90,67 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	{
 		Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(lookup_name);
 
+		std::string module_name;
+		bool is_imported = IsInUseImports(lookup_name, module_name);
+
+		Token qualified_token = name_token;
+		if (is_imported)
+		{
+			qualified_token.m_lexeme = module_name + NameSeparator.data() + lookup_name;
+		}
+
 		// Global
 		if (IsGlobalName(found_scope_it))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Global()));
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Global()));
 		}
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
 		}
 		// Cell
 		else
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+		}
+	}
+
+	// Not found in local scopes - check imported modules (for bare imports)
+	// Iterate through all imported modules to find if any exports this symbol
+	for (const auto& [imported_module_name, symbol_table] : m_imported_symbols)
+	{
+		if (symbol_table.HasExport(lookup_name))
+		{
+			VisibilityLevel visibility = symbol_table.GetExportVisibility(lookup_name);
+
+			bool can_access = false;
+			if (visibility == VisibilityLevel::Public)
+			{
+				can_access = true;
+			}
+			else if (visibility == VisibilityLevel::Private)
+			{
+				// Private exports only accessible to modules in same namespace
+				if (m_current_module != nullptr && m_current_module->m_has_module_declaration)
+				{
+					if (SharesNamespace(m_current_module->m_module_name, imported_module_name))
+					{
+						can_access = true;
+					}
+				}
+			}
+
+			if (can_access)
+			{
+				Token qualified_token = name_token;
+				qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
+				return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Global()));
+			}
+			else
+			{
+				return std::unexpected<std::string>(GenerateParserError(std::format("Cannot access private symbol '{}' from module '{}'.", lookup_name, imported_module_name), name_token));
+			}
 		}
 	}
 
@@ -124,46 +165,92 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 		return true;
 	}
 
-	// Check symbol visibility across all modules
-	// If multiple modules export the same symbol name, we check each one
-	// and allow access if at least one is accessible according to visibility rules
-	bool found_any_export = false;
-	bool has_accessible_export = false;
+	// First check if symbol is defined in current scope (local or global)
+	// Local symbols always take precedence over imported symbols
+	std::string mangled_name = symbol_name;  // For namespace-qualified names
+	std::vector<Scope>::const_reverse_iterator found_scope_it = std::ranges::find_if
+	(
+		m_scopes.rbegin(),
+		m_scopes.rend(),
+		[&mangled_name](const Scope& scope)
+		{
+			return scope.m_variables.contains(mangled_name) ||
+				scope.m_struct_constructors.contains(mangled_name) ||
+				scope.m_union_constructors.contains(mangled_name) ||
+				scope.m_defined_names.contains(mangled_name);
+		}
+	);
 
+	// If symbol is defined in current scope, always allow access
+	if (found_scope_it != m_scopes.rend())
+	{
+		return true;
+	}
+
+	// For unqualified symbol access to external symbols, the symbol must either be:
+	// 1. Explicitly imported via 'use' statement, OR
+	// 2. Not exported by any module (i.e., foreign function)
+
+	// Check if symbol was explicitly imported via 'use'
+	std::string module_name;
+	if (IsInUseImports(symbol_name, module_name))
+	{
+		// Symbol is in use imports, verify it's actually exported by that module
+		return ResolveQualifiedSymbol(module_name, symbol_name);
+	}
+
+	// Check if symbol is exported by ANY module
+	bool found_in_any_export = false;
 	for (const auto& [file_path, module_decl] : *m_module_declarations)
 	{
 		if (module_decl.HasExport(symbol_name))
 		{
-			found_any_export = true;
-			auto visibility = module_decl.GetExportVisibility(symbol_name);
-
-			if (visibility == VisibilityLevel::Public)
-			{
-				has_accessible_export = true;
-			}
-			else if (visibility == VisibilityLevel::Private)
-			{
-				if (m_current_module->m_has_module_declaration && module_decl.m_has_module_declaration)
-				{
-					if (SharesNamespace(m_current_module->m_module_name, module_decl.m_module_name))
-					{
-						has_accessible_export = true;
-					}
-				}
-			}
+			found_in_any_export = true;
+			break;
 		}
 	}
 
-	// If symbol was found in exports, return whether we found an accessible version
-	if (found_any_export)
+	// If symbol is exported by a module but NOT in use imports, deny access
+	// (must use qualified name like Module.Symbol)
+	if (found_in_any_export)
 	{
-		return has_accessible_export;
+		return false;
 	}
-	else
+
+	// Symbol not exported by any module - allow access (might be foreign function)
+	return true;
+}
+
+bool Parser::IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const
+{
+	// Check if the symbol was explicitly imported via 'use' statement
+	for (const UseImport& use_import : m_current_use_imports)
 	{
-		// Symbol not found in any module's exports - allow access (might be locally defined)
-		return true;
+		if (use_import.m_symbol_name == symbol_name)
+		{
+			out_module_name = use_import.m_module_name;
+			return true;
+		}
 	}
+	return false;
+}
+
+bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const
+{
+	const bool using_new_path = (m_module_declarations == nullptr);
+
+	if (using_new_path)
+	{
+		// New path: Check imported symbol tables (from per-module compilation)
+		std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_imported_symbols.find(module_name);
+		if (it != m_imported_symbols.cend())
+		{
+			// Check if the symbol is exported by this module
+			return it->second.HasExport(symbol_name);
+		}
+		return false;  // Module not found in imports
+	}
+	return false;  // Module not found
 }
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
@@ -588,11 +675,11 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 	if (op.m_token_name == Token::Name::RIGHT_LEFT_BRACKET)
 	{
 		return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-		(
-			[this]() { return ParseBind(); },
-			[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
-			[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
-		)
+			(
+				[this]() { return ParseBind(); },
+				[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
+				[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
+			)
 			.and_then
 			(
 				[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
@@ -610,11 +697,11 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 				[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
 				{
 					return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-					(
-						[this]() { return ParseBind(); },
-						[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
-						[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
-					)
+						(
+							[this]() { return ParseBind(); },
+							[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
+							[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
+						)
 						.and_then
 						(
 							[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
@@ -701,11 +788,11 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 			if (Match(Token::Name::LEFT_ANGLE))
 			{
 				MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-				(
-					[this]() { return ParseType(); },
-					[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-					[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
-				);
+					(
+						[this]() { return ParseType(); },
+						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
+						[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+					);
 
 				if (!type_args_result.has_value())
 				{
@@ -742,8 +829,8 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				constructor_name = Mangle(data_name_token.value().m_lexeme);
 			}
 
-			Token data_name_token_value = base_name_token; 
-			data_name_token_value.m_lexeme = constructor_name;  
+			Token data_name_token_value = base_name_token;
+			data_name_token_value.m_lexeme = constructor_name;
 
 			std::optional<std::shared_ptr<MidoriType>> defined_type = std::nullopt;
 			bool is_struct = false;
@@ -858,11 +945,11 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpression>&& callee)
 {
 	return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-	(
-		[this]() { return ParseExpression(); },
-		[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-		[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
-	)
+		(
+			[this]() { return ParseExpression(); },
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
+			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
+		)
 		.and_then
 		(
 			[&callee, this](std::vector<std::unique_ptr<MidoriExpression>>&& arguments) ->MidoriResult::ExpressionResult
@@ -944,12 +1031,11 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					std::string symbol_name = ExtractSymbolName(variable.m_lexeme);
 					std::string qualifier = ExtractQualifier(variable.m_lexeme);
 
-					if (!CanAccessSymbol(symbol_name))
+					// Only check CanAccessSymbol for unqualified names
+					// Qualified names (Module::Symbol) bypass this check and are validated below
+					if (qualifier.empty() && !CanAccessSymbol(symbol_name))
 					{
-						// Generate error with visibility information
-						std::string error_msg = "Symbol '" + symbol_name + "' is not accessible";
-
-						// Try to find which module owns it and provide better error
+						std::string error_msg = "Symbol '"s + symbol_name + "' is not accessible"s;
 						if (m_module_declarations != nullptr)
 						{
 							for (const auto& [file_path, module_decl] : *m_module_declarations)
@@ -959,39 +1045,54 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 									VisibilityLevel visibility = module_decl.GetExportVisibility(symbol_name);
 									if (visibility == VisibilityLevel::Private)
 									{
-										error_msg += "\n  Note: '" + symbol_name + "' is marked as 'private export' in module " + module_decl.m_module_name;
-										error_msg += "\n  Note: Only modules in the " + module_decl.m_module_name.substr(0, module_decl.m_module_name.find_last_of('.')) + " namespace can access it";
+										error_msg += "\n  Note: '"s + symbol_name + "' is marked as 'private export' in module "s + module_decl.m_module_name;
+										error_msg += "\n  Note: Only modules in the "s + module_decl.m_module_name.substr(0, module_decl.m_module_name.find_last_of('.')) + " namespace can access it"s;
 									}
 									else if (visibility == VisibilityLevel::Internal)
 									{
-										error_msg += "\n  Note: '" + symbol_name + "' is not exported from module " + module_decl.m_module_name;
-										error_msg += "\n  Suggestion: Add it to a 'public export' or 'private export' block";
+										error_msg += "\n  Note: '"s + symbol_name + "' is not exported from module "s + module_decl.m_module_name;
+										error_msg += "\n  Suggestion: Add it to a 'public export' or 'private export' block"s;
 									}
 									break;
 								}
 							}
 						}
 
+						error_msg += "\n  Hint: Use 'use "s + std::string(m_module_declarations != nullptr && std::ranges::any_of(*m_module_declarations, [&symbol_name](const auto& pair) { return pair.second.HasExport(symbol_name); }) ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
 						return std::unexpected<std::string>(GenerateParserError(std::move(error_msg), variable));
 					}
 
 					// Check if this is a module-qualified name
-					if (!qualifier.empty() && m_module_declarations != nullptr)
+					if (!qualifier.empty())
 					{
-						// Find the module that exports this symbol
-						for (const auto& [file_path, module_decl] : *m_module_declarations)
+						const bool using_new_path = (m_module_declarations == nullptr);
+
+						if (using_new_path)
 						{
-							if (module_decl.m_module_name == qualifier && module_decl.HasExport(symbol_name))
+							// New path: Use imported symbols
+							if (ResolveQualifiedSymbol(qualifier, symbol_name))
 							{
-								// Found the module - create token with unqualified name for lookup
-								Token unqualified_token = variable;
-								unqualified_token.m_lexeme = symbol_name;
-								return ResolveQualifiedName(unqualified_token, symbol_name);
+								// Symbol is accessible - create a global reference
+								// (The symbol was defined in another module and is accessible)
+								// Keep the fully qualified name so the code generator can identify imports
+								return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Global()));
+							}
+							else
+							{
+								// Check if module exists in imports
+								std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_imported_symbols.find(qualifier);
+								if (it == m_imported_symbols.cend())
+								{
+									return std::unexpected<std::string>(GenerateParserError("Module '"s + qualifier + "' not found"s, variable));
+								}
+								else
+								{
+									return std::unexpected<std::string>(GenerateParserError("Symbol '"s + symbol_name + "' is not exported by module '"s + qualifier + "'"s, variable));
+								}
 							}
 						}
 					}
 
-					// Regular name resolution (non-module qualified or namespace qualified)
 					return ResolveQualifiedName(variable, mangled_name);
 				}
 			);
@@ -1020,28 +1121,27 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		Token& op = Previous();
 		return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-		(
-			[this]() { return ParseExpression(); },
-			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-			[this]() -> MidoriResult::TokenResult 
-			{
-				// Accept either ']' or '][' to end array literal
-				if (Match(Token::Name::RIGHT_BRACKET)) 
+			(
+				[this]() { return ParseExpression(); },
+				[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
+				[this]() -> MidoriResult::TokenResult
 				{
-					return Previous();
-				} 
-				else if (Match(Token::Name::RIGHT_LEFT_BRACKET)) 
-				{
-					// RIGHT_LEFT_BRACKET '][' can end an array literal followed by array access
-					// e.g., [1,2,3][0] where '][' is lexed as one token
-					return Previous();
+					if (Match(Token::Name::RIGHT_BRACKET))
+					{
+						return Previous();
+					}
+					else if (Match(Token::Name::RIGHT_LEFT_BRACKET))
+					{
+						// RIGHT_LEFT_BRACKET '][' can end an array literal followed by array access
+						// e.g., [1,2,3][0] where '][' is lexed as one token
+						return Previous();
+					}
+					else
+					{
+						return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+					}
 				}
-				else 
-				{
-					return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
-				}
-			}
-		)
+			)
 			.and_then
 			(
 				[&op](std::vector<std::unique_ptr<MidoriExpression>>&& expressions) ->MidoriResult::ExpressionResult
@@ -1565,7 +1665,7 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 															}
 														);
 												},
-												[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member.");  },
+												[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
 												[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
 											)
 											.and_then
@@ -1640,7 +1740,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							if (Match(Token::Name::LEFT_ANGLE))
 							{
 								has_generic_params = true;
-								BeginScope(); 
+								BeginScope();
 
 								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
 								if (!generic_parse_result.has_value())
@@ -1870,53 +1970,53 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 {
 	Token& match_keyword = Previous();
 	return ParseExpression()
-			.and_then
-			(
-				[&match_keyword, this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
-				{
-					return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
-						.and_then
-						(
-							[&expr, &match_keyword, this](Token&&) ->MidoriResult::ExpressionResult
+		.and_then
+		(
+			[&match_keyword, this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
+			{
+				return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
+					.and_then
+					(
+						[&expr, &match_keyword, this](Token&&) ->MidoriResult::ExpressionResult
+						{
+							bool default_visited = false;
+							std::unordered_set<std::string> visited_names;
+							std::vector<std::unique_ptr<MidoriExpression>> cases;
+
+							while (Check(Token::Name::CASE, 0) || Check(Token::Name::DEFAULT, 0))
 							{
-								bool default_visited = false;
-								std::unordered_set<std::string> visited_names;
-								std::vector<std::unique_ptr<MidoriExpression>> cases;
-
-								while (Check(Token::Name::CASE, 0) || Check(Token::Name::DEFAULT, 0))
+								if (Match(Token::Name::CASE))
 								{
-									if (Match(Token::Name::CASE))
+									Token& case_keyword = Previous();
+									MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
+									if (!case_result.has_value())
 									{
-										Token& case_keyword = Previous();
-										MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
-										if (!case_result.has_value())
-										{
-											return std::unexpected<std::string>(std::move(case_result.error()));
-										}
-										cases.emplace_back(std::move(case_result.value()));
+										return std::unexpected<std::string>(std::move(case_result.error()));
 									}
-									else if (Match(Token::Name::DEFAULT))
-									{
-										Token& default_keyword = Previous();
-										MidoriResult::ExpressionResult default_result = ParseDefaultExpression(default_visited, default_keyword);
-										if (!default_result.has_value())
-										{
-											return std::unexpected<std::string>(std::move(default_result.error()));
-										}
-										cases.emplace_back(std::move(default_result.value()));
-									}
+									cases.emplace_back(std::move(case_result.value()));
 								}
-
-								if (cases.empty())
+								else if (Match(Token::Name::DEFAULT))
 								{
-									return std::unexpected<std::string>(GenerateParserError("Expected at least one case.", match_keyword));
+									Token& default_keyword = Previous();
+									MidoriResult::ExpressionResult default_result = ParseDefaultExpression(default_visited, default_keyword);
+									if (!default_result.has_value())
+									{
+										return std::unexpected<std::string>(std::move(default_result.error()));
+									}
+									cases.emplace_back(std::move(default_result.value()));
 								}
-
-								return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
 							}
-						);
-				}
-			);
+
+							if (cases.empty())
+							{
+								return std::unexpected<std::string>(GenerateParserError("Expected at least one case.", match_keyword));
+							}
+
+							return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
+						}
+					);
+			}
+		);
 }
 
 MidoriResult::ExpressionResult Parser::ParseIfElseExpression()
@@ -2256,8 +2356,8 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 						return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
 							(
 								[this]() { return ParseType(); },
-								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type");  },
-								[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after argument types.");  }
+								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type"); },
+								[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after argument types."); }
 							)
 							.and_then
 							(
@@ -2321,10 +2421,10 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 						(
 							Token::Name::RIGHT_PAREN, "Expected ')' after type.")
 							.and_then([&first_type](Token&&) -> MidoriResult::TypeResult
-							{
-								return first_type;
-							}
-						);
+								{
+									return first_type;
+								}
+							);
 					}
 				}
 			);
@@ -2350,11 +2450,11 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 					if (Match(Token::Name::LEFT_ANGLE))
 					{
 						MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-						(
-							[this]() { return ParseType(); },
-							[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-							[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
-						);
+							(
+								[this]() { return ParseType(); },
+								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
+								[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+							);
 
 						if (!type_args_result.has_value())
 						{
@@ -2459,10 +2559,10 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 	Token resolved_name = Previous();
 	std::string& resolved_name_str = resolved_name.m_lexeme;
 
-	while (Match(Token::Name::DOUBLE_COLON)) 
+	while (Match(Token::Name::DOUBLE_COLON))
 	{
 		// We found the separator, now we must have an identifier
-		if (!Match(Token::Name::IDENTIFIER_LITERAL)) 
+		if (!Match(Token::Name::IDENTIFIER_LITERAL))
 		{
 			return std::unexpected<std::string>(GenerateParserError(std::format("Expected identifier after '{}'.", NameSeparator), Previous()));
 		}
@@ -2477,80 +2577,80 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types)
 {
 	return ParseDelimitedZeroOrMoreLimited<Token>
-	(
-		[this, out_types]() -> MidoriResult::TokenResult
-		{
-			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected generic parameter name.")
-				.and_then
-				(
-					[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
-					{
-						constexpr bool is_variable = false;
-						return DefineName(param_name, is_variable)
-							.and_then
-							(
-								[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
-								{
-									std::shared_ptr<MidoriType> param_type = MidoriType::MakeGenericType(param_name.m_lexeme);
-									m_scopes.back().m_defined_types[param_name.m_lexeme] = param_type;
-
-									// Keep the type alive if requested
-									if (out_types != nullptr)
+		(
+			[this, out_types]() -> MidoriResult::TokenResult
+			{
+				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected generic parameter name.")
+					.and_then
+					(
+						[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
+						{
+							constexpr bool is_variable = false;
+							return DefineName(param_name, is_variable)
+								.and_then
+								(
+									[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
 									{
-										out_types->push_back(param_type);
-									}
+										std::shared_ptr<MidoriType> param_type = MidoriType::MakeGenericType(param_name.m_lexeme);
+										m_scopes.back().m_defined_types[param_name.m_lexeme] = param_type;
 
-									return param_name;
-								}
-							);
-					}
-				);
-		},
-		[this]() { return Consume(Token::Name::COMMA, "Expected ',' between generic parameters."); },
-		[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after generic parameters."); }
-	);
+										// Keep the type alive if requested
+										if (out_types != nullptr)
+										{
+											out_types->push_back(param_type);
+										}
+
+										return param_name;
+									}
+								);
+						}
+					);
+			},
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between generic parameters."); },
+			[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after generic parameters."); }
+		);
 }
 
 MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters()
 {
 	return ParseDelimitedZeroOrMoreLimited<std::pair<Token, std::shared_ptr<MidoriType>>>
-	(
-		[this]() -> MidoriResult::FunctionParamResult
-		{
-			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
-				.and_then
-				(
-					[this](Token&& param_name) -> MidoriResult::FunctionParamResult
-					{
-						return DefineName(param_name, true)
-							.and_then
-							(
-								[this](Token&& param_name) -> MidoriResult::FunctionParamResult
-								{
-									return Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.")
-										.and_then
-										(
-											[&param_name, this](Token&&) -> MidoriResult::FunctionParamResult
-											{
-												return ParseType()
-													.and_then
-													(
-														[&param_name, this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::FunctionParamResult
-														{
-															RegisterOrUpdateLocalVariable(param_name.m_lexeme);
-															return std::make_pair(std::move(param_name), std::move(type));
-														}
-													);
-											}
-										);
-								}
-							);
-					}
-				);
-		},
-		[this]() { return Consume(Token::Name::COMMA, "Expected ',' after function parameter."); },
-		[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after function parameters."); }
-	);
+		(
+			[this]() -> MidoriResult::FunctionParamResult
+			{
+				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
+					.and_then
+					(
+						[this](Token&& param_name) -> MidoriResult::FunctionParamResult
+						{
+							return DefineName(param_name, true)
+								.and_then
+								(
+									[this](Token&& param_name) -> MidoriResult::FunctionParamResult
+									{
+										return Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.")
+											.and_then
+											(
+												[&param_name, this](Token&&) -> MidoriResult::FunctionParamResult
+												{
+													return ParseType()
+														.and_then
+														(
+															[&param_name, this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::FunctionParamResult
+															{
+																RegisterOrUpdateLocalVariable(param_name.m_lexeme);
+																return std::make_pair(std::move(param_name), std::move(type));
+															}
+														);
+												}
+											);
+									}
+								);
+						}
+					);
+			},
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after function parameter."); },
+			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after function parameters."); }
+		);
 }
 
 void Parser::Synchronize()
@@ -2563,13 +2663,13 @@ void Parser::Synchronize()
 	{
 		switch (Peek(0).m_token_name)
 		{
-		case Token::Name::DEF:
-		case Token::Name::STRUCT:
-		case Token::Name::UNION:
-			return;
-		default:
-			Advance();
-			Synchronize();
+			case Token::Name::DEF:
+			case Token::Name::STRUCT:
+			case Token::Name::UNION:
+				return;
+			default:
+				Advance();
+				Synchronize();
 		}
 	}
 }

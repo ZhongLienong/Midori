@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common/Value/Value.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
 class GarbageCollector
 {
@@ -21,7 +22,7 @@ public:
 
 	void CleanUp();
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	void PrintMemoryTelemetry();
 #endif
 

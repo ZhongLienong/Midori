@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Compiler/Result/Result.h"
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/OptimizerManager/Optimizers/ConstantFolding/ConstantFolding.h"
 
 class MidoriOptimizer;
@@ -11,7 +12,7 @@ private:
 	MidoriProgramTree m_program_tree;
 	std::vector<std::unique_ptr<MidoriOptimizer>> m_optimizers;
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	struct OptimizerStats
 	{
 		std::string_view m_name;
@@ -28,7 +29,7 @@ public:
 
 	MidoriResult::OptimizerResult Optimize();
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	void PrintStatistics() const;
 #endif
 };

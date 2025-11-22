@@ -1,0 +1,10 @@
+// Helper module for testing multiple imports
+module StringUtils
+public export { get_constant, double }
+
+defun get_constant() : Int => 5;
+
+defun double(x: Int) : Int => x * 2;
+
+// Private helper - not exported
+defun internal_helper(x: Int) : Int => x + 1;

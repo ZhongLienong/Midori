@@ -134,3 +134,58 @@ fixed main = fn() : Unit
 	return ();
 };
 ```
+
+## Development
+
+### Building Midori
+
+Midori uses a three-tier build configuration system:
+
+**Debug** - Full diagnostics with AST dumps, bytecode disassembly, and stack traces:
+```bash
+cmake --build out/Debug --config Debug
+```
+
+**Development** - Optimized build with compilation progress (recommended for testing):
+```bash
+cmake --build out/Development --config Development
+```
+
+**Release** - Maximum performance with minimal output:
+```bash
+cmake --build out/Release --config Release
+```
+
+Build the standard library for your configuration:
+```bash
+cmake --build out/Development --config Development --target MidoriStdLib
+```
+
+### Running Tests
+
+Run all tests using the Development build:
+```bash
+python scripts/run_tests.py
+```
+
+Run a specific test (auto-shows detailed output):
+```bash
+python scripts/run_tests.py --test simple
+python scripts/run_tests.py --test closure/simple.mdr
+```
+
+Run specific test categories or patterns:
+```bash
+python scripts/run_tests.py --category closure
+python scripts/run_tests.py --pattern recursive
+```
+
+Create new tests:
+```bash
+python scripts/new_test.py closure/my_new_test
+python scripts/new_test.py expression/failure/invalid_syntax --should-fail
+```
+
+For detailed testing documentation, see:
+- [TESTING.md](TESTING.md) - Comprehensive testing guide
+- [scripts/README.md](scripts/README.md) - Script usage and examples

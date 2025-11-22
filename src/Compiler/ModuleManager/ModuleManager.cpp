@@ -104,9 +104,104 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 			m_main_token_stream.Erase(m_main_token_stream.begin() + current_index);
 		}
 
+		// Parse 'use' statements if they exist (after import block)
+		std::vector<UseImport> use_imports;
+
+		// Skip whitespace before 'use' statements
+		whitespace_count = 0;
+		while (m_main_token_stream.Size() > whitespace_count && m_main_token_stream[whitespace_count].m_token_name == Token::Name::WHITESPACE)
+		{
+			whitespace_count += 1;
+		}
+		if (whitespace_count > 0)
+		{
+			m_main_token_stream.Erase(m_main_token_stream.begin() + whitespace_count);
+		}
+
+		int use_tokens_consumed = 0;
+		while (m_main_token_stream.Size() > use_tokens_consumed && m_main_token_stream[use_tokens_consumed].m_token_name == Token::Name::USE)
+		{
+			/*
+				Syntax: use ModuleName.{Symbol1, Symbol2}
+				or:     use ModuleName.Symbol
+
+				Minimum tokens: use Module . { Symbol }
+			*/
+			int current_use_index = use_tokens_consumed + 1; // Skip 'use'
+			SkipWhiteSpace(m_main_token_stream, current_use_index);
+
+			if (current_use_index >= m_main_token_stream.Size() || m_main_token_stream[current_use_index].m_token_name != Token::Name::IDENTIFIER_LITERAL)
+			{
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected module name after 'use'", m_main_token_stream[use_tokens_consumed].m_line, m_main_file_name));
+			}
+
+			std::string use_module_name = m_main_token_stream[current_use_index].m_lexeme;
+			current_use_index += 1;
+			SkipWhiteSpace(m_main_token_stream, current_use_index);
+
+			if (current_use_index >= m_main_token_stream.Size() || m_main_token_stream[current_use_index].m_token_name != Token::Name::DOT)
+			{
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected '.' after module name in 'use' statement", m_main_token_stream[current_use_index].m_line, m_main_file_name));
+			}
+			current_use_index += 1; // Skip '.'
+			SkipWhiteSpace(m_main_token_stream, current_use_index);
+
+			// Check if it's a block import {Symbol1, Symbol2} or single symbol import
+			if (current_use_index < m_main_token_stream.Size() && m_main_token_stream[current_use_index].m_token_name == Token::Name::LEFT_BRACE)
+			{
+				// Block import: use Module.{Symbol1, Symbol2}
+				current_use_index += 1; // Skip '{'
+				SkipWhiteSpace(m_main_token_stream, current_use_index);
+
+				while (current_use_index < m_main_token_stream.Size() && m_main_token_stream[current_use_index].m_token_name != Token::Name::RIGHT_BRACE)
+				{
+					if (m_main_token_stream[current_use_index].m_token_name != Token::Name::IDENTIFIER_LITERAL)
+					{
+						return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected symbol name in 'use' statement", m_main_token_stream[current_use_index].m_line, m_main_file_name));
+					}
+
+					use_imports.emplace_back(use_module_name, m_main_token_stream[current_use_index].m_lexeme);
+					current_use_index += 1;
+					SkipWhiteSpace(m_main_token_stream, current_use_index);
+
+					if (current_use_index < m_main_token_stream.Size() && m_main_token_stream[current_use_index].m_token_name == Token::Name::COMMA)
+					{
+						current_use_index += 1;
+						SkipWhiteSpace(m_main_token_stream, current_use_index);
+					}
+				}
+
+				if (current_use_index >= m_main_token_stream.Size() || m_main_token_stream[current_use_index].m_token_name != Token::Name::RIGHT_BRACE)
+				{
+					return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected '}' after symbol list in 'use' statement", m_main_token_stream[current_use_index].m_line, m_main_file_name));
+				}
+				current_use_index += 1; // Skip '}'
+			}
+			else if (current_use_index < m_main_token_stream.Size() && m_main_token_stream[current_use_index].m_token_name == Token::Name::IDENTIFIER_LITERAL)
+			{
+				// Single symbol import: use Module.Symbol
+				use_imports.emplace_back(use_module_name, m_main_token_stream[current_use_index].m_lexeme);
+				current_use_index += 1;
+			}
+			else
+			{
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected symbol name or '{' after '.' in 'use' statement", m_main_token_stream[current_use_index].m_line, m_main_file_name));
+			}
+
+			SkipWhiteSpace(m_main_token_stream, current_use_index);
+			use_tokens_consumed = current_use_index;
+		}
+
+		// Erase all 'use' statement tokens
+		if (use_tokens_consumed > 0)
+		{
+			m_main_token_stream.Erase(m_main_token_stream.begin() + use_tokens_consumed);
+		}
+
 		BuildGraph::BuildNode& main_node = build_graph.m_nodes[m_main_file_name];
 		main_node.m_tokens = m_main_token_stream;
 		main_node.m_file_name = m_main_file_name;
+		main_node.m_use_imports = std::move(use_imports);
 
 		for (const auto& [import_path, line] : import_paths)
 		{
@@ -195,6 +290,15 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 	}
 
 	build_graph.m_module_declarations = m_module_declarations;
+
+	// Populate use imports map from build nodes
+	for (const auto& [file_name, node] : build_graph.m_nodes)
+	{
+		if (!node.m_use_imports.empty())
+		{
+			build_graph.m_use_imports[file_name] = node.m_use_imports;
+		}
+	}
 
 	return build_graph;
 }

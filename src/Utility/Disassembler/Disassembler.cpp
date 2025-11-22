@@ -1,6 +1,7 @@
-#ifdef DEBUG
+#if MIDORI_ENABLE_DISASSEMBLY
 
 #include <iomanip>
+#include "Common/BuildConfig/BuildConfig.h"
 #include <sstream>
 #include <string>
 
@@ -311,7 +312,7 @@ namespace Disassembler
 			NumericConstantInstruction(true, "INTEGER_CONSTANT", executable, proc_index, offset);
 			break;
 		case OpCode::FLOAT_CONSTANT:
-			NumericConstantInstruction(false, "INTEGER_CONSTANT", executable, proc_index, offset);
+			NumericConstantInstruction(false, "FLOAT_CONSTANT", executable, proc_index, offset);
 			break;
 		case OpCode::OP_UNIT:
 			SimpleInstruction("OP_UNIT", offset);

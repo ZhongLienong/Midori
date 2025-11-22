@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Common/Error/Error.h"
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/Result/Result.h"
 
 class MidoriOptimizer
 {
 protected:
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	int m_optimizations_performed = 0;
 #endif
 
@@ -19,7 +20,7 @@ public:
 
 	virtual std::string_view GetName() const = 0;
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 
 	void ResetCounter();
 
@@ -27,7 +28,7 @@ public:
 #endif
 
 protected:
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	// Mark that an optimization was performed (only in debug builds)
 	void MarkOptimization();
 #else

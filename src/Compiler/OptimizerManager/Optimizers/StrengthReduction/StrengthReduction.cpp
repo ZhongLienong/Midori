@@ -1,11 +1,12 @@
 #include <cmath>
+#include "Common/BuildConfig/BuildConfig.h"
 
 #include "StrengthReduction.h"
 #include "Compiler/Token/Token.h"
 
 int StrengthReduction::Optimize(MidoriProgramTree& program_tree)
 {
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
 #endif
 
@@ -18,7 +19,7 @@ int StrengthReduction::Optimize(MidoriProgramTree& program_tree)
 		}
 	);
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	return GetOptimizationsPerformed();
 #else
 	return 0;
@@ -46,6 +47,8 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 	if (reduced)
 	{
 		m_pending_replacement = std::move(reduced);
+		// Note: TryReduceBinary returns either newly created literals (which inherit correct type)
+		// or moved sub-expressions (which already have correct type), so we don't overwrite type here
 	}
 }
 

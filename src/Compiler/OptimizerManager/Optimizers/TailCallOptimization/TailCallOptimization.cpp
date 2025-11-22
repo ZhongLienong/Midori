@@ -1,8 +1,9 @@
 #include "TailCallOptimization.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
 int TailCallOptimization::Optimize(MidoriProgramTree& program_tree)
 {
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
 #endif
 	std::ranges::for_each
@@ -13,7 +14,7 @@ int TailCallOptimization::Optimize(MidoriProgramTree& program_tree)
 			std::visit([this](auto&& arg) { (*this)(arg); }, **stmt);
 		}
 	);
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	return GetOptimizationsPerformed();
 #else
 	return 0;

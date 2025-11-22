@@ -9,6 +9,12 @@ ModuleExport::ModuleExport(std::string_view symbol_name, VisibilityLevel visibil
 {
 }
 
+UseImport::UseImport(std::string_view module_name, std::string_view symbol_name)
+	: m_module_name(module_name),
+	m_symbol_name(symbol_name)
+{
+}
+
 ModuleDeclaration::ModuleDeclaration()
 	: m_module_name(""),
 	m_file_path(""),

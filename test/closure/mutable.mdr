@@ -1,6 +1,6 @@
-import 
+import
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
 }
 
 def x = fn(y : Int) : fn(Int) -> Int => fn(z : Int) : Int => { y = y - 1; y + z };

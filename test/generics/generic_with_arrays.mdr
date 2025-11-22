@@ -1,7 +1,8 @@
 // Test: Generic types with arrays
 // Expected: Should compile - generics can contain arrays
 
-struct Container<T> {
+struct Container<T> 
+{
     items: Array<T>
 };
 

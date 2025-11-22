@@ -1,10 +1,11 @@
 #include "GarbageCollector.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
 #include <algorithm>
 #include <execution>
 #include <ranges>
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 #include "Common\Printer\Printer.h"
 
 #include <chrono>
@@ -23,7 +24,7 @@ size_t GarbageCollector::GetTotalAllocatedBytes() const
 
 void GarbageCollector::Mark(GarbageCollector::GarbageCollectionRoots&& roots)
 {
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	std::ranges::for_each
 	(
 		m_traceables,
@@ -53,7 +54,7 @@ void GarbageCollector::Sweep()
 		}
 		else
 		{
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 			Printer::Print<Printer::Color::RED>(std::format("Deleting traceable pointer: {:p}\n", static_cast<void*>(ptr)));
 #endif
 			m_total_bytes_allocated -= ptr->GetSize();
@@ -69,7 +70,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	{
 		return;
 	}
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}, value: {}\n", static_cast<void*>(ptr), ptr->ToText().GetCString()));
 #endif
 	ptr->Mark();
@@ -137,7 +138,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 		return;
 	}
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	Printer::Print<Printer::Color::BLUE>("\nBefore garbage collection:");
 	PrintMemoryTelemetry();
 	using Clock = std::chrono::high_resolution_clock;
@@ -147,18 +148,18 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 
 	// MARK
 	size_t mark_count = 0;
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	TimePoint t_mark_start = Clock::now();
 #endif
 	std::ranges::for_each(roots, [this](MidoriTraceable* root) { Trace(root); });
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	TimePoint t_mark_end = Clock::now();
 #endif
 
 	// SWEEP
 	size_t sweep_count = 0u;
 	size_t bytes_reclaimed = 0u;
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	TimePoint t_sweep_start = Clock::now();
 #endif
 	for (GarbageCollectionRoots::iterator it = m_traceables.begin(); it != m_traceables.end(); )
@@ -179,7 +180,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 			it = m_traceables.erase(it);
 		}
 	}
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	TimePoint t_sweep_end = Clock::now();
 	TimePoint t1 = Clock::now();
 
@@ -221,7 +222,7 @@ void GarbageCollector::CleanUp()
 	ReclaimMemory({}, true);
 }
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {
 	Printer::Print<Printer::Color::BLUE>

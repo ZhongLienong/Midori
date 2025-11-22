@@ -1,11 +1,13 @@
 // Test: Nested generic types
 // Expected: Should compile - generics can be nested
 
-struct Box<T> {
+struct Box<T> 
+{
     value: T
 };
 
-struct Pair<A, B> {
+struct Pair<A, B> 
+{
     first: A,
     second: B
 };

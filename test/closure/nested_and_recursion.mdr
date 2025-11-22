@@ -1,6 +1,6 @@
-import 
+import
 {
-    "C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
 }
 
 def createCounter = fn(initial : Int) : fn(Int) -> fn() -> Int =>

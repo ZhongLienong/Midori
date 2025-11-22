@@ -2,6 +2,7 @@
 #include "Common/Printer/Printer.h"
 
 #include <queue>
+#include <map>
 #include <ranges>
 
 Token::Token(std::string&& lexeme, Name token_name, int line) noexcept : m_lexeme(std::move(lexeme)), m_token_name(token_name), m_line(line)
@@ -94,104 +95,82 @@ bool BuildGraph::IsComplete() const
 	return true;
 }
 
-TokenStream BuildGraph::Stitch()
+std::vector<std::vector<std::string>> BuildGraph::GetCompilationStreams() const
 {
-    std::unordered_map<std::string, std::vector<std::string>> dependents;
-    std::unordered_map<std::string, int> in_degrees;
+	std::unordered_map<std::string, std::vector<std::string>> dependents;
+	std::unordered_map<std::string, int> in_degrees;
 
-    for (const auto& [file, _] : m_nodes) 
-    {
-        dependents[file] = {}; 
-        in_degrees[file] = 0;   
-    }
+	for (const auto& [file, _] : m_nodes)
+	{
+		dependents[file] = {};
+		in_degrees[file] = 0;
+	}
 
-    for (const auto& [file, node] : m_nodes) 
-    {
-        for (const std::string& dependency : node.m_dependencies) 
-        {
-            if (m_nodes.contains(dependency)) 
-            {
-                dependents[dependency].emplace_back (file);
-                in_degrees[file]++;
-            }
-        }
-    }
+	for (const auto& [file, node] : m_nodes)
+	{
+		for (const std::string& dependency : node.m_dependencies)
+		{
+			if (m_nodes.contains(dependency))
+			{
+				dependents[dependency].emplace_back(file);
+				in_degrees[file]++;
+			}
+		}
+	}
 
-#ifdef DEBUG
-    Printer::Print("Build Graph:\n");
-    for (const auto& [file, degree] : in_degrees) 
-    {
-        Printer::Print(std::format("File: {} has in-degree: {}", file, degree));
-        Printer::Print("  Has dependents: ");
-        for (const std::string& dependent : dependents[file]) 
-        {
-            Printer::Print<Printer::Color::YELLOW>(std::format("{}, ", dependent));
-        }
-        Printer::Print("\n");
-    }
-#endif
+	// Compute dependency levels (stream number)
+	std::unordered_map<std::string, int> levels;
+	std::queue<std::string> zero_in_degree;
 
-    // Find nodes with zero in-degree (no dependencies)
-    std::queue<std::string> zero_in_degree;
-    for (const auto& [file, degree] : in_degrees) 
-    {
-        if (degree == 0) 
-        {
-            zero_in_degree.emplace(file);
-        }
-    }
+	for (const auto& [file, degree] : in_degrees)
+	{
+		if (degree == 0)
+		{
+			zero_in_degree.push(file);
+			levels[file] = 0;
+		}
+	}
 
-    TokenStream stitched_stream;
-    std::vector<std::string> topological_order;
-#ifdef DEBUG
-    int processed_count = 0;
-#endif
+	std::unordered_map<std::string, int> temp_in_degrees = in_degrees;
 
-    while (!zero_in_degree.empty()) 
-    {
-        std::string current = zero_in_degree.front();
-        zero_in_degree.pop();
+	while (!zero_in_degree.empty())
+	{
+		std::string current = zero_in_degree.front();
+		zero_in_degree.pop();
 
-        topological_order.push_back(current);
-#ifdef DEBUG
-        processed_count++;
-#endif
+		for (const std::string& dependent : dependents[current])
+		{
+			temp_in_degrees[dependent]--;
 
-        for (const std::string& dependent : dependents[current]) 
-        {
-            in_degrees[dependent]--;
+			// Update level of dependent (it must be at least one more than current)
+			levels[dependent] = std::max(levels[dependent], levels[current] + 1);
 
-            if (in_degrees[dependent] == 0) 
-            {
-                zero_in_degree.push(dependent);
-            }
-        }
-    }
+			if (temp_in_degrees[dependent] == 0)
+			{
+				zero_in_degree.push(dependent);
+			}
+		}
+	}
 
-#ifdef DEBUG
-    Printer::Print("Final topological order: ");
-    for (size_t idx : std::views::iota(0u, topological_order.size()))
-    {
-        if (idx != topological_order.size() - 1u)
-        {
-            Printer::Print<Printer::Color::YELLOW>(std::format("{} -> ", topological_order[idx]));
-        }
-        else
-        {
-            Printer::Print<Printer::Color::YELLOW>(std::format("{}", topological_order[idx]));
-        }
-    }
-    Printer::Print("\n");
-#endif
+	// Convert levels to streams (group by level)
+	std::map<int, std::vector<std::string>> groups;
+	for (const auto& [path, level] : levels)
+	{
+		groups[level].emplace_back(path);
+	}
 
-    for (size_t idx : std::views::iota(0u, topological_order.size() - 1u))
-    {
-        TokenStream& node_tokens = m_nodes.at(topological_order[idx]).m_tokens;
-        node_tokens.PopBack();
-        stitched_stream.Insert(stitched_stream.end(), std::move(node_tokens));
-    }
-    TokenStream& node_tokens = m_nodes.at(topological_order[topological_order.size() - 1u]).m_tokens;
-    stitched_stream.Insert(stitched_stream.end(), std::move(node_tokens));
+	// Sort each stream alphabetically for deterministic ordering
+	for (auto& [_, stream] : groups)
+	{
+		std::sort(stream.begin(), stream.end());
+	}
 
-    return stitched_stream;
+	std::vector<std::vector<std::string>> streams;
+	streams.reserve(groups.size());
+	for (auto& [_, stream] : groups)
+	{
+		streams.emplace_back(std::move(stream));
+	}
+
+	return streams;
 }

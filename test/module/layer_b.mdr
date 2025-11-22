@@ -1,0 +1,10 @@
+// Layer B in complex dependency chain
+module LayerB
+public export { transform }
+
+import
+{
+    "layer_c.mdr"
+}
+
+defun transform(x: Int) : Int => LayerC::calculate(x);

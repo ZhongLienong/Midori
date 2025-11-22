@@ -1,0 +1,13 @@
+// Test: Non-exported symbols should not be accessible
+// This should FAIL to compile - trying to access internal_helper which is not exported
+module TestPrivacy
+
+import
+{
+    "math_lib.mdr"
+}
+
+// This should fail - internal_helper is not exported by Math module
+defun test_access_private() : Int => Math::internal_helper(42);
+
+defun main() : Int => test_access_private();

@@ -1,6 +1,6 @@
 import
 {
-    "../../MidoriPrelude/IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
 }
 
 union LogicExpr =

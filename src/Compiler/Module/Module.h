@@ -25,6 +25,16 @@ struct ModuleExport
 	ModuleExport(std::string_view symbol_name, VisibilityLevel visibility);
 };
 
+// Represents a symbol imported via 'use' statement
+// e.g., "use IO.{Print, PrintLine}" creates UseImport entries for Print and PrintLine
+struct UseImport
+{
+	std::string m_module_name;      // The module name (e.g., "IO")
+	std::string m_symbol_name;      // The symbol name (e.g., "Print")
+
+	UseImport(std::string_view module_name, std::string_view symbol_name);
+};
+
 struct ModuleDeclaration
 {
 	std::string m_module_name;         

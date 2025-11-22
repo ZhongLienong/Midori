@@ -13,7 +13,8 @@ defun test_private_access() : Float => internal_normalize(1.0, 2.0);
 // This should SUCCEED - public export always accessible
 defun test_public_access() : Float => add_vectors(1.0, 2.0, 3.0, 4.0);
 
-defun run_tests() : Int => {
+defun run_tests() : Int => 
+{
     def sum = test_public_access();
     def normalized = test_private_access();
     42

@@ -7,6 +7,8 @@
 #include <unordered_set>
 #include <variant>
 
+#include "Common/BuildConfig/BuildConfig.h"
+
 // Alignment must be power of 2 (8 bytes = 3 tag bits)
 constexpr uintptr_t ALIGNMENT = 0b1000;
 constexpr uintptr_t ALIGNMENT_MASK = ALIGNMENT - 1;
@@ -71,7 +73,7 @@ private:
 		MidoriBool m_bool;
 		MidoriTraceable* m_pointer;
 	} m_data;
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	enum DebugTypeTag : int64_t
 	{
 		FLOAT = 0,
@@ -114,7 +116,7 @@ public:
 
 	MidoriTraceable* GetPointer() const noexcept;
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	MidoriText ToText() const;
 #endif
 };
@@ -288,7 +290,7 @@ public:
 
 	bool IsMarked() const;
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	MidoriText ToText();
 #endif
 

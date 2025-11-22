@@ -42,17 +42,17 @@ if (MSVC)
         $<$<CONFIG:Debug>:/Zi>      # Full debug info
         $<$<CONFIG:Debug>:/RTC1>    # Runtime checks (stack frames, uninitialized variables)
         $<$<CONFIG:Debug>:/Ob0>     # Disable inlining
-        $<$<CONFIG:Debug>:/DDEBUG>  # DEBUG macro
+        $<$<CONFIG:Debug>:/DMIDORI_BUILD_DEBUG>  # Midori debug build macro
     )
 
-    # Development configuration - optimized with debug symbols
+    # Development configuration - optimized with debug symbols for testing
     add_compile_options(
         $<$<CONFIG:Development>:/O2>    # Maximize speed
         $<$<CONFIG:Development>:/MD>    # Release runtime library
         $<$<CONFIG:Development>:/Zi>    # Full debug info
         $<$<CONFIG:Development>:/Oi>    # Intrinsic functions
         $<$<CONFIG:Development>:/Gy>    # Function-level linking
-        $<$<CONFIG:Development>:/DDEVELOPMENT>  # DEVELOPMENT macro
+        $<$<CONFIG:Development>:/DMIDORI_BUILD_DEVELOPMENT>  # Midori development build macro
     )
 
     # Release configuration - maximum speed for modern x64 CPUs

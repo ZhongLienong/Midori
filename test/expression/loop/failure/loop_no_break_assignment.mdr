@@ -1,1 +1,0 @@
-def x : Int = loop 1 + 2;

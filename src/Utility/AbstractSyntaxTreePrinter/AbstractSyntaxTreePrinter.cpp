@@ -1,6 +1,7 @@
-#ifdef DEBUG
+#if MIDORI_ENABLE_AST_DUMP
 
 #include <algorithm>
+#include "Common/BuildConfig/BuildConfig.h"
 #include <ranges>
 
 #include "AbstractSyntaxTreePrinter.h"

@@ -3,8 +3,8 @@
 
 import 
 {
-	"../MidoriPrelude/IO.mdr",
-	"../MidoriPrelude/DateTime.mdr"
+	"../../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/DateTime.mdr"
 }
 
 struct Box<T> 

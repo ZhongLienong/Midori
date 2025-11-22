@@ -1,6 +1,6 @@
-import 
+import
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
 }
 
 defun cube(x : Float) : Float => x * x * x;

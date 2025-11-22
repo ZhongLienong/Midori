@@ -1,0 +1,9 @@
+// Test: Complex dependency chain (A -> B -> C -> D)
+module TestComplexChain
+
+import
+{
+    "layer_a.mdr"
+}
+
+defun main() : Int => LayerA::process(5);

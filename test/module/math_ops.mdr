@@ -1,0 +1,16 @@
+// Middle layer in transitive dependency chain
+module MathOps
+public export { compute, square }
+
+import
+{
+    "math_lib.mdr"
+}
+
+// Uses functions from math_lib internally
+defun compute(x: Int) : Int => Math::add(Math::multiply(x, x), x);
+
+defun square(x: Int) : Int => Math::multiply(x, x);
+
+// Private helper
+defun internal_process(x: Int) : Int => Math::add(x, 1);

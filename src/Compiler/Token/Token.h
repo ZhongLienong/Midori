@@ -84,6 +84,7 @@ struct Token
 		EXPORT,
 		PUBLIC,
 		PRIVATE,
+		USE,
 
 		// types
 		FLOAT,
@@ -142,12 +143,14 @@ struct BuildGraph
 		TokenStream m_tokens;
 		std::string m_file_name;
 		std::vector<std::string> m_dependencies;
+		std::vector<UseImport> m_use_imports;  // Symbols brought into scope via 'use' statements
 		int m_in_degree = 0;
 		bool m_processed = false;
 	};
 
 	std::unordered_map<std::string, BuildNode> m_nodes;
 	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
+	std::unordered_map<std::string, std::vector<UseImport>> m_use_imports;  // Maps file_name -> use imports
 
 	std::vector<std::string> GetStartingPoints() const;
 
@@ -155,5 +158,5 @@ struct BuildGraph
 
 	bool IsComplete() const;
 
-	TokenStream Stitch();
+	std::vector<std::vector<std::string>> GetCompilationStreams() const;
 };

@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <stack>
+#include <unordered_set>
+#include <optional>
 
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
+#include "Compiler/BytecodeModule/BytecodeModule.h"
 
 class CodeGenerator
 {
@@ -39,9 +42,8 @@ private:
 		std::size_t operator()(const FunctionSignature& sig) const;
 	};
 
-	static constexpr char s_main_program_name[] = "<global>";
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
-	std::vector<MidoriText> m_procedure_names{ MidoriText(s_main_program_name) };
+	std::vector<MidoriText> m_procedure_names;
 	MidoriProgramTree m_program_tree;
 	std::string m_errors;
 	std::string m_file_name;
@@ -60,11 +62,17 @@ private:
 	int m_local_count = 0;
 	OpCode m_last_opcode = OpCode::HALT;
 
-public:
-	
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
+	// Module-specific fields for per-module compilation
+	std::optional<std::string> m_module_name;
+	std::unordered_set<std::string> m_export_symbols;
+	std::vector<BytecodeModule::ExportedSymbol> m_tracked_exports;
+	std::vector<BytecodeModule::ImportedSymbol> m_tracked_imports;
 
-	MidoriResult::CodeGeneratorResult GenerateCode();
+public:
+
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols);
+
+	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
 private:
 

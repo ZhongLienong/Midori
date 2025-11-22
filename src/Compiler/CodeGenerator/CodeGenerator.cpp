@@ -1,6 +1,7 @@
 #include <format>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
@@ -183,34 +184,123 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
-	m_source_lines(source_lines)
+	m_source_lines(source_lines),
+	m_module_name(std::move(module_name)),
+	m_export_symbols(std::move(export_symbols))
 {
+	std::string main_proc_name = "__main__@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
+	m_procedure_names.emplace_back(main_proc_name.c_str());
 }
 
-MidoriResult::CodeGeneratorResult CodeGenerator::GenerateCode()
+MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 {
 	std::ranges::for_each
 	(
 		m_program_tree,
-		[this](std::unique_ptr<MidoriStatement>& statement){ std::visit([this](auto&& arg){ (*this)(arg); }, **statement); }
+		[this](std::unique_ptr<MidoriStatement>& statement)
+		{
+			std::visit([this](auto&& arg){ (*this)(arg); }, **statement);
+
+			// Track exports: after processing DefineFunction, check if it's exported
+			std::visit
+			(
+				[this](const auto& stmt)
+				{
+					using T = std::decay_t<decltype(stmt)>;
+					if constexpr (std::is_same_v<T, MidoriStatement::DefineFunction>)
+					{
+						const std::string& function_name = stmt.m_name.m_lexeme;
+						if (m_export_symbols.contains(function_name))
+						{
+							// After DefineFunction processing, m_current_procedure_index points AFTER the new procedure
+							// So the procedure we just added is at index m_procedures.size() - 1
+							const size_t procedure_index = m_procedures.size() - 1u;
+							const size_t global_index = m_global_variables[function_name];
+
+							m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION);
+						}
+					}
+					else if constexpr (std::is_same_v<T, MidoriStatement::Struct>)
+					{
+						const std::string& struct_name = stmt.m_name.m_lexeme;
+						if (m_export_symbols.contains(struct_name))
+						{
+							m_tracked_exports.emplace_back
+							(
+								struct_name,
+								0,  // Structs don't have procedure index
+								0,  // Structs don't have global index
+								BytecodeModule::SymbolType::STRUCT_TYPE
+							);
+						}
+					}
+					else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
+					{
+						const std::string& union_name = stmt.m_name.m_lexeme;
+						if (m_export_symbols.contains(union_name))
+						{
+							m_tracked_exports.emplace_back
+							(
+								union_name,
+								0,  // Unions don't have procedure index
+								0,  // Unions don't have global index
+								BytecodeModule::SymbolType::UNION_TYPE
+							);
+						}
+					}
+					else if constexpr (std::is_same_v<T, MidoriStatement::Foreign>)
+					{
+						const std::string& foreign_name = stmt.m_function_name.m_lexeme;
+						if (m_export_symbols.contains(foreign_name))
+						{
+							// Foreign functions are stored as global variables containing the function name string
+							const size_t global_index = m_global_variables[foreign_name];
+							m_tracked_exports.emplace_back
+							(
+								foreign_name,
+								0,  // Foreign functions don't have procedure index
+								global_index,
+								BytecodeModule::SymbolType::FOREIGN_FUNCTION
+							);
+						}
+					}
+				},
+				**statement
+			);
+		}
 	);
+
+	// Add RETURN to end the global procedure (procedure 0)
+	// This ensures the instruction pointer doesn't run past the end of the procedure
+	// Global procedures return Unit
+	EmitByte(OpCode::OP_UNIT, 0);
+	EmitByte(OpCode::RETURN, 0);
 
 	if (!m_errors.empty())
 	{
 		return std::unexpected<std::string>(std::move(m_errors));
 	}
 
-	EmitByte(OpCode::HALT, 0);
+	BytecodeModule module(m_module_name.value_or(""s), std::filesystem::path(m_file_name));
+	module.m_procedures = std::move(m_procedures);
+	module.m_procedure_names = std::move(m_procedure_names);
+	module.m_string_pool = std::move(m_string_pool);
+	module.m_exports = std::move(m_tracked_exports);
+	module.m_imports = std::move(m_tracked_imports);
 
-	m_executable.AttachProcedureNames(std::move(m_procedure_names));
-	m_executable.AttachProcedures(std::move(m_procedures));
-	m_executable.AddStringPool(std::move(m_string_pool));
-	m_executable.SetFileName(std::string(m_file_name));
+	std::vector<std::pair<std::string, int>> sorted_globals(m_global_variables.begin(), m_global_variables.end());
+	std::ranges::sort(sorted_globals, [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) { return a.second < b.second; });
 
-	return m_executable;
+	module.m_global_variables.reserve(sorted_globals.size());
+	for (const std::pair<std::string, int>& entry : sorted_globals)
+	{
+		module.m_global_variables.emplace_back(entry.first.c_str());
+	}
+
+	return module;
 }
 
 void CodeGenerator::operator()(MidoriStatement::Simple& simple)
@@ -804,7 +894,44 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
 			{
-				EmitVariable(m_global_variables[variable.m_name.m_lexeme], OpCode::GET_GLOBAL, line);
+				const std::string& name = variable.m_name.m_lexeme;
+
+				if (name.find(NameSeparator) != std::string::npos)
+				{
+					// This is an imported symbol - assign a negative index as placeholder
+					// Track this import for linker patching
+					size_t separator_pos = name.find(NameSeparator);
+					std::string module_name = name.substr(0u, separator_pos);
+					std::string symbol_name = name.substr(separator_pos + 2u);
+
+					// Check if we've already tracked this import
+					int import_index = 0;
+					bool found = false;
+					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+					{
+						if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
+						{
+							import_index = -(static_cast<int>(i) + 1);  // -1, -2, -3, etc.
+							found = true;
+							break;
+						}
+					}
+
+					if (!found)
+					{
+						m_tracked_imports.emplace_back(symbol_name, module_name);
+						import_index = -static_cast<int>(m_tracked_imports.size());  // -1 for first import, -2 for second, etc.
+					}
+
+					// Emit negative index (will be patched by linker to positive global index)
+					// Cast to uint8_t will wrap negative values (e.g., -1 becomes 255, -2 becomes 254)
+					EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
+				}
+				else
+				{
+					// Regular local global variable
+					EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
+				}
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
 			{
@@ -835,7 +962,43 @@ void CodeGenerator::operator()(MidoriExpression::Bind& bind)
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
 			{
-				EmitVariable(m_global_variables[bind.m_name.m_lexeme], OpCode::SET_GLOBAL, line);
+				const std::string& name = bind.m_name.m_lexeme;
+
+				if (name.find(NameSeparator) != std::string::npos)
+				{
+					// This is an imported symbol - assign a negative index as placeholder
+					size_t separator_pos = name.find(NameSeparator);
+					std::string module_name = name.substr(0u, separator_pos);
+					std::string symbol_name = name.substr(separator_pos + 2u);
+
+					// Check if we've already tracked this import
+					int import_index = 0;
+					bool found = false;
+					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+					{
+						if (m_tracked_imports[i].m_from_module == module_name &&
+							m_tracked_imports[i].m_name == symbol_name)
+						{
+							import_index = -(static_cast<int>(i) + 1);  // -1, -2, -3, etc.
+							found = true;
+							break;
+						}
+					}
+
+					if (!found)
+					{
+						m_tracked_imports.emplace_back(symbol_name, module_name);
+						import_index = -static_cast<int>(m_tracked_imports.size());  // -1 for first import, -2 for second, etc.
+					}
+
+					// Emit negative index (will be patched by linker)
+					EmitVariable(static_cast<uint8_t>(import_index), OpCode::SET_GLOBAL, line);
+				}
+				else
+				{
+					// Regular local global variable
+					EmitVariable(m_global_variables[name], OpCode::SET_GLOBAL, line);
+				}
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
 			{
@@ -1475,7 +1638,8 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	std::visit([this](auto&& arg) { (*this)(arg); }, **(*generic_info.m_body));
 	EmitByte(OpCode::RETURN, line);
 
-	m_procedure_names.emplace_back(specialized_name.c_str());
+	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
+	m_procedure_names.emplace_back(full_specialized_name.c_str());
 
 	m_current_procedure_index = prev_index;
 
@@ -1522,7 +1686,9 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	EmitByte(OpCode::RETURN, line);
 
 	size_t closure_proc_index = m_current_procedure_index;
-	m_procedure_names.emplace_back(debug_name.c_str());
+
+	std::string full_name = debug_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
+	m_procedure_names.emplace_back(full_name.c_str());
 
 	m_current_procedure_index = prev_index;
 

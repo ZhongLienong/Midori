@@ -1,4 +1,5 @@
 #include "Common/Constant/Constant.h"
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
 #include "Utility/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
@@ -245,7 +246,10 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 	// Walk the call stack
 	CallStackPointer frame_ptr = m_call_stack_pointer - 1;
-	while (frame_ptr >= m_call_stack_begin)
+	int frame_count = 0;
+	int total_frames = static_cast<int>(m_call_stack_pointer - m_call_stack_begin);
+
+	while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
 	{
 		auto [return_bp, return_sp, return_ip, closure_ptr] = *frame_ptr;
 
@@ -262,6 +266,14 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 		}
 
 		--frame_ptr;
+		++frame_count;
+	}
+
+	// Add truncation message if there are more frames
+	if (frame_count >= s_max_stack_trace_depth - 1 && total_frames > s_max_stack_trace_depth)
+	{
+		int remaining = total_frames - s_max_stack_trace_depth;
+		trace.append(std::format("  ... ({} more frame{})\n", remaining, remaining == 1 ? "" : "s"));
 	}
 
 	return trace;
@@ -385,7 +397,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 {
 	while (true)
 	{
-#ifdef DEBUG
+#if MIDORI_ENABLE_STACK_TRACE
 		Printer::Print("          ");
 		std::for_each
 		(
@@ -1547,7 +1559,66 @@ int VirtualMachine::Execute() noexcept
 	}
 	__except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
 	{
-		Printer::Print<Printer::Color::RED>("Runtime Error: Stack overflow - exceeded maximum stack depth\n");
+		// Print error header
+		Printer::Print<Printer::Color::BRIGHT_RED>("Runtime Error");
+		Printer::Print(" at ");
+		Printer::Print<Printer::Color::BRIGHT_CYAN>("line ");
+		printf("%d\n", GetLine());
+		Printer::Print<Printer::Color::BRIGHT_WHITE>("Stack overflow - exceeded maximum stack depth\n");
+
+		// Print stack trace
+		Printer::Print("Stack trace:\n");
+		std::string_view file_name = m_executable.GetFileName();
+
+		// Current frame
+		int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
+		int current_line = GetLineFromIP(m_instruction_pointer, current_proc);
+
+		if (current_proc >= 0 && current_proc < static_cast<int>(m_executable.m_procedure_names.size()))
+		{
+			Printer::Print("  at ");
+			Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable.m_procedure_names[current_proc].GetCString());
+			printf(" in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), current_line);
+		}
+		else
+		{
+			printf("  at <anonymous> in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), current_line);
+		}
+
+		// Walk the call stack
+		CallStackPointer frame_ptr = m_call_stack_pointer - 1;
+		int frame_count = 0;
+		int total_frames = static_cast<int>(m_call_stack_pointer - m_call_stack_begin);
+
+		while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
+		{
+			auto [return_bp, return_sp, return_ip, closure_ptr] = *frame_ptr;
+
+			int proc_index = GetProcedureIndexFromIP(return_ip);
+			int line = GetLineFromIP(return_ip, proc_index);
+
+			if (proc_index >= 0 && proc_index < static_cast<int>(m_executable.m_procedure_names.size()))
+			{
+				Printer::Print("  at ");
+				Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable.m_procedure_names[proc_index].GetCString());
+				printf(" in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), line);
+			}
+			else
+			{
+				printf("  at <anonymous> in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), line);
+			}
+
+			--frame_ptr;
+			++frame_count;
+		}
+
+		// Add truncation message if there are more frames
+		if (frame_count >= s_max_stack_trace_depth - 1 && total_frames > s_max_stack_trace_depth)
+		{
+			int remaining = total_frames - s_max_stack_trace_depth;
+			printf("  ... (%d more frame%s)\n", remaining, remaining == 1 ? "" : "s");
+		}
+
 		return EXIT_FAILURE;
 	}
 #else

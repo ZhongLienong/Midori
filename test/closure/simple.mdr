@@ -1,6 +1,6 @@
 import
 {
-	"../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/IO.mdr",
 }
 
 defun x(y : Int) : fn() -> Int => fn() : Int => y;

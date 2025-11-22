@@ -8,8 +8,10 @@
 
 class TypeChecker
 {
-private:
+public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+
+private:
 	using TypeEnvironmentStack = std::vector<TypeEnvironment>;
 	using TypeSubstitution = std::unordered_map<int, std::shared_ptr<MidoriType>>;
 	using GenericFunctionNames = std::unordered_set<std::string>;
@@ -31,6 +33,7 @@ private:
 	const std::vector<std::string>& m_source_lines;
 	int m_next_type_var_id;
 	std::shared_ptr<MidoriType> m_expected_return_type;  // Expected return type for the current function
+	std::shared_ptr<MidoriType> m_expected_break_type;   // Expected break type for the current loop
 	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
 	const std::array<Token::Name, 1u> m_binary_concatenation_operators{ Token::Name::DOUBLE_PLUS };
 	const std::array<Token::Name, 4u> m_binary_partial_order_comparison_operators{ Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL };
@@ -40,9 +43,17 @@ private:
 
 public:
 
-	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines);
+	TypeChecker(
+		MidoriProgramTree&& parser_result,
+		std::string_view file_name,
+		const std::vector<std::string>& source_lines,
+		TypeEnvironment imported_types = {}
+	);
 
 	MidoriResult::TypeCheckerResult TypeCheck();
+
+	// Extract type signatures from parsed AST (for parallel type checking)
+	static TypeEnvironment ExtractTypeSignatures(const MidoriProgramTree& ast);
 
 private:
 

@@ -5,9 +5,10 @@
 #include <unordered_map>
 
 #include "Common/Error/Error.h"
-#include "Compiler/Result/Result.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Compiler/Module/CompiledModule.h"
 #include "Compiler/Module/Module.h"
+#include "Compiler/Result/Result.h"
 
 class Parser
 {
@@ -47,14 +48,17 @@ private:
 	std::vector<std::string> m_namespaces;
 	const std::vector<std::string>& m_source_lines;
 	const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations;
+	const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports;
 	const ModuleDeclaration* m_current_module;
+	std::vector<UseImport> m_current_use_imports; 
+	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols; 
 	int m_function_depth = 0;
 	int m_current_token_index = 0;
 	int m_total_locals_in_curr_scope = 0;
 	int m_total_variables = 0;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, ModuleDeclaration>* module_declarations = nullptr);
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl);
 
 	MidoriResult::ParserResult Parse();
 
@@ -310,6 +314,10 @@ private:
 	std::vector<Scope>::const_reverse_iterator FindTypeScope(std::string& name);
 
 	bool CanAccessSymbol(const std::string& symbol_name) const;
+
+	bool IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const;
+
+	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 
 	bool SharesNamespace(const std::string& namespace1, const std::string& namespace2) const;
 

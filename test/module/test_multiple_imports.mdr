@@ -1,0 +1,17 @@
+// Test: Importing from multiple modules
+module TestMultiple
+
+import
+{
+    "math_lib.mdr",
+    "string_utils.mdr"
+}
+
+// Access symbols from different modules
+defun test_multiple() : Int => {
+    def math_result = Math::add(5, 3);
+    def utils_result = StringUtils::double(10);
+    Math::multiply(math_result, utils_result)
+};
+
+defun main() : Int => test_multiple();

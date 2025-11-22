@@ -54,7 +54,7 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 
 MidoriValue::MidoriValue() noexcept
 	: m_data{ .m_integer = 0 }
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	, m_tag(UNIT)
 #endif
 {
@@ -62,7 +62,7 @@ MidoriValue::MidoriValue() noexcept
 
 MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 	: m_data{ .m_float = midori_float }
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	, m_tag(FLOAT)
 #endif
 {
@@ -70,7 +70,7 @@ MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 
 MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 	: m_data{ .m_integer = integer }
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	, m_tag(INT)
 #endif
 {
@@ -78,7 +78,7 @@ MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 
 MidoriValue::MidoriValue(MidoriBool b) noexcept
 	: m_data{ .m_bool = b }
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	, m_tag(BOOL)
 #endif
 {
@@ -86,7 +86,7 @@ MidoriValue::MidoriValue(MidoriBool b) noexcept
 
 MidoriValue::MidoriValue(MidoriTraceable* tagged_pointer) noexcept
 	: m_data{ .m_pointer = tagged_pointer }
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 	, m_tag(POINTER)
 #endif
 {
@@ -118,7 +118,7 @@ MidoriTraceable* MidoriValue::GetPointer() const noexcept
 	return reinterpret_cast<MidoriTraceable*>(raw & TAG_MASK);
 }
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 MidoriText MidoriValue::ToText() const
 {
 	switch (m_tag)
@@ -163,7 +163,7 @@ MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_value(
 {
 }
 
-#ifdef DEBUG
+#if MIDORI_DEBUG_INFO
 MidoriText MidoriTraceable::ToText()
 {
 	return std::visit([](auto&& arg) -> MidoriText

@@ -431,6 +431,11 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		if (changed)
 		{
 			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
+			// Mark this as a generic instantiation if the original had generic params
+			if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
+			{
+				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+			}
 			return new_struct;
 		}
 		return type;
@@ -560,12 +565,22 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	return false;
 }
 
-TypeChecker::TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines)
-	: m_program_tree(std::move(parser_result)), 
+TypeChecker::TypeChecker(
+	MidoriProgramTree&& parser_result,
+	std::string_view file_name,
+	const std::vector<std::string>& source_lines,
+	TypeEnvironment imported_types
+)
+	: m_program_tree(std::move(parser_result)),
 	m_source_lines(source_lines),
 	m_next_type_var_id(0),
 	m_file_name(file_name)
 {
+	// Pre-populate type environment with imported types
+	if (!imported_types.empty())
+	{
+		m_name_type_table.push_back(std::move(imported_types));
+	}
 }
 
 MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
@@ -595,6 +610,50 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 	{
 		return std::unexpected<std::string>(std::move(errors));
 	}
+}
+
+// Extract type signatures from parsed AST without full type checking
+// This allows parallel type checking of dependent modules
+TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProgramTree& ast)
+{
+	TypeEnvironment signatures;
+
+	for (const std::unique_ptr<MidoriStatement>& statement : ast)
+	{
+		std::visit(
+			[&signatures](const auto& stmt) {
+				using T = std::decay_t<decltype(stmt)>;
+
+				if constexpr (std::is_same_v<T, MidoriStatement::DefineFunction>)
+				{
+					// Extract function signature
+					signatures[stmt.m_name.m_lexeme] = MidoriType::MakeFunctionType(
+						stmt.m_param_types,
+						std::shared_ptr<MidoriType>(stmt.m_return_type)
+					);
+				}
+				else if constexpr (std::is_same_v<T, MidoriStatement::Struct>)
+				{
+					// Struct already has its complete type in m_self_type
+					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+				}
+				else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
+				{
+					// Union already has its complete type in m_self_type
+					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+				}
+				else if constexpr (std::is_same_v<T, MidoriStatement::Foreign>)
+				{
+					// Extract foreign function signature
+					signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
+				}
+				// Other statement types (Simple, Define, etc.) don't export types
+			},
+			**statement
+		);
+	}
+
+	return signatures;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Simple& simple)
@@ -680,6 +739,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Define& def)
 				if (def.m_annotated_type.has_value())
 				{
 					std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
+
+					// Reject NeverType values with concrete type annotations
+					// NeverType represents expressions that never return (infinite loops, unconditional returns/breaks)
+					// They cannot be assigned to variables with concrete types
+					if (type->IsType<MidoriType::NeverType>() && !annotated_type->IsType<MidoriType::NeverType>())
+					{
+						return std::unexpected<std::string>(
+							MidoriError::GenerateTypeCheckerErrorWithContext(
+								"Cannot assign a never-returning expression to a variable with type " + annotated_type->ToString(),
+								def.m_name,
+								m_file_name,
+								m_source_lines
+							)
+						);
+					}
+
 					return Unify(def.m_name, annotated_type, type)
 						.and_then
 						(
@@ -1017,27 +1092,38 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Default& defa
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Loop& loop)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **loop.m_body)
+	// Save the outer loop's expected break type (for nested loops)
+	std::shared_ptr<MidoriType> outer_break_type = m_expected_break_type;
+
+	// Set the expected break type for this loop (initially undecided)
+	m_expected_break_type = loop.m_type_data;
+
+	MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **loop.m_body)
 		.and_then
 		(
-			[&loop, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+			[&loop, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
 			{
-				if (loop.m_body->IsExpression<MidoriExpression::Break>())
+				// The loop's type is determined by the expected break type
+				// If no breaks occurred, m_expected_break_type is still undecided
+				if (m_expected_break_type->IsType<MidoriType::UndecidedType>())
 				{
-					return Unify(loop.m_loop_keyword, loop.m_type_data, type);
+					// No breaks in this loop - it's an infinite loop with NeverType
+					loop.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
 				}
-				else if (loop.m_body->IsExpression<MidoriExpression::Block>())
+				else
 				{
-					if (loop.m_body->Contains<MidoriExpression::Break>())
-					{
-						return Unify(loop.m_loop_keyword, loop.m_type_data, type);
-					}
+					// Loop has breaks - use the unified break type
+					loop.m_type_data = m_expected_break_type;
 				}
 
-				loop.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
 				return loop.m_type_data;
 			}
 		);
+
+	// Restore the outer loop's expected break type
+	m_expected_break_type = outer_break_type;
+
+	return result;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
@@ -1575,6 +1661,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	// For generic structs, apply substitution to the return type to get the monomorphized type
 	// After unifying parameters, type variables have been substituted with concrete types
 	construct.m_type_data = ApplySubstitution(constructor_type.m_return_type);
+
+	// Mark as generic instantiation if this was a generic struct/union
+	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
+	{
+		if (m_generic_structs.contains(actual_type_name) && construct.m_type_data->IsType<MidoriType::StructType>())
+		{
+			construct.m_type_data->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+		}
+	}
+	else if (m_generic_unions.contains(actual_type_name) && construct.m_type_data->IsType<MidoriType::UnionType>())
+	{
+		construct.m_type_data->GetType<MidoriType::UnionType>().m_is_generic_instantiation = true;
+	}
+
 	return construct.m_type_data;
 }
 
@@ -1789,6 +1889,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 	{
 		EndScope();
 
+		// Check if the last statement is a break or return (which have NeverType)
+		// If so, the block should have NeverType rather than Unit
+		if (!block.m_stmts.empty())
+		{
+			const std::unique_ptr<MidoriStatement>& last_stmt = block.m_stmts.back();
+			if (last_stmt->IsStatement<MidoriStatement::Simple>())
+			{
+				const MidoriStatement::Simple& simple = last_stmt->GetStatement<MidoriStatement::Simple>();
+				if (simple.m_expr->IsExpression<MidoriExpression::Break>() ||
+				    simple.m_expr->IsExpression<MidoriExpression::Return>())
+				{
+					// Block ends with break or return statement - use NeverType
+					block.m_type_data = simple.m_expr->GetType();
+					return block.m_type_data;
+				}
+			}
+		}
+
 		// Blocks without final expressions have Unit type
 		if (block.m_type_data->IsType<MidoriType::UndecidedType>())
 		{
@@ -1805,7 +1923,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_
 		(
 			[&break_expr, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
 			{
-				return Unify(break_expr.m_keyword, break_expr.m_type_data, type);
+				// Unify the break value's type with the expected break type for the current loop
+				if (m_expected_break_type)
+				{
+					return Unify(break_expr.m_keyword, type, m_expected_break_type)
+						.and_then
+						(
+							[&break_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							{
+								// Like return, break never returns normally, so its type is NeverType
+								// This allows it to unify with any type in if-else branches
+								break_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
+								return break_expr.m_type_data;
+							}
+						);
+				}
+				else
+				{
+					// Break outside of a loop - this should be caught by an earlier pass
+					// For now, just set to NeverType
+					break_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
+					return break_expr.m_type_data;
+				}
 			}
 		);
 }

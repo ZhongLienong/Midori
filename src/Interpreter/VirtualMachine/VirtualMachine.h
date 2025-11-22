@@ -20,6 +20,7 @@ public:
 private:
     static constexpr size_t s_value_stack_size = 10000u;
     static constexpr size_t s_call_stack_size = 10000u;
+    static constexpr int s_max_stack_trace_depth = 20;
 
     using ValueStackPointer = MidoriValue*;
     using InstructionPointer = const OpCode*;

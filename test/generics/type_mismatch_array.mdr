@@ -1,7 +1,8 @@
 // Test: Different generic instantiations should not be compatible
 // Expected: SHOULD FAIL - cannot put different generic instances in same array
 
-struct Box<T> {
+struct Box<T> 
+{
     value: T
 };
 

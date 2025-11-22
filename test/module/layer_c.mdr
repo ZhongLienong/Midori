@@ -1,0 +1,5 @@
+// Layer C in complex dependency chain (deepest layer)
+module LayerC
+public export { calculate }
+
+defun calculate(x: Int) : Int => x * x + x;

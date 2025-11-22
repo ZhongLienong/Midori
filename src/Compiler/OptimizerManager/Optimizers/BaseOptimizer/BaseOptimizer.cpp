@@ -1,4 +1,5 @@
 #include "BaseOptimizer.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
 void MidoriOptimizer::VisitAndReplace(std::unique_ptr<MidoriExpression>& expr)
 {
@@ -263,7 +264,7 @@ void MidoriOptimizer::operator()(MidoriExpression::Return& return_expr)
 	VisitAndReplace(return_expr.m_value);
 }
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 int MidoriOptimizer::GetOptimizationsPerformed() const
 {
 	return m_optimizations_performed;

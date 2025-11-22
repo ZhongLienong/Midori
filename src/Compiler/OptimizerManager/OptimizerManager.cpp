@@ -3,8 +3,9 @@
 #include "Compiler/OptimizerManager/Optimizers/ConstantFolding/ConstantFolding.h"
 #include "Compiler/OptimizerManager/Optimizers/StrengthReduction/StrengthReduction.h"
 #include "Compiler/OptimizerManager/Optimizers/TailCallOptimization/TailCallOptimization.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 #include "Common/Printer/Printer.h"
 #include <format>
 #endif
@@ -21,14 +22,14 @@ void OptimizerManager::AddOptimizer(std::unique_ptr<MidoriOptimizer> optimizer)
 {
 	m_optimizers.emplace_back(std::move(optimizer));
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	m_stats.emplace_back("", 0, 0);
 #endif
 }
 
 MidoriResult::OptimizerResult OptimizerManager::Optimize()
 {
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	Printer::Print<Printer::Color::CYAN>("\n=== Optimization Pass ===\n");
 #endif
 
@@ -37,31 +38,30 @@ MidoriResult::OptimizerResult OptimizerManager::Optimize()
 	{
 		std::unique_ptr<MidoriOptimizer>& optimizer = m_optimizers[i];
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 		std::string_view name = optimizer->GetName();
 		m_stats[i].m_name = name;
 		m_stats[i].m_passes_run += 1;
-#endif
 
 		int optimizations = optimizer->Optimize(m_program_tree);
-
-#ifdef DEBUG
 		m_stats[i].m_optimizations_performed += optimizations;
 		if (optimizations > 0)
 		{
 			Printer::Print<Printer::Color::MAGENTA>(std::format("  {}: {} optimizations\n", name, optimizations));
 		}
+#else
+		optimizer->Optimize(m_program_tree);
 #endif
 	}
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	Printer::Print<Printer::Color::CYAN>("=========================\n\n");
 #endif
 
 	return std::move(m_program_tree);
 }
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 void OptimizerManager::PrintStatistics() const
 {
 	Printer::Print<Printer::Color::CYAN>("\n=== Optimization Statistics ===\n");

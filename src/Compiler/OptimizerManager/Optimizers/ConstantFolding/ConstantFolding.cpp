@@ -1,9 +1,10 @@
 #include "ConstantFolding.h"
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/Token/Token.h"
 
 int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
 {
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
 #endif
 
@@ -16,7 +17,7 @@ int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
 		}
 	);
 
-#ifdef DEBUG
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 	return GetOptimizationsPerformed();
 #else
 	return 0;
@@ -32,6 +33,8 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 {
 	VisitAndReplace(binary.m_left);
 	VisitAndReplace(binary.m_right);
+
+	std::shared_ptr<MidoriType> original_type = binary.m_type_data;
 
 	Token& op = binary.m_op;
 
@@ -198,11 +201,18 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
 	}
+
+	if (m_pending_replacement)
+	{
+		m_pending_replacement->GetType() = original_type;
+	}
 }
 
 void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 {
 	VisitAndReplace(unary.m_expr);
+
+	std::shared_ptr<MidoriType> original_type = unary.m_type_data;
 
 	Token& op = unary.m_op;
 
@@ -243,5 +253,10 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 			Token result_token("false", Token::Name::FALSE, op.m_line);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
+	}
+
+	if (m_pending_replacement)
+	{
+		m_pending_replacement->GetType() = original_type;
 	}
 }

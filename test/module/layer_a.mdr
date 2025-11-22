@@ -1,0 +1,10 @@
+// Layer A in complex dependency chain
+module LayerA
+public export { process }
+
+import
+{
+    "layer_b.mdr"
+}
+
+defun process(x: Int) : Int => LayerB::transform(x);

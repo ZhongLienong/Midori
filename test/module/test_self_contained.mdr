@@ -1,0 +1,11 @@
+// Test: Self-contained module with no dependencies
+module SelfContained
+public export { factorial, fibonacci }
+
+defun factorial(n: Int) : Int =>
+    if n <= 1 then 1 else n * factorial(n - 1);
+
+defun fibonacci(n: Int) : Int =>
+    if n <= 1 then n else fibonacci(n - 1) + fibonacci(n - 2);
+
+defun main() : Int => factorial(5) + fibonacci(7);

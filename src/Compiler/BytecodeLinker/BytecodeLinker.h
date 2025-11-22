@@ -1,0 +1,66 @@
+#pragma once
+
+#include "Common/Executable/Executable.h"
+#include "Compiler/BytecodeModule/BytecodeModule.h"
+#include "Compiler/Result/Result.h"
+
+#include <expected>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
+class BytecodeLinker
+{
+private:
+	std::vector<BytecodeModule> m_modules;
+	std::string m_entry_module_name;
+	std::unordered_map<std::string, size_t> m_module_base_procedure_indices;
+	std::unordered_map<std::string, size_t> m_module_base_global_indices;
+	std::unordered_map<std::string, std::vector<size_t>> m_module_string_index_mappings;
+	std::unordered_map<std::string, size_t> m_global_symbol_to_procedure;
+	std::vector<std::string> m_global_string_pool;
+	std::vector<MidoriText> m_global_procedure_names;
+	std::vector<BytecodeStream> m_global_procedures;
+	std::vector<MidoriText> m_global_variables;
+
+public:
+	BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name);
+
+	MidoriResult::BytecodeLinkerResult Link();
+
+private:
+	void AssignModuleBaseOffsets();
+
+	std::expected<void, std::string> BuildGlobalSymbolTable();
+
+	void MergeConstantPools();
+
+	void MergeFunctionNames();
+
+	void MergeGlobalVariables();
+
+	std::expected<void, std::string> ResolveImportsAndPatch();
+
+	void ConcatenateBytecode();
+
+	void PatchBootstrapOffsets();
+
+	BytecodeStream BuildBootstrapProcedure();
+
+	const BytecodeModule* FindModule(const std::string& module_name) const;
+
+	std::string MakeSymbolKey(const std::string& module_name, const std::string& symbol_name) const;
+
+	bool IsImportIndex(int global_index) const;
+
+	size_t ConvertImportIndex(int global_index) const;
+
+	size_t MergeString(const std::string& str);
+
+	std::optional<size_t> FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const;
+
+	std::optional<size_t> FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const;
+
+	int CalculateInstructionSize(OpCode opcode, const BytecodeStream& procedure, int offset) const;
+};

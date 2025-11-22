@@ -1,7 +1,0 @@
-module Main
-import 
-{
-    "math_lib.mdr"
-}
-
-defun main() : Int => multiply(add(5, 3), 2);

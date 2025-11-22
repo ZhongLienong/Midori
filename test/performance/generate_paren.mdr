@@ -1,7 +1,7 @@
 import 
 {
-	"../MidoriPrelude/IO.mdr",
-	"../MidoriPrelude/DateTime.mdr"
+	"../../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/DateTime.mdr"
 }
 
 def output : Array<Text> = [];
@@ -38,7 +38,7 @@ defun BackTrack(len : Int, left : Int, right : Int, acc : Text) : Unit =>
 
 def start = DateTime::GetTime();
 
-BackTrack(10, 0, 0, "");
+BackTrack(8, 0, 0, "");
 
 def end = DateTime::GetTime();
 

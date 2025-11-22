@@ -1,6 +1,6 @@
-import 
+import
 {
-	"C:\\Users\\jk381\\source\\repos\\ZhongLienong\\Midori\\MidoriPrelude\\IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
 }
 
 def factorial = fn(n : Int) : Int => if n <= 1 then 1 else n * factorial(n-1);

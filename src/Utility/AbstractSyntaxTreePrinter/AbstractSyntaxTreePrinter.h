@@ -1,7 +1,8 @@
-#ifdef DEBUG
+#if MIDORI_ENABLE_AST_DUMP
 #pragma once
 
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Common/BuildConfig/BuildConfig.h"
 
 struct PrintAbstractSyntaxTree
 {
