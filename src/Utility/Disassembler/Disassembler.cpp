@@ -1,13 +1,12 @@
-#if MIDORI_ENABLE_DISASSEMBLY
-
 #include <iomanip>
-#include "Common/BuildConfig/BuildConfig.h"
 #include <sstream>
 #include <string>
 
 #include "Common/Executable/Executable.h"
 #include "Common/Printer/Printer.h"
 #include "Disassembler.h"
+
+#if MIDORI_ENABLE_DISASSEMBLY
 
 namespace
 {
@@ -266,6 +265,9 @@ namespace
 
 namespace Disassembler
 {
+	// Forward declaration
+	void DisassembleInstruction(const MidoriExecutable& executable, int proc_index, int& offset);
+
 	void DisassembleBytecodeStream(const MidoriExecutable& executable, int proc_index, std::string_view proc_name)
 	{
 		std::ostringstream header;
@@ -364,6 +366,21 @@ namespace Disassembler
 			break;
 		case OpCode::ADD_FRONT_ARRAY:
 			SimpleInstruction("ADD_FRONT_ARRAY", offset);
+			break;
+		case OpCode::CREATE_INT_RANGE:
+			SimpleInstruction("CREATE_INT_RANGE", offset);
+			break;
+		case OpCode::CREATE_FLOAT_RANGE:
+			SimpleInstruction("CREATE_FLOAT_RANGE", offset);
+			break;
+		case OpCode::GET_RANGE_START:
+			SimpleInstruction("GET_RANGE_START", offset);
+			break;
+		case OpCode::GET_RANGE_END:
+			SimpleInstruction("GET_RANGE_END", offset);
+			break;
+		case OpCode::GET_RANGE_STEP:
+			SimpleInstruction("GET_RANGE_STEP", offset);
 			break;
 		case OpCode::INT_TO_FLOAT:
 			SimpleInstruction("INT_TO_FLOAT", offset);

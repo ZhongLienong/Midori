@@ -18,6 +18,8 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"else"s, Token::Name::ELSE},
 	{"false"s, Token::Name::FALSE},
 	{"loop"s, Token::Name::LOOP},
+	{"for"s, Token::Name::FOR},
+	{"in"s, Token::Name::IN},
 	{"if"s, Token::Name::IF},
 	{"return"s, Token::Name::RETURN},
 	{"true"s, Token::Name::TRUE},
@@ -301,7 +303,14 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					}
 					else
 					{
-						return MakeToken(Token::Name::DOT);
+						if (MatchNext('.'))
+					{
+						return MakeToken(Token::Name::DOUBLE_DOT);
+					}
+					else
+					{
+						return MakeToken(Token::Name::SINGLE_DOT);
+					}
 					}
 				case ';':
 					return MakeToken(Token::Name::SINGLE_SEMICOLON);

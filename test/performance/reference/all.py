@@ -128,9 +128,114 @@ def test_parenthesis_generation(max_len: int) -> None:
 
 # ---
 
+def test_ackermann(m: int, n: int) -> None:
+    """
+    Computes the Ackermann function recursively and benchmarks the time.
+    """
+
+    def ackermann(m: int, n: int) -> int:
+        """Recursive Ackermann function."""
+        if m == 0:
+            return n + 1
+        else:
+            if n == 0:
+                return ackermann(m - 1, 1)
+            else:
+                return ackermann(m - 1, ackermann(m, n - 1))
+
+    start = time.perf_counter()
+    result = ackermann(m, n)
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"Ackermann({m}, {n}): {result} benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
+def test_sorting(size: int) -> None:
+    """
+    Sorts an array using quicksort and benchmarks the time.
+    """
+
+    def quicksort(arr: List[int]) -> List[int]:
+        """Quicksort implementation."""
+        if len(arr) <= 1:
+            return arr
+        else:
+            pivot = arr[len(arr) // 2]
+            less = []
+            equal = []
+            greater = []
+
+            for val in arr:
+                if val < pivot:
+                    less.append(val)
+                elif val == pivot:
+                    equal.append(val)
+                else:
+                    greater.append(val)
+
+            return quicksort(less) + equal + quicksort(greater)
+
+    start = time.perf_counter()
+
+    # Create array in reverse order
+    test_array = list(range(size, 0, -1))
+    sorted_array = quicksort(test_array)
+
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"QuickSort({size} elements): benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
+def test_binary_search(array_size: int, num_searches: int) -> None:
+    """
+    Performs binary search operations and benchmarks the time.
+    """
+
+    def binary_search(arr: List[int], target: int, low: int, high: int) -> int:
+        """Recursive binary search."""
+        if low > high:
+            return -1
+        else:
+            mid = low + (high - low) // 2
+            mid_val = arr[mid]
+
+            if mid_val == target:
+                return mid
+            else:
+                if mid_val > target:
+                    return binary_search(arr, target, low, mid - 1)
+                else:
+                    return binary_search(arr, target, mid + 1, high)
+
+    start = time.perf_counter()
+
+    # Create sorted array
+    sorted_array = list(range(array_size))
+
+    found_count = 0
+    for j in range(num_searches):
+        target = (j * 7) % array_size
+        result = binary_search(sorted_array, target, 0, len(sorted_array) - 1)
+        if result != -1:
+            found_count += 1
+
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+
+    print(f"Binary search ({num_searches} searches in {array_size} elements): {found_count} found, benchmark took {duration_ms:.2f} milliseconds")
+
+# ---
+
 if __name__ == "__main__":
     # Run the benchmarks
     test_fib(35)
     test_prime_numbers()
     test_string_manipulation()
     test_parenthesis_generation(8)
+    test_ackermann(3, 5)
+    test_sorting(5000)
+    test_binary_search(100000, 10000)

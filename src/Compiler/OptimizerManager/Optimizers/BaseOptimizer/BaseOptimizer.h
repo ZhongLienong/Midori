@@ -99,6 +99,10 @@ protected:
 
 	virtual void operator()(MidoriExpression::ArraySet& array_set);
 
+	virtual void operator()(MidoriExpression::RangeBinary& range_binary);
+
+	virtual void operator()(MidoriExpression::RangeTernary& range_ternary);
+
 	virtual void operator()(MidoriExpression::IfElse& if_else);
 
 	virtual void operator()(MidoriExpression::Block& block);
@@ -110,6 +114,8 @@ protected:
 	virtual void operator()(MidoriExpression::Default& default_expr);
 
 	virtual void operator()(MidoriExpression::Loop& loop);
+
+	virtual void operator()(MidoriExpression::For& for_expr);
 
 	virtual void operator()(MidoriExpression::Break& break_expr);
 

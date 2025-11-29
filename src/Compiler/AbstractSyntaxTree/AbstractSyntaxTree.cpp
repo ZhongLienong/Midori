@@ -149,6 +149,22 @@ MidoriExpression::ArraySet::ArraySet(const Token& op, std::vector<std::unique_pt
 {
 }
 
+MidoriExpression::RangeBinary::RangeBinary(const Token& range_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& end)
+	: m_range_op(range_op),
+	m_start(std::move(start)),
+	m_end(std::move(end))
+{
+}
+
+MidoriExpression::RangeTernary::RangeTernary(const Token& first_op, const Token& second_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& step, std::unique_ptr<MidoriExpression>&& end)
+	: m_first_range_op(first_op),
+	m_second_range_op(second_op),
+	m_start(std::move(start)),
+	m_step(std::move(step)),
+	m_end(std::move(end))
+{
+}
+
 MidoriExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, int local_count, std::unique_ptr<MidoriExpression>&& final_expr)
 	: m_right_brace(right_brace),
 	m_stmts(std::move(stmts)),
@@ -181,6 +197,16 @@ MidoriExpression::Default::Default(const Token& keyword, std::unique_ptr<MidoriE
 
 MidoriExpression::Loop::Loop(const Token& loop_keyword, std::unique_ptr<MidoriExpression>&& body)
 	: m_loop_keyword(loop_keyword),
+	m_body(std::move(body))
+{
+}
+
+MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
+	std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body)
+	: m_for_keyword(for_keyword),
+	m_loop_variable(loop_variable),
+	m_in_keyword(in_keyword),
+	m_range(std::move(range)),
 	m_body(std::move(body))
 {
 }

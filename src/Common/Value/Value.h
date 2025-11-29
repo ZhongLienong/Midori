@@ -21,6 +21,7 @@ enum PointerTag : uint8_t
 	UNION = 0b100,
 	CELL = 0b011,
 	FUNCTION = 0b110,
+	RANGE = 0b101,
 };
 
 class MidoriTraceable;
@@ -230,6 +231,28 @@ private:
 	void Shrink();
 };
 
+class MidoriRange
+{
+private:
+	MidoriValue m_start;
+	MidoriValue m_end;
+	MidoriValue m_step;
+	bool m_is_float;
+
+public:
+	MidoriRange() = default;
+
+	MidoriRange(MidoriValue start, MidoriValue end, MidoriValue step, bool is_float);
+
+	MidoriValue GetStart() const;
+
+	MidoriValue GetEnd() const;
+
+	MidoriValue GetStep() const;
+
+	bool IsFloat() const;
+};
+
 struct MidoriCellValue
 {
 	MidoriValue m_data;
@@ -264,7 +287,7 @@ struct MidoriUnion
 class MidoriTraceable
 {
 private:
-	std::variant<MidoriText, MidoriArray, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure> m_value;
+	std::variant<MidoriText, MidoriArray, MidoriRange, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure> m_value;
 	size_t m_size;
 	bool m_is_marked = false;
 
@@ -312,6 +335,8 @@ private:
 	MidoriTraceable(MidoriText&& str) noexcept;
 
 	MidoriTraceable(MidoriArray&& array) noexcept;
+
+	MidoriTraceable(MidoriRange&& range) noexcept;
 
 	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
 

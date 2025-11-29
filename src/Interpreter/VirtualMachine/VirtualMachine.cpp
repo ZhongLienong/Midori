@@ -435,8 +435,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 				dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - start);
 			}
 		}
-
+#if MIDORI_ENABLE_DISASSEMBLY
 		Disassembler::DisassembleInstruction(m_executable, dbg_proc_index, dbg_instruction_pointer);
+#endif
 #endif
 		OpCode instruction = ReadByte();
 
@@ -646,6 +647,49 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			val = arr;
 
+			break;
+		}
+		case OpCode::CREATE_INT_RANGE:
+		{
+			MidoriValue end = Pop();
+			MidoriValue step = Pop();
+			MidoriValue start = Pop();
+
+			MidoriRange range(start, end, step, false);
+
+			Push(m_garbage_collector.AllocateTraceable(std::move(range), PointerTag::RANGE));
+			break;
+		}
+		case OpCode::CREATE_FLOAT_RANGE:
+		{
+			MidoriValue end = Pop();
+			MidoriValue step = Pop();
+			MidoriValue start = Pop();
+
+			MidoriRange range(start, end, step, true);
+
+			Push(m_garbage_collector.AllocateTraceable(std::move(range), PointerTag::RANGE));
+			break;
+		}
+		case OpCode::GET_RANGE_START:
+		{
+			MidoriValue range_ptr = Pop();
+			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
+			Push(range.GetStart());
+			break;
+		}
+		case OpCode::GET_RANGE_END:
+		{
+			MidoriValue range_ptr = Pop();
+			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
+			Push(range.GetEnd());
+			break;
+		}
+		case OpCode::GET_RANGE_STEP:
+		{
+			MidoriValue range_ptr = Pop();
+			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
+			Push(range.GetStep());
 			break;
 		}
 		case OpCode::INT_TO_FLOAT:

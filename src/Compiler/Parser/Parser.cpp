@@ -511,6 +511,46 @@ MidoriResult::ExpressionResult Parser::ParseShift()
 	return ParseBinary(&Parser::ParseTerm, Token::Name::LEFT_SHIFT, Token::Name::RIGHT_SHIFT);
 }
 
+MidoriResult::ExpressionResult Parser::ParseRange()
+{
+	return ParseShift()
+		.and_then
+		(
+			[this](std::unique_ptr<MidoriExpression>&& start) -> MidoriResult::ExpressionResult
+			{
+				if (!Match(Token::Name::DOUBLE_DOT))
+				{
+					return start;
+				}
+
+				Token first_range_op = Previous();
+
+				return ParseShift()
+					.and_then
+					(
+						[this, &first_range_op, &start](std::unique_ptr<MidoriExpression>&& middle) -> MidoriResult::ExpressionResult
+						{
+							if (!Match(Token::Name::DOUBLE_DOT))
+							{
+								return std::unexpected<std::string>(GenerateParserError("Expected '..' for step in range expression. Use 'start..step..end' syntax.", Peek(0)));
+							}
+
+							Token second_range_op = Previous();
+
+							return ParseShift()
+								.and_then
+								(
+									[&first_range_op, &second_range_op, &start, &middle](std::unique_ptr<MidoriExpression>&& end) -> MidoriResult::ExpressionResult
+									{
+										return std::make_unique<MidoriExpression>(MidoriExpression::RangeTernary(first_range_op, second_range_op, std::move(start), std::move(middle), std::move(end)));
+									}
+								);
+						}
+					);
+			}
+		);
+}
+
 MidoriResult::ExpressionResult Parser::ParseTerm()
 {
 	return ParseBinary(&Parser::ParseFactor, Token::Name::SINGLE_PLUS, Token::Name::DOUBLE_PLUS, Token::Name::SINGLE_MINUS);
@@ -518,7 +558,7 @@ MidoriResult::ExpressionResult Parser::ParseTerm()
 
 MidoriResult::ExpressionResult Parser::ParseComparison()
 {
-	return ParseBinary(&Parser::ParseShift, Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL);
+	return ParseBinary(&Parser::ParseRange, Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL);
 }
 
 MidoriResult::ExpressionResult Parser::ParseEquality()
@@ -748,7 +788,7 @@ MidoriResult::ExpressionResult Parser::ParseCall()
 						}
 					);
 			}
-			else if (Match(Token::Name::DOT))
+			else if (Match(Token::Name::SINGLE_DOT))
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier after '.'.")
 					.and_then
@@ -1162,6 +1202,10 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		return ParseLoopExpression();
 	}
+	else if (Match(Token::Name::FOR))
+	{
+		return ParseForExpression();
+	}
 	else if (Match(Token::Name::BREAK))
 	{
 		return ParseBreakExpression();
@@ -1344,9 +1388,70 @@ MidoriResult::ExpressionResult Parser::ParseLoopExpression()
 		);
 }
 
+MidoriResult::ExpressionResult Parser::ParseForExpression()
+{
+	Token& for_keyword = Previous();
+
+	if (!Match(Token::Name::IDENTIFIER_LITERAL))
+	{
+		return std::unexpected<std::string>(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
+	}
+	Token loop_variable = Previous();
+
+	if (!Match(Token::Name::IN))
+	{
+		return std::unexpected<std::string>(GenerateParserError("Expected 'in' after loop variable.", Peek(0)));
+	}
+	Token in_keyword = Previous();
+
+	return ParseExpression()
+		.and_then
+		(
+			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MidoriExpression>&& range)->MidoriResult::ExpressionResult
+			{
+				static int for_counter = 0;
+				BeginScope();
+
+				// Add loop variable to scope
+				std::string var_name(loop_variable.m_lexeme);
+				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
+				int var_index = m_total_variables - 1; // The index that was just assigned
+
+				// Reserve two additional local variable slots for hidden step and end values
+				// These are not actual variables that can be referenced by name, but they need
+				// to occupy local variable slots to prevent conflicts with body variables
+				RegisterOrUpdateLocalVariable("__for_hidden_step__"s + std::to_string(for_counter));
+				int hidden_step_index = m_total_variables - 1;
+
+				RegisterOrUpdateLocalVariable("__for_hidden_end__"s + std::to_string(for_counter));
+				int hidden_end_index = m_total_variables - 1;
+				for_counter += 1;
+
+				// NOW set the loop local count, after the 3 for loop variables are registered
+				// This ensures continue/break don't try to pop these loop control variables
+				m_local_count_before_loop.emplace(m_total_variables);
+
+				return ParseExpression()
+					.and_then
+					(
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, hidden_step_index, hidden_end_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
+						{
+							EndScope();
+
+							m_local_count_before_loop.pop();
+							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
+							std::get<MidoriExpression::For>(**for_expr).m_loop_variable_index = var_index;
+							std::get<MidoriExpression::For>(**for_expr).m_hidden_step_index = hidden_step_index;
+							std::get<MidoriExpression::For>(**for_expr).m_hidden_end_index = hidden_end_index;
+							return for_expr;
+						}
+					);
+			}
+		);
+}
+
 MidoriResult::StatementResult Parser::ParseDefineStatement()
 {
-	// Check for tuple destructuring: def (x, y, z) = ...
 	if (Match(Token::Name::LEFT_PAREN))
 	{
 		std::vector<Token> names;

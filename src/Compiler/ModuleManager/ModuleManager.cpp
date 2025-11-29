@@ -139,7 +139,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 			current_use_index += 1;
 			SkipWhiteSpace(m_main_token_stream, current_use_index);
 
-			if (current_use_index >= m_main_token_stream.Size() || m_main_token_stream[current_use_index].m_token_name != Token::Name::DOT)
+			if (current_use_index >= m_main_token_stream.Size() || m_main_token_stream[current_use_index].m_token_name != Token::Name::SINGLE_DOT)
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected '.' after module name in 'use' statement", m_main_token_stream[current_use_index].m_line, m_main_file_name));
 			}
@@ -404,7 +404,7 @@ std::tuple<std::string, bool, std::vector<ModuleExport>, int> ModuleManager::Par
 		SkipWhiteSpace(tokens, current_index);
 
 		// Handle dotted module names (e.g., Math.Vector)
-		while (current_index < tokens.Size() && tokens[current_index].m_token_name == Token::Name::DOT)
+		while (current_index < tokens.Size() && tokens[current_index].m_token_name == Token::Name::SINGLE_DOT)
 		{
 			current_index += 1; // Skip dot
 			SkipWhiteSpace(tokens, current_index);

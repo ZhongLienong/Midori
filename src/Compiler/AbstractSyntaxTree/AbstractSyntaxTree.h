@@ -356,6 +356,26 @@ public:
 		ArraySet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
 	};
 
+	struct RangeBinary : BaseExpression
+	{
+		Token m_range_op;
+		std::unique_ptr<MidoriExpression> m_start;
+		std::unique_ptr<MidoriExpression> m_end;
+
+		RangeBinary(const Token& range_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& end);
+	};
+
+	struct RangeTernary : BaseExpression
+	{
+		Token m_first_range_op;
+		Token m_second_range_op;
+		std::unique_ptr<MidoriExpression> m_start;
+		std::unique_ptr<MidoriExpression> m_step;
+		std::unique_ptr<MidoriExpression> m_end;
+
+		RangeTernary(const Token& first_op, const Token& second_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& step, std::unique_ptr<MidoriExpression>&& end);
+	};
+
 	struct Block : BaseExpression
 	{
 		Token m_right_brace;
@@ -404,6 +424,20 @@ public:
 		Loop(const Token& loop_keyword, std::unique_ptr<MidoriExpression>&& body);
 	};
 
+	struct For : BaseExpression
+	{
+		Token m_for_keyword;
+		Token m_loop_variable;
+		Token m_in_keyword;
+		std::unique_ptr<MidoriExpression> m_range;
+		std::unique_ptr<MidoriExpression> m_body;
+		int m_loop_variable_index = -1;
+		int m_hidden_step_index = -1; 
+		int m_hidden_end_index = -1;
+
+		For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body);
+	};
+
 	struct Return : BaseExpression
 	{
 		Token m_keyword;
@@ -422,7 +456,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, Block, Match, Case, Default, Loop, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:
@@ -462,27 +496,27 @@ public:
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::As>)
 				{
-					return node.m_expr->Contains<Kind>();
+					return node.m_expr->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Binary>)
 				{
-					return node.m_left->Contains<Kind>() || node.m_right->Contains<Kind>();
+					return node.m_left->template Contains<Kind>() || node.m_right->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
 				{
-					return node.m_expr->Contains<Kind>();
+					return node.m_expr->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
 				{
-					return node.m_expr->Contains<Kind>();
+					return node.m_expr->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Group>)
 				{
-					return node.m_expr_in->Contains<Kind>();
+					return node.m_expr_in->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
 				{
-					return node.m_condition->Contains<Kind>() || node.m_true_branch->Contains<Kind>() || node.m_else_branch->Contains<Kind>();
+					return node.m_condition->template Contains<Kind>() || node.m_true_branch->template Contains<Kind>() || node.m_else_branch->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
 				{
@@ -490,28 +524,28 @@ public:
 					(
 						node.m_stmts, [this](const std::unique_ptr<MidoriStatement>& stmt)
 						{
-							return stmt->IsStatement<MidoriStatement::Simple>() && stmt->GetStatement<MidoriStatement::Simple>().m_expr->Contains<Kind>();
+							return stmt->template IsStatement<MidoriStatement::Simple>() && stmt->template GetStatement<MidoriStatement::Simple>().m_expr->template Contains<Kind>();
 						}
 					)
-						|| (node.m_final_expr.has_value() && node.m_final_expr.value()->Contains<Kind>());
+						|| (node.m_final_expr.has_value() && node.m_final_expr.value()->template Contains<Kind>());
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
 				{
-					return node.m_body->Contains<Kind>();
+					return node.m_body->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
 				{
-					return node.m_body->Contains<Kind>();
+					return node.m_body->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Call>)
 				{
-					if (node.m_callee->Contains<Kind>())
+					if (node.m_callee->template Contains<Kind>())
 					{
 						return true;
 					}
 					for (const std::unique_ptr<MidoriExpression>& arg : node.m_arguments)
 					{
-						if (arg->Contains<Kind>())
+						if (arg->template Contains<Kind>())
 						{
 							return true;
 						}
@@ -520,11 +554,11 @@ public:
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 				{
-					return node.m_value->Contains<Kind>();
+					return node.m_value->template Contains<Kind>();
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
 				{
-					return node.m_value->Contains<Kind>();
+					return node.m_value->template Contains<Kind>();
 				}
 				else
 				{

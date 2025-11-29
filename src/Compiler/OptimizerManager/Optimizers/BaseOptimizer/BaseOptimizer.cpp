@@ -202,6 +202,19 @@ void MidoriOptimizer::operator()(MidoriExpression::ArraySet& array_set)
 	VisitAndReplace(array_set.m_value);
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::RangeBinary& range_binary)
+{
+	VisitAndReplace(range_binary.m_start);
+	VisitAndReplace(range_binary.m_end);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::RangeTernary& range_ternary)
+{
+	VisitAndReplace(range_ternary.m_start);
+	VisitAndReplace(range_ternary.m_step);
+	VisitAndReplace(range_ternary.m_end);
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::IfElse& if_else)
 {
 	VisitAndReplace(if_else.m_condition);
@@ -252,6 +265,12 @@ void MidoriOptimizer::operator()(MidoriExpression::Default& default_expr)
 void MidoriOptimizer::operator()(MidoriExpression::Loop& loop)
 {
 	VisitAndReplace(loop.m_body);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::For& for_expr)
+{
+	VisitAndReplace(for_expr.m_range);
+	VisitAndReplace(for_expr.m_body);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Break& break_expr)

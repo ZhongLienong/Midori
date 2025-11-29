@@ -17,6 +17,7 @@ private:
 	{
 		std::vector<int> m_break_positions;
 		int m_loop_start = 0;
+		int m_continue_target = 0;  // Where continue should jump to
 	};
 
 	struct GenericFunctionInfo
@@ -164,6 +165,10 @@ private:
 
 	void operator()(MidoriExpression::ArraySet& array_set);
 
+	void operator()(MidoriExpression::RangeBinary& range_binary);
+
+	void operator()(MidoriExpression::RangeTernary& range_ternary);
+
 	void operator()(MidoriExpression::IfElse& if_else);
 
 	void operator()(MidoriExpression::Block& block);
@@ -175,6 +180,8 @@ private:
 	void operator()(MidoriExpression::Default& default_expr);
 
 	void operator()(MidoriExpression::Loop& loop);
+
+	void operator()(MidoriExpression::For& for_expr);
 
 	void operator()(MidoriExpression::Break& break_expr);
 

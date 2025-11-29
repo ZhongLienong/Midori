@@ -170,7 +170,7 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 
 void CodeGenerator::BeginLoop(int loop_start)
 {
-	m_loop_contexts.emplace(std::vector<int>(), loop_start);
+	m_loop_contexts.emplace(std::vector<int>(), loop_start, loop_start);  // By default, continue jumps to loop_start
 }
 
 void CodeGenerator::EndLoop(int line)
@@ -484,7 +484,7 @@ void CodeGenerator::operator()(MidoriStatement::Continue& continue_stmt)
 		continue_stmt.m_number_to_pop -= count_to_pop;
 	}
 
-	EmitLoop(m_loop_contexts.top().m_loop_start, line);
+	EmitLoop(m_loop_contexts.top().m_continue_target, line);
 }
 
 void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
@@ -1162,6 +1162,52 @@ void CodeGenerator::operator()(MidoriExpression::ArraySet& array_set)
 	EmitByte(static_cast<OpCode>(array_set.m_indices.size()), line);
 }
 
+void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
+{
+	int line = range_binary.m_range_op.m_line;
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **range_binary.m_start);
+
+	// Generate code for default step (1 for Int, 1.0 for Float)
+	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
+	{
+		EmitByte(OpCode::INT_1, line);
+	}
+	else
+	{
+		EmitFloatConstant(1.0, line);
+	}
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **range_binary.m_end);
+
+	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
+	{
+		EmitByte(OpCode::CREATE_INT_RANGE, line);
+	}
+	else
+	{
+		EmitByte(OpCode::CREATE_FLOAT_RANGE, line);
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::RangeTernary& range_ternary)
+{
+	int line = range_ternary.m_first_range_op.m_line;
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_start);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_step);
+	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_end);
+
+	if (range_ternary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
+	{
+		EmitByte(OpCode::CREATE_INT_RANGE, line);
+	}
+	else
+	{
+		EmitByte(OpCode::CREATE_FLOAT_RANGE, line);
+	}
+}
+
 void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 {
 	int line = if_else.m_if_token.m_line;
@@ -1413,6 +1459,127 @@ void CodeGenerator::operator()(MidoriExpression::Loop& loop)
 	EmitByte(OpCode::POP, line);
 
 	EmitLoop(loop_start, line);
+	EndLoop(line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::For& for_expr)
+{
+	int line = for_expr.m_for_keyword.m_line;
+	bool is_float = for_expr.m_range->GetType()->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::FloatType>();
+
+	// The parser has reserved 3 local variable slots
+	// for_expr.m_loop_variable_index: the loop variable
+	// for_expr.m_hidden_step_index: hidden step value
+	// for_expr.m_hidden_end_index: hidden end value
+
+	// Update m_local_count to account for the 3 reserved locals
+	// This ensures any variables declared in the loop body get indices starting from 3
+	if (m_local_count < for_expr.m_hidden_end_index + 1)
+	{
+		m_local_count = for_expr.m_hidden_end_index + 1;
+	}
+
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+
+	std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_range);
+	// Stack: [0, 0, 0, range]
+
+	// Duplicate range for each extraction
+	EmitByte(OpCode::DUP, line);
+	EmitByte(OpCode::DUP, line);
+	// Stack: [0, 0, 0, range, range, range]
+
+	EmitByte(OpCode::GET_RANGE_START, line);
+	// Stack: [0, 0, 0, range, range, start]
+	EmitVariable(for_expr.m_loop_variable_index, OpCode::SET_LOCAL, line);
+	// Stack: [start, 0, 0, range, range, start]
+	EmitByte(OpCode::POP, line);
+	// Stack: [start, 0, 0, range, range]
+
+	EmitByte(OpCode::GET_RANGE_STEP, line);
+	// Stack: [start, 0, 0, range, step]
+	EmitVariable(for_expr.m_hidden_step_index, OpCode::SET_LOCAL, line);
+	// Stack: [start, step, 0, range, step]
+	EmitByte(OpCode::POP, line);
+	// Stack: [start, step, 0, range]
+
+	EmitByte(OpCode::GET_RANGE_END, line);
+	// Stack: [start, step, 0, end]
+	EmitVariable(for_expr.m_hidden_end_index, OpCode::SET_LOCAL, line);
+	// Stack: [start, step, end, end]
+	EmitByte(OpCode::POP, line);
+	// Stack: [start, step, end]
+
+	// Stack: [start, step, end] at local positions 0, 1, 2
+
+	// Jump to condition check (skip increment on first iteration)
+	int skip_first_increment = EmitJump(OpCode::JUMP, line);
+
+	// Continue target: Increment loop variable before checking condition
+	int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+	EmitVariable(for_expr.m_loop_variable_index, OpCode::GET_LOCAL, line);
+	EmitVariable(for_expr.m_hidden_step_index, OpCode::GET_LOCAL, line);
+	EmitByte(is_float ? OpCode::ADD_FLOAT : OpCode::ADD_INTEGER, line);
+	EmitVariable(for_expr.m_loop_variable_index, OpCode::SET_LOCAL, line);
+	EmitByte(OpCode::POP, line);
+
+	PatchJump(skip_first_increment, line);
+	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+	BeginLoop(loop_start);
+
+	m_loop_contexts.top().m_continue_target = continue_target;
+
+	// Runtime check for step direction to support both forward and backward iteration
+	// Check if step > 0 (forward) or step <= 0 (backward)
+	EmitVariable(for_expr.m_hidden_step_index, OpCode::GET_LOCAL, line);
+	if (is_float)
+	{
+		EmitFloatConstant(0.0, line);
+	}
+	else
+	{
+		EmitByte(OpCode::INT_0, line);
+	}
+
+	// IF_INTEGER_GREATER jumps when !(step > 0), i.e., when step <= 0 (backward iteration)
+	OpCode step_comparison = is_float ? OpCode::IF_FLOAT_GREATER : OpCode::IF_INTEGER_GREATER;
+	int backward_jump = EmitJump(step_comparison, line);
+
+	// Forward iteration (step > 0): exit loop if i >= end
+	EmitVariable(for_expr.m_loop_variable_index, OpCode::GET_LOCAL, line);
+	EmitVariable(for_expr.m_hidden_end_index, OpCode::GET_LOCAL, line);
+	OpCode forward_comparison = is_float ? OpCode::IF_FLOAT_LESS : OpCode::IF_INTEGER_LESS;
+	int forward_exit_jump = EmitJump(forward_comparison, line);
+
+	int body_jump = EmitJump(OpCode::JUMP, line);
+
+	// Backward iteration (step <= 0): exit loop if i <= end
+	PatchJump(backward_jump, line);
+	EmitVariable(for_expr.m_loop_variable_index, OpCode::GET_LOCAL, line);
+	EmitVariable(for_expr.m_hidden_end_index, OpCode::GET_LOCAL, line);
+	OpCode backward_comparison = is_float ? OpCode::IF_FLOAT_GREATER : OpCode::IF_INTEGER_GREATER;
+	int backward_exit_jump = EmitJump(backward_comparison, line);
+
+	PatchJump(body_jump, line);
+	std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_body);
+	EmitByte(OpCode::POP, line);
+
+	EmitLoop(continue_target, line);
+
+	PatchJump(forward_exit_jump, line);
+	PatchJump(backward_exit_jump, line);
+
+	EmitByte(OpCode::POP, line);  // Pop end
+	EmitByte(OpCode::POP, line);  // Pop step
+	EmitByte(OpCode::POP, line);  // Pop loop variable
+	// Stack: []
+
+	// Push unit value as result for normal loop exit
+	// This must be BEFORE EndLoop so break statements skip it and use their own value
+	EmitByte(OpCode::OP_UNIT, line);
+
 	EndLoop(line);
 }
 

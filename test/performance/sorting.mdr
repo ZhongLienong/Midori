@@ -1,0 +1,78 @@
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/DateTime.mdr"
+}
+
+defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>
+{
+	if len <= 1
+	then arr
+	else
+	{
+		def pivot = arr[len / 2];
+		def less : Array<Int> = [];
+		def less_len = 0;
+		def equal : Array<Int> = [];
+		def equal_len = 0;
+		def greater : Array<Int> = [];
+		def greater_len = 0;
+
+		def i = 0;
+		loop
+		{
+			if i >= len
+			then break ()
+			else
+			{
+				def val = arr[i];
+				if val < pivot
+				then
+				{
+					less = less ++ [val];
+					less_len = less_len + 1;
+				}
+				else
+				{
+					if val == pivot
+					then
+					{
+						equal = equal ++ [val];
+						equal_len = equal_len + 1;
+					}
+					else
+					{
+						greater = greater ++ [val];
+						greater_len = greater_len + 1;
+					}
+				};
+				i = i + 1;
+			}
+		};
+
+		QuickSort(less, less_len) ++ equal ++ QuickSort(greater, greater_len)
+	}
+};
+
+def start = DateTime::GetTime();
+
+def test_array : Array<Int> = [];
+def array_len = 0;
+def i = 5000;
+loop
+{
+	if i <= 0
+	then break ()
+	else
+	{
+		test_array = test_array ++ [i];
+		array_len = array_len + 1;
+		i = i - 1;
+	}
+};
+
+def sorted = QuickSort(test_array, array_len);
+
+def end = DateTime::GetTime();
+
+IO::PrintLine("QuickSort(5000 elements): benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

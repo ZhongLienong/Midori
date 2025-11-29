@@ -1126,6 +1126,58 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Loop& loop)
 	return result;
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **for_expr.m_range)
+		.and_then
+		(
+			[&for_expr, this](std::shared_ptr<MidoriType>&& range_type)->MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
+
+				if (!resolved_range->IsType<MidoriType::RangeType>())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+				}
+
+				std::shared_ptr<MidoriType> element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+
+				BeginScope();
+
+				std::string var_name(for_expr.m_loop_variable.m_lexeme);
+				m_name_type_table.back()[var_name] = element_type;
+
+				std::shared_ptr<MidoriType> outer_break_type = m_expected_break_type;
+
+				m_expected_break_type = for_expr.m_type_data;
+
+				return std::visit([this](auto&& arg) { return (*this)(arg); }, **for_expr.m_body)
+					.and_then
+					(
+						[&for_expr, outer_break_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+						{
+							// The for loop's type is determined by the expected break type
+							// If no breaks occurred, the loop completes normally and returns Unit
+							if (m_expected_break_type->IsType<MidoriType::UndecidedType>())
+							{
+								for_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+							}
+							else
+							{
+								for_expr.m_type_data = m_expected_break_type;
+							}
+
+							EndScope();
+
+							m_expected_break_type = outer_break_type;
+
+							return for_expr.m_type_data;
+						}
+					);
+			}
+		);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **as.m_expr)
@@ -1801,6 +1853,88 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArraySet& arr
 
 							array_set.m_type_data = std::move(value_type);
 							return array_set.m_type_data;
+						}
+					);
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& range_binary)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_binary.m_start)
+		.and_then
+		(
+			[&range_binary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
+			{
+				return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_binary.m_end)
+					.and_then
+					(
+						[&start_type, &range_binary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
+						{
+							return Unify(range_binary.m_range_op, start_type, end_type)
+								.and_then
+								(
+									[&range_binary, &start_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+									{
+										std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
+
+										if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+										{
+											return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+										}
+
+										range_binary.m_type_data = MidoriType::MakeRangeType(start_type);
+										return range_binary.m_type_data;
+									}
+								);
+						}
+					);
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary& range_ternary)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_start)
+		.and_then
+		(
+			[&range_ternary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
+			{
+				return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_step)
+					.and_then
+					(
+						[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& step_type) -> MidoriResult::TypeResult
+						{
+							return Unify(range_ternary.m_first_range_op, start_type, step_type)
+								.and_then
+								(
+									[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+									{
+										return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_end)
+											.and_then
+											(
+												[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
+												{
+													return Unify(range_ternary.m_second_range_op, start_type, end_type)
+														.and_then
+														(
+															[&range_ternary, &start_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+															{
+																std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
+
+																if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+																{
+																	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+																}
+
+																range_ternary.m_type_data = MidoriType::MakeRangeType(start_type);
+																return range_ternary.m_type_data;
+															}
+														);
+												}
+											);
+									}
+								);
 						}
 					);
 			}

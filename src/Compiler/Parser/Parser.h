@@ -359,6 +359,8 @@ private:
 
 	MidoriResult::ExpressionResult ParseShift();
 
+	MidoriResult::ExpressionResult ParseRange();
+
 	MidoriResult::ExpressionResult ParseTerm();
 
 	MidoriResult::ExpressionResult ParseComparison();
@@ -400,6 +402,8 @@ private:
 	MidoriResult::ExpressionResult ParseBlockExpression();
 
 	MidoriResult::ExpressionResult ParseLoopExpression();
+
+	MidoriResult::ExpressionResult ParseForExpression();
 
 	MidoriResult::ExpressionResult ParseReturnExpression();
 

@@ -33,6 +33,13 @@ enum class OpCode : uint8_t
 	ADD_BACK_ARRAY,
 	ADD_FRONT_ARRAY,
 
+	// Range Operations
+	CREATE_INT_RANGE,
+	CREATE_FLOAT_RANGE,
+	GET_RANGE_START,
+	GET_RANGE_END,
+	GET_RANGE_STEP,
+
 	// Atomic type casting
 	INT_TO_FLOAT,
 	TEXT_TO_FLOAT,

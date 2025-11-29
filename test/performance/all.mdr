@@ -87,7 +87,7 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
 {
     def output : Array<Text> = [];
     defun BackTrack(len : Int, left : Int, right : Int, acc : Text) : Unit =>
-    {   
+    {
 		if left < right
 		then
 		{
@@ -126,7 +126,170 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
     IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
+defun TestAckermann(m : Int, n : Int) : Unit =>
+{
+	defun Ackermann(m : Int, n : Int) : Int =>
+	{
+		if m == 0
+		then n + 1
+		else
+		{
+			if n == 0
+			then Ackermann(m - 1, 1)
+			else Ackermann(m - 1, Ackermann(m, n - 1))
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def result = Ackermann(m, n);
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+};
+
+defun TestSorting(size : Int) : Unit =>
+{
+	defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>
+	{
+		if len <= 1
+		then arr
+		else
+		{
+			def pivot = arr[len / 2];
+			def less : Array<Int> = [];
+			def less_len = 0;
+			def equal : Array<Int> = [];
+			def equal_len = 0;
+			def greater : Array<Int> = [];
+			def greater_len = 0;
+
+			def i = 0;
+			loop
+			{
+				if i >= len
+				then break ()
+				else
+				{
+					def val = arr[i];
+					if val < pivot
+					then
+					{
+						less = less ++ [val];
+						less_len = less_len + 1;
+					}
+					else
+					{
+						if val == pivot
+						then
+						{
+							equal = equal ++ [val];
+							equal_len = equal_len + 1;
+						}
+						else
+						{
+							greater = greater ++ [val];
+							greater_len = greater_len + 1;
+						}
+					};
+					i = i + 1;
+				}
+			};
+
+			QuickSort(less, less_len) ++ equal ++ QuickSort(greater, greater_len)
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def test_array : Array<Int> = [];
+	def array_len = 0;
+	def i = size;
+	loop
+	{
+		if i <= 0
+		then break ()
+		else
+		{
+			test_array = test_array ++ [i];
+			array_len = array_len + 1;
+			i = i - 1;
+		}
+	};
+
+	def sorted = QuickSort(test_array, array_len);
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+};
+
+defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
+{
+	defun BinarySearch(arr : Array<Int>, target : Int, low : Int, high : Int) : Int =>
+	{
+		if low > high
+		then -1
+		else
+		{
+			def mid = low + (high - low) / 2;
+			def mid_val = arr[mid];
+
+			if mid_val == target
+			then mid
+			else
+			{
+				if mid_val > target
+				then BinarySearch(arr, target, low, mid - 1)
+				else BinarySearch(arr, target, mid + 1, high)
+			}
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def sorted_array : Array<Int> = [];
+	def arr_len = 0;
+	def i = 0;
+	loop
+	{
+		if i >= array_size
+		then break ()
+		else
+		{
+			sorted_array = sorted_array ++ [i];
+			arr_len = arr_len + 1;
+			i = i + 1;
+		}
+	};
+
+	def found_count = 0;
+	def j = 0;
+	loop
+	{
+		if j >= num_searches
+		then break ()
+		else
+		{
+			def target = (j * 7) % array_size;
+			def result = BinarySearch(sorted_array, target, 0, arr_len - 1);
+			if result != -1
+			then found_count = found_count + 1
+			else 0;
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+};
+
 TestFib(35);
 TestPrimeNumbers();
 TestStringManipulation();
 TestParenthesisGeneration(8);
+TestAckermann(3, 8);
+TestSorting(5000);
+TestBinarySearch(100000, 10000);

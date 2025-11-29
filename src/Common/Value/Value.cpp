@@ -147,6 +147,10 @@ MidoriTraceable::MidoriTraceable(MidoriArray&& array) noexcept : m_value(std::mo
 {
 }
 
+MidoriTraceable::MidoriTraceable(MidoriRange&& range) noexcept : m_value(std::move(range))
+{
+}
+
 MidoriTraceable::MidoriTraceable(MidoriCellValue&& cell_value) noexcept : m_value(std::move(cell_value))
 {
 }
@@ -432,6 +436,31 @@ MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
 	std::memcpy(result.m_data + a.GetLength(), b.m_data, static_cast<size_t>(b.GetLength()) * sizeof(MidoriValue));
 	result.m_end = a.GetLength() + b.GetLength();
 	return result;
+}
+
+MidoriRange::MidoriRange(MidoriValue start, MidoriValue end, MidoriValue step, bool is_float)
+	: m_start(start), m_end(end), m_step(step), m_is_float(is_float)
+{
+}
+
+MidoriValue MidoriRange::GetStart() const
+{
+	return m_start;
+}
+
+MidoriValue MidoriRange::GetEnd() const
+{
+	return m_end;
+}
+
+MidoriValue MidoriRange::GetStep() const
+{
+	return m_step;
+}
+
+bool MidoriRange::IsFloat() const
+{
+	return m_is_float;
 }
 
 MidoriText::MidoriText() 

@@ -68,6 +68,10 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::ArraySet& array_set, int depth = 0) const;
 
+	void operator()(const MidoriExpression::RangeBinary& range_binary, int depth = 0) const;
+
+	void operator()(const MidoriExpression::RangeTernary& range_ternary, int depth = 0) const;
+
 	void operator()(const MidoriExpression::IfElse& if_else, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Block& block, int depth = 0) const;
@@ -79,6 +83,8 @@ struct PrintAbstractSyntaxTree
 	void operator()(const MidoriExpression::Default& default_expr, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Loop& loop, int depth = 0) const;
+
+	void operator()(const MidoriExpression::For& for_expr, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Return& return_expr, int depth = 0) const;
 

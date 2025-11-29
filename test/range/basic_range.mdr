@@ -1,0 +1,14 @@
+// Test basic binary range (start..end)
+define int_range = 1..10;
+
+// Test ternary range with step (start..step..end)
+define range_with_step = 0..2..10;
+
+// Test float range
+define float_range = 1.0..5.0;
+
+// Test float range with step
+define float_range_step = 0.0..0.5..2.0;
+
+// Test range in expression context
+define computed_range = (1 + 2)..(3 * 4);

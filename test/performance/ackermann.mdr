@@ -1,0 +1,25 @@
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/DateTime.mdr"
+}
+
+defun Ackermann(m : Int, n : Int) : Int =>
+{
+	if m == 0
+	then n + 1
+	else
+	{
+		if n == 0
+		then Ackermann(m - 1, 1)
+		else Ackermann(m - 1, Ackermann(m, n - 1))
+	}
+};
+
+def start = DateTime::GetTime();
+
+def result = Ackermann(3, 10);
+
+def end = DateTime::GetTime();
+
+IO::PrintLine("Ackermann(3, 10): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

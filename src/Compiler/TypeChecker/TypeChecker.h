@@ -135,6 +135,10 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::ArraySet& array_set);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::RangeBinary& range_binary);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::RangeTernary& range_ternary);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::IfElse& if_else);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Block& block);
@@ -146,6 +150,8 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Default& default_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Loop& loop);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::For& for_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
