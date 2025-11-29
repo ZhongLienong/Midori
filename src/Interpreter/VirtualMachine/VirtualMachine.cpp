@@ -899,6 +899,169 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
+		case OpCode::APPEND_ARRAY:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& array = Peek();
+
+			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
+			array_ref.AddBack(value);
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
+			break;
+		}
+		case OpCode::PREPEND_ARRAY:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& array = Peek();
+
+			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
+			array_ref.AddFront(value);
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
+			break;
+		}
+		case OpCode::APPEND_TEXT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& text = Peek();
+
+			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
+			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
+			text_ref.Append(value_text);
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
+			break;
+		}
+		case OpCode::PREPEND_TEXT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& text = Peek();
+
+			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
+			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
+			text_ref.Prepend(value_text);
+
+			if (m_garbage_collector.ShouldCollect())
+			{
+				m_garbage_collector.ReclaimMemory(GetGarbageCollectionRoots());
+			}
+			break;
+		}
+		case OpCode::ADD_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() + value.GetInteger();
+			break;
+		}
+		case OpCode::ADD_ASSIGN_FLOAT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetFloat() + value.GetFloat();
+			break;
+		}
+		case OpCode::SUB_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() - value.GetInteger();
+			break;
+		}
+		case OpCode::SUB_ASSIGN_FLOAT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetFloat() - value.GetFloat();
+			break;
+		}
+		case OpCode::MUL_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() * value.GetInteger();
+			break;
+		}
+		case OpCode::MUL_ASSIGN_FLOAT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetFloat() * value.GetFloat();
+			break;
+		}
+		case OpCode::DIV_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() / value.GetInteger();
+			break;
+		}
+		case OpCode::DIV_ASSIGN_FLOAT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetFloat() / value.GetFloat();
+			break;
+		}
+		case OpCode::MOD_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() % value.GetInteger();
+			break;
+		}
+		case OpCode::MOD_ASSIGN_FLOAT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = std::fmod(var.GetFloat(), value.GetFloat());
+			break;
+		}
+		case OpCode::AND_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() & value.GetInteger();
+			break;
+		}
+		case OpCode::OR_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() | value.GetInteger();
+			break;
+		}
+		case OpCode::XOR_ASSIGN_INT:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() ^ value.GetInteger();
+			break;
+		}
+		case OpCode::LEFT_SHIFT_ASSIGN:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() << value.GetInteger();
+			break;
+		}
+		case OpCode::RIGHT_SHIFT_ASSIGN:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& var = Peek();
+			var = var.GetInteger() >> value.GetInteger();
+			break;
+		}
 		case OpCode::EQUAL_FLOAT:
 		{
 			MidoriValue right = Pop();

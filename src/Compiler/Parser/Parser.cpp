@@ -633,6 +633,111 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 							}
 						);
 				}
+				else if (Match(Token::Name::PLUS_PLUS_EQUAL))
+				{
+					Token& op = Previous();
+					return ParseBind()
+						.and_then
+						(
+							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
+							{
+								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								{
+									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
+
+									if (found_scope_it != m_scopes.crend())
+									{
+										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										if (IsGlobalName(found_scope_it))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
+										}
+										else if (IsLocalName(find_result))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+										}
+										else
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+										}
+									}
+									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+								}
+								return std::unexpected<std::string>(GenerateParserError("Invalid append assignment target (must be a variable).", op));
+							}
+						);
+				}
+				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
+				{
+					Token& op = Previous();
+					return ParseBind()
+						.and_then
+						(
+							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
+							{
+								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								{
+									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
+
+									if (found_scope_it != m_scopes.crend())
+									{
+										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										if (IsGlobalName(found_scope_it))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
+										}
+										else if (IsLocalName(find_result))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+										}
+										else
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+										}
+									}
+									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+								}
+								return std::unexpected<std::string>(GenerateParserError("Invalid prepend assignment target (must be a variable).", op));
+							}
+						);
+				}
+				else if (Match(Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
+				{
+					Token& op = Previous();
+					return ParseBind()
+						.and_then
+						(
+							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
+							{
+								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								{
+									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
+
+									if (found_scope_it != m_scopes.crend())
+									{
+										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										if (IsGlobalName(found_scope_it))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Global()));
+										}
+										else if (IsLocalName(find_result))
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+										}
+										else
+										{
+											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+										}
+									}
+									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+								}
+								return std::unexpected<std::string>(GenerateParserError("Invalid compound assignment target (must be a variable).", op));
+							}
+						);
+				}
 
 				return left_expr;
 			}

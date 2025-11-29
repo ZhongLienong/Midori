@@ -242,6 +242,34 @@ public:
 		Bind(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
+	struct AppendAssign : BaseExpression
+	{
+		Token m_name;
+		std::unique_ptr<MidoriExpression> m_value;
+		NameContext::Tag m_name_ctx;
+
+		AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+	};
+
+	struct PrependAssign : BaseExpression
+	{
+		Token m_name;
+		std::unique_ptr<MidoriExpression> m_value;
+		NameContext::Tag m_name_ctx;
+
+		PrependAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+	};
+
+	struct CompoundAssign : BaseExpression
+	{
+		Token m_name;
+		Token m_op;
+		std::unique_ptr<MidoriExpression> m_value;
+		NameContext::Tag m_name_ctx;
+
+		CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+	};
+
 	struct BoundedName : BaseExpression
 	{
 		Token m_name;
@@ -456,7 +484,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:

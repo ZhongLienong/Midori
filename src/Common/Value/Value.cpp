@@ -672,6 +672,58 @@ MidoriText& MidoriText::Append(const MidoriText& other)
 	return Append(other.GetCString());
 }
 
+MidoriText& MidoriText::Prepend(const char* str)
+{
+	if (!str)
+	{
+		return *this;
+	}
+
+	int len = static_cast<int>(std::strlen(str));
+	if (len == 0)
+	{
+		return *this;
+	}
+
+	int new_size = m_size + len;
+	if (new_size > m_capacity)
+	{
+		int new_capacity = std::max(new_size, m_capacity * 2);
+		Expand(new_capacity);
+	}
+
+	// Shift existing data to the right
+	std::memmove(m_data + len, m_data, sizeof(char) * m_size);
+	// Copy new data at the beginning
+	std::memcpy(m_data, str, sizeof(char) * len);
+	m_size = new_size;
+	m_data[static_cast<size_t>(m_size)] = '\0';
+	return *this;
+}
+
+MidoriText& MidoriText::Prepend(char c)
+{
+	int new_size = m_size + 1;
+	if (new_size > m_capacity)
+	{
+		int new_capacity = std::max(new_size, m_capacity * 2);
+		Expand(new_capacity);
+	}
+
+	// Shift existing data to the right
+	std::memmove(m_data + 1, m_data, sizeof(char) * m_size);
+	// Put new character at the beginning
+	m_data[0] = c;
+	m_size = new_size;
+	m_data[static_cast<size_t>(m_size)] = '\0';
+	return *this;
+}
+
+MidoriText& MidoriText::Prepend(const MidoriText& other)
+{
+	return Prepend(other.GetCString());
+}
+
 char MidoriText::operator[](int index) const
 {
 	return m_data[static_cast<size_t>(index)];

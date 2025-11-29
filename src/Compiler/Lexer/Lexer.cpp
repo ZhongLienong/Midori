@@ -317,7 +317,18 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 				case '+':
 					if (MatchNext('+'))
 					{
-						return MakeToken(Token::Name::DOUBLE_PLUS);
+						if (MatchNext('='))
+						{
+							return MakeToken(Token::Name::PLUS_PLUS_EQUAL);
+						}
+						else
+						{
+							return MakeToken(Token::Name::DOUBLE_PLUS);
+						}
+					}
+					else if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::PLUS_EQUAL);
 					}
 					else
 					{
@@ -331,6 +342,10 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					else if (MatchNext('-'))
 					{
 						return MakeToken(Token::Name::DOUBLE_MINUS);
+					}
+					else if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::MINUS_EQUAL);
 					}
 					else
 					{
@@ -346,11 +361,32 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 						return MakeToken(Token::Name::SINGLE_COLON);
 					}
 				case '%':
-					return MakeToken(Token::Name::PERCENT);
+					if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::PERCENT_EQUAL);
+					}
+					else
+					{
+						return MakeToken(Token::Name::PERCENT);
+					}
 				case '*':
-					return MakeToken(Token::Name::STAR);
+					if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::STAR_EQUAL);
+					}
+					else
+					{
+						return MakeToken(Token::Name::STAR);
+					}
 				case '/':
-					return MakeToken(Token::Name::SLASH);
+					if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::SLASH_EQUAL);
+					}
+					else
+					{
+						return MakeToken(Token::Name::SLASH);
+					}
 				case '|':
 					if (MatchNext('|'))
 					{
@@ -360,16 +396,31 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					{
 						return MakeToken(Token::Name::BAR_BRACKET);
 					}
+					else if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::BAR_EQUAL);
+					}
 					else
 					{
 						return MakeToken(Token::Name::SINGLE_BAR);
 					}
 				case '^':
-					return MakeToken(Token::Name::CARET);
+					if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::CARET_EQUAL);
+					}
+					else
+					{
+						return MakeToken(Token::Name::CARET);
+					}
 				case '&':
 					if (MatchNext('&'))
 					{
 						return MakeToken(Token::Name::DOUBLE_AMPERSAND);
+					}
+					else if (MatchNext('='))
+					{
+						return MakeToken(Token::Name::AMPERSAND_EQUAL);
 					}
 					else
 					{
@@ -393,6 +444,18 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					{
 						return MakeToken(Token::Name::FAT_ARROW);
 					}
+					else if (MatchNext('+'))
+					{
+						if (MatchNext('+'))
+						{
+							return MakeToken(Token::Name::EQUAL_PLUS_PLUS);
+						}
+						else
+						{
+							int column = static_cast<int>(m_begin - m_line_start);
+							return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_line, column, m_file_name, m_source_lines));
+						}
+					}
 					else
 					{
 						return MakeToken(Token::Name::SINGLE_EQUAL);
@@ -413,7 +476,14 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					}
 					else if (MatchNext('~'))
 					{
-						return MakeToken(Token::Name::LEFT_SHIFT);
+						if (MatchNext('='))
+						{
+							return MakeToken(Token::Name::LEFT_SHIFT_EQUAL);
+						}
+						else
+						{
+							return MakeToken(Token::Name::LEFT_SHIFT);
+						}
 					}
 					else
 					{
@@ -422,7 +492,14 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 				case '~':
 					if (MatchNext('>'))
 					{
-						return MakeToken(Token::Name::RIGHT_SHIFT);
+						if (MatchNext('='))
+						{
+							return MakeToken(Token::Name::RIGHT_SHIFT_EQUAL);
+						}
+						else
+						{
+							return MakeToken(Token::Name::RIGHT_SHIFT);
+						}
 					}
 					else
 					{

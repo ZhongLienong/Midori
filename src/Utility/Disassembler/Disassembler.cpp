@@ -454,6 +454,63 @@ namespace Disassembler
 		case OpCode::CONCAT_TEXT:
 			SimpleInstruction("CONCAT_TEXT", offset);
 			break;
+		case OpCode::APPEND_ARRAY:
+			SimpleInstruction("APPEND_ARRAY", offset);
+			break;
+		case OpCode::PREPEND_ARRAY:
+			SimpleInstruction("PREPEND_ARRAY", offset);
+			break;
+		case OpCode::APPEND_TEXT:
+			SimpleInstruction("APPEND_TEXT", offset);
+			break;
+		case OpCode::PREPEND_TEXT:
+			SimpleInstruction("PREPEND_TEXT", offset);
+			break;
+		case OpCode::ADD_ASSIGN_INT:
+			SimpleInstruction("ADD_ASSIGN_INT", offset);
+			break;
+		case OpCode::ADD_ASSIGN_FLOAT:
+			SimpleInstruction("ADD_ASSIGN_FLOAT", offset);
+			break;
+		case OpCode::SUB_ASSIGN_INT:
+			SimpleInstruction("SUB_ASSIGN_INT", offset);
+			break;
+		case OpCode::SUB_ASSIGN_FLOAT:
+			SimpleInstruction("SUB_ASSIGN_FLOAT", offset);
+			break;
+		case OpCode::MUL_ASSIGN_INT:
+			SimpleInstruction("MUL_ASSIGN_INT", offset);
+			break;
+		case OpCode::MUL_ASSIGN_FLOAT:
+			SimpleInstruction("MUL_ASSIGN_FLOAT", offset);
+			break;
+		case OpCode::DIV_ASSIGN_INT:
+			SimpleInstruction("DIV_ASSIGN_INT", offset);
+			break;
+		case OpCode::DIV_ASSIGN_FLOAT:
+			SimpleInstruction("DIV_ASSIGN_FLOAT", offset);
+			break;
+		case OpCode::MOD_ASSIGN_INT:
+			SimpleInstruction("MOD_ASSIGN_INT", offset);
+			break;
+		case OpCode::MOD_ASSIGN_FLOAT:
+			SimpleInstruction("MOD_ASSIGN_FLOAT", offset);
+			break;
+		case OpCode::AND_ASSIGN_INT:
+			SimpleInstruction("AND_ASSIGN_INT", offset);
+			break;
+		case OpCode::OR_ASSIGN_INT:
+			SimpleInstruction("OR_ASSIGN_INT", offset);
+			break;
+		case OpCode::XOR_ASSIGN_INT:
+			SimpleInstruction("XOR_ASSIGN_INT", offset);
+			break;
+		case OpCode::LEFT_SHIFT_ASSIGN:
+			SimpleInstruction("LEFT_SHIFT_ASSIGN", offset);
+			break;
+		case OpCode::RIGHT_SHIFT_ASSIGN:
+			SimpleInstruction("RIGHT_SHIFT_ASSIGN", offset);
+			break;
 		case OpCode::EQUAL_FLOAT:
 			SimpleInstruction("EQUAL_FLOAT", offset);
 			break;

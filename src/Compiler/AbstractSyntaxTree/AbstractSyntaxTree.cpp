@@ -68,6 +68,28 @@ MidoriExpression::Bind::Bind(const Token& name, std::unique_ptr<MidoriExpression
 {
 }
 
+MidoriExpression::AppendAssign::AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
+	: m_name(name),
+	m_value(std::move(value)),
+	m_name_ctx(std::move(name_ctx))
+{
+}
+
+MidoriExpression::PrependAssign::PrependAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
+	: m_name(name),
+	m_value(std::move(value)),
+	m_name_ctx(std::move(name_ctx))
+{
+}
+
+MidoriExpression::CompoundAssign::CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
+	: m_name(name),
+	m_op(op),
+	m_value(std::move(value)),
+	m_name_ctx(std::move(name_ctx))
+{
+}
+
 MidoriExpression::BoundedName::BoundedName(const Token& name, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))

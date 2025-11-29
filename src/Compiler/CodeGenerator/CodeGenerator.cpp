@@ -947,6 +947,143 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 	);
 }
 
+void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
+{
+	int line = append_assign.m_name.m_line;
+
+	std::visit([&append_assign, line, this](auto&& arg)
+		{
+			using T = std::decay_t<decltype(arg)>;
+
+			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
+			{
+				const std::string& name = append_assign.m_name.m_lexeme;
+				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+			}
+		},
+		append_assign.m_name_ctx
+	);
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **append_assign.m_value);
+
+	if (append_assign.m_type_data->IsType<MidoriType::ArrayType>())
+	{
+		EmitByte(OpCode::APPEND_ARRAY, line);
+	}
+	else if (append_assign.m_type_data->IsType<MidoriType::TextType>())
+	{
+		EmitByte(OpCode::APPEND_TEXT, line);
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
+{
+	int line = prepend_assign.m_name.m_line;
+
+	std::visit([&prepend_assign, line, this](auto&& arg)
+		{
+			using T = std::decay_t<decltype(arg)>;
+
+			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
+			{
+				const std::string& name = prepend_assign.m_name.m_lexeme;
+				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+			}
+		},
+		prepend_assign.m_name_ctx
+	);
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **prepend_assign.m_value);
+
+	if (prepend_assign.m_type_data->IsType<MidoriType::ArrayType>())
+	{
+		EmitByte(OpCode::PREPEND_ARRAY, line);
+	}
+	else if (prepend_assign.m_type_data->IsType<MidoriType::TextType>())
+	{
+		EmitByte(OpCode::PREPEND_TEXT, line);
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign)
+{
+	int line = compound_assign.m_name.m_line;
+
+	std::visit([&compound_assign, line, this](auto&& arg)
+		{
+			using T = std::decay_t<decltype(arg)>;
+
+			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
+			{
+				const std::string& name = compound_assign.m_name.m_lexeme;
+				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+			}
+		},
+		compound_assign.m_name_ctx
+	);
+
+	std::visit([this](auto&& arg){ (*this)(arg); }, **compound_assign.m_value);
+
+	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
+	switch (compound_assign.m_op.m_token_name)
+	{
+	case Token::Name::PLUS_EQUAL:
+		EmitByte(is_float ? OpCode::ADD_ASSIGN_FLOAT : OpCode::ADD_ASSIGN_INT, line);
+		break;
+	case Token::Name::MINUS_EQUAL:
+		EmitByte(is_float ? OpCode::SUB_ASSIGN_FLOAT : OpCode::SUB_ASSIGN_INT, line);
+		break;
+	case Token::Name::STAR_EQUAL:
+		EmitByte(is_float ? OpCode::MUL_ASSIGN_FLOAT : OpCode::MUL_ASSIGN_INT, line);
+		break;
+	case Token::Name::SLASH_EQUAL:
+		EmitByte(is_float ? OpCode::DIV_ASSIGN_FLOAT : OpCode::DIV_ASSIGN_INT, line);
+		break;
+	case Token::Name::PERCENT_EQUAL:
+		EmitByte(is_float ? OpCode::MOD_ASSIGN_FLOAT : OpCode::MOD_ASSIGN_INT, line);
+		break;
+	case Token::Name::AMPERSAND_EQUAL:
+		EmitByte(OpCode::AND_ASSIGN_INT, line);
+		break;
+	case Token::Name::BAR_EQUAL:
+		EmitByte(OpCode::OR_ASSIGN_INT, line);
+		break;
+	case Token::Name::CARET_EQUAL:
+		EmitByte(OpCode::XOR_ASSIGN_INT, line);
+		break;
+	case Token::Name::LEFT_SHIFT_EQUAL:
+		EmitByte(OpCode::LEFT_SHIFT_ASSIGN, line);
+		break;
+	case Token::Name::RIGHT_SHIFT_EQUAL:
+		EmitByte(OpCode::RIGHT_SHIFT_ASSIGN, line);
+		break;
+	}
+}
+
 void CodeGenerator::operator()(MidoriExpression::Bind& bind)
 {
 	int line = bind.m_name.m_line;

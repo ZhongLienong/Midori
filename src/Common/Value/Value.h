@@ -168,6 +168,12 @@ public:
 
 	MidoriText& Append(const MidoriText& other);
 
+	MidoriText& Prepend(const char* str);
+
+	MidoriText& Prepend(char c);
+
+	MidoriText& Prepend(const MidoriText& other);
+
 	char operator[](int index) const;
 
 	bool operator==(const MidoriText& other) const;

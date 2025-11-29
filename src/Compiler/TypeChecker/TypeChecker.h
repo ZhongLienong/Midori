@@ -115,6 +115,12 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Bind& bind);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::AppendAssign& append_assign);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::PrependAssign& prepend_assign);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::CompoundAssign& compound_assign);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::TextLiteral& text);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::BoolLiteral& bool_expr);

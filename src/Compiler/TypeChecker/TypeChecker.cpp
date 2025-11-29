@@ -1559,6 +1559,189 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Bind& bind)
 		);
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign& append_assign)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **append_assign.m_value)
+		.and_then
+		(
+			[&append_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
+			{
+				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				{
+					TypeEnvironment::iterator var = it->find(append_assign.m_name.m_lexeme);
+					if (var != it->end())
+					{
+						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
+						if (!target_type->IsType<MidoriType::ArrayType>() &&
+						    !target_type->IsType<MidoriType::TextType>() &&
+						    !target_type->IsType<MidoriType::TypeVariable>())
+						{
+							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: expected array or text type", append_assign.m_name, m_file_name, m_source_lines, target_type));
+						}
+
+						if (target_type->IsType<MidoriType::ArrayType>())
+						{
+							std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+							return Unify(append_assign.m_name, element_type, value_type)
+								.and_then
+								(
+									[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+									{
+										append_assign.m_type_data = target_type;
+										return append_assign.m_type_data;
+									}
+								);
+						}
+						else if (target_type->IsType<MidoriType::TextType>())
+						{
+							// Text can only be appended with Text
+							std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
+							return Unify(append_assign.m_name, text_type, value_type)
+								.and_then
+								(
+									[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+									{
+										append_assign.m_type_data = target_type;
+										return append_assign.m_type_data;
+									}
+								);
+						}
+						else
+						{
+							// TypeVariable - create constraints
+							append_assign.m_type_data = target_type;
+							return append_assign.m_type_data;
+						}
+					}
+				}
+
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: variable not found", append_assign.m_name, m_file_name, m_source_lines));
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign& prepend_assign)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **prepend_assign.m_value)
+		.and_then
+		(
+			[&prepend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
+			{
+				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				{
+					TypeEnvironment::iterator var = it->find(prepend_assign.m_name.m_lexeme);
+					if (var != it->end())
+					{
+						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
+						if (!target_type->IsType<MidoriType::ArrayType>() &&
+						    !target_type->IsType<MidoriType::TextType>() &&
+						    !target_type->IsType<MidoriType::TypeVariable>())
+						{
+							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: expected array or text type", prepend_assign.m_name, m_file_name, m_source_lines, target_type));
+						}
+
+						if (target_type->IsType<MidoriType::ArrayType>())
+						{
+							std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+							return Unify(prepend_assign.m_name, element_type, value_type)
+								.and_then
+								(
+									[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+									{
+										prepend_assign.m_type_data = target_type;
+										return prepend_assign.m_type_data;
+									}
+								);
+						}
+						else if (target_type->IsType<MidoriType::TextType>())
+						{
+							// Text can only be prepended with Text
+							std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
+							return Unify(prepend_assign.m_name, text_type, value_type)
+								.and_then
+								(
+									[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+									{
+										prepend_assign.m_type_data = target_type;
+										return prepend_assign.m_type_data;
+									}
+								);
+						}
+						else
+						{
+							// TypeVariable - create constraints
+							prepend_assign.m_type_data = target_type;
+							return prepend_assign.m_type_data;
+						}
+					}
+				}
+
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: variable not found", prepend_assign.m_name, m_file_name, m_source_lines));
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssign& compound_assign)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **compound_assign.m_value)
+		.and_then
+		(
+			[&compound_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
+			{
+				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				{
+					TypeEnvironment::iterator var = it->find(compound_assign.m_name.m_lexeme);
+					if (var != it->end())
+					{
+						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
+
+						// Check if operator is arithmetic
+						if (compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL ||
+						    compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ||
+						    compound_assign.m_op.m_token_name == Token::Name::STAR_EQUAL ||
+						    compound_assign.m_op.m_token_name == Token::Name::SLASH_EQUAL ||
+						    compound_assign.m_op.m_token_name == Token::Name::PERCENT_EQUAL)
+						{
+							// Must be numeric type
+							if (!target_type->IsType<MidoriType::IntegerType>() &&
+							    !target_type->IsType<MidoriType::FloatType>() &&
+							    !target_type->IsType<MidoriType::TypeVariable>())
+							{
+								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected numeric type", compound_assign.m_op, m_file_name, m_source_lines, target_type));
+							}
+						}
+						else if (compound_assign.m_op.m_token_name == Token::Name::AMPERSAND_EQUAL ||
+						         compound_assign.m_op.m_token_name == Token::Name::BAR_EQUAL ||
+						         compound_assign.m_op.m_token_name == Token::Name::CARET_EQUAL ||
+						         compound_assign.m_op.m_token_name == Token::Name::LEFT_SHIFT_EQUAL ||
+						         compound_assign.m_op.m_token_name == Token::Name::RIGHT_SHIFT_EQUAL)
+						{
+							// Must be integer type
+							if (!target_type->IsType<MidoriType::IntegerType>() &&
+							    !target_type->IsType<MidoriType::TypeVariable>())
+							{
+								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected integer type for bitwise operator", compound_assign.m_op, m_file_name, m_source_lines, target_type));
+							}
+						}
+
+						// Unify value type with target type
+						return Unify(compound_assign.m_op, target_type, value_type)
+							.and_then
+							(
+								[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+								{
+									compound_assign.m_type_data = target_type;
+									return compound_assign.m_type_data;
+								}
+							);
+					}
+				}
+
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
+			}
+		);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::TextLiteral& text)
 {
 	text.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
