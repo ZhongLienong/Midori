@@ -1,191 +1,339 @@
-# ミドリ (MIDORI)
+# ミドリ (Midori)
 
-## Introduction
+A statically-typed functional programming language featuring algebraic data types, pattern matching, typeclasses, and a module system. Compiles to bytecode for the Midori Virtual Machine with garbage-collected memory management.
 
-Midori is a general-purpose programming language. It features static typing and garbage collection. The Midori compiler is written in C++ and compiles to bytecode for the Midori Virtual Machine (MVM). 
-The MVM is written in C++ and is responsible for executing the bytecode. The MVM is also responsible for garbage collection.
-<br><br>
-This project is still in early development. The language is not yet *that* usable.
+## Key Features
 
-## Examples
-### Pow(x, n)
+- **Static Type System** - Strong static typing with type inference and generics
+- **Pattern Matching** - Exhaustive pattern matching on algebraic data types
+- **Algebraic Data Types** - Structs (product types) and unions (sum types)
+- **Typeclasses** - Haskell-style constrained generics for polymorphism
+- **Module System** - Explicit imports/exports with privacy enforcement
+- **Pipe Operator** - Functional composition with `|>` operator
+- **Ranges** - Elegant `start..step..end` syntax for loops
+- **Closures** - First-class functions with lexical scoping
+- **Expression-Oriented** - Everything is an expression with a value
+
+## Quick Start
+
+### Hello World
+```midori
+import { "../MidoriPrelude/IO.mdr" }
+
+IO::PrintLine("Hello, Midori!");
 ```
-fixed Pow = fn(fixed x : Float, fixed n : Int) : Float
-{
-	if (n < 0)
-	{
-		return Pow(1.0 / x, -n);
-	}
-	else
-	{
-		if (n == 0)
-		{
-			return 1.0;
-		}
-		else
-		{
-			if ((n & 1) == 1)
-			{
-				return x * Pow(x, n - 1);
-			}
-			else
-			{
-				fixed sub_result = Pow(x, n / 2);
-				return sub_result * sub_result;
-			}
-		}
-	}
+
+### Basic Types & Variables
+```midori
+def number : Int = 42;
+def pi : Float = 3.14159;
+def message : Text = "Hello";
+def flag : Bool = true;
+def items : Array<Int> = [1, 2, 3, 4, 5];
+```
+
+### Functions
+```midori
+// Simple function
+defun square(x: Int) : Int => {
+    return x * x;
+};
+
+// Function with type inference
+defun add(a: Int, b: Int) : Int => a + b;
+
+// Generic function
+defun identity<T>(value: T) : T => value;
+
+// Higher-order function
+defun apply<T, R>(fn: fn(T) -> R, value: T) : R => {
+    return fn(value);
 };
 ```
-### Church Numeral
+
+### Control Flow
+```midori
+// If-else expression
+def result = if x > 0 then "positive" else "non-positive";
+
+// For loop with ranges
+for i in 0..1..10 {
+    IO::PrintLine(i as Text);
+};
+
+// Loop with break
+def sum = loop {
+    if count >= 10 then break total else ();
+    total = total + count;
+    count = count + 1;
+};
 ```
-fixed zero = fn(fixed f : (Int, Int) -> Int, fixed x : Int) : Int
-{
-    return x;
+
+### Structs (Product Types)
+```midori
+struct Point {
+    x: Float,
+    y: Float,
 };
 
-fixed one = fn(fixed f : (Int, Int) -> Int, fixed x : Int) : Int
-{
-    return f(x, 1); 
+struct Box<T> {
+    value: T,
 };
 
-fixed two = fn(fixed f : (Int, Int) -> Int, fixed x : Int) : Int
-{
-    return f(f(x, 1), 1); 
+def origin = new Point(0.0, 0.0);
+def boxed = new Box(42);
+def x_coord = origin.x;
+```
+
+### Unions (Sum Types)
+```midori
+union Option<T> = Some(T) | None;
+
+union List<T> = Cons(T, List<T>) | Nil;
+
+def maybe_value = new Option::Some(42);
+def empty_list = new List::Nil();
+```
+
+### Pattern Matching
+```midori
+union Result<T, E> = Ok(T) | Err(E);
+
+defun handle_result<T>(result: Result<T, Text>) : Text => {
+    return match result with
+        case Result::Ok(value) => "Success: " ++ (value as Text)
+        case Result::Err(msg) => "Error: " ++ msg
+        default => "Unknown"
+    ;
+};
+```
+
+### Typeclasses
+```midori
+// Define a typeclass
+typeclass Show<T> {
+    show: fn(value: T) -> Text;
 };
 
-fixed add = fn(fixed n : ((Int, Int) -> Int, Int) -> Int, 
-                fixed m : ((Int, Int) -> Int, Int) -> Int) 
-              : ((Int, Int) -> Int, Int) -> Int
-{
-    return fn(fixed f : (Int, Int) -> Int, fixed x : Int) : Int
-    {
-        return n(f, m(f, x));
+// Implement for Int
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return value as Text;
     };
 };
 
-fixed church_to_number = fn(fixed c : ((Int, Int) -> Int, Int) -> Int) : Int
-{
-    return c(fn(fixed x : Int, fixed y : Int) : Int { return x + y; }, 0);
+// Use with constraints
+defun display<T>(value: T) : Text where T: Show<T> => {
+    return show(value);
 };
 
-
-fixed main = fn() : Unit
-{
-	IO::PrintLine(church_to_number(add(one, two)) as Text); // prints out "3"
-	return ();
-};
+def message = display(42);  // "42"
 ```
-### Man or Boy Test
-```
-fixed x = fn(fixed x : Int) : () -> Int
-{
-    return fn() : Int { return x; };
-};
 
-fixed A = fn(var k : Int, fixed x1 : () -> Int, fixed x2 : () -> Int, 
-        fixed x3 : () -> Int, fixed x4 : () -> Int, fixed x5 : () -> Int) : Int
-{
-    fixed B = fn() : Int
-    {
-        k = k - 1;
-        return A(k, B, x1, x2, x3, x4); 
+### Module System
+```midori
+// Define a module (MyModule.mdr)
+module MyModule
+public export { add, multiply }
+
+defun add(a: Int, b: Int) : Int => a + b;
+defun multiply(a: Int, b: Int) : Int => a * b;
+defun internal() : Int => 100;  // Not exported
+
+// Use in another file
+import { "./MyModule.mdr" }
+
+def result = MyModule::add(5, 3);
+```
+
+### Pipe Operator
+```midori
+defun double(x: Int) : Int => x * 2;
+defun add_ten(x: Int) : Int => x + 10;
+
+def result = 5
+    |> double
+    |> add_ten
+    |> double;  // ((5 * 2) + 10) * 2 = 40
+```
+
+### Closures
+```midori
+defun make_counter() : fn() -> Int => {
+    def count = 0;
+    return fn() : Int => {
+        count = count + 1;
+        return count;
     };
-    return k > 0 ? B() : x4() + x5();
 };
 
-fixed main = fn() : Int
-{
-    IO::PrintLine(A(10, x(1), x(-1), x(-1), x(1), x(0)) as Text);   
-
-    return 0;
-};
+def counter = make_counter();
+def first = counter();   // 1
+def second = counter();  // 2
 ```
-### Sum Type and Product Type
-```
-struct S1
-{
-	k : Int,
-	l : Float,
-};
 
-union U1
-{
-	A(Int),
-	B,
-	C(Float, Int, Text),
-	D(U1),
-	E(S1),
-};
+## Language Features
 
-fixed main = fn() : Unit
-{
-	var complex = new U1::C(3.14, 42, "Complex case");
+### Type System
+- **Primitive Types**: `Int`, `Float`, `Bool`, `Text`, `Unit`
+- **Composite Types**: `Array<T>`, structs, unions
+- **Function Types**: `fn(T1, T2) -> R`
+- **Generic Parameters**: Single and multiple type parameters
+- **Type Constraints**: Typeclass constraints with `where`
+- **Type Inference**: Automatic type deduction at instantiation
 
-	switch(complex)
-	{
-		case U1::C(var Float, var num, var str):
-			IO::PrintLine("Matching complex C with values: " ++ (frac as Text) ++ ", " ++ (num as Text) ++ ", " ++ str);
-		default:
-			IO::PrintLine("default case");
-	}
+### Operators
+- **Arithmetic**: `+`, `-`, `*`, `/`, `%`
+- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- **Logical**: `&&`, `||`, `!`
+- **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
+- **String**: `++` (concatenation)
+- **Pipe**: `|>` (function composition)
+- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `++=`
 
+### Advanced Features
+- **Recursive Data Types**: Self-referential unions for lists, trees
+- **Exhaustive Matching**: Compiler-enforced pattern coverage
+- **Range Expressions**: `start..step..end` with positive/negative steps
+- **Float Ranges**: Support for decimal step values
+- **Nested Generics**: Complex generic type compositions
+- **Cross-Module Typeclasses**: Import and use typeclasses across modules
 
-	return ();
-};
-```
+## Standard Library
+
+The `MidoriPrelude` directory contains standard modules:
+
+- **IO.mdr** - Input/output operations (`IO::PrintLine`)
+- **Math.mdr** - Mathematical functions
+- **Array.mdr** - Array utilities
+- **DateTime.mdr** - Timing and date operations
 
 ## Development
 
 ### Building Midori
 
-Midori uses a three-tier build configuration system:
+Midori uses a three-tier build configuration:
 
-**Debug** - Full diagnostics with AST dumps, bytecode disassembly, and stack traces:
+**Debug** - Full diagnostics with AST dumps and bytecode disassembly:
 ```bash
-cmake --build out/Debug --config Debug
+cmake --build build --config Debug
 ```
 
-**Development** - Optimized build with compilation progress (recommended for testing):
+**Development** - Optimized build with compilation progress:
 ```bash
-cmake --build out/Development --config Development
+cmake --build build --config Development
 ```
 
 **Release** - Maximum performance with minimal output:
 ```bash
-cmake --build out/Release --config Release
+cmake --build build --config Release
 ```
 
-Build the standard library for your configuration:
+### Running Programs
+
 ```bash
-cmake --build out/Development --config Development --target MidoriStdLib
+# Run a Midori program
+./build/Midori.exe path/to/program.mdr
+
+# With debug output
+./build/Debug/Midori.exe path/to/program.mdr
 ```
 
 ### Running Tests
 
-Run all tests using the Development build:
+Run all tests:
 ```bash
 python scripts/run_tests.py
 ```
 
-Run a specific test (auto-shows detailed output):
+Run specific tests:
 ```bash
-python scripts/run_tests.py --test simple
 python scripts/run_tests.py --test closure/simple.mdr
-```
-
-Run specific test categories or patterns:
-```bash
-python scripts/run_tests.py --category closure
+python scripts/run_tests.py --category typeclass
 python scripts/run_tests.py --pattern recursive
 ```
 
 Create new tests:
 ```bash
-python scripts/new_test.py closure/my_new_test
-python scripts/new_test.py expression/failure/invalid_syntax --should-fail
+python scripts/new_test.py closure/my_test
+python scripts/new_test.py expression/failure/syntax_error --should-fail
 ```
 
-For detailed testing documentation, see:
-- [TESTING.md](TESTING.md) - Comprehensive testing guide
-- [scripts/README.md](scripts/README.md) - Script usage and examples
+## Example Programs
+
+### Recursive Fibonacci
+```midori
+defun fib(n: Int) : Int => {
+    return if n <= 1 then n else fib(n - 1) + fib(n - 2);
+};
+```
+
+### Binary Tree
+```midori
+union Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
+
+defun height<T>(tree: Tree<T>) : Int => {
+    return match tree with
+        case Tree::Leaf(value) => 1
+        case Tree::Node(left, right) => {
+            def left_height = height(left);
+            def right_height = height(right);
+            return 1 + (if left_height > right_height
+                        then left_height
+                        else right_height);
+        }
+        default => 0
+    ;
+};
+```
+
+### Generic Linked List
+```midori
+union List<T> = Cons(T, List<T>) | Nil;
+
+defun length<T>(list: List<T>) : Int => {
+    return match list with
+        case List::Cons(head, tail) => 1 + length(tail)
+        case List::Nil => 0
+        default => 0
+    ;
+};
+
+defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
+    return match list with
+        case List::Cons(head, tail) =>
+            new List::Cons(f(head), map(tail, f))
+        case List::Nil =>
+            new List::Nil()
+        default =>
+            new List::Nil()
+    ;
+};
+```
+
+### Quicksort
+```midori
+defun quicksort(arr: Array<Int>) : Array<Int> => {
+    if arr == [] then return [];
+
+    def pivot = arr[0];
+    def less = [];
+    def greater = [];
+
+    for i in 1..1..((arr |> length) - 1) {
+        if arr[i] < pivot then
+            less = less ++ [arr[i]]
+        else
+            greater = greater ++ [arr[i]];
+    };
+
+    return quicksort(less) ++ [pivot] ++ quicksort(greater);
+};
+```
+
+## Architecture
+
+- **Frontend**: Lexer → Parser → Type Checker
+- **Optimizer**: Constant folding, tail call optimization, strength reduction
+- **Backend**: Bytecode generator → Linker
+- **Runtime**: Stack-based VM with mark-and-sweep GC
