@@ -1,5 +1,4 @@
 #include <format>
-#include <fstream>
 #include <sstream>
 #include <filesystem>
 
@@ -170,7 +169,7 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 
 void CodeGenerator::BeginLoop(int loop_start)
 {
-	m_loop_contexts.emplace(std::vector<int>(), loop_start, loop_start);  // By default, continue jumps to loop_start
+	m_loop_contexts.emplace(std::vector<int>(), loop_start, loop_start);
 }
 
 void CodeGenerator::EndLoop(int line)
@@ -184,12 +183,14 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_typeclass_methods, const std::unordered_map<std::string, std::vector<std::string>>& imported_typeclass_instances)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
 	m_module_name(std::move(module_name)),
-	m_export_symbols(std::move(export_symbols))
+	m_export_symbols(std::move(export_symbols)),
+	m_typeclass_methods(imported_typeclass_methods),
+	m_typeclass_instances(imported_typeclass_instances)
 {
 	std::string main_proc_name = "__main__@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
 	m_procedure_names.emplace_back(main_proc_name.c_str());
@@ -381,74 +382,47 @@ void CodeGenerator::operator()(MidoriStatement::DefineTuple& def_tuple)
 	}
 }
 
-/*
-*
-*
-* C-Style For loop is abandoned in Midori language
-*
-void CodeGenerator::operator()(MidoriStatement::For& for_stmt)
-{
-	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition_intializer);
-
-	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
-	int line = for_stmt.m_loop_keyword.m_line;
-
-	int exit_jump = -1;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition);
-	exit_jump = EmitJump(OpCode::JUMP_IF_FALSE, line);
-	EmitByte(OpCode::POP, line);
-
-	int body_jump = EmitJump(OpCode::JUMP, line);
-	int incrementer_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
-	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_condition_incrementer);
-	EmitLoop(loop_start, line);
-	loop_start = incrementer_start;
-	PatchJump(body_jump, line);
-
-	BeginLoop(loop_start);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **for_stmt.m_body);
-
-	EmitLoop(loop_start, line);
-	if (exit_jump != -1)
-	{
-		PatchJump(exit_jump, line);
-		EmitByte(OpCode::POP, line);
-	}
-
-	while (for_stmt.m_control_block_local_count > 0)
-	{
-		int count_to_pop = std::min(for_stmt.m_control_block_local_count, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_LOCAL_SCOPE, line);
-		EmitByte(static_cast<OpCode>(count_to_pop), line);
-		for_stmt.m_control_block_local_count -= count_to_pop;
-	}
-	EndLoop(line);
-}
-*/
-
 void CodeGenerator::operator()(MidoriStatement::DefineFunction& defun)
 {
 	int line = defun.m_name.m_line;
-	bool is_global = !defun.m_local_index.has_value();
-	std::optional<int> index = std::nullopt;
 
-	// Check if this is a generic function by looking at generic parameters
+	// Mangled names have at least 3 parts separated by underscores, with a capital letter after first underscore
+	bool is_instance_method = false;
+	{
+		size_t first_underscore = defun.m_name.m_lexeme.find('_');
+		if (first_underscore != std::string::npos && first_underscore + 1u < defun.m_name.m_lexeme.size())
+		{
+			if (std::isupper(defun.m_name.m_lexeme[first_underscore + 1u]))
+			{
+				size_t second_underscore = defun.m_name.m_lexeme.find('_', first_underscore + 1u);
+				is_instance_method = (second_underscore != std::string::npos);
+			}
+		}
+	}
+
+	// Instance methods should always be global, regardless of local_index
+	bool is_global = !defun.m_local_index.has_value() || is_instance_method;
+	std::optional<int> index = std::nullopt;
 	bool is_generic = !defun.m_generic_params.empty();
 
 	if (is_generic && is_global)
 	{
-		// Store generic function template for later specialization
 		GenericFunctionInfo info;
 		info.m_name = defun.m_name.m_lexeme;
 		info.m_params = defun.m_params;
 		info.m_body = &defun.m_body;
 		info.m_captured_count = defun.m_captured_count;
-		info.m_generic_param_types = defun.m_param_types;
+
+		for (const Token& generic_param : defun.m_generic_params)
+		{
+			info.m_generic_param_types.emplace_back(std::make_shared<MidoriType>(MidoriType::GenericParam(generic_param.m_lexeme)));
+		}
+
 		info.m_generic_return_type = defun.m_return_type;
+		info.m_constraints = defun.m_constraints;
 
 		m_generic_functions[defun.m_name.m_lexeme] = std::move(info);
 
-		// Don't generate code yet - will be done on-demand when called
 		return;
 	}
 
@@ -522,6 +496,36 @@ void CodeGenerator::operator()(MidoriStatement::Struct&)
 
 void CodeGenerator::operator()(MidoriStatement::Union&)
 {
+	return;
+}
+
+void CodeGenerator::operator()(MidoriStatement::Typeclass& typeclass_stmt)
+{
+	std::unordered_set<std::string> method_names;
+
+	for (const std::unique_ptr<MidoriStatement>& method : typeclass_stmt.m_methods)
+	{
+		if (method->IsStatement<MidoriStatement::DefineFunction>())
+		{
+			const auto& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+			method_names.insert(defun.m_name.m_lexeme);
+		}
+	}
+
+	m_typeclass_methods[typeclass_stmt.m_name.m_lexeme] = std::move(method_names);
+	return;
+}
+
+void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
+{
+	// Compile each instance method as a separate global function
+	// The methods are already named with mangled names (e.g., "show_Show_Int") by the parser during instance declaration parsing
+	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	{
+		std::visit([this](auto&& arg) { (*this)(arg); }, **method);
+	}
+
+	// Instance resolution happens during generic function specialization via m_method_resolution_map
 	return;
 }
 
@@ -772,7 +776,6 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		return;
 	}
 
-	// Check if this is a call to a generic function
 	bool is_generic_call = false;
 	std::string function_name;
 
@@ -781,7 +784,14 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
 		function_name = callee_name.m_name.m_lexeme;
 
-		// Check if this name refers to a generic function
+		std::unordered_map<std::string, std::string>::iterator resolution_it = m_method_resolution_map.find(function_name);
+		if (resolution_it != m_method_resolution_map.end())
+		{
+			// Replace with the mangled instance method name
+			// We only update the local variable, not the AST, because the AST is shared across specializations
+			function_name = resolution_it->second;
+		}
+
 		std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(function_name);
 		if (generic_it != m_generic_functions.end())
 		{
@@ -841,7 +851,60 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 				std::visit([this](auto&& arg){ (*this)(arg); }, **param);
 			}
 		);
-		std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+
+		// If we resolved a typeclass method, emit GET_GLOBAL for the resolved name instead of compiling the callee (which has the original unresolved name)
+		if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+		{
+			MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+			std::unordered_map<std::string, std::string>::iterator resolution_it = m_method_resolution_map.find(callee_name.m_name.m_lexeme);
+			if (resolution_it != m_method_resolution_map.end())
+			{
+				// This was a resolved method call - emit GET_GLOBAL for the mangled name
+				const std::string& resolved_name = resolution_it->second;
+
+				size_t at_pos = resolved_name.find(ModuleSeparator);
+				if (at_pos != std::string::npos)
+				{
+					std::string symbol_name = resolved_name.substr(0u, at_pos);
+					std::string module_name = resolved_name.substr(at_pos + 1u);
+
+					int import_index = 0;
+					bool found = false;
+					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+					{
+						if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
+						{
+							import_index = -(static_cast<int>(i) + 1);
+							found = true;
+							break;
+						}
+					}
+
+					if (!found)
+					{
+						m_tracked_imports.emplace_back(symbol_name, module_name);
+						import_index = -static_cast<int>(m_tracked_imports.size());
+					}
+
+					EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
+				}
+				else
+				{
+					// Local instance method
+					EmitVariable(m_global_variables[resolved_name], OpCode::GET_GLOBAL, line);
+				}
+			}
+			else
+			{
+				// Normal function call
+				std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+			}
+		}
+		else
+		{
+			// Not a BoundedName
+			std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+		}
 
 		if (call.m_is_foreign)
 		{
@@ -1934,6 +1997,73 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 		m_param_type_map[generic_info.m_params[i].m_lexeme] = concrete_arg_types[i];
 	}
 
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> generic_type_map;
+	for (size_t i = 0u; i < generic_info.m_generic_param_types.size() && i < concrete_arg_types.size(); i += 1u)
+	{
+		if (generic_info.m_generic_param_types[i]->IsType<MidoriType::GenericParam>())
+		{
+			const MidoriType::GenericParam& gen_param = generic_info.m_generic_param_types[i]->GetType<MidoriType::GenericParam>();
+			generic_type_map[gen_param.m_name] = concrete_arg_types[i];
+		}
+	}
+
+	std::unordered_map<std::string, std::string> prev_resolution_map = m_method_resolution_map;
+	m_method_resolution_map.clear();
+
+	for (const MidoriType::TypeclassConstraint& constraint : generic_info.m_constraints)
+	{
+		std::unordered_map<std::string, std::unordered_set<std::string>>::iterator tc_it = m_typeclass_methods.find(constraint.m_typeclass_name);
+		if (tc_it != m_typeclass_methods.end())
+		{
+			std::vector<std::shared_ptr<MidoriType>> concrete_type_args;
+			concrete_type_args.reserve(constraint.m_type_args.size());
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				concrete_type_args.emplace_back(SubstituteGenericTypes(type_arg, generic_type_map));
+			}
+
+			for (const std::string& method_name : tc_it->second)
+			{
+				std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, constraint.m_typeclass_name, concrete_type_args);
+				std::string resolved_method_name = mangled_name_prefix;
+				std::unordered_map<std::string, std::vector<std::string>>::iterator instances_it = m_typeclass_instances.find(constraint.m_typeclass_name);
+				if (instances_it != m_typeclass_instances.end())
+				{
+					std::string pattern_with_at = mangled_name_prefix + ModuleSeparator;
+					bool found = false;
+					for (const std::string& instance_method : instances_it->second)
+					{
+						if (instance_method == mangled_name_prefix || instance_method.starts_with(pattern_with_at))
+						{
+							resolved_method_name = instance_method;
+							found = true;
+							break;
+						}
+					}
+				}
+
+				// Check for ambiguity: if method_name already exists in the map, it means multiple constraints provide the same method name
+				std::unordered_map<std::string, std::string>::iterator existing = m_method_resolution_map.find(method_name);
+				if (existing != m_method_resolution_map.end())
+				{
+					AddError
+					(
+						MidoriError::GenerateCodeGeneratorErrorWithContext
+						(
+							std::format("Ambiguous method '{}' in function '{}': provided by multiple typeclass constraints. Use qualified syntax like 'TypeclassName::{}' to disambiguate.", method_name, base_name, method_name),
+							line,
+							m_file_name,
+							m_source_lines
+						)
+					);
+					return -1;
+				}
+
+				m_method_resolution_map[method_name] = resolved_method_name;
+			}
+		}
+	}
+
 	size_t prev_index = m_current_procedure_index;
 	m_current_procedure_index = m_procedures.size();
 	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
@@ -1948,6 +2078,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_current_procedure_index = prev_index;
 
 	m_param_type_map = std::move(prev_param_map);
+	m_method_resolution_map = std::move(prev_resolution_map);
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	return specialized_proc_index;
@@ -1966,6 +2097,96 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 	}
 
 	return expr->GetType();
+}
+
+std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& generic_type_map)
+{
+	using namespace std::string_literals;
+
+	return std::visit(
+		[&](auto&& type_variant) -> std::shared_ptr<MidoriType>
+		{
+			using T = std::decay_t<decltype(type_variant)>;
+
+			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+			{
+				// This is a generic parameter - substitute it with the concrete type
+				auto it = generic_type_map.find(type_variant.m_name);
+				if (it != generic_type_map.end())
+				{
+					return it->second;
+				}
+				// If not found in map, return as-is
+				return type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+			{
+				// Recursively substitute in array element type
+				auto substituted_element = SubstituteGenericTypes(type_variant.m_element_type, generic_type_map);
+				if (substituted_element != type_variant.m_element_type)
+				{
+					return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
+				}
+				return type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
+			{
+				// Recursively substitute in tuple element types
+				std::vector<std::shared_ptr<MidoriType>> substituted_elements;
+				bool changed = false;
+				for (const auto& elem_type : type_variant.m_element_types)
+				{
+					auto substituted = SubstituteGenericTypes(elem_type, generic_type_map);
+					substituted_elements.push_back(substituted);
+					if (substituted != elem_type)
+					{
+						changed = true;
+					}
+				}
+				if (changed)
+				{
+					return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
+				}
+				return type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+			{
+				// Recursively substitute in parameter and return types
+				std::vector<std::shared_ptr<MidoriType>> substituted_params;
+				bool changed = false;
+				for (const auto& param_type : type_variant.m_param_types)
+				{
+					auto substituted = SubstituteGenericTypes(param_type, generic_type_map);
+					substituted_params.push_back(substituted);
+					if (substituted != param_type)
+					{
+						changed = true;
+					}
+				}
+				auto substituted_return = SubstituteGenericTypes(type_variant.m_return_type, generic_type_map);
+				if (substituted_return != type_variant.m_return_type)
+				{
+					changed = true;
+				}
+				if (changed)
+				{
+					return std::make_shared<MidoriType>(MidoriType::FunctionType{
+						std::move(substituted_params),
+						substituted_return,
+						type_variant.m_is_foreign,
+						type_variant.m_constraints
+					});
+				}
+				return type;
+			}
+			else
+			{
+				// For all other types, return as-is
+				return type;
+			}
+		},
+		type->m_type
+	);
 }
 
 void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count)

@@ -17,17 +17,18 @@ private:
 	{
 		std::vector<int> m_break_positions;
 		int m_loop_start = 0;
-		int m_continue_target = 0;  // Where continue should jump to
+		int m_continue_target = 0;
 	};
 
 	struct GenericFunctionInfo
 	{
 		std::string m_name;
 		std::vector<Token> m_params;
-		std::unique_ptr<MidoriExpression>* m_body;
-		int m_captured_count;
+		std::vector<MidoriType::TypeclassConstraint> m_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
 		std::shared_ptr<MidoriType> m_generic_return_type;
+		std::unique_ptr<MidoriExpression>* m_body;
+		int m_captured_count;
 	};
 
 	struct FunctionSignature
@@ -55,6 +56,9 @@ private:
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
+	std::unordered_map<std::string, std::unordered_set<std::string>> m_typeclass_methods;
+	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_instances;
+	std::unordered_map<std::string, std::string> m_method_resolution_map;
 
 	MidoriExecutable m_executable;
 	const std::vector<std::string>& m_source_lines;
@@ -71,7 +75,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols);
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_typeclass_methods = {}, const std::unordered_map<std::string, std::vector<std::string>>& imported_typeclass_instances = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
@@ -122,6 +126,10 @@ private:
 	void operator()(MidoriStatement::Struct& struct_stmt);
 
 	void operator()(MidoriStatement::Union& union_stmt);
+
+	void operator()(MidoriStatement::Typeclass& typeclass_stmt);
+
+	void operator()(MidoriStatement::Instance& instance_stmt);
 
 	void operator()(MidoriExpression::As& as);
 
@@ -202,4 +210,6 @@ private:
 	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
 
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
+
+	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& generic_type_map);
 };

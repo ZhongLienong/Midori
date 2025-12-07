@@ -11,6 +11,18 @@ class TypeChecker
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 
+	struct TypeclassInfo
+	{
+		std::string m_name;
+		std::vector<std::string> m_type_param_names;
+		std::vector<MidoriType::TypeclassConstraint> m_superclasses;
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
+		std::unordered_set<std::string> m_methods_with_defaults;
+
+		TypeclassInfo() = default;
+		TypeclassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::TypeclassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
+	};
+
 private:
 	using TypeEnvironmentStack = std::vector<TypeEnvironment>;
 	using TypeSubstitution = std::unordered_map<int, std::shared_ptr<MidoriType>>;
@@ -19,8 +31,32 @@ private:
 	using GenericUnionNames = std::unordered_set<std::string>;
 	struct FresheningContext
 	{
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_generic_params;  // Maps generic param names to fresh type vars
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_generic_params;
 		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> m_type_cache;  // Maps type pointers to their fresh versions (for cycle detection)
+	};
+
+	struct InstanceKey
+	{
+		std::string m_typeclass_name;
+		std::vector<std::string> m_concrete_types;
+
+		bool operator==(const InstanceKey& other) const;
+	};
+
+	struct InstanceKeyHash
+	{
+		std::size_t operator()(const InstanceKey& key) const;
+	};
+
+	struct InstanceInfo
+	{
+		std::string m_typeclass_name;
+		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+		std::vector<MidoriType::TypeclassConstraint> m_constraints;
+		std::unordered_map<std::string, std::unique_ptr<MidoriStatement>> m_method_impls;
+
+		InstanceInfo() = default;
+		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::TypeclassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	MidoriProgramTree m_program_tree;
@@ -30,10 +66,13 @@ private:
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
+	std::unordered_map<std::string, TypeclassInfo> m_typeclasses;
+	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
+	std::vector<MidoriType::TypeclassConstraint> m_active_constraints;
 	const std::vector<std::string>& m_source_lines;
 	int m_next_type_var_id;
-	std::shared_ptr<MidoriType> m_expected_return_type;  // Expected return type for the current function
-	std::shared_ptr<MidoriType> m_expected_break_type;   // Expected break type for the current loop
+	std::shared_ptr<MidoriType> m_expected_return_type; 
+	std::shared_ptr<MidoriType> m_expected_break_type; 
 	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
 	const std::array<Token::Name, 1u> m_binary_concatenation_operators{ Token::Name::DOUBLE_PLUS };
 	const std::array<Token::Name, 4u> m_binary_partial_order_comparison_operators{ Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL };
@@ -47,7 +86,8 @@ public:
 		MidoriProgramTree&& parser_result,
 		std::string_view file_name,
 		const std::vector<std::string>& source_lines,
-		TypeEnvironment imported_types = {}
+		TypeEnvironment imported_types = {},
+		const std::unordered_map<std::string, TypeclassInfo>& imported_typeclasses = {}
 	);
 
 	MidoriResult::TypeCheckerResult TypeCheck();
@@ -92,6 +132,10 @@ private:
 	MidoriResult::TypeResult operator()(MidoriStatement::Struct& struct_stmt);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Union& union_stmt);
+
+	MidoriResult::TypeResult operator()(MidoriStatement::Typeclass& typeclass_stmt);
+
+	MidoriResult::TypeResult operator()(MidoriStatement::Instance& instance_stmt);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::As& as);
 

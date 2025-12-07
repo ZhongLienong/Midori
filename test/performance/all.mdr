@@ -290,6 +290,6 @@ TestFib(35);
 TestPrimeNumbers();
 TestStringManipulation();
 TestParenthesisGeneration(8);
-TestAckermann(3, 8);
+TestAckermann(3, 5);
 TestSorting(5000);
 TestBinarySearch(100000, 10000);

@@ -31,6 +31,29 @@ MidoriType::UnionType::UnionType(const std::string& name) : m_name(name)
 {
 }
 
+MidoriType::TypeclassConstraint::TypeclassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+	: m_typeclass_name(typeclass_name), m_type_args(std::move(type_args))
+{
+}
+
+bool MidoriType::TypeclassConstraint::operator==(const TypeclassConstraint& other) const
+{
+	if (m_typeclass_name != other.m_typeclass_name || m_type_args.size() != other.m_type_args.size())
+	{
+		return false;
+	}
+
+	for (size_t i = 0u; i < m_type_args.size(); i += 1u)
+	{
+		if (*m_type_args[i] != *other.m_type_args[i])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 const std::shared_ptr<MidoriType> MidoriType::MakeUndecidedType()
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(UndecidedType{}));
@@ -63,7 +86,7 @@ std::shared_ptr<MidoriType> MidoriType::MakeTupleType(std::vector<std::shared_pt
 
 std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_is_foreign = is_foreign}));
+	return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_is_foreign = is_foreign, .m_constraints = {}}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
@@ -267,6 +290,35 @@ std::string MidoriType::ToString() const
 		},
 		m_type
 	);
+}
+
+std::string MidoriType::MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
+{
+	std::string mangled = method_name + "_"s + typeclass_name;
+
+	for (const auto& type_arg : type_args)
+	{
+		std::string type_str = type_arg->ToString();
+		std::ranges::replace_if(type_str, [](char c) { return !std::isalnum(c); }, '_');	// Replace special characters with underscores for valid identifier
+		mangled += "_"s + type_str;
+	}
+
+	return mangled;
+}
+
+std::string MidoriType::DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name)
+{
+	// mangled format: methodName_TypeclassName_Type1_Type2
+	// Find the position of "_TypeclassName"
+	std::string suffix = "_"s + typeclass_name;
+	size_t pos = mangled_name.find(suffix);
+
+	if (pos != std::string::npos)
+	{
+		return mangled_name.substr(0u, pos);
+	}
+
+	return mangled_name;
 }
 
 bool MidoriType::IsNumericType() const

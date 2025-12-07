@@ -1,0 +1,33 @@
+// Test: Ambiguous method names across multiple typeclasses
+// This should produce a compile-time error
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+typeclass Show<T> {
+    display: fn(value: T) -> Text;
+};
+
+typeclass Debug<T> {
+    display: fn(value: T) -> Text;  // Same name as Show::display
+};
+
+instance Show<Int> {
+    defun display(value: Int) : Text => {
+        return "Show: " ++ (value as Text);
+    };
+};
+
+instance Debug<Int> {
+    defun display(value: Int) : Text => {
+        return "Debug: " ++ (value as Text);
+    };
+};
+
+// ERROR: Function with BOTH constraints - which display?
+// This should fail with: "Ambiguous method 'display' in function 'print_both'"
+defun print_both<T>(x: T) : Text where T: Show<T>, T: Debug<T> => {
+    return display(x);  // Ambiguous!
+};
+
+def result = print_both(42);
+IO::PrintLine(result);

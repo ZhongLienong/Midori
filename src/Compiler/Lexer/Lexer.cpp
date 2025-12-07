@@ -43,7 +43,10 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"export"s, Token::Name::EXPORT},
 	{"public"s, Token::Name::PUBLIC},
 	{"private"s, Token::Name::PRIVATE},
-	{"use"s, Token::Name::USE}
+	{"use"s, Token::Name::USE},
+	{"typeclass"s, Token::Name::TYPECLASS},
+	{"instance"s, Token::Name::INSTANCE},
+	{"where"s, Token::Name::WHERE}
 };
 
 bool Lexer::IsAtEnd(int offset) const

@@ -1,10 +1,11 @@
 #include "CompiledModule.h"
 
-CompiledModule::CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures)
+CompiledModule::CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata)
 	: m_module_name(std::move(module_name)),
 	m_file_path(std::move(file_path)),
 	m_symbols(std::move(symbols)),
-	m_type_signatures(std::move(type_signatures))
+	m_type_signatures(std::move(type_signatures)),
+	m_typeclass_metadata(std::move(typeclass_metadata))
 {
 }
 

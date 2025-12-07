@@ -51,11 +51,22 @@ public:
 		std::vector<std::shared_ptr<MidoriType>> m_element_types;
 	};
 
+	struct TypeclassConstraint
+	{
+		std::string m_typeclass_name;
+		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+
+		TypeclassConstraint() = default;
+		TypeclassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+		bool operator==(const TypeclassConstraint& other) const;
+	};
+
 	struct FunctionType
 	{
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
 		std::shared_ptr<MidoriType> m_return_type;
 		bool m_is_foreign = false;
+		std::vector<TypeclassConstraint> m_constraints;
 	};
 
 	struct StructType
@@ -99,7 +110,8 @@ public:
 		TupleType,
 		FunctionType,
 		StructType,
-		UnionType
+		UnionType,
+		TypeclassConstraint
 	>;
 
 	MidoriTypeUnion m_type;
@@ -151,6 +163,10 @@ public:
 	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
 
 	std::string ToString() const;
+
+	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
+
+	static std::string DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name);
 
 	bool IsNumericType() const;
 

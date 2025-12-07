@@ -1,0 +1,13 @@
+// Module that defines Show typeclass and Int instance
+module ShowTC
+public export { Show }
+
+typeclass Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return value as Text;
+    };
+};

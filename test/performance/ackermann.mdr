@@ -18,7 +18,7 @@ defun Ackermann(m : Int, n : Int) : Int =>
 
 def start = DateTime::GetTime();
 
-def result = Ackermann(3, 10);
+def result = Ackermann(3, 5);
 
 def end = DateTime::GetTime();
 

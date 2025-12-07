@@ -365,3 +365,6 @@ FodyWeavers.xsd
 
 # Claude
 .claude/
+
+# Build
+build/

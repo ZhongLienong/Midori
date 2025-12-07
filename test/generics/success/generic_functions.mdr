@@ -3,8 +3,7 @@
 
 import 
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../../../MidoriPrelude/DateTime.mdr"
 }
 
 defun identity<T>(x: T) : T => 
@@ -16,9 +15,6 @@ def int_result = identity(42);
 def text_result = identity("hello");
 def float_result = identity(3.14);
 
-IO::PrintLine("int_result: " ++ (int_result as Text));
-IO::PrintLine("text_result: " ++ text_result);
-IO::PrintLine("float_result: " ++ (float_result as Text));
 
 defun swap<A, B>(x: A, y: B) : Bool => 
 {
@@ -32,5 +28,3 @@ defun first<T, U>(a: T, b: U) : T => a;
 
 def first_int = first(10, "ignored");
 def first_text = first("kept", 99);
-IO::PrintLine("first_int: " ++ (first_int as Text));
-IO::PrintLine("first_text: " ++ first_text);

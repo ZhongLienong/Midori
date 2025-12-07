@@ -28,11 +28,22 @@ struct CompiledModule
 		VisibilityLevel GetExportVisibility(std::string_view name) const;
 	};
 
+	struct TypeclassMetadata
+	{
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
+		std::unordered_set<std::string> m_method_names;
+		std::vector<std::string> m_type_param_names;
+		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
+	};
+	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
+	using TypeclassMetadataMap = std::unordered_map<std::string, TypeclassMetadata>;
+
 	SymbolTable m_symbols;
 	TypeEnvironment m_type_signatures;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
+	TypeclassMetadataMap m_typeclass_metadata;
 
-	CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures = {});
+	CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures = {}, TypeclassMetadataMap typeclass_metadata = {});
 
 	CompiledModule(const CompiledModule&) = delete;
 	CompiledModule& operator=(const CompiledModule&) = delete;

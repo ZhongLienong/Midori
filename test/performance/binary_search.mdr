@@ -54,7 +54,7 @@ loop
 		def result = BinarySearch(sorted_array, target, 0, array_len - 1);
 		if result != -1
 		then found_count = found_count + 1
-		else ();
+		else 0;
 		j = j + 1;
 	}
 };

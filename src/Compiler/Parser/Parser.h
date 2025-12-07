@@ -41,26 +41,35 @@ private:
 
 	using Scopes = std::vector<Scope>;
 	
+	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
+	std::unordered_map<std::string, std::unordered_set<std::string>> m_typeclass_methods;
+	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_type_params;
+	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_instances;
+	std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_typeclass_method_types;
 	TokenStream m_tokens;
 	std::string m_file_name;
 	Scopes m_scopes{ Scope() };
 	std::stack<int> m_local_count_before_loop;
+	std::vector<UseImport> m_current_use_imports;
 	std::vector<std::string> m_namespaces;
-	const std::vector<std::string>& m_source_lines;
+	std::vector<MidoriType::TypeclassConstraint> m_active_constraints;  // Constraints active in current parsing context
+	const ModuleDeclaration* m_current_module;
 	const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations;
 	const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports;
-	const ModuleDeclaration* m_current_module;
-	std::vector<UseImport> m_current_use_imports; 
-	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols; 
+	const std::vector<std::string>& m_source_lines;
 	int m_function_depth = 0;
 	int m_current_token_index = 0;
 	int m_total_locals_in_curr_scope = 0;
 	int m_total_variables = 0;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl);
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
 
 	MidoriResult::ParserResult Parse();
+
+	const std::unordered_map<std::string, std::unordered_set<std::string>>& GetTypeclassMethods() const;
+
+	CompiledModule::TypeclassMetadataMap GetTypeclassMetadata() const;
 
 private:
 	
@@ -428,6 +437,10 @@ private:
 	MidoriResult::StatementResult ParseStructDeclaration();
 
 	MidoriResult::StatementResult ParseUnionDeclaration();
+
+	MidoriResult::StatementResult ParseTypeclassDeclaration();
+
+	MidoriResult::StatementResult ParseInstanceDeclaration();
 
 	MidoriResult::StatementResult ParseContinueStatement();
 

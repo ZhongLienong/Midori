@@ -126,16 +126,21 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 												// Build imports from already-compiled dependencies
 												std::unordered_map<std::string, CompiledModule::SymbolTable> imports;
+												CompiledModule::TypeclassMetadataMap imported_typeclass_metadata;
 												for (const std::string& dep_path : node.m_dependencies)
 												{
 													std::lock_guard<std::mutex> lock(modules_mutex);
 													const CompiledModule& dep = compiled_modules.at(dep_path);
 													imports[dep.m_module_name] = dep.m_symbols;
+													for (const auto& [tc_name, metadata] : dep.m_typeclass_metadata)
+													{
+														imported_typeclass_metadata[tc_name] = metadata;
+													}
 												}
 
 												const ModuleDeclaration* module_decl = build_graph.m_module_declarations.contains(file_path) ? &build_graph.m_module_declarations.at(file_path) : nullptr;
 
-												Parser parser(std::move(node.m_tokens), file_path, m_source_lines, imports, node.m_use_imports, module_decl);
+												Parser parser(std::move(node.m_tokens), file_path, m_source_lines, imports, node.m_use_imports, module_decl, imported_typeclass_metadata);
 												std::expected<MidoriProgramTree, std::string> ast = parser.Parse();
 												if (!ast.has_value())
 												{
@@ -144,6 +149,9 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 												// Extract type signatures from parsed AST (for dependent modules)
 												TypeChecker::TypeEnvironment type_signatures = TypeChecker::ExtractTypeSignatures(ast.value());
+
+												// Extract typeclass metadata from parser (for dependent modules)
+												CompiledModule::TypeclassMetadataMap typeclass_metadata = parser.GetTypeclassMetadata();
 
 												// Build combined type environment from all dependencies
 												TypeChecker::TypeEnvironment imported_types;
@@ -161,8 +169,17 @@ MidoriResult::CompilerResult Compiler::Compile()
 													}
 												}
 
+												// Build imported typeclasses for type checking
+												std::unordered_map<std::string, TypeChecker::TypeclassInfo> imported_typeclass_infos;
+												for (const auto& [typeclass_name, metadata] : imported_typeclass_metadata)
+												{
+													// Create TypeclassInfo for imported typeclasses with method types
+													TypeChecker::TypeclassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::TypeclassConstraint>{}, std::unordered_map<std::string, std::shared_ptr<MidoriType>>(metadata.m_method_types), std::unordered_set<std::string>{});
+													imported_typeclass_infos[typeclass_name] = std::move(info);
+												}
+
 												// Type check with imported types
-												MidoriResult::TypeCheckerResult type_checked_ast = TypeChecker(std::move(ast.value()), file_path, m_source_lines, imported_types).TypeCheck();
+												MidoriResult::TypeCheckerResult type_checked_ast = TypeChecker(std::move(ast.value()), file_path, m_source_lines, imported_types, imported_typeclass_infos).TypeCheck();
 												if (!type_checked_ast.has_value())
 												{
 													return std::unexpected(type_checked_ast.error());
@@ -185,21 +202,38 @@ MidoriResult::CompilerResult Compiler::Compile()
 														symbols.m_exports.insert(exp.m_symbol_name);
 														symbols.m_export_visibility[exp.m_symbol_name] = exp.m_visibility;
 														export_set.insert(exp.m_symbol_name);
+
+														if (typeclass_metadata.contains(exp.m_symbol_name))
+														{
+															const CompiledModule::TypeclassMetadata& tc_metadata = typeclass_metadata.at(exp.m_symbol_name);
+															for (const std::string& instance_method : tc_metadata.m_instance_methods)
+															{
+																symbols.m_exports.insert(instance_method);
+																symbols.m_export_visibility[instance_method] = exp.m_visibility;
+																export_set.insert(instance_method);
+															}
+														}
 													}
 												}
 
-												// Determine module name for this compiled module
 												const std::string module_name = module_decl ? module_decl->m_module_name : std::filesystem::path(file_path).stem().string();
 
 												// Generate per-module bytecode
-												MidoriResult::CodeGeneratorResult module_bytecode =CodeGenerator(std::move(optimized_ast.value()), file_path, m_source_lines, module_name, export_set).GenerateModuleBytecode();
+												// Convert metadata to method-only map for CodeGenerator
+												CompiledModule::TypeclassMethodMap imported_typeclass_methods;
+												std::unordered_map<std::string, std::vector<std::string>> imported_typeclass_instances;
+												for (const auto& [tc_name, metadata] : imported_typeclass_metadata)
+												{
+													imported_typeclass_methods[tc_name] = metadata.m_method_names;
+													imported_typeclass_instances[tc_name] = metadata.m_instance_methods;
+												}
+												MidoriResult::CodeGeneratorResult module_bytecode =CodeGenerator(std::move(optimized_ast.value()), file_path, m_source_lines, module_name, export_set, imported_typeclass_methods, imported_typeclass_instances).GenerateModuleBytecode();
 												if (!module_bytecode.has_value())
 												{
 													return std::unexpected(module_bytecode.error());
 												}
 
-												// Create compiled module with bytecode (no AST needed)
-												CompiledModule compiled_module(module_name, file_path, std::move(symbols), std::move(type_signatures));
+												CompiledModule compiled_module(module_name, file_path, std::move(symbols), std::move(type_signatures), std::move(typeclass_metadata));
 
 												compiled_module.m_bytecode = std::move(module_bytecode.value());
 

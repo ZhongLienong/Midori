@@ -100,6 +100,9 @@ struct Token
 		PUBLIC,
 		PRIVATE,
 		USE,
+		TYPECLASS,
+		INSTANCE,
+		WHERE,
 
 		// types
 		FLOAT,

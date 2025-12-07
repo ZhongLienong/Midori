@@ -1,0 +1,35 @@
+// Method dispatch test
+// Tests: constrained generic functions, instance method resolution
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+typeclass Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return value as Text;
+    };
+};
+
+instance Show<Float> {
+    defun show(value: Float) : Text => {
+        return value as Text;
+    };
+};
+
+// Generic function with constraint - should dispatch to correct instance
+defun display<T>(value: T) : Text where T: Show<T> => {
+    return show(value);
+};
+
+// Test Int dispatch
+def int_result = display(42);
+IO::PrintLine(int_result);
+
+// Test Float dispatch
+def float_result = display(3.14);
+IO::PrintLine(float_result);
+
+IO::PrintLine("method_dispatch: PASS");

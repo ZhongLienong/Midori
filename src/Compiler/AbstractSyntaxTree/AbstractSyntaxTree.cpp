@@ -314,7 +314,7 @@ MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count)
+MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MidoriType::TypeclassConstraint>&& constraints)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
@@ -322,6 +322,23 @@ MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<T
 	m_return_type(std::move(return_type)),
 	m_body(std::move(body)),
 	m_local_index(std::move(local_index)),
-	m_captured_count(captured_count)
+	m_captured_count(captured_count),
+	m_constraints(std::move(constraints))
+{
+}
+
+MidoriStatement::Typeclass::Typeclass(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::TypeclassConstraint>&& superclasses, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+	: m_name(name),
+	m_type_params(std::move(type_params)),
+	m_superclasses(std::move(superclasses)),
+	m_methods(std::move(methods))
+{
+}
+
+MidoriStatement::Instance::Instance(const Token& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::TypeclassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+	: m_typeclass_name(typeclass_name),
+	m_type_args(std::move(type_args)),
+	m_constraints(std::move(constraints)),
+	m_methods(std::move(methods))
 {
 }
