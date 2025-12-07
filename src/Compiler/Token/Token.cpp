@@ -29,9 +29,10 @@ TokenStream::const_iterator TokenStream::cend() const
 	return m_tokens.cend(); 
 }
 
-void TokenStream::AddToken(Token&& token) 
+TokenStream& TokenStream::AddToken(Token&& token)
 { 
 	m_tokens.emplace_back(std::move(token)); 
+	return *this;
 }
 
 Token& TokenStream::operator[](int index) const 

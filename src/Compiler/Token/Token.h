@@ -141,7 +141,7 @@ public:
 
 	const_iterator cend() const;
 
-	void AddToken(Token&& token);
+	TokenStream& AddToken(Token&& token);
 
 	Token& operator[](int index) const;
 

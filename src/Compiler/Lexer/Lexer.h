@@ -10,14 +10,14 @@
 class Lexer
 {
 private:
-	std::string m_source_code;
-	std::string m_file_name;
-	std::vector<std::string> m_source_lines;
-	int m_line = 1;
-	size_t m_begin = 0u;
-	size_t m_current = 0u;
-	size_t m_line_start = 0u;
+	const std::string m_source_code;
+	const std::string m_file_name;
+	const std::vector<std::string> m_source_lines;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
+	int m_current = 0;
+	int m_begin = 0;
+	int m_line_start = 0;
+	int m_line = 1;
 
 public:
 
@@ -45,13 +45,34 @@ private:
 
 	Token MakeToken(Token::Name type, std::string&& lexeme) const;
 
+	MidoriResult::TokenResult MakeTokenResult(Token::Name type) const;
+
+	MidoriResult::TokenResult MakeTokenResult(Token::Name type, std::string&& lexeme) const;
+
 	MidoriResult::TokenResult LexOneToken();
 
 	MidoriResult::TokenResult SkipWhitespaceAndComments();
 
 	MidoriResult::TokenResult MatchString();
 
-	Token MatchNumber();
+	MidoriResult::TokenResult MatchNumber();
 
-	Token MatchIdentifierOrReserved();
+	MidoriResult::TokenResult MatchIdentifierOrReserved();
+
+	template<typename Predicate>
+	int ConsumeWhile(Predicate&& pred);
+
+	MidoriResult::TokenResult MatchStringRecursive(std::string&& acc);
+
+	MidoriResult::TokenResult SkipLineComment();
+
+	MidoriResult::TokenResult SkipBlockComment();
+
+	int ConsumeDigits();
+
+	int ConsumeAlphaNumeric();
+
+	MidoriResult::LexerResult LexRecursive(TokenStream&& tokens, std::string&& errors);
+
+	std::vector<std::string> SplitIntoLines(const std::string& source);
 };
