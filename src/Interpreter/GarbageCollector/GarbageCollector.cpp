@@ -33,13 +33,22 @@ void GarbageCollector::Mark(GarbageCollector::GarbageCollectionRoots&& roots)
 #endif
 
 	// Process each root concurrently.
+#ifdef __EMSCRIPTEN__
 	std::for_each
 	(
-		std::execution::unseq,
-		roots.begin(), 
+		roots.begin(),
 		roots.end(),
 		[this](MidoriTraceable* ptr){ Trace(ptr); }
 	);
+#else
+	std::for_each
+	(
+		std::execution::unseq,
+		roots.begin(),
+		roots.end(),
+		[this](MidoriTraceable* ptr){ Trace(ptr); }
+	);
+#endif
 }
 
 void GarbageCollector::Sweep()

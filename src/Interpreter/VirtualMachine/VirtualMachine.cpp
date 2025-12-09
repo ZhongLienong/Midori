@@ -4,6 +4,10 @@
 #include "Utility/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
+#ifdef __EMSCRIPTEN__
+#include "WASM/WasmStdLib.h"
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <execution>
@@ -367,6 +371,20 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCol
 	roots.reserve((m_value_stack_pointer - m_value_stack_begin));
 
 	// Sequential - unordered_set::emplace is not thread-safe
+#ifdef __EMSCRIPTEN__
+	std::for_each_n
+	(
+		m_value_stack_begin,
+		m_value_stack_pointer - m_value_stack_begin,
+		[&roots, this](MidoriValue value) -> void
+		{
+			if (m_garbage_collector.Contains(value.GetPointer()))
+			{
+				roots.emplace(value.GetPointer());
+			}
+		}
+	);
+#else
 	std::for_each_n
 	(
 		std::execution::seq,
@@ -380,6 +398,7 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCol
 			}
 		}
 	);
+#endif
 
 	return roots;
 }
@@ -399,6 +418,26 @@ int VirtualMachine::ExecuteLoop() noexcept
 	{
 #if MIDORI_ENABLE_STACK_TRACE
 		Printer::Print("          ");
+#ifdef __EMSCRIPTEN__
+		std::for_each
+		(
+			m_value_stack_begin,
+			m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
+			[](MidoriValue value) -> void
+			{
+				Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
+			}
+		);
+		std::for_each
+		(
+			m_value_stack_base_pointer,
+			m_value_stack_pointer,
+			[](MidoriValue value) -> void
+			{
+				Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
+			}
+		);
+#else
 		std::for_each
 		(
 			std::execution::seq,
@@ -419,6 +458,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
 			}
 		);
+#endif
 		Printer::Print("\n");
 		int dbg_instruction_pointer = -1;
 		int dbg_proc_index = -1;
@@ -1447,11 +1487,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int arity = static_cast<int>(ReadByte());
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
-			// Platform-specific function loading
+#ifdef __EMSCRIPTEN__
+			void* proc = reinterpret_cast<void*>(WasmStdLib::GetFunction(foreign_function_name_ref.GetCString()));
+#else
+			// Platform-specific dynamic loading from DLL
 #ifdef _WIN32
 			FARPROC proc = GetProcAddress(m_library_handle, foreign_function_name_ref.GetCString());
 #else
-			void* proc = dlsym(m_library_handle, foreign_function_name_ref.c_str());
+			void* proc = dlsym(m_library_handle, foreign_function_name_ref.GetCString());
+#endif
 #endif
 			if (proc == nullptr)
 			{
@@ -1575,6 +1619,20 @@ int VirtualMachine::ExecuteLoop() noexcept
 			captured_variables = *m_curr_environment;
 			captured_count -= captured_variables.GetLength();
 
+#ifdef __EMSCRIPTEN__
+			std::for_each_n
+			(
+				m_value_stack_base_pointer,
+				captured_count,
+				[&captured_variables, this](MidoriValue& value)
+				{
+					MidoriValue* stack_value_ref = &value;
+					MidoriValue cell_value = m_garbage_collector.AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
+					captured_variables.AddBack(cell_value);
+					m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
+				}
+			);
+#else
 			std::for_each_n
 			(
 				std::execution::seq,
@@ -1588,6 +1646,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
 				}
 			);
+#endif
 
 			if (m_garbage_collector.ShouldCollect())
 			{
@@ -1742,6 +1801,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 int VirtualMachine::Execute() noexcept
 {
+#ifndef __EMSCRIPTEN__
+	// Skip library loading in WASM - no DLL support in browser
 #ifdef _WIN32
 	m_library_handle = LoadLibrary("./MidoriStdLib.dll");
 #else
@@ -1757,6 +1818,7 @@ int VirtualMachine::Execute() noexcept
 #endif
 		return TerminateExecution("Failed to load the standard library.");
 	}
+#endif
 
 #ifdef _WIN32
 	// Structured exception handling for guard page access violations (stack overflow)

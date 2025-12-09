@@ -949,8 +949,11 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 		if (Match(Token::Name::IDENTIFIER_LITERAL))
 		{
 			Token base_name_token = Previous();
-
-			// Parse generic type arguments if present (e.g., <Int>)
+			MidoriResult::TokenResult data_name_token = MatchNameResolution();
+			if (!data_name_token.has_value())
+			{
+				return std::unexpected<std::string>(data_name_token.error());
+			}
 			std::vector<std::shared_ptr<MidoriType>> type_args;
 			if (Match(Token::Name::LEFT_ANGLE))
 			{
@@ -969,32 +972,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				type_args = std::move(type_args_result.value());
 			}
 
-			// Build the constructor name (either with manual resolution for generics or using MatchNameResolution)
-			std::string constructor_name;
-			if (!type_args.empty())
-			{
-				// For generic types, manually build the qualified name
-				constructor_name = base_name_token.m_lexeme;
-				while (Match(Token::Name::DOUBLE_COLON))
-				{
-					if (!Match(Token::Name::IDENTIFIER_LITERAL))
-					{
-						return std::unexpected<std::string>(GenerateParserError("Expected identifier after '::'.", Previous()));
-					}
-					constructor_name.append(std::string(NameSeparator)).append(Previous().m_lexeme);
-				}
-				constructor_name = Mangle(constructor_name);
-			}
-			else
-			{
-				// No type arguments, use standard name resolution
-				MidoriResult::TokenResult data_name_token = MatchNameResolution();
-				if (!data_name_token.has_value())
-				{
-					return std::unexpected<std::string>(data_name_token.error());
-				}
-				constructor_name = Mangle(data_name_token.value().m_lexeme);
-			}
+			std::string constructor_name = Mangle(data_name_token.value().m_lexeme);
 
 			Token data_name_token_value = base_name_token;
 			data_name_token_value.m_lexeme = constructor_name;
@@ -2062,7 +2040,9 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							int tag = 0;
 							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme, std::move(generic_param_names));
 							MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
-							m_scopes.back().m_defined_types[union_name.m_lexeme] = union_type;
+
+							size_t type_scope_idx = has_generic_params ? m_scopes.size() - 2uz : m_scopes.size() - 1uz;
+							m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
 							m_namespaces.emplace_back(union_name_before_mangle);
 
 							return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
@@ -3278,7 +3258,6 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 		resolved_name_str.append(NameSeparator).append(Previous().m_lexeme);
 	}
 
-	resolved_name.m_lexeme = std::move(resolved_name_str);
 	return resolved_name;
 }
 

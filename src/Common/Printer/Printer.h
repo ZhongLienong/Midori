@@ -114,7 +114,11 @@ namespace Printer
 			std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 			time_t timer = std::chrono::system_clock::to_time_t(now);
 			std::tm bt{};
-			localtime_s(&bt, &timer);
+	#ifdef _WIN32
+		localtime_s(&bt, &timer);
+#else
+		localtime_r(&timer, &bt);
+#endif
 
 			return std::format("{:02}:{:02}:{:02}.{:03}", bt.tm_hour, bt.tm_min, bt.tm_sec, ms.count());
 		}

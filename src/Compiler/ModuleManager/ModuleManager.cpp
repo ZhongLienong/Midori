@@ -206,12 +206,27 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 		for (const auto& [import_path, line] : import_paths)
 		{
 			std::filesystem::path resolved_path(import_path);
+
+#ifdef __EMSCRIPTEN__
+			// In WASM, absolute paths (starting with /) are in the virtual filesystem
+			// Don't resolve relative to parent path for absolute paths
+			if (import_path[0u] != '/')
+			{
+				std::filesystem::path main_file_path(m_main_file_name);
+				if (main_file_path.has_parent_path())
+				{
+					resolved_path = main_file_path.parent_path() / resolved_path;
+				}
+			}
+			std::string include_absolute_path_str = resolved_path.string();
+#else
 			if (!resolved_path.is_absolute())
 			{
 				resolved_path = std::filesystem::path(m_main_file_name).parent_path() / resolved_path;
 			}
 
 			std::string include_absolute_path_str = std::filesystem::weakly_canonical(resolved_path).string();
+#endif
 
 			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
 

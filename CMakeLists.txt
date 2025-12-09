@@ -82,33 +82,95 @@ endif()
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/src)
 
-# Source files for the main executable
-file(GLOB_RECURSE SRC_FILES
-    "src/Common/*.h"
-    "src/Compiler/*.h"
-    "src/Interpreter/*.h"
-    "src/Utility/*.h"
-    "src/Common/*.cpp"
-    "src/Compiler/*.cpp"
-    "src/Interpreter/*.cpp"
-    "src/Utility/*.cpp"
-    "src/Midori.cpp"
-)
+# Detect if we're building with Emscripten
+if(EMSCRIPTEN)
+    # WebAssembly build configuration
+    message(STATUS "Configuring for WebAssembly build with Emscripten")
 
-# Add source to this project's executable.
-add_executable(Midori ${SRC_FILES})
+    # Source files for WASM build (exclude main executable, include wrapper)
+    file(GLOB_RECURSE SRC_FILES
+        "src/Common/*.h"
+        "src/Compiler/*.h"
+        "src/Interpreter/*.h"
+        "src/Utility/*.h"
+        "src/WASM/*.h"
+        "src/Common/*.cpp"
+        "src/Compiler/*.cpp"
+        "src/Interpreter/*.cpp"
+        "src/Utility/*.cpp"
+        "src/WASM/*.cpp"
+    )
 
-# Source files for the standard library DLL
-file(GLOB_RECURSE STD_LIB_SRC_FILES
-    "src/Library/MidoriPrelude.cpp"
-)
+    # Remove the main Midori.cpp which has main() function
+    list(FILTER SRC_FILES EXCLUDE REGEX ".*Midori\\.cpp$")
 
-# Add standard library as a dynamically linked library
-add_library(MidoriStdLib SHARED ${STD_LIB_SRC_FILES})
+    # Create WASM executable
+    add_executable(Midori ${SRC_FILES})
 
-# Set the output name for Unix-like systems to follow naming convention
-if (UNIX)
-    set_target_properties(MidoriStdLib PROPERTIES OUTPUT_NAME "libMidoriStdLib")
+    # Emscripten-specific compiler flags
+    target_compile_options(Midori PRIVATE
+        -fexceptions                # Enable exceptions
+        -O3                         # Optimize for production
+    )
+
+    # Emscripten linker flags
+    target_link_options(Midori PRIVATE
+        --bind                          # Enable Embind for C++/JS interop
+        -sALLOW_MEMORY_GROWTH=1        # Allow dynamic memory growth
+        -sMODULARIZE=1                 # Wrap in a factory function
+        -sEXPORT_NAME=createMidoriModule
+        -sENVIRONMENT=web              # Target web environment only
+        -sSTACK_SIZE=5MB               # Set stack size to 5MB
+        -sINITIAL_MEMORY=32MB          # Initial heap size
+        -sMAXIMUM_MEMORY=2GB           # Maximum heap size
+        -sALLOW_TABLE_GROWTH=1         # Allow function table to grow
+        -sNO_DISABLE_EXCEPTION_CATCHING # Enable exception catching
+        -sFORCE_FILESYSTEM=1           # Enable filesystem support
+        -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile  # Export filesystem functions
+        --no-entry                      # No main() function needed
+    )
+
+    # Set output name
+    set_target_properties(Midori PROPERTIES
+        OUTPUT_NAME "midori"
+        SUFFIX ".js"
+    )
+
+else()
+    # Native build configuration (Windows/Unix)
+    message(STATUS "Configuring for native build")
+
+    # Source files for the main executable
+    file(GLOB_RECURSE SRC_FILES
+        "src/Common/*.h"
+        "src/Compiler/*.h"
+        "src/Interpreter/*.h"
+        "src/Utility/*.h"
+        "src/Common/*.cpp"
+        "src/Compiler/*.cpp"
+        "src/Interpreter/*.cpp"
+        "src/Utility/*.cpp"
+        "src/Midori.cpp"
+    )
+
+    # Add source to this project's executable.
+    add_executable(Midori ${SRC_FILES})
+endif()
+
+# Standard library configuration (skip for WASM builds)
+if(NOT EMSCRIPTEN)
+    # Source files for the standard library DLL
+    file(GLOB_RECURSE STD_LIB_SRC_FILES
+        "src/Library/MidoriPrelude.cpp"
+    )
+
+    # Add standard library as a dynamically linked library
+    add_library(MidoriStdLib SHARED ${STD_LIB_SRC_FILES})
+
+    # Set the output name for Unix-like systems to follow naming convention
+    if (UNIX)
+        set_target_properties(MidoriStdLib PROPERTIES OUTPUT_NAME "libMidoriStdLib")
+    endif()
 endif()
 
 # Specify where to put the build artifacts (this makes sure they go into 'out')

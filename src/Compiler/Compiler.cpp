@@ -38,7 +38,14 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name)
 		m_source_lines.push_back(line);
 	}
 
+#ifndef __EMSCRIPTEN__
 	m_file_name = std::filesystem::absolute(m_file_name).string();
+#else
+	if (!m_file_name.empty() && m_file_name[0u] != '/')
+	{
+		m_file_name = "/" + m_file_name;
+	}
+#endif
 }
 
 MidoriResult::CompilerResult Compiler::Compile()
@@ -85,6 +92,9 @@ MidoriResult::CompilerResult Compiler::Compile()
 							for (size_t stream_idx = 0u; stream_idx < streams.size(); stream_idx += 1u)
 							{
 								const std::vector<std::string>& stream = streams[stream_idx];
+
+#ifndef __EMSCRIPTEN__
+								// Native: Use async compilation for parallel builds
 								std::vector<std::future<std::expected<CompiledModule, std::string>>> futures;
 								futures.reserve(stream.size());
 
@@ -97,6 +107,13 @@ MidoriResult::CompilerResult Compiler::Compile()
 											std::launch::async,
 											[&, file_path]() -> std::expected<CompiledModule, std::string>
 											{
+#else
+								// WASM: Use synchronous compilation (no thread support)
+								for (const std::string& file_path : stream)
+								{
+									auto compile_module = [&]() -> std::expected<CompiledModule, std::string>
+									{
+#endif
 												size_t current_module;
 												{
 													std::lock_guard<std::mutex> lock(print_mutex);
@@ -238,6 +255,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 												compiled_module.m_bytecode = std::move(module_bytecode.value());
 
 												return compiled_module;
+#ifndef __EMSCRIPTEN__
 											}
 									));
 								}
@@ -256,6 +274,20 @@ MidoriResult::CompilerResult Compiler::Compile()
 									std::lock_guard<std::mutex> lock(modules_mutex);
 									compiled_modules.emplace(file_path, std::move(result).value());
 								}
+#else
+									};
+
+									// Execute synchronously and check result immediately
+									MidoriResult::CompiledModuleResult result = compile_module();
+									if (!result.has_value())
+									{
+										return std::unexpected<std::string>(result.error());
+									}
+
+									// Insert compiled module
+									compiled_modules.emplace(file_path, std::move(result).value());
+								}
+#endif
 							}
 
 							// Collect all bytecode modules in dependency order

@@ -368,3 +368,4 @@ FodyWeavers.xsd
 
 # Build
 build/
+build-wasm/
