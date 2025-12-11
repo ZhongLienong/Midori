@@ -183,14 +183,14 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_typeclass_methods, const std::unordered_map<std::string, std::vector<std::string>>& imported_typeclass_instances)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_class_methods, const std::unordered_map<std::string, std::vector<std::string>>& imported_class_instances)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
 	m_module_name(std::move(module_name)),
 	m_export_symbols(std::move(export_symbols)),
-	m_typeclass_methods(imported_typeclass_methods),
-	m_typeclass_instances(imported_typeclass_instances)
+	m_class_methods(imported_class_methods),
+	m_class_instances(imported_class_instances)
 {
 	std::string main_proc_name = "__main__@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
 	m_procedure_names.emplace_back(main_proc_name.c_str());
@@ -499,20 +499,20 @@ void CodeGenerator::operator()(MidoriStatement::Union&)
 	return;
 }
 
-void CodeGenerator::operator()(MidoriStatement::Typeclass& typeclass_stmt)
+void CodeGenerator::operator()(MidoriStatement::Class& class_stmt)
 {
 	std::unordered_set<std::string> method_names;
 
-	for (const std::unique_ptr<MidoriStatement>& method : typeclass_stmt.m_methods)
+	for (const std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
 		if (method->IsStatement<MidoriStatement::DefineFunction>())
 		{
-			const auto& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+			const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
 			method_names.insert(defun.m_name.m_lexeme);
 		}
 	}
 
-	m_typeclass_methods[typeclass_stmt.m_name.m_lexeme] = std::move(method_names);
+	m_class_methods[class_stmt.m_name.m_lexeme] = std::move(method_names);
 	return;
 }
 
@@ -538,6 +538,26 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	std::shared_ptr<MidoriType> from_type = as.m_from_type.lock();
 	const std::shared_ptr<MidoriType>& target_type = as.m_to_type;
 
+	if (as.m_uses_convertable)
+	{
+		std::string mangled_name = "Convert_Convertable_"s + from_type->ToString() + "_"s + target_type->ToString();
+
+		std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
+		if (it != m_global_variables.end())
+		{
+			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
+			EmitByte(OpCode::CALL_DEFINED, line);
+			EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
+			return;
+		}
+		else
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method '"s + mangled_name + "' not found"s, as.m_as_keyword, m_file_name, m_source_lines));
+			return;
+		}
+	}
+
+	// Use built-in conversions
 	if (target_type->IsType<MidoriType::BoolType>())
 	{
 		// Do nothing
@@ -852,7 +872,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		);
 
-		// If we resolved a typeclass method, emit GET_GLOBAL for the resolved name instead of compiling the callee (which has the original unresolved name)
+		// If we resolved a class method, emit GET_GLOBAL for the resolved name instead of compiling the callee (which has the original unresolved name)
 		if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
 		{
 			MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
@@ -2010,10 +2030,10 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	std::unordered_map<std::string, std::string> prev_resolution_map = m_method_resolution_map;
 	m_method_resolution_map.clear();
 
-	for (const MidoriType::TypeclassConstraint& constraint : generic_info.m_constraints)
+	for (const MidoriType::ClassConstraint& constraint : generic_info.m_constraints)
 	{
-		std::unordered_map<std::string, std::unordered_set<std::string>>::iterator tc_it = m_typeclass_methods.find(constraint.m_typeclass_name);
-		if (tc_it != m_typeclass_methods.end())
+		std::unordered_map<std::string, std::unordered_set<std::string>>::iterator tc_it = m_class_methods.find(constraint.m_class_name);
+		if (tc_it != m_class_methods.end())
 		{
 			std::vector<std::shared_ptr<MidoriType>> concrete_type_args;
 			concrete_type_args.reserve(constraint.m_type_args.size());
@@ -2024,10 +2044,10 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 			for (const std::string& method_name : tc_it->second)
 			{
-				std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, constraint.m_typeclass_name, concrete_type_args);
+				std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, constraint.m_class_name, concrete_type_args);
 				std::string resolved_method_name = mangled_name_prefix;
-				std::unordered_map<std::string, std::vector<std::string>>::iterator instances_it = m_typeclass_instances.find(constraint.m_typeclass_name);
-				if (instances_it != m_typeclass_instances.end())
+				std::unordered_map<std::string, std::vector<std::string>>::iterator instances_it = m_class_instances.find(constraint.m_class_name);
+				if (instances_it != m_class_instances.end())
 				{
 					std::string pattern_with_at = mangled_name_prefix + ModuleSeparator;
 					bool found = false;
@@ -2050,7 +2070,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 					(
 						MidoriError::GenerateCodeGeneratorErrorWithContext
 						(
-							std::format("Ambiguous method '{}' in function '{}': provided by multiple typeclass constraints. Use qualified syntax like 'TypeclassName::{}' to disambiguate.", method_name, base_name, method_name),
+							std::format("Ambiguous method '{}' in function '{}': provided by multiple class constraints. Use qualified syntax like 'TypeclassName::{}' to disambiguate.", method_name, base_name, method_name),
 							line,
 							m_file_name,
 							m_source_lines

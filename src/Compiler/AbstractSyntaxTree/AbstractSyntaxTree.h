@@ -47,13 +47,13 @@ public:
 		std::vector<Token> m_generic_params;
 		std::vector<Token> m_params;
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
-		std::vector<MidoriType::TypeclassConstraint> m_constraints;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::shared_ptr<MidoriType> m_return_type;
 		std::unique_ptr<MidoriExpression> m_body;
 		std::optional<int> m_local_index;
 		int m_captured_count;
 
-		DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::TypeclassConstraint>&& constraints = {});
+		DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};
 
 	struct Continue
@@ -92,28 +92,28 @@ public:
 		Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
 	};
 
-	struct Typeclass
+	struct Class
 	{
 		Token m_name;
 		std::vector<Token> m_type_params;
-		std::vector<MidoriType::TypeclassConstraint> m_superclasses;
+		std::vector<MidoriType::ClassConstraint> m_superclasses;
 		std::vector<std::unique_ptr<MidoriStatement>> m_methods;
 
-		Typeclass(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::TypeclassConstraint>&& superclasses, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
+		Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	struct Instance
 	{
-		Token m_typeclass_name;
+		Token m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
-		std::vector<MidoriType::TypeclassConstraint> m_constraints;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::vector<std::unique_ptr<MidoriStatement>> m_methods;
 
-		Instance(const Token& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::TypeclassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
+		Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 private:
-	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Typeclass, Instance>;
+	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Class, Instance>;
 	StatementUnion m_stmt_data;
 
 public:
@@ -175,6 +175,7 @@ public:
 		std::weak_ptr<MidoriType> m_from_type;
 		std::shared_ptr<MidoriType> m_to_type;
 		std::unique_ptr<MidoriExpression> m_expr;
+		bool m_uses_convertable = false;
 
 		As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr);
 	};

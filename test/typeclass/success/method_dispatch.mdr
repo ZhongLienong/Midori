@@ -3,7 +3,7 @@
 
 import { "../../../MidoriPrelude/IO.mdr", }
 
-typeclass Show<T> {
+class Show<T> {
     show: fn(value: T) -> Text;
 };
 

@@ -1,8 +1,8 @@
-// Module that defines Show typeclass and Int instance
+// Module that defines Show class and Int instance
 module ShowTC
 public export { Show }
 
-typeclass Show<T> {
+class Show<T> {
     show: fn(value: T) -> Text;
 };
 

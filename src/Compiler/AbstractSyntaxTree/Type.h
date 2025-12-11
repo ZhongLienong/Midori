@@ -51,14 +51,14 @@ public:
 		std::vector<std::shared_ptr<MidoriType>> m_element_types;
 	};
 
-	struct TypeclassConstraint
+	struct ClassConstraint
 	{
-		std::string m_typeclass_name;
+		std::string m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
 
-		TypeclassConstraint() = default;
-		TypeclassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
-		bool operator==(const TypeclassConstraint& other) const;
+		ClassConstraint() = default;
+		ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+		bool operator==(const ClassConstraint& other) const;
 	};
 
 	struct FunctionType
@@ -66,7 +66,7 @@ public:
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
 		std::shared_ptr<MidoriType> m_return_type;
 		bool m_is_foreign = false;
-		std::vector<TypeclassConstraint> m_constraints;
+		std::vector<ClassConstraint> m_constraints;
 	};
 
 	struct StructType
@@ -111,7 +111,7 @@ public:
 		FunctionType,
 		StructType,
 		UnionType,
-		TypeclassConstraint
+		ClassConstraint
 	>;
 
 	MidoriTypeUnion m_type;

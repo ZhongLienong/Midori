@@ -1,11 +1,11 @@
 import { "../../../MidoriPrelude/IO.mdr", }
 
 // Define multiple typeclasses
-typeclass Show<T> {
+class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-typeclass Debug<T> {
+class Debug<T> {
     debug: fn(value: T) -> Text;
 };
 

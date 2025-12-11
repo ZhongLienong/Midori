@@ -44,7 +44,7 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"public"s, Token::Name::PUBLIC},
 	{"private"s, Token::Name::PRIVATE},
 	{"use"s, Token::Name::USE},
-	{"typeclass"s, Token::Name::TYPECLASS},
+	{"class"s, Token::Name::CLASS},
 	{"instance"s, Token::Name::INSTANCE},
 	{"where"s, Token::Name::WHERE}
 };

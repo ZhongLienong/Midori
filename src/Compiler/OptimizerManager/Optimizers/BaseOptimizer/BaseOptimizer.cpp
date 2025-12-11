@@ -55,7 +55,7 @@ void MidoriOptimizer::operator()(MidoriStatement::Union&)
 {
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Typeclass&)
+void MidoriOptimizer::operator()(MidoriStatement::Class&)
 {
 }
 

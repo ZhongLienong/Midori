@@ -31,14 +31,15 @@ MidoriType::UnionType::UnionType(const std::string& name) : m_name(name)
 {
 }
 
-MidoriType::TypeclassConstraint::TypeclassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
-	: m_typeclass_name(typeclass_name), m_type_args(std::move(type_args))
+MidoriType::ClassConstraint::ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+	: m_class_name(typeclass_name), 
+	m_type_args(std::move(type_args))
 {
 }
 
-bool MidoriType::TypeclassConstraint::operator==(const TypeclassConstraint& other) const
+bool MidoriType::ClassConstraint::operator==(const ClassConstraint& other) const
 {
-	if (m_typeclass_name != other.m_typeclass_name || m_type_args.size() != other.m_type_args.size())
+	if (m_class_name != other.m_class_name || m_type_args.size() != other.m_type_args.size())
 	{
 		return false;
 	}

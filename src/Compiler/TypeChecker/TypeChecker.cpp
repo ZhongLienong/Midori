@@ -565,7 +565,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	return false;
 }
 
-TypeChecker::TypeclassInfo::TypeclassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::TypeclassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults)
+TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults)
 	: m_name(name),
 	m_type_param_names(std::move(params)),
 	m_superclasses(std::move(supers)),
@@ -574,8 +574,8 @@ TypeChecker::TypeclassInfo::TypeclassInfo(const std::string& name, std::vector<s
 {
 }
 
-TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::TypeclassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods)
-	: m_typeclass_name(tc_name),
+TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods)
+	: m_class_name(tc_name),
 	m_type_args(std::move(args)),
 	m_constraints(std::move(constraints)),
 	m_method_impls(std::move(methods))
@@ -584,13 +584,13 @@ TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<
 
 bool TypeChecker::InstanceKey::operator==(const InstanceKey& other) const
 {
-	return m_typeclass_name == other.m_typeclass_name && m_concrete_types == other.m_concrete_types;
+	return m_class_name == other.m_class_name && m_concrete_types == other.m_concrete_types;
 }
 
 // InstanceKey hash function
 std::size_t TypeChecker::InstanceKeyHash::operator()(const InstanceKey& key) const
 {
-	std::size_t hash = std::hash<std::string>{}(key.m_typeclass_name);
+	std::size_t hash = std::hash<std::string>{}(key.m_class_name);
 	for (const auto& type : key.m_concrete_types)
 	{
 		hash ^= std::hash<std::string>{}(type) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
@@ -603,13 +603,13 @@ TypeChecker::TypeChecker(
 	std::string_view file_name,
 	const std::vector<std::string>& source_lines,
 	TypeEnvironment imported_types,
-	const std::unordered_map<std::string, TypeclassInfo>& imported_typeclasses
+	const std::unordered_map<std::string, ClassInfo>& imported_typeclasses
 )
 	: m_program_tree(std::move(parser_result)),
 	m_source_lines(source_lines),
 	m_next_type_var_id(0),
 	m_file_name(file_name),
-	m_typeclasses(imported_typeclasses)
+	m_classes(imported_typeclasses)
 {
 	// Pre-populate type environment with imported types
 	if (!imported_types.empty())
@@ -872,18 +872,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction
 		}
 	}
 
-	for (const MidoriType::TypeclassConstraint& constraint : defun.m_constraints)
+	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
 	{
-		if (!m_typeclasses.contains(constraint.m_typeclass_name))
+		if (!m_classes.contains(constraint.m_class_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined typeclass '" + constraint.m_typeclass_name + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + constraint.m_class_name + "' in constraint", defun.m_name, m_file_name, m_source_lines));
 		}
 
-		const TypeclassInfo& tc_info = m_typeclasses.at(constraint.m_typeclass_name);
+		const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 
 		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: typeclass '" + constraint.m_typeclass_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1021,35 +1021,35 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 	return MidoriType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Typeclass& typeclass_stmt)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_stmt)
 {
 	std::unordered_set<std::string> type_param_names;
-	for (const Token& type_param : typeclass_stmt.m_type_params)
+	for (const Token& type_param : class_stmt.m_type_params)
 	{
 		if (!type_param_names.insert(type_param.m_lexeme).second)
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Typeclass declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
 		}
 	}
 
-	if (m_typeclasses.contains(typeclass_stmt.m_name.m_lexeme))
+	if (m_classes.contains(class_stmt.m_name.m_lexeme))
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Typeclass declaration error: typeclass already defined", typeclass_stmt.m_name, m_file_name, m_source_lines));
+		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
 	}
 
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> method_types;
 	std::unordered_set<std::string> methods_with_defaults;
-	for (std::unique_ptr<MidoriStatement>& method : typeclass_stmt.m_methods)
+	for (std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
 		if (!method->IsStatement<MidoriStatement::DefineFunction>())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Typeclass declaration error: methods must be function definitions", typeclass_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
 		if (method_types.contains(defun.m_name.m_lexeme))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Typeclass declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
@@ -1058,28 +1058,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Typeclass& typ
 	}
 
 	std::vector<std::string> param_names;
-	for (const Token& param : typeclass_stmt.m_type_params)
+	for (const Token& param : class_stmt.m_type_params)
 	{
 		param_names.emplace_back(param.m_lexeme);
 	}
 
-	m_typeclasses[typeclass_stmt.m_name.m_lexeme] = TypeclassInfo(typeclass_stmt.m_name.m_lexeme, std::move(param_names), std::vector<MidoriType::TypeclassConstraint>(typeclass_stmt.m_superclasses), std::move(method_types), std::move(methods_with_defaults));
+	m_classes[class_stmt.m_name.m_lexeme] = ClassInfo(class_stmt.m_name.m_lexeme, std::move(param_names), std::vector<MidoriType::ClassConstraint>(class_stmt.m_superclasses), std::move(method_types), std::move(methods_with_defaults));
 
 	return MidoriType::MakeUndecidedType();
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& instance_stmt)
 {
-	std::unordered_map<std::string, TypeclassInfo>::iterator tc_it = m_typeclasses.find(instance_stmt.m_typeclass_name.m_lexeme);
-	if (tc_it == m_typeclasses.end())
+	std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(instance_stmt.m_class_name.m_lexeme);
+	if (tc_it == m_classes.end())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown typeclass '" + instance_stmt.m_typeclass_name.m_lexeme + "'", instance_stmt.m_typeclass_name, m_file_name, m_source_lines));
+		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
-	const TypeclassInfo& tc_info = tc_it->second;
+	const ClassInfo& tc_info = tc_it->second;
 	if (instance_stmt.m_type_args.size() != tc_info.m_type_param_names.size())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_typeclass_name, m_file_name, m_source_lines));
+		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::vector<std::string> concrete_type_names;
@@ -1088,11 +1088,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		concrete_type_names.push_back(type_arg->ToString());
 	}
 
-	InstanceKey instance_key{instance_stmt.m_typeclass_name.m_lexeme, concrete_type_names};
+	InstanceKey instance_key{instance_stmt.m_class_name.m_lexeme, concrete_type_names};
 
 	if (m_instances.contains(instance_key))
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_typeclass_name, m_file_name, m_source_lines));
+		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::unordered_set<std::string> implemented_methods;
@@ -1100,12 +1100,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	{
 		if (!method->IsStatement<MidoriStatement::DefineFunction>())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_typeclass_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
 		MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
 		std::string mangled_name = defun.m_name.m_lexeme;
-		std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_typeclass_name.m_lexeme);
+		std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
 
 		if (!tc_info.m_method_types.contains(method_name))
 		{
@@ -1124,7 +1124,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	{
 		if (!implemented_methods.contains(method_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_typeclass_name, m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1138,7 +1138,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	}
 
 	// Store instance metadata (methods will be compiled separately by CodeGenerator)
-	m_instances[instance_key] = InstanceInfo(instance_stmt.m_typeclass_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(instance_stmt.m_type_args), std::vector<MidoriType::TypeclassConstraint>(instance_stmt.m_constraints), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>());
+	m_instances[instance_key] = InstanceInfo(instance_stmt.m_class_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(instance_stmt.m_type_args), std::vector<MidoriType::ClassConstraint>(instance_stmt.m_constraints), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>());
 	return MidoriType::MakeUndecidedType();
 }
 
@@ -1358,30 +1358,69 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 		(
 			[&as, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
 			{
+				// Check for Convertable<From, To> instance
+				InstanceKey conversion_key{
+					"Convertable",
+					{expr_type->ToString(), as.m_to_type->ToString()}
+				};
+
+				std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it =
+					m_instances.find(conversion_key);
+				bool has_convertable_instance = (instance_it != m_instances.end());
+
+				// Check if this is a built-in conversion
+				bool is_builtin_conversion = false;
+
+				// Struct to struct conversions - only check structural compatibility if NO Convertable instance
 				if (as.m_to_type->IsType<MidoriType::StructType>() && expr_type->IsType<MidoriType::StructType>())
 				{
-					const MidoriType::StructType& from_struct_type = expr_type->GetType<MidoriType::StructType>();
-					const MidoriType::StructType& to_struct_type = as.m_to_type->GetType<MidoriType::StructType>();
-					if (to_struct_type.m_member_types.size() != from_struct_type.m_member_types.size())
+					// If there's a Convertable instance, use that instead of structural conversion
+					if (!has_convertable_instance)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
-					}
-
-					for (size_t i : std::views::iota(0u, to_struct_type.m_member_types.size()))
-					{
-						if (*from_struct_type.m_member_types[i] != *to_struct_type.m_member_types[i])
+						const MidoriType::StructType& from_struct_type = expr_type->GetType<MidoriType::StructType>();
+						const MidoriType::StructType& to_struct_type = as.m_to_type->GetType<MidoriType::StructType>();
+						if (to_struct_type.m_member_types.size() != from_struct_type.m_member_types.size())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
+							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
 						}
+
+						for (size_t i : std::views::iota(0u, to_struct_type.m_member_types.size()))
+						{
+							if (*from_struct_type.m_member_types[i] != *to_struct_type.m_member_types[i])
+							{
+								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
+							}
+						}
+						is_builtin_conversion = true;
 					}
 				}
-				else if (as.m_to_type->IsType<MidoriType::StructType>())
+				else if (as.m_to_type->IsType<MidoriType::StructType>() && !has_convertable_instance)
 				{
+					// Only error if no Convertable instance exists
 					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+				}
+
+				// Check for built-in primitive conversions
+				if ((expr_type->IsType<MidoriType::IntegerType>() && (as.m_to_type->IsType<MidoriType::FloatType>() || as.m_to_type->IsType<MidoriType::TextType>())) ||
+					(expr_type->IsType<MidoriType::FloatType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::TextType>())) ||
+					(expr_type->IsType<MidoriType::TextType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::FloatType>())))
+				{
+					is_builtin_conversion = true;
+				}
+
+				// Verify that either Convertable instance exists or it's a built-in conversion
+				if (!has_convertable_instance && !is_builtin_conversion)
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(
+						std::format("No conversion from {} to {}. Define 'instance Convertable<{}, {}>' to enable this conversion.",
+							expr_type->ToString(), as.m_to_type->ToString(),
+							expr_type->ToString(), as.m_to_type->ToString()),
+						as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
 				}
 
 				as.m_from_type = expr_type;
 				as.m_type_data = as.m_to_type;
+				as.m_uses_convertable = has_convertable_instance;
 				return as.m_type_data;
 			}
 		);
@@ -1700,16 +1739,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& 
 		}
 	}
 
-	for (const MidoriType::TypeclassConstraint& constraint : m_active_constraints)
+	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
 	{
-		std::unordered_map<std::string, TypeclassInfo>::iterator tc_it = m_typeclasses.find(constraint.m_typeclass_name);
-		if (tc_it != m_typeclasses.end())
+		std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(constraint.m_class_name);
+		if (tc_it != m_classes.end())
 		{
-			const TypeclassInfo& tc_info = tc_it->second;
+			const ClassInfo& tc_info = tc_it->second;
 			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(variable.m_name.m_lexeme);
 			if (method_it != tc_info.m_method_types.cend())
 			{
-				// This is a valid typeclass method - return its type
+				// This is a valid class method - return its type
 				// The actual name resolution to the mangled method happens in code generation
 				variable.m_type_data = Freshen(method_it->second);
 				return variable.m_type_data;

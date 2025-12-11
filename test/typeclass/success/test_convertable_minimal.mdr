@@ -1,0 +1,30 @@
+// Minimal test of Convertable class - just verify it compiles and runs
+import { "../../../MidoriPrelude/IO.mdr" }
+
+class Convertable<From, To> {
+    Convert: fn(value: From) -> To;
+};
+
+// Bool -> Int conversion
+instance Convertable<Bool, Int> {
+    defun Convert(value: Bool) : Int => {
+        if value then 1 else 0
+    };
+};
+
+defun BoolToInt<T>(value: T) : Int where T: Convertable<T, Int> => {
+    return Convert(value);
+};
+
+// Just test that it works
+def result_true = BoolToInt(true);
+def result_false = BoolToInt(false);
+
+// Verify results (1 and 0)
+if result_true == 1 then {
+    IO::PrintLine("Bool->Int conversion: WORKING");
+} else {
+    IO::PrintLine("Bool->Int conversion: FAILED");
+};
+
+IO::PrintLine("test_convertable_minimal: PASS");

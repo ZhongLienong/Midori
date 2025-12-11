@@ -1,0 +1,25 @@
+// Test basic Convertable class functionality
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// Test using Convert in a constrained generic function
+defun ConvertAndShow<From, To>(value: From) : Text
+    where From: Convertable<From, To>, To: Convertable<To, Text> => {
+    def converted = Convert(value);
+    return Convert(converted);
+};
+
+// Test Bool -> Int -> Text
+def result1 = ConvertAndShow(true);
+IO::PrintLine("true->Int->Text: " ++ result1);
+
+def result2 = ConvertAndShow(false);
+IO::PrintLine("false->Int->Text: " ++ result2);
+
+// Test using the existing "as" operator (which should eventually use Convertable)
+def int_val = 42;
+IO::PrintLine("Int->Text (as): " ++ (int_val as Text));
+
+def bool_val = true;
+IO::PrintLine("Bool->Int (as): " ++ ((if bool_val then 1 else 0) as Text));
+
+IO::PrintLine("test_convertable_basic: PASS");

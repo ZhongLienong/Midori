@@ -100,7 +100,7 @@ struct Token
 		PUBLIC,
 		PRIVATE,
 		USE,
-		TYPECLASS,
+		CLASS,
 		INSTANCE,
 		WHERE,
 

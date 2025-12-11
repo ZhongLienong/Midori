@@ -11,16 +11,16 @@ class TypeChecker
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 
-	struct TypeclassInfo
+	struct ClassInfo
 	{
 		std::string m_name;
 		std::vector<std::string> m_type_param_names;
-		std::vector<MidoriType::TypeclassConstraint> m_superclasses;
+		std::vector<MidoriType::ClassConstraint> m_superclasses;
 		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
 		std::unordered_set<std::string> m_methods_with_defaults;
 
-		TypeclassInfo() = default;
-		TypeclassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::TypeclassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
+		ClassInfo() = default;
+		ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
 	};
 
 private:
@@ -37,7 +37,7 @@ private:
 
 	struct InstanceKey
 	{
-		std::string m_typeclass_name;
+		std::string m_class_name;
 		std::vector<std::string> m_concrete_types;
 
 		bool operator==(const InstanceKey& other) const;
@@ -50,13 +50,13 @@ private:
 
 	struct InstanceInfo
 	{
-		std::string m_typeclass_name;
+		std::string m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
-		std::vector<MidoriType::TypeclassConstraint> m_constraints;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::unordered_map<std::string, std::unique_ptr<MidoriStatement>> m_method_impls;
 
 		InstanceInfo() = default;
-		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::TypeclassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
+		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	MidoriProgramTree m_program_tree;
@@ -66,9 +66,9 @@ private:
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
-	std::unordered_map<std::string, TypeclassInfo> m_typeclasses;
+	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
-	std::vector<MidoriType::TypeclassConstraint> m_active_constraints;
+	std::vector<MidoriType::ClassConstraint> m_active_constraints;
 	const std::vector<std::string>& m_source_lines;
 	int m_next_type_var_id;
 	std::shared_ptr<MidoriType> m_expected_return_type; 
@@ -87,7 +87,7 @@ public:
 		std::string_view file_name,
 		const std::vector<std::string>& source_lines,
 		TypeEnvironment imported_types = {},
-		const std::unordered_map<std::string, TypeclassInfo>& imported_typeclasses = {}
+		const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}
 	);
 
 	MidoriResult::TypeCheckerResult TypeCheck();
@@ -133,7 +133,7 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Union& union_stmt);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Typeclass& typeclass_stmt);
+	MidoriResult::TypeResult operator()(MidoriStatement::Class& typeclass_stmt);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Instance& instance_stmt);
 

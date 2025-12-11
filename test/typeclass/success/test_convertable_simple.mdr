@@ -1,0 +1,30 @@
+// Test Convertable class defined inline (same file)
+import { "../../../MidoriPrelude/IO.mdr" }
+
+class Convertable<From, To> {
+    Convert: fn(value: From) -> To;
+};
+
+// Bool -> Int conversion
+instance Convertable<Bool, Int> {
+    defun Convert(value: Bool) : Int => {
+        if value then 1 else 0
+    };
+};
+
+// Bool -> Text conversion
+instance Convertable<Bool, Text> {
+    defun Convert(value: Bool) : Text => {
+        if value then "true" else "false"
+    };
+};
+
+// Test Bool -> Int
+IO::PrintLine("true->Int: " ++ ((true as Int) as Text));
+IO::PrintLine("false->Int: " ++ ((false as Int) as Text));
+
+// Test Bool -> Text
+IO::PrintLine("true->Text: " ++ (true as Text));
+IO::PrintLine("false->Text: " ++ (false as Text));
+
+IO::PrintLine("test_convertable_simple: PASS");

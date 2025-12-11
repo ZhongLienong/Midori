@@ -187,11 +187,11 @@ MidoriResult::CompilerResult Compiler::Compile()
 												}
 
 												// Build imported typeclasses for type checking
-												std::unordered_map<std::string, TypeChecker::TypeclassInfo> imported_typeclass_infos;
+												std::unordered_map<std::string, TypeChecker::ClassInfo> imported_typeclass_infos;
 												for (const auto& [typeclass_name, metadata] : imported_typeclass_metadata)
 												{
-													// Create TypeclassInfo for imported typeclasses with method types
-													TypeChecker::TypeclassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::TypeclassConstraint>{}, std::unordered_map<std::string, std::shared_ptr<MidoriType>>(metadata.m_method_types), std::unordered_set<std::string>{});
+													// Create ClassInfo for imported typeclasses with method types
+													TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::ClassConstraint>{}, std::unordered_map<std::string, std::shared_ptr<MidoriType>>(metadata.m_method_types), std::unordered_set<std::string>{});
 													imported_typeclass_infos[typeclass_name] = std::move(info);
 												}
 

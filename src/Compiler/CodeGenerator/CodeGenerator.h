@@ -24,7 +24,7 @@ private:
 	{
 		std::string m_name;
 		std::vector<Token> m_params;
-		std::vector<MidoriType::TypeclassConstraint> m_constraints;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
 		std::shared_ptr<MidoriType> m_generic_return_type;
 		std::unique_ptr<MidoriExpression>* m_body;
@@ -56,8 +56,8 @@ private:
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
-	std::unordered_map<std::string, std::unordered_set<std::string>> m_typeclass_methods;
-	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_instances;
+	std::unordered_map<std::string, std::unordered_set<std::string>> m_class_methods;
+	std::unordered_map<std::string, std::vector<std::string>> m_class_instances;
 	std::unordered_map<std::string, std::string> m_method_resolution_map;
 
 	MidoriExecutable m_executable;
@@ -75,7 +75,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_typeclass_methods = {}, const std::unordered_map<std::string, std::vector<std::string>>& imported_typeclass_instances = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_class_methods = {}, const std::unordered_map<std::string, std::vector<std::string>>& imported_class_instances = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
@@ -127,7 +127,7 @@ private:
 
 	void operator()(MidoriStatement::Union& union_stmt);
 
-	void operator()(MidoriStatement::Typeclass& typeclass_stmt);
+	void operator()(MidoriStatement::Class& typeclass_stmt);
 
 	void operator()(MidoriStatement::Instance& instance_stmt);
 

@@ -3,11 +3,11 @@
 
 import { "../../../MidoriPrelude/IO.mdr", }
 
-typeclass Show<T> {
+class Show<T> {
     display: fn(value: T) -> Text;
 };
 
-typeclass Debug<T> {
+class Debug<T> {
     display: fn(value: T) -> Text;  // Same name as Show::display
 };
 

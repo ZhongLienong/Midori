@@ -42,9 +42,9 @@ private:
 	using Scopes = std::vector<Scope>;
 	
 	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
-	std::unordered_map<std::string, std::unordered_set<std::string>> m_typeclass_methods;
+	std::unordered_map<std::string, std::unordered_set<std::string>> m_class_methods;
 	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_type_params;
-	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_instances;
+	std::unordered_map<std::string, std::vector<std::string>> m_class_instances;
 	std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_typeclass_method_types;
 	TokenStream m_tokens;
 	std::string m_file_name;
@@ -52,7 +52,7 @@ private:
 	std::stack<int> m_local_count_before_loop;
 	std::vector<UseImport> m_current_use_imports;
 	std::vector<std::string> m_namespaces;
-	std::vector<MidoriType::TypeclassConstraint> m_active_constraints;  // Constraints active in current parsing context
+	std::vector<MidoriType::ClassConstraint> m_active_constraints;  // Constraints active in current parsing context
 	const ModuleDeclaration* m_current_module;
 	const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations;
 	const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports;
@@ -438,7 +438,7 @@ private:
 
 	MidoriResult::StatementResult ParseUnionDeclaration();
 
-	MidoriResult::StatementResult ParseTypeclassDeclaration();
+	MidoriResult::StatementResult ParseClassDeclaration();
 
 	MidoriResult::StatementResult ParseInstanceDeclaration();
 

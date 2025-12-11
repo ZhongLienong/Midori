@@ -1,4 +1,4 @@
-// Test: Import typeclass from another module and use it
+// Test: Import class from another module and use it
 
 import { "../../../MidoriPrelude/IO.mdr", "./show_typeclass.mdr" }
 
