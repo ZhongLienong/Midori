@@ -9,7 +9,9 @@
 #endif
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstring>
 #include <execution>
 #include <format>
 #include <numeric>
@@ -136,32 +138,38 @@ OpCode VirtualMachine::ReadByte() noexcept
 #if defined(MIDORI_LITTLE_ENDIAN)
 int VirtualMachine::ReadShort() noexcept
 {
-	int value = static_cast<int>(*reinterpret_cast<const uint16_t*>(m_instruction_pointer));
+	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+	int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
 	m_instruction_pointer += 2;
 	return value;
 }
 
 int VirtualMachine::ReadThreeBytes() noexcept
 {
-	int value = static_cast<int>(*reinterpret_cast<const uint16_t*>(m_instruction_pointer)) |
-		(static_cast<int>(m_instruction_pointer[2]) << 16);
+	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+	const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
+	int value = static_cast<int>(static_cast<uint32_t>(b0) | (static_cast<uint32_t>(b1) << 8) | (static_cast<uint32_t>(b2) << 16));
 	m_instruction_pointer += 3;
 	return value;
 }
 #elif defined(MIDORI_BIG_ENDIAN)
 int VirtualMachine::ReadShort() noexcept
 {
-	int value = (static_cast<int>(m_instruction_pointer[0]) << 8) |
-		static_cast<int>(*reinterpret_cast<const uint8_t*>(m_instruction_pointer + 1));
+	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+	int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
 	m_instruction_pointer += 2;
 	return value;
 }
 
 int VirtualMachine::ReadThreeBytes() noexcept
 {
-	int value = (static_cast<int>(m_instruction_pointer[0]) << 16) |
-		(static_cast<int>(m_instruction_pointer[1]) << 8) |
-		static_cast<int>(*reinterpret_cast<const uint8_t*>(m_instruction_pointer + 2));
+	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+	const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
+	int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
 	m_instruction_pointer += 3;
 	return value;
 }
@@ -171,16 +179,24 @@ int VirtualMachine::ReadThreeBytes() noexcept
 
 MidoriInteger VirtualMachine::ReadIntegerConstant() noexcept
 {
-	MidoriInteger value = *reinterpret_cast<const MidoriInteger*>(m_instruction_pointer);
+	uint64_t bits = 0u;
+	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+	bits = std::byteswap(bits);
+#endif
 	m_instruction_pointer += sizeof(MidoriInteger);
-	return value;
+	return static_cast<MidoriInteger>(bits);
 }
 
 MidoriFloat VirtualMachine::ReadFloatConstant() noexcept
 {
-	MidoriFloat value = *reinterpret_cast<const MidoriFloat*>(m_instruction_pointer);
+	uint64_t bits = 0u;
+	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+	bits = std::byteswap(bits);
+#endif
 	m_instruction_pointer += sizeof(MidoriFloat);
-	return value;
+	return std::bit_cast<MidoriFloat>(bits);
 }
 
 int VirtualMachine::ReadGlobalVariable() noexcept
@@ -350,17 +366,14 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCo
 	GarbageCollector::GarbageCollectionRoots roots;
 	roots.reserve(m_global_vars.size());
 
-	std::ranges::for_each
-	(
-		m_global_vars,
-		[&roots, this](MidoriValue val) -> void
+	for (MidoriValue val : m_global_vars)
+	{
+		MidoriTraceable* ptr = val.GetPointer();
+		if (ptr && m_garbage_collector.Contains(ptr))
 		{
-			if (m_garbage_collector.Contains(val.GetPointer()))
-			{
-				roots.emplace(val.GetPointer());
-			}
+			roots.emplace_back(ptr);
 		}
-	);
+	}
 
 	return roots;
 }
@@ -370,35 +383,14 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCol
 	GarbageCollector::GarbageCollectionRoots roots;
 	roots.reserve((m_value_stack_pointer - m_value_stack_begin));
 
-	// Sequential - unordered_set::emplace is not thread-safe
-#ifdef __EMSCRIPTEN__
-	std::for_each_n
-	(
-		m_value_stack_begin,
-		m_value_stack_pointer - m_value_stack_begin,
-		[&roots, this](MidoriValue value) -> void
+	for (MidoriValue* it = m_value_stack_begin; it != m_value_stack_pointer; ++it)
+	{
+		MidoriTraceable* ptr = it->GetPointer();
+		if (ptr && m_garbage_collector.Contains(ptr))
 		{
-			if (m_garbage_collector.Contains(value.GetPointer()))
-			{
-				roots.emplace(value.GetPointer());
-			}
+			roots.emplace_back(ptr);
 		}
-	);
-#else
-	std::for_each_n
-	(
-		std::execution::seq,
-		m_value_stack_begin,
-		m_value_stack_pointer - m_value_stack_begin,
-		[&roots, this](MidoriValue value) -> void
-		{
-			if (m_garbage_collector.Contains(value.GetPointer()))
-			{
-				roots.emplace(value.GetPointer());
-			}
-		}
-	);
-#endif
+	}
 
 	return roots;
 }
@@ -408,7 +400,7 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoo
 	GarbageCollector::GarbageCollectionRoots stack_roots = GetValueStackGarbageCollectionRoots();
 	GarbageCollector::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
 
-	stack_roots.insert(global_roots.cbegin(), global_roots.cend());
+	stack_roots.insert(stack_roots.end(), global_roots.cbegin(), global_roots.cend());
 	return stack_roots;
 }
 

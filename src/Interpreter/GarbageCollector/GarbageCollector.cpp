@@ -53,7 +53,7 @@ void GarbageCollector::Mark(GarbageCollector::GarbageCollectionRoots&& roots)
 
 void GarbageCollector::Sweep()
 {
-	for (GarbageCollectionRoots::const_iterator it = m_traceables.begin(); it != m_traceables.end(); )
+	for (std::unordered_set<MidoriTraceable*>::iterator it = m_traceables.begin(); it != m_traceables.end(); )
 	{
 		MidoriTraceable* ptr = *it;
 		if (ptr->IsMarked())
@@ -171,7 +171,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 #if MIDORI_DEBUG_INFO
 	TimePoint t_sweep_start = Clock::now();
 #endif
-	for (GarbageCollectionRoots::iterator it = m_traceables.begin(); it != m_traceables.end(); )
+	for (std::unordered_set<MidoriTraceable*>::iterator it = m_traceables.begin(); it != m_traceables.end(); )
 	{
 		MidoriTraceable* ptr = *it;
 		if (ptr->IsMarked())

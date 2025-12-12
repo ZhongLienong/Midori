@@ -3,13 +3,15 @@
 #include "Common/Value/Value.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
+#include <vector>
+
 class GarbageCollector
 {
 public:
-	static constexpr inline size_t GARBAGE_COLLECTION_THRESHOLD = 512000u;
+	static constexpr inline size_t GARBAGE_COLLECTION_THRESHOLD = 512000uz * 4uz;
 
 	// Garbage collection utilities
-	using GarbageCollectionRoots = std::unordered_set<MidoriTraceable*>;
+	using GarbageCollectionRoots = std::vector<MidoriTraceable*>;
 
 private:
 	size_t m_total_bytes_allocated = 0u;
