@@ -1,0 +1,82 @@
+module Convertable
+public export { Convertable }
+
+class Convertable<From, To>
+{
+    Convert: fn(value: From) -> To;
+};
+
+instance Convertable<Int, Float> 
+{
+    defun Convert(value: Int) : Float => value as Float;
+};
+
+instance Convertable<Int, Text> 
+{
+    defun Convert(value: Int) : Text => return value as Text;
+};
+
+instance Convertable<Int, Bool> 
+{
+    defun Convert(value: Int) : Bool => if value == 0 then false else true;
+};
+
+instance Convertable<Int, Int> 
+{
+    defun Convert(value: Int) : Int => value;
+};
+
+instance Convertable<Float, Int> 
+{
+    defun Convert(value: Float) : Int => value as Int;
+};
+
+instance Convertable<Float, Text> 
+{
+    defun Convert(value: Float) : Text => value as Text;
+};
+
+instance Convertable<Float, Bool> 
+{
+    defun Convert(value: Float) : Bool => if value == 0.0 then false else true;
+};
+
+instance Convertable<Float, Float> 
+{
+    defun Convert(value: Float) : Float => return value;
+};
+
+instance Convertable<Text, Int> 
+{
+    defun Convert(value: Text) : Int => value as Int;
+};
+
+instance Convertable<Text, Float> 
+{
+    defun Convert(value: Text) : Float => value as Float;
+};
+
+instance Convertable<Text, Text> 
+{
+    defun Convert(value: Text) : Text => value;
+};
+
+instance Convertable<Bool, Int> 
+{
+    defun Convert(value: Bool) : Int => if value then 1 else 0;
+};
+
+instance Convertable<Bool, Float> 
+{
+    defun Convert(value: Bool) : Float => if value then 1.0 else 0.0;
+};
+
+instance Convertable<Bool, Text> 
+{
+    defun Convert(value: Bool) : Text => if value then "true" else "false";
+};
+
+instance Convertable<Bool, Bool> 
+{
+    defun Convert(value: Bool) : Bool => value;
+};

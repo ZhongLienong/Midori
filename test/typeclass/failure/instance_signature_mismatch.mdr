@@ -1,0 +1,12 @@
+// Purpose: Reject instance method whose signature does not match the typeclass declaration.
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+// Error: return type should be Text, not Int.
+instance Show<Int> {
+    defun show(value: Int) : Int => {
+        return value;
+    };
+};

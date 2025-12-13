@@ -3,8 +3,8 @@
 import { "../../../MidoriPrelude/IO.mdr", "./show_typeclass.mdr" }
 
 // Define a constrained generic function using the imported typeclass
-defun display<T>(value: T) : Text where T: Show<T> => {
-    return show(value);
+defun display<T>(value: T) : Text where Show<T> => {
+    return Show::show(value);
 };
 
 def result = display(42);

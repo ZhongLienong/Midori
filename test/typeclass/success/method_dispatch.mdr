@@ -20,8 +20,8 @@ instance Show<Float> {
 };
 
 // Generic function with constraint - should dispatch to correct instance
-defun display<T>(value: T) : Text where T: Show<T> => {
-    return show(value);
+defun display<T>(value: T) : Text where Show<T> => {
+    return Show::show(value);
 };
 
 // Test Int dispatch

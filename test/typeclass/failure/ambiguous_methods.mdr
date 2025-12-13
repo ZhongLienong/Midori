@@ -24,9 +24,9 @@ instance Debug<Int> {
 };
 
 // ERROR: Function with BOTH constraints - which display?
-// This should fail with: "Ambiguous method 'display' in function 'print_both'"
-defun print_both<T>(x: T) : Text where T: Show<T>, T: Debug<T> => {
-    return display(x);  // Ambiguous!
+// With qualified class methods required, unqualified access is rejected.
+defun print_both<T>(x: T) : Text where Show<T>, Debug<T> => {
+    return display(x);  // Error: unqualified class method
 };
 
 def result = print_both(42);

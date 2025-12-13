@@ -161,18 +161,48 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		}
 	}
 
+	std::vector<std::string> matching_typeclasses;
 	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
 	{
-		std::unordered_map<std::string, std::unordered_set<std::string>>::iterator tc_it = m_class_methods.find(constraint.m_class_name);
-		if (tc_it != m_class_methods.end())
+		std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_class_methods.find(constraint.m_class_name);
+		if (tc_it != m_class_methods.cend() && tc_it->second.contains(lookup_name))
 		{
-			if (tc_it->second.contains(lookup_name))
-			{
-				// This is a valid class method call - treat as global
-				// The actual resolution to the mangled name happens in the code generator
-				return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(name_token, MidoriExpression::NameContext::Global()));
-			}
+			matching_typeclasses.emplace_back(constraint.m_class_name);
 		}
+	}
+
+	if (!matching_typeclasses.empty())
+	{
+		if (matching_typeclasses.size() == 1u)
+		{
+			return std::unexpected<std::string>
+			(
+				GenerateParserError
+				(
+					std::format("Unqualified class method '{}'. Use qualified syntax like '{}{}{}'.", lookup_name, matching_typeclasses[0], NameSeparator, lookup_name),
+					name_token
+				)
+			);
+		}
+
+		std::string candidates;
+		for (size_t i = 0u; i < matching_typeclasses.size(); i += 1u)
+		{
+			if (i > 0u)
+			{
+				candidates.append(", "s);
+			}
+			candidates.append(matching_typeclasses[i]).append(NameSeparator).append(lookup_name);
+		}
+
+		return std::unexpected<std::string>
+		(
+			GenerateParserError
+			(
+				std::format("Unqualified class method '{}'. Use qualified syntax like one of: {}.", lookup_name, candidates),
+				name_token
+			)
+		);
 	}
 
 	return std::unexpected<std::string>(GenerateParserError("Undefined name.", name_token));
@@ -1209,6 +1239,21 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					// Check if this is a module-qualified name
 					if (!qualifier.empty())
 					{
+						// Qualified class method call (e.g., Show::show)
+						for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+						{
+							if (constraint.m_class_name != qualifier)
+							{
+								continue;
+							}
+
+							std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_class_methods.find(constraint.m_class_name);
+							if (tc_it != m_class_methods.cend() && tc_it->second.contains(symbol_name))
+							{
+								return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Global()));
+							}
+						}
+
 						const bool using_new_path = (m_module_declarations == nullptr);
 
 						if (using_new_path)
@@ -1759,45 +1804,33 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 															[&func_name, &generic_params, &generic_param_types, &params, &param_types, &local_index, has_generic_params, prev_total_locals, this](std::shared_ptr<MidoriType>&& return_type) -> MidoriResult::StatementResult
 															{
 																std::vector<MidoriType::ClassConstraint> constraints;
+																size_t prev_constraints_size = m_active_constraints.size();
 																if (Match(Token::Name::WHERE))
 																{
 																	auto parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, std::string>
 																	{
-																		return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected type parameter name in constraint.")
+																		return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
 																			.and_then
 																			(
-																				[this](Token&& type_param) -> std::expected<MidoriType::ClassConstraint, std::string>
+																				[this](Token&& first_token) -> std::expected<MidoriType::ClassConstraint, std::string>
 																				{
-																					return Consume(Token::Name::SINGLE_COLON, "Expected ':' in class constraint.")
+																					Token typeclass_name = std::move(first_token);
+																					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after class name in constraint (e.g., 'Show<T>').")
 																						.and_then
 																						(
-																							[&type_param, this](Token&&) -> std::expected<MidoriType::ClassConstraint, std::string>
+																							[&typeclass_name, this](Token&&) -> std::expected<MidoriType::ClassConstraint, std::string>
 																							{
-																								return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
+																								return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+																									(
+																										[this]() { return ParseType(); },
+																										[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
+																										[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+																									)
 																									.and_then
 																									(
-																										[&type_param, this](Token&& typeclass_name) -> std::expected<MidoriType::ClassConstraint, std::string>
+																										[&typeclass_name](std::vector<std::shared_ptr<MidoriType>>&& type_args) -> std::expected<MidoriType::ClassConstraint, std::string>
 																										{
-																											return Consume(Token::Name::LEFT_ANGLE, "Expected '<' before constraint type arguments.")
-																												.and_then
-																												(
-																													[&type_param, &typeclass_name, this](Token&&) -> std::expected<MidoriType::ClassConstraint, std::string>
-																													{
-																														return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-																															(
-																																[this]() { return ParseType(); },
-																																[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
-																																[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
-																															)
-																															.and_then
-																															(
-																																[&type_param, &typeclass_name](std::vector<std::shared_ptr<MidoriType>>&& type_args) -> std::expected<MidoriType::ClassConstraint, std::string>
-																																{
-																																	return MidoriType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
-																																}
-																															);
-																													}
-																												);
+																											return MidoriType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
 																										}
 																									);
 																							}
@@ -1824,8 +1857,22 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																		return std::unexpected<std::string>(GenerateParserError("Expected at least one constraint after 'where' keyword.", func_name));
 																	}
 
-																	m_active_constraints = constraints;
+																	m_active_constraints.insert(m_active_constraints.end(), constraints.begin(), constraints.end());
 																}
+
+																struct ActiveConstraintGuard
+																{
+																	Parser* m_parser = nullptr;
+																	size_t m_prev_size = 0u;
+																	~ActiveConstraintGuard()
+																	{
+																		if (m_parser != nullptr)
+																		{
+																			m_parser->m_active_constraints.resize(m_prev_size);
+																		}
+																	}
+																};
+																ActiveConstraintGuard constraint_guard{ this, prev_constraints_size };
 
 																return Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.")
 																	.and_then
@@ -1850,8 +1897,6 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																									{
 																										EndScope();
 																									}
-
-																									m_active_constraints.clear();
 
 																									std::vector<MidoriType::ClassConstraint> constraints_copy = constraints;
 																									return std::make_unique<MidoriStatement>(MidoriStatement::DefineFunction(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), m_total_variables, std::move(constraints_copy)));

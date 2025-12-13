@@ -2,10 +2,10 @@
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
 // Test using Convert in a constrained generic function
-defun ConvertAndShow<From, To>(value: From) : Text
-    where From: Convertable<From, To>, To: Convertable<To, Text> => {
-    def converted = Convert(value);
-    return Convert(converted);
+defun ConvertAndShow<From>(value: From) : Text
+    where Convertable<From, Int>, Convertable<Int, Text> => {
+    def converted = Convertable::Convert(value);
+    return Convertable::Convert(converted);
 };
 
 // Test Bool -> Int -> Text

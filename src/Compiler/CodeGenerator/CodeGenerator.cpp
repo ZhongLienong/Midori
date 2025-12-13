@@ -1,6 +1,7 @@
+#include <cctype>
+#include <filesystem>
 #include <format>
 #include <sstream>
-#include <filesystem>
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
@@ -523,6 +524,16 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
 		std::visit([this](auto&& arg) { (*this)(arg); }, **method);
+
+		if (method->IsStatement<MidoriStatement::DefineFunction>())
+		{
+			const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+			std::vector<std::string>& instance_methods = m_class_instances[instance_stmt.m_class_name.m_lexeme];
+			if (std::ranges::find(instance_methods, defun.m_name.m_lexeme) == instance_methods.cend())
+			{
+				instance_methods.emplace_back(defun.m_name.m_lexeme);
+			}
+		}
 	}
 
 	// Instance resolution happens during generic function specialization via m_method_resolution_map
@@ -798,18 +809,22 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 
 	bool is_generic_call = false;
 	std::string function_name;
+	std::optional<std::string> resolved_method_name = std::nullopt;
 
 	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
 	{
 		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
 		function_name = callee_name.m_name.m_lexeme;
 
-		std::unordered_map<std::string, std::string>::iterator resolution_it = m_method_resolution_map.find(function_name);
+		std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(function_name);
 		if (resolution_it != m_method_resolution_map.end())
 		{
-			// Replace with the mangled instance method name
-			// We only update the local variable, not the AST, because the AST is shared across specializations
-			function_name = resolution_it->second;
+			resolved_method_name = ResolveMethodNameForCall(function_name, call, line);
+			if (!resolved_method_name.has_value())
+			{
+				return;
+			}
+			function_name = resolved_method_name.value();
 		}
 
 		std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(function_name);
@@ -872,57 +887,15 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		);
 
-		// If we resolved a class method, emit GET_GLOBAL for the resolved name instead of compiling the callee (which has the original unresolved name)
-		if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+		if (resolved_method_name.has_value())
 		{
-			MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
-			std::unordered_map<std::string, std::string>::iterator resolution_it = m_method_resolution_map.find(callee_name.m_name.m_lexeme);
-			if (resolution_it != m_method_resolution_map.end())
+			if (!EmitResolvedNameGetGlobal(resolved_method_name.value(), line))
 			{
-				// This was a resolved method call - emit GET_GLOBAL for the mangled name
-				const std::string& resolved_name = resolution_it->second;
-
-				size_t at_pos = resolved_name.find(ModuleSeparator);
-				if (at_pos != std::string::npos)
-				{
-					std::string symbol_name = resolved_name.substr(0u, at_pos);
-					std::string module_name = resolved_name.substr(at_pos + 1u);
-
-					int import_index = 0;
-					bool found = false;
-					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
-					{
-						if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
-						{
-							import_index = -(static_cast<int>(i) + 1);
-							found = true;
-							break;
-						}
-					}
-
-					if (!found)
-					{
-						m_tracked_imports.emplace_back(symbol_name, module_name);
-						import_index = -static_cast<int>(m_tracked_imports.size());
-					}
-
-					EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
-				}
-				else
-				{
-					// Local instance method
-					EmitVariable(m_global_variables[resolved_name], OpCode::GET_GLOBAL, line);
-				}
-			}
-			else
-			{
-				// Normal function call
-				std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+				return;
 			}
 		}
 		else
 		{
-			// Not a BoundedName
 			std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
 		}
 
@@ -978,6 +951,24 @@ void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
 			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
 			{
 				const std::string& name = variable.m_name.m_lexeme;
+
+				std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(name);
+				if (resolution_it != m_method_resolution_map.end())
+				{
+					const std::vector<ResolvedMethodCandidate>& candidates = resolution_it->second;
+					if (candidates.size() != 1u)
+					{
+						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name), line, m_file_name, m_source_lines));
+						return;
+					}
+					if (!candidates[0u].m_has_instance)
+					{
+						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found.", name), line, m_file_name, m_source_lines));
+						return;
+					}
+					EmitResolvedNameGetGlobal(candidates[0u].m_resolved_name, line);
+					return;
+				}
 
 				if (name.find(NameSeparator) != std::string::npos)
 				{
@@ -2027,7 +2018,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 		}
 	}
 
-	std::unordered_map<std::string, std::string> prev_resolution_map = m_method_resolution_map;
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> prev_resolution_map = m_method_resolution_map;
 	m_method_resolution_map.clear();
 
 	for (const MidoriType::ClassConstraint& constraint : generic_info.m_constraints)
@@ -2042,44 +2033,47 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 				concrete_type_args.emplace_back(SubstituteGenericTypes(type_arg, generic_type_map));
 			}
 
+			std::string first_type_name;
+			std::string second_type_name;
+			if (!concrete_type_args.empty())
+			{
+				first_type_name = concrete_type_args[0u]->ToString();
+			}
+			if (concrete_type_args.size() > 1u)
+			{
+				second_type_name = concrete_type_args[1u]->ToString();
+			}
+
 			for (const std::string& method_name : tc_it->second)
 			{
+				std::string qualified_method_name = constraint.m_class_name + std::string(NameSeparator) + method_name;
+
 				std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, constraint.m_class_name, concrete_type_args);
 				std::string resolved_method_name = mangled_name_prefix;
+				bool instance_found = false;
+
 				std::unordered_map<std::string, std::vector<std::string>>::iterator instances_it = m_class_instances.find(constraint.m_class_name);
 				if (instances_it != m_class_instances.end())
 				{
 					std::string pattern_with_at = mangled_name_prefix + ModuleSeparator;
-					bool found = false;
 					for (const std::string& instance_method : instances_it->second)
 					{
 						if (instance_method == mangled_name_prefix || instance_method.starts_with(pattern_with_at))
 						{
 							resolved_method_name = instance_method;
-							found = true;
+							instance_found = true;
 							break;
 						}
 					}
 				}
 
-				// Check for ambiguity: if method_name already exists in the map, it means multiple constraints provide the same method name
-				std::unordered_map<std::string, std::string>::iterator existing = m_method_resolution_map.find(method_name);
-				if (existing != m_method_resolution_map.end())
-				{
-					AddError
-					(
-						MidoriError::GenerateCodeGeneratorErrorWithContext
-						(
-							std::format("Ambiguous method '{}' in function '{}': provided by multiple class constraints. Use qualified syntax like 'TypeclassName::{}' to disambiguate.", method_name, base_name, method_name),
-							line,
-							m_file_name,
-							m_source_lines
-						)
-					);
-					return -1;
-				}
+				ResolvedMethodCandidate candidate;
+				candidate.m_first_type_name = first_type_name;
+				candidate.m_second_type_name = second_type_name;
+				candidate.m_resolved_name = resolved_method_name;
+				candidate.m_has_instance = instance_found;
 
-				m_method_resolution_map[method_name] = resolved_method_name;
+				m_method_resolution_map[qualified_method_name].emplace_back(std::move(candidate));
 			}
 		}
 	}
@@ -2102,6 +2096,138 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	return specialized_proc_index;
+}
+
+std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line)
+{
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator it = m_method_resolution_map.find(callee_name);
+	if (it == m_method_resolution_map.end())
+	{
+		return std::nullopt;
+	}
+
+	const std::vector<ResolvedMethodCandidate>& candidates = it->second;
+	if (candidates.empty())
+	{
+		return std::nullopt;
+	}
+
+	if (call.m_arguments.empty())
+	{
+		if (candidates.size() == 1u && candidates[0u].m_has_instance)
+		{
+			return candidates[0u].m_resolved_name;
+		}
+
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	std::shared_ptr<MidoriType> first_arg_type = GetConcreteTypeForExpression(call.m_arguments[0u]);
+	std::string first_arg_type_name = first_arg_type->ToString();
+	std::string return_type_name = call.m_type_data->ToString();
+
+	std::vector<const ResolvedMethodCandidate*> matching;
+	for (const ResolvedMethodCandidate& candidate : candidates)
+	{
+		if (candidate.m_first_type_name == first_arg_type_name)
+		{
+			matching.emplace_back(&candidate);
+		}
+	}
+
+	if (matching.empty())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': no constraint matches argument type '{}'.", callee_name, first_arg_type_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	const bool return_type_is_concrete =
+		!return_type_name.empty() &&
+		return_type_name != "Undecided"s &&
+		!(return_type_name.size() > 1u && return_type_name[0u] == 'T' && std::isdigit(static_cast<char>(return_type_name[1u])) != 0);
+
+	if (matching.size() > 1u && return_type_is_concrete)
+	{
+		std::vector<const ResolvedMethodCandidate*> matching_by_return;
+		for (const ResolvedMethodCandidate* candidate : matching)
+		{
+			if (!candidate->m_second_type_name.empty() && candidate->m_second_type_name == return_type_name)
+			{
+				matching_by_return.emplace_back(candidate);
+			}
+		}
+		if (!matching_by_return.empty())
+		{
+			matching = std::move(matching_by_return);
+		}
+	}
+
+	if (matching.size() != 1u)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	const ResolvedMethodCandidate& selected = *matching[0u];
+	if (!selected.m_has_instance)
+	{
+		std::string suffix;
+		if (!selected.m_first_type_name.empty())
+		{
+			suffix = std::format(" (constraint types: {}", selected.m_first_type_name);
+			if (!selected.m_second_type_name.empty())
+			{
+				suffix.append(", "s).append(selected.m_second_type_name);
+			}
+			suffix.append(")"s);
+		}
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	return selected.m_resolved_name;
+}
+
+bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, int line)
+{
+	size_t at_pos = resolved_name.find(ModuleSeparator);
+	if (at_pos != std::string::npos)
+	{
+		std::string symbol_name = resolved_name.substr(0u, at_pos);
+		std::string module_name = resolved_name.substr(at_pos + 1u);
+
+		int import_index = 0;
+		bool found = false;
+		for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+		{
+			if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
+			{
+				import_index = -(static_cast<int>(i) + 1);
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			m_tracked_imports.emplace_back(symbol_name, module_name);
+			import_index = -static_cast<int>(m_tracked_imports.size());
+		}
+
+		EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
+		return true;
+	}
+
+	std::unordered_map<std::string, int>::iterator global_it = m_global_variables.find(resolved_name);
+	if (global_it == m_global_variables.end())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Resolved symbol '{}' not found in globals.", resolved_name), line, m_file_name, m_source_lines));
+		return false;
+	}
+
+	EmitVariable(global_it->second, OpCode::GET_GLOBAL, line);
+	return true;
 }
 
 std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr)

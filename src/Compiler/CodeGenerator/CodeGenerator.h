@@ -13,6 +13,14 @@ class CodeGenerator
 {
 private:
 
+	struct ResolvedMethodCandidate
+	{
+		std::string m_first_type_name;
+		std::string m_second_type_name;
+		std::string m_resolved_name;
+		bool m_has_instance = false;
+	};
+
 	struct LoopContext
 	{
 		std::vector<int> m_break_positions;
@@ -58,7 +66,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
 	std::unordered_map<std::string, std::unordered_set<std::string>> m_class_methods;
 	std::unordered_map<std::string, std::vector<std::string>> m_class_instances;
-	std::unordered_map<std::string, std::string> m_method_resolution_map;
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 
 	MidoriExecutable m_executable;
 	const std::vector<std::string>& m_source_lines;
@@ -212,4 +220,8 @@ private:
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 
 	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& generic_type_map);
+
+	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
+
+	bool EmitResolvedNameGetGlobal(const std::string& resolved_name, int line);
 };

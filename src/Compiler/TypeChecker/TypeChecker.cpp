@@ -3,6 +3,7 @@
 #include <iterator>
 #include <ranges>
 
+#include "Common/Constant/Constant.h"
 #include "Common/Error/Error.h"
 #include "TypeChecker.h"
 
@@ -438,6 +439,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			}
 			return new_struct;
 		}
+		cache[type.get()] = type;
 		return type;
 	}
 	else if (type->IsType<MidoriType::UnionType>())
@@ -470,6 +472,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		{
 			return new_union;
 		}
+		cache[type.get()] = type;
 		return type;
 	}
 	else if (type->IsType<MidoriType::TupleType>())
@@ -887,11 +890,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction
 		}
 	}
 
+	FresheningContext freshening_context;
 	for (std::shared_ptr<MidoriType>& param_type : defun.m_param_types)
 	{
-		param_type = Freshen(param_type);
+		param_type = Freshen(param_type, freshening_context);
 	}
-	defun.m_return_type = Freshen(defun.m_return_type);
+	defun.m_return_type = Freshen(defun.m_return_type, freshening_context);
 
 	std::shared_ptr<MidoriType> return_type_copy = defun.m_return_type;
 	m_name_type_table.back()[defun.m_name.m_lexeme] = MidoriType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
@@ -904,7 +908,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction
 
 	for (const Token& generic_param : defun.m_generic_params)
 	{
-		m_name_type_table.back().emplace(generic_param.m_lexeme, FreshTypeVar());
+		const std::string& param_name = generic_param.m_lexeme;
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = freshening_context.m_generic_params.find(param_name);
+		if (it == freshening_context.m_generic_params.end())
+		{
+			std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+			it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
+		}
+		m_name_type_table.back().emplace(param_name, it->second);
 	}
 	std::ranges::for_each
 	(
@@ -1125,6 +1136,64 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		if (!implemented_methods.contains(method_name))
 		{
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		}
+	}
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> type_param_substitutions;
+	for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
+	{
+		type_param_substitutions.emplace(tc_info.m_type_param_names[i], instance_stmt.m_type_args[i]);
+	}
+
+	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	{
+		const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+		const std::string mangled_name = defun.m_name.m_lexeme;
+		const std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
+
+		if (!defun.m_generic_params.empty())
+		{
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
+		}
+
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator expected_it = tc_info.m_method_types.find(method_name);
+		if (expected_it == tc_info.m_method_types.cend())
+		{
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
+		}
+
+		std::shared_ptr<MidoriType> expected_signature = MidoriType::SubstituteTypeParams(expected_it->second, type_param_substitutions);
+		std::shared_ptr<MidoriType> actual_signature = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
+
+		if (*expected_signature != *actual_signature)
+		{
+			if (expected_signature->IsType<MidoriType::FunctionType>() && actual_signature->IsType<MidoriType::FunctionType>())
+			{
+				const MidoriType::FunctionType& expected_type = expected_signature->GetType<MidoriType::FunctionType>();
+				const MidoriType::FunctionType& actual_type = actual_signature->GetType<MidoriType::FunctionType>();
+
+				if (expected_type.m_param_types.size() != actual_type.m_param_types.size())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+				}
+
+				for (size_t i = 0u; i < expected_type.m_param_types.size(); i += 1u)
+				{
+					const std::shared_ptr<MidoriType>& expected_param = expected_type.m_param_types[i];
+					const std::shared_ptr<MidoriType>& actual_param = actual_type.m_param_types[i];
+					if (*expected_param != *actual_param)
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
+					}
+				}
+
+				if (*expected_type.m_return_type != *actual_type.m_return_type)
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
+				}
+			}
+
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 		}
 	}
 
@@ -1606,6 +1675,146 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnarySuffix&)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
+	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+	{
+		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+		const std::string& full_name = callee_name.m_name.m_lexeme;
+		size_t separator_pos = full_name.rfind(NameSeparator.data());
+		if (separator_pos != std::string::npos)
+		{
+			std::string qualifier = full_name.substr(0u, separator_pos);
+			std::string method_name = full_name.substr(separator_pos + NameSeparator.length());
+
+			std::vector<const MidoriType::ClassConstraint*> matching_constraints;
+			for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+			{
+				if (constraint.m_class_name == qualifier)
+				{
+					matching_constraints.emplace_back(&constraint);
+				}
+			}
+
+			if (!matching_constraints.empty())
+			{
+				std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(qualifier);
+				if (tc_it == m_classes.end())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: unknown class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
+				}
+
+				const ClassInfo& tc_info = tc_it->second;
+				std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(method_name);
+				if (method_it != tc_info.m_method_types.cend())
+				{
+					std::vector<std::shared_ptr<MidoriType>> arg_results;
+					arg_results.reserve(call.m_arguments.size());
+					for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+					{
+						MidoriResult::TypeResult arg_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **call_arg);
+						if (!arg_result.has_value())
+						{
+							return arg_result;
+						}
+						arg_results.emplace_back(std::move(arg_result.value()));
+					}
+
+					std::unordered_map<std::string, std::shared_ptr<MidoriType>> env_substitutions;
+					for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+					{
+						for (const TypeEnvironment::value_type& entry : *it)
+						{
+							const std::string& name = entry.first;
+							const std::shared_ptr<MidoriType>& type = entry.second;
+
+							if (!env_substitutions.contains(name))
+							{
+								env_substitutions.emplace(name, type);
+							}
+						}
+					}
+
+					std::vector<const MidoriType::ClassConstraint*> selected_constraints;
+					if (!arg_results.empty())
+					{
+						std::shared_ptr<MidoriType> first_arg_type = ApplySubstitution(arg_results[0u]);
+						for (const MidoriType::ClassConstraint* constraint : matching_constraints)
+						{
+							if (constraint->m_type_args.empty())
+							{
+								continue;
+							}
+
+							std::shared_ptr<MidoriType> substituted_first = MidoriType::SubstituteTypeParams(constraint->m_type_args[0u], env_substitutions);
+							std::shared_ptr<MidoriType> resolved_first = ApplySubstitution(substituted_first);
+
+							if (*resolved_first == *first_arg_type)
+							{
+								selected_constraints.emplace_back(constraint);
+							}
+						}
+					}
+					else
+					{
+						selected_constraints = matching_constraints;
+					}
+
+					if (selected_constraints.empty())
+					{
+						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching class constraint for '" + qualifier + NameSeparator.data() + method_name + "' and argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
+					}
+					if (selected_constraints.size() != 1u)
+					{
+						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
+					}
+
+					const MidoriType::ClassConstraint& selected_constraint = *selected_constraints[0u];
+					if (selected_constraint.m_type_args.size() != tc_info.m_type_param_names.size())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: constraint type argument count mismatch for class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
+					}
+
+					std::unordered_map<std::string, std::shared_ptr<MidoriType>> class_substitutions;
+					for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
+					{
+						std::shared_ptr<MidoriType> resolved_type_arg = MidoriType::SubstituteTypeParams(selected_constraint.m_type_args[i], env_substitutions);
+						class_substitutions.emplace(tc_info.m_type_param_names[i], ApplySubstitution(resolved_type_arg));
+					}
+
+					std::shared_ptr<MidoriType> substituted_method_type = MidoriType::SubstituteTypeParams(method_it->second, class_substitutions);
+					std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(substituted_method_type);
+					if (!resolved_method_type->IsType<MidoriType::FunctionType>())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
+					}
+
+					MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
+					if (function_type.m_param_types.size() != arg_results.size())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+					}
+
+					std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
+					for (size_t idx : std::views::iota(0u, arg_results.size()))
+					{
+						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
+						std::shared_ptr<MidoriType>& param_type = param_types[idx];
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						if (!result.has_value())
+						{
+							return result;
+						}
+					}
+
+					call.m_is_foreign = function_type.m_is_foreign;
+					call.m_type_data = ApplySubstitution(function_type.m_return_type);
+					return call.m_type_data;
+				}
+			}
+		}
+	}
+
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **call.m_callee)
 		.and_then
 		(
@@ -1720,6 +1929,35 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Set& set)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& variable)
 {
+	size_t separator_pos = variable.m_name.m_lexeme.rfind(NameSeparator.data());
+	if (separator_pos != std::string::npos)
+	{
+		std::string qualifier = variable.m_name.m_lexeme.substr(0u, separator_pos);
+		std::string symbol_name = variable.m_name.m_lexeme.substr(separator_pos + NameSeparator.length());
+
+		for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+		{
+			if (constraint.m_class_name != qualifier)
+			{
+				continue;
+			}
+
+			std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(constraint.m_class_name);
+			if (tc_it == m_classes.end())
+			{
+				continue;
+			}
+
+			const ClassInfo& tc_info = tc_it->second;
+			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(symbol_name);
+			if (method_it != tc_info.m_method_types.cend())
+			{
+				variable.m_type_data = Freshen(method_it->second);
+				return variable.m_type_data;
+			}
+		}
+	}
+
 	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
 	{
 		TypeEnvironment::const_iterator var = it->find(variable.m_name.m_lexeme);

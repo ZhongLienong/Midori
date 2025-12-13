@@ -12,8 +12,8 @@ instance Convertable<Bool, Int> {
     };
 };
 
-defun BoolToInt<T>(value: T) : Int where T: Convertable<T, Int> => {
-    return Convert(value);
+defun BoolToInt<T>(value: T) : Int where Convertable<T, Int> => {
+    return Convertable::Convert(value);
 };
 
 // Just test that it works

@@ -30,12 +30,12 @@ instance Debug<Int> {
 };
 
 // Constrained generic functions
-defun print_value<T>(x: T) : Text where T: Show<T> => {
-    return show(x);
+defun print_value<T>(x: T) : Text where Show<T> => {
+    return Show::show(x);
 };
 
-defun debug_value<T>(x: T) : Text where T: Debug<T> => {
-    return debug(x);
+defun debug_value<T>(x: T) : Text where Debug<T> => {
+    return Debug::debug(x);
 };
 
 // Test Show with Int

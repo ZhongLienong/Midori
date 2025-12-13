@@ -108,10 +108,10 @@ defun handle_result<T>(result: Result<T, Text>) : Text => {
 };
 ```
 
-### Typeclasses
+### Classes
 ```midori
-// Define a typeclass
-typeclass Show<T> {
+// Define a class
+class Show<T> {
     show: fn(value: T) -> Text;
 };
 
@@ -123,8 +123,8 @@ instance Show<Int> {
 };
 
 // Use with constraints
-defun display<T>(value: T) : Text where T: Show<T> => {
-    return show(value);
+defun display<T>(value: T) : Text where Show<T> => {
+    return Show::show(value);
 };
 
 def message = display(42);  // "42"
@@ -179,7 +179,7 @@ def second = counter();  // 2
 - **Composite Types**: `Array<T>`, structs, unions
 - **Function Types**: `fn(T1, T2) -> R`
 - **Generic Parameters**: Single and multiple type parameters
-- **Type Constraints**: Typeclass constraints with `where`
+- **Type Constraints**: Class constraints with `where`
 - **Type Inference**: Automatic type deduction at instantiation
 
 ### Operators
@@ -197,7 +197,7 @@ def second = counter();  // 2
 - **Range Expressions**: `start..step..end` with positive/negative steps
 - **Float Ranges**: Support for decimal step values
 - **Nested Generics**: Complex generic type compositions
-- **Cross-Module Typeclasses**: Import and use typeclasses across modules
+- **Cross-Module Classes**: Import and use classes across modules
 
 ## Standard Library
 
