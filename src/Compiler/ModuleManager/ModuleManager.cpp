@@ -2,6 +2,7 @@
 #include "Common/Error/Error.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
+#include "Compiler/ImportResolver/ImportResolver.h"
 
 #include <filesystem>
 #include <fstream>
@@ -79,13 +80,52 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 
 			while (current_index < m_main_token_stream.Size() && m_main_token_stream[current_index].m_token_name != Token::Name::RIGHT_BRACE)
 			{
-				if (m_main_token_stream[current_index].m_token_name != Token::Name::TEXT_LITERAL)
+				std::string import_specifier;
+				int import_line = m_main_token_stream[current_index].m_line;
+
+				if (m_main_token_stream[current_index].m_token_name == Token::Name::TEXT_LITERAL)
 				{
-					return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected text literal for import path", m_main_token_stream[current_index].m_line, m_main_file_name));
+					import_specifier = m_main_token_stream[current_index].m_lexeme;
+					current_index += 1;
+				}
+				else if (m_main_token_stream[current_index].m_token_name == Token::Name::LEFT_ANGLE)
+				{
+					current_index += 1;
+					std::string module_name;
+
+					while (current_index < m_main_token_stream.Size() &&
+						m_main_token_stream[current_index].m_token_name != Token::Name::RIGHT_ANGLE)
+					{
+						if (m_main_token_stream[current_index].m_token_name == Token::Name::IDENTIFIER_LITERAL)
+						{
+							module_name += m_main_token_stream[current_index].m_lexeme;
+							current_index += 1;
+						}
+						else if (m_main_token_stream[current_index].m_token_name == Token::Name::SINGLE_DOT)
+						{
+							module_name += '.';
+							current_index += 1;
+						}
+						else
+						{
+							return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Invalid character in system import", m_main_token_stream[current_index].m_line, m_main_file_name));
+						}
+					}
+
+					if (current_index >= m_main_token_stream.Size() || m_main_token_stream[current_index].m_token_name != Token::Name::RIGHT_ANGLE)
+					{
+						return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected '>' to close system import", import_line, m_main_file_name));
+					}
+
+					current_index += 1;
+					import_specifier = "<"s + module_name + ">"s;
+				}
+				else
+				{
+					return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Expected text literal or system import (<ModuleName>) for import path", m_main_token_stream[current_index].m_line, m_main_file_name));
 				}
 
-				import_paths.emplace_back(m_main_token_stream[current_index].m_lexeme, m_main_token_stream[current_index].m_line);
-				current_index += 1;
+				import_paths.emplace_back(import_specifier, import_line);
 
 				if (current_index < m_main_token_stream.Size() && m_main_token_stream[current_index].m_token_name == Token::Name::COMMA)
 				{
@@ -203,30 +243,20 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 		main_node.m_file_name = m_main_file_name;
 		main_node.m_use_imports = std::move(use_imports);
 
-		for (const auto& [import_path, line] : import_paths)
+		ImportResolver resolver(m_main_file_name);
+
+		for (const auto& [import_specifier, line] : import_paths)
 		{
-			std::filesystem::path resolved_path(import_path);
-
-#ifdef __EMSCRIPTEN__
-			// In WASM, absolute paths (starting with /) are in the virtual filesystem
-			// Don't resolve relative to parent path for absolute paths
-			if (import_path[0u] != '/')
+			auto resolved_opt = resolver.Resolve(import_specifier);
+			if (!resolved_opt.has_value())
 			{
-				std::filesystem::path main_file_path(m_main_file_name);
-				if (main_file_path.has_parent_path())
-				{
-					resolved_path = main_file_path.parent_path() / resolved_path;
-				}
-			}
-			std::string include_absolute_path_str = resolved_path.string();
-#else
-			if (!resolved_path.is_absolute())
-			{
-				resolved_path = std::filesystem::path(m_main_file_name).parent_path() / resolved_path;
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+					"Could not resolve import: "s + import_specifier,
+					line,
+					m_main_file_name));
 			}
 
-			std::string include_absolute_path_str = std::filesystem::weakly_canonical(resolved_path).string();
-#endif
+			std::string include_absolute_path_str = resolved_opt->m_absolute_path;
 
 			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
 
