@@ -350,6 +350,11 @@ void CodeGenerator::operator()(MidoriStatement::Define& def)
 	{
 		EmitVariable(index.value(), OpCode::DEFINE_GLOBAL, line);
 	}
+	else
+	{
+		// For local variables, emit SET_LOCAL to properly store the value
+		EmitVariable(def.m_local_index.value(), OpCode::SET_LOCAL, line);
+	}
 }
 
 void CodeGenerator::operator()(MidoriStatement::DefineTuple& def_tuple)
