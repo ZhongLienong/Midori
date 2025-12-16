@@ -2,11 +2,12 @@
 
 #ifdef __EMSCRIPTEN__
 
-namespace WasmStdLib
+namespace MidoriStdLib
 {
 	using ForeignFunction = void(*)(void**, void*);
 
-	ForeignFunction GetFunction(const char* name);
+	ForeignFunction GetFunction(const char* name) noexcept;
 }
 
 #endif // __EMSCRIPTEN__
+

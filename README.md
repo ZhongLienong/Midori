@@ -16,8 +16,22 @@ A statically-typed functional programming language featuring algebraic data type
 
 ## Quick Start
 
+## Installation (Windows)
+```powershell
+# From the repo root (after building Midori.exe):
+python .\scripts\install.py --copy-binaries
+
+# This prefers a Release build if present (out/build/x64-release),
+# otherwise falls back to Development/Debug. Use --preset to force:
+# python .\scripts\install.py --copy-binaries --preset x64-release
+
+# Uninstall:
+# python .\scripts\uninstall.py
+```
+
 ### Hello World
 ```midori
+// Path import (relative or absolute)
 import { "../MidoriPrelude/IO.mdr" }
 
 IO::PrintLine("Hello, Midori!");
@@ -141,7 +155,11 @@ defun multiply(a: Int, b: Int) : Int => a * b;
 defun internal() : Int => 100;  // Not exported
 
 // Use in another file
+// Path import (relative or absolute)
 import { "./MyModule.mdr" }
+
+// Or search in MIDORI_PATH (semicolon-separated on Windows, colon-separated on Unix)
+// import { <MyModule> }
 
 def result = MyModule::add(5, 3);
 ```

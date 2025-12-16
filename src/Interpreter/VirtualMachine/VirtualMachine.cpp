@@ -5,7 +5,7 @@
 #include "VirtualMachine.h"
 
 #ifdef __EMSCRIPTEN__
-#include "WASM/WasmStdLib.h"
+#include "Library/MidoriStdLib.h"
 #endif
 
 #include <algorithm>
@@ -1480,7 +1480,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
 #ifdef __EMSCRIPTEN__
-			void* proc = reinterpret_cast<void*>(WasmStdLib::GetFunction(foreign_function_name_ref.GetCString()));
+			void* proc = reinterpret_cast<void*>(MidoriStdLib::GetFunction(foreign_function_name_ref.GetCString()));
 #else
 			// Platform-specific dynamic loading from DLL
 #ifdef _WIN32

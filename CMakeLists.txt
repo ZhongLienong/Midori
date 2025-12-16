@@ -93,11 +93,13 @@ if(EMSCRIPTEN)
         "src/Compiler/*.h"
         "src/Interpreter/*.h"
         "src/Utility/*.h"
+        "src/Library/*.h"
         "src/WASM/*.h"
         "src/Common/*.cpp"
         "src/Compiler/*.cpp"
         "src/Interpreter/*.cpp"
         "src/Utility/*.cpp"
+        "src/Library/*.cpp"
         "src/WASM/*.cpp"
     )
 
@@ -161,7 +163,7 @@ endif()
 if(NOT EMSCRIPTEN)
     # Source files for the standard library DLL
     file(GLOB_RECURSE STD_LIB_SRC_FILES
-        "src/Library/MidoriPrelude.cpp"
+        "src/Library/*.cpp"
     )
 
     # Add standard library as a dynamically linked library
