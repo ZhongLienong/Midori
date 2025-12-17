@@ -1,0 +1,33 @@
+// Test: Simple chained conversions that don't require converting TO a type variable
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// Function that converts to Text via Int (both target types are concrete)
+defun ToTextViaInt<T>(value: T) : Text
+    where Convertable<T, Int>, Convertable<Int, Text> => {
+    def as_int = value as Int;
+    return as_int as Text;
+};
+
+// Function that performs multiple chained conversions to concrete types
+defun ComplexChain<T>(value: T) : Text
+    where Convertable<T, Int>, Convertable<Int, Float>, Convertable<Float, Text> => {
+    def as_int = value as Int;
+    def as_float = as_int as Float;
+    return as_float as Text;
+};
+
+// Test conversion via intermediate type
+def bool_via_int = ToTextViaInt(true);
+IO::PrintLine("true -> Int -> Text: " ++ bool_via_int);
+
+def float_via_int = ToTextViaInt(5.9);
+IO::PrintLine("5.9 -> Int -> Text: " ++ float_via_int);
+
+// Test complex chain
+def complex1 = ComplexChain(true);
+IO::PrintLine("true -> Int -> Float -> Text: " ++ complex1);
+
+def complex2 = ComplexChain(false);
+IO::PrintLine("false -> Int -> Float -> Text: " ++ complex2);
+
+IO::PrintLine("test_simple_chained_conversions: PASS");

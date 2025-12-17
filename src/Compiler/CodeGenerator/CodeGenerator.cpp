@@ -1,6 +1,7 @@
 #include <cctype>
 #include <filesystem>
 #include <format>
+#include <iostream>
 #include <sstream>
 
 #include "CodeGenerator.h"
@@ -305,6 +306,22 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 	return module;
 }
 
+CodeGenerator::GenericFunctionInfo::GenericFunctionInfo(std::string name, std::vector<Token> params, std::vector<std::shared_ptr<MidoriType>> param_types, const std::vector<Token>& generic_params, std::vector<MidoriType::ClassConstraint> constraints, std::shared_ptr<MidoriType> return_type, std::unique_ptr<MidoriExpression>* body, int captured_count)
+	: m_name(std::move(name))
+	, m_params(std::move(params))
+	, m_param_types(std::move(param_types))
+	, m_constraints(std::move(constraints))
+	, m_generic_return_type(std::move(return_type))
+	, m_body(body)
+	, m_captured_count(captured_count)
+{
+	m_generic_param_types.reserve(generic_params.size());
+	for (const Token& generic_param : generic_params)
+	{
+		m_generic_param_types.emplace_back(std::make_shared<MidoriType>(MidoriType::GenericParam(generic_param.m_lexeme)));
+	}
+}
+
 void CodeGenerator::operator()(MidoriStatement::Simple& simple)
 {
 	std::visit([this](auto&& arg){ (*this)(arg); }, **simple.m_expr);
@@ -413,22 +430,7 @@ void CodeGenerator::operator()(MidoriStatement::DefineFunction& defun)
 
 	if (is_generic && is_global)
 	{
-		GenericFunctionInfo info;
-		info.m_name = defun.m_name.m_lexeme;
-		info.m_params = defun.m_params;
-		info.m_body = &defun.m_body;
-		info.m_captured_count = defun.m_captured_count;
-
-		for (const Token& generic_param : defun.m_generic_params)
-		{
-			info.m_generic_param_types.emplace_back(std::make_shared<MidoriType>(MidoriType::GenericParam(generic_param.m_lexeme)));
-		}
-
-		info.m_generic_return_type = defun.m_return_type;
-		info.m_constraints = defun.m_constraints;
-
-		m_generic_functions[defun.m_name.m_lexeme] = std::move(info);
-
+		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, &defun.m_body, defun.m_captured_count));
 		return;
 	}
 
@@ -554,26 +556,71 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	std::shared_ptr<MidoriType> from_type = as.m_from_type.lock();
 	const std::shared_ptr<MidoriType>& target_type = as.m_to_type;
 
-	if (as.m_uses_convertable)
+	// Handle conversions that use Convertable typeclass or involve type variables
+	if (as.m_uses_convertable || from_type->IsType<MidoriType::TypeVariable>() || target_type->IsType<MidoriType::TypeVariable>())
 	{
-		std::string mangled_name = "Convert_Convertable_"s + from_type->ToString() + "_"s + target_type->ToString();
+		// First, check if we're inside a specialized generic function and can resolve via method resolution map
+		std::string qualified_method_name = "Convertable"s + std::string(NameSeparator) + "Convert"s;
+		std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
 
-		std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-		if (it != m_global_variables.end())
+		if (resolution_it != m_method_resolution_map.end())
 		{
-			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-			EmitByte(OpCode::CALL_DEFINED, line);
-			EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
-			return;
+			// Resolve using the method resolution map (we're inside a specialized generic function)
+			// Get the concrete type for the expression being converted
+			std::shared_ptr<MidoriType> concrete_from_type = GetConcreteTypeForExpression(as.m_expr);
+			std::string from_type_str = concrete_from_type->ToString();
+			std::string to_type_str = target_type->ToString();
+
+			std::string resolved_method;
+			bool found = false;
+			for (const ResolvedMethodCandidate& candidate : resolution_it->second)
+			{
+				if (candidate.m_first_type_name == from_type_str && candidate.m_second_type_name == to_type_str && candidate.m_has_instance)
+				{
+					resolved_method = candidate.m_resolved_name;
+					found = true;
+					break;
+				}
+			}
+
+			if (found)
+			{
+				if (EmitResolvedNameGetGlobal(resolved_method, line))
+				{
+					EmitByte(OpCode::CALL_DEFINED, line);
+					EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
+					return;
+				}
+			}
 		}
-		else
+
+		// Not in a specialized context, try direct lookup for concrete Convertable instances
+		if (!from_type->IsType<MidoriType::TypeVariable>() && !target_type->IsType<MidoriType::TypeVariable>())
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method '"s + mangled_name + "' not found"s, as.m_as_keyword, m_file_name, m_source_lines));
+			std::string mangled_name = "Convert_Convertable_"s + from_type->ToString() + "_"s + target_type->ToString();
+			std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
+			if (it != m_global_variables.end())
+			{
+				EmitVariable(it->second, OpCode::GET_GLOBAL, line);
+				EmitByte(OpCode::CALL_DEFINED, line);
+				EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
+				return;
+			}
+			else if (as.m_uses_convertable)
+			{
+				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method '"s + mangled_name + "' not found"s, as.m_as_keyword, m_file_name, m_source_lines));
+				return;
+			}
+		}
+		else if (as.m_uses_convertable)
+		{
+			// Type variables without resolution - this shouldn't happen if type checking was correct
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Cannot resolve Convertable instance for type variables outside of specialization context"s, as.m_as_keyword, m_file_name, m_source_lines));
 			return;
 		}
 	}
 
-	// Use built-in conversions
+	// If we reach here with type variables, fall through to check for built-in conversions
 	if (target_type->IsType<MidoriType::BoolType>())
 	{
 		// Do nothing
@@ -641,7 +688,6 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	}
 	else
 	{
-		// TODO: implement custom cast
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported type casting instruction", as.m_as_keyword, m_file_name, m_source_lines));
 	}
 }
@@ -844,13 +890,13 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		std::vector<std::shared_ptr<MidoriType>> concrete_arg_types;
 		for (std::unique_ptr<MidoriExpression>& arg : call.m_arguments)
 		{
-			concrete_arg_types.push_back(arg->GetType());
+			// Get concrete type if we're in a specialization context
+			concrete_arg_types.push_back(GetConcreteTypeForExpression(arg));
 		}
 
 		int specialized_proc_index = SpecializeGenericFunction(function_name, concrete_arg_types, line);
 		if (specialized_proc_index == -1)
 		{
-			// Error already reported in SpecializeGenericFunction
 			return;
 		}
 
@@ -2013,15 +2059,32 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 		m_param_type_map[generic_info.m_params[i].m_lexeme] = concrete_arg_types[i];
 	}
 
+	// Build generic type parameter -> concrete type map
+	// Match generic parameters to concrete types by position
+	// For each parameter that has a generic/type variable type, assign it the next generic parameter in order
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> generic_type_map;
-	for (size_t i = 0u; i < generic_info.m_generic_param_types.size() && i < concrete_arg_types.size(); i += 1u)
+
+	size_t generic_param_index = 0;
+	for (size_t i = 0u; i < generic_info.m_param_types.size() && i < concrete_arg_types.size(); i += 1u)
 	{
-		if (generic_info.m_generic_param_types[i]->IsType<MidoriType::GenericParam>())
+		const std::shared_ptr<MidoriType>& param_type = generic_info.m_param_types[i];
+		const std::shared_ptr<MidoriType>& concrete_type = concrete_arg_types[i];
+
+		if (param_type->IsType<MidoriType::GenericParam>() || param_type->IsType<MidoriType::TypeVariable>())
 		{
-			const MidoriType::GenericParam& gen_param = generic_info.m_generic_param_types[i]->GetType<MidoriType::GenericParam>();
-			generic_type_map[gen_param.m_name] = concrete_arg_types[i];
+			if (generic_param_index < generic_info.m_generic_param_types.size())
+			{
+				const std::shared_ptr<MidoriType>& orig_gen_param = generic_info.m_generic_param_types[generic_param_index];
+				if (orig_gen_param->IsType<MidoriType::GenericParam>())
+				{
+					const MidoriType::GenericParam& gen_param = orig_gen_param->GetType<MidoriType::GenericParam>();
+					generic_type_map[gen_param.m_name] = concrete_type;
+					generic_param_index += 1u;
+				}
+			}
 		}
 	}
+
 
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> prev_resolution_map = m_method_resolution_map;
 	m_method_resolution_map.clear();

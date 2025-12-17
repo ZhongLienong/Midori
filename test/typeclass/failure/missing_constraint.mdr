@@ -1,0 +1,10 @@
+// Test: Generic function trying to use 'as' without constraint should fail
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// This should fail at type checking because there's no Convertable<T, Text> constraint
+defun ToTextMissingConstraint<T>(value: T) : Text => {
+    return value as Text;  // ERROR: Should require Convertable<T, Text> constraint
+};
+
+def result = ToTextMissingConstraint(42);
+IO::PrintLine(result);

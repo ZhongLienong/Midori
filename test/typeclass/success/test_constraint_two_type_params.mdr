@@ -1,0 +1,35 @@
+// Test: Generic function with two type parameters
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// Generic function with two constrained type parameters
+defun ProcessTwo<T1, T2>(a: T1, b: T2) : Text
+    where Convertable<T1, Text>, Convertable<T2, Text> => {
+    def a_text = a as Text;
+    def b_text = b as Text;
+    return a_text ++ " and " ++ b_text;
+};
+
+// Function with one type parameter used multiple times
+defun Duplicate<T>(value: T) : Text where Convertable<T, Text> => {
+    def text_val = value as Text;
+    return text_val ++ " and " ++ text_val;
+};
+
+// Test ProcessTwo with different type combinations
+def result1 = ProcessTwo(42, true);
+IO::PrintLine("42 and true: " ++ result1);
+
+def result2 = ProcessTwo(3.14, 100);
+IO::PrintLine("3.14 and 100: " ++ result2);
+
+def result3 = ProcessTwo(false, 7.5);
+IO::PrintLine("false and 7.5: " ++ result3);
+
+// Test Duplicate
+def dup1 = Duplicate(42);
+IO::PrintLine("Duplicate 42: " ++ dup1);
+
+def dup2 = Duplicate(true);
+IO::PrintLine("Duplicate true: " ++ dup2);
+
+IO::PrintLine("test_constraint_two_type_params: PASS");

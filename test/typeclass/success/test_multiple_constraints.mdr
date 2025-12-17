@@ -1,0 +1,22 @@
+// Test: Generic function with multiple constraints
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// Function that requires conversion from T to both Text and Int
+defun ConvertToTextAndInt<T>(value: T) : Text
+    where Convertable<T, Text>, Convertable<T, Int> => {
+    def as_text = value as Text;
+    def as_int = value as Int;
+    def int_text = as_int as Text;
+    return as_text ++ " (int: " ++ int_text ++ ")";
+};
+
+def result1 = ConvertToTextAndInt(42);
+IO::PrintLine(result1);
+
+def result2 = ConvertToTextAndInt(3.14);
+IO::PrintLine(result2);
+
+def result3 = ConvertToTextAndInt(true);
+IO::PrintLine(result3);
+
+IO::PrintLine("test_multiple_constraints: PASS");

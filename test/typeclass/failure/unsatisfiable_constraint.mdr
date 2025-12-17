@@ -1,0 +1,15 @@
+// Test: Call to generic function with type that doesn't have required instance
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+struct CustomType {
+    value: Int
+};
+
+defun ToText<T>(value: T) : Text where Convertable<T, Text> => {
+    return value as Text;
+};
+
+// This should fail because there's no Convertable<CustomType, Text> instance
+def custom = new CustomType(42);
+def result = ToText(custom);  // ERROR: No Convertable instance for CustomType
+IO::PrintLine(result);

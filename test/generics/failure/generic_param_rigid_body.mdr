@@ -1,0 +1,13 @@
+// Test: Generic parameters are rigid in function bodies.
+// Expected: SHOULD FAIL - 'T' cannot be unified to 'Text' implicitly.
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+defun Bad<T>(value: T) : Unit =>
+{
+    IO::Print(value);
+};
+
+// Call the function to trigger the type error
+def result = Bad(42);
+

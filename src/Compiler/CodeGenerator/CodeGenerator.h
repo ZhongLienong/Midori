@@ -32,11 +32,16 @@ private:
 	{
 		std::string m_name;
 		std::vector<Token> m_params;
+		std::vector<std::shared_ptr<MidoriType>> m_param_types;
 		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
 		std::shared_ptr<MidoriType> m_generic_return_type;
 		std::unique_ptr<MidoriExpression>* m_body;
 		int m_captured_count;
+
+		GenericFunctionInfo() = default;
+
+		GenericFunctionInfo(std::string name, std::vector<Token> params, std::vector<std::shared_ptr<MidoriType>> param_types, const std::vector<Token>& generic_params, std::vector<MidoriType::ClassConstraint> constraints, std::shared_ptr<MidoriType> return_type, std::unique_ptr<MidoriExpression>* body, int captured_count);
 	};
 
 	struct FunctionSignature

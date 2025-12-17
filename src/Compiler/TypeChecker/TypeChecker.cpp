@@ -7,6 +7,8 @@
 #include "Common/Error/Error.h"
 #include "TypeChecker.h"
 
+using namespace std::string_literals;
+
 MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right)
 {
 	// Apply current substitutions first
@@ -930,7 +932,17 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction
 	m_expected_return_type = defun.m_return_type;
 
 	size_t prev_constraints_size = m_active_constraints.size();
-	m_active_constraints.insert(m_active_constraints.end(), defun.m_constraints.begin(), defun.m_constraints.end());
+
+	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
+	{
+		MidoriType::ClassConstraint freshened_constraint;
+		freshened_constraint.m_class_name = constraint.m_class_name;
+		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			freshened_constraint.m_type_args.push_back(Freshen(type_arg, freshening_context));
+		}
+		m_active_constraints.push_back(std::move(freshened_constraint));
+	}
 
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **defun.m_body)
 		.and_then
@@ -1436,15 +1448,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it =
 					m_instances.find(conversion_key);
 				bool has_convertable_instance = (instance_it != m_instances.end());
+				bool has_convertable_constraint = false;
+				if (!has_convertable_instance)
+				{
+					for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+					{
+						if (constraint.m_class_name == "Convertable"s && constraint.m_type_args.size() == 2 && *constraint.m_type_args[0] == *expr_type && *constraint.m_type_args[1] == *as.m_to_type)
+						{
+							has_convertable_constraint = true;
+							break;
+						}
+					}
+				}
 
 				// Check if this is a built-in conversion
 				bool is_builtin_conversion = false;
-
-				// Struct to struct conversions - only check structural compatibility if NO Convertable instance
 				if (as.m_to_type->IsType<MidoriType::StructType>() && expr_type->IsType<MidoriType::StructType>())
 				{
-					// If there's a Convertable instance, use that instead of structural conversion
-					if (!has_convertable_instance)
+					if (!has_convertable_instance && !has_convertable_constraint)
 					{
 						const MidoriType::StructType& from_struct_type = expr_type->GetType<MidoriType::StructType>();
 						const MidoriType::StructType& to_struct_type = as.m_to_type->GetType<MidoriType::StructType>();
@@ -1463,33 +1484,32 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 						is_builtin_conversion = true;
 					}
 				}
-				else if (as.m_to_type->IsType<MidoriType::StructType>() && !has_convertable_instance)
+				else if (as.m_to_type->IsType<MidoriType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
 				{
-					// Only error if no Convertable instance exists
 					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
 				}
 
 				// Check for built-in primitive conversions
-				if ((expr_type->IsType<MidoriType::IntegerType>() && (as.m_to_type->IsType<MidoriType::FloatType>() || as.m_to_type->IsType<MidoriType::TextType>())) ||
-					(expr_type->IsType<MidoriType::FloatType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::TextType>())) ||
-					(expr_type->IsType<MidoriType::TextType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::FloatType>())))
+				if ((expr_type->IsType<MidoriType::IntegerType>() && (as.m_to_type->IsType<MidoriType::FloatType>() || as.m_to_type->IsType<MidoriType::TextType>())) || (expr_type->IsType<MidoriType::FloatType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::TextType>())) || (expr_type->IsType<MidoriType::TextType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::FloatType>())))
 				{
 					is_builtin_conversion = true;
 				}
 
-				// Verify that either Convertable instance exists or it's a built-in conversion
-				if (!has_convertable_instance && !is_builtin_conversion)
+				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
+				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(
-						std::format("No conversion from {} to {}. Define 'instance Convertable<{}, {}>' to enable this conversion.",
-							expr_type->ToString(), as.m_to_type->ToString(),
-							expr_type->ToString(), as.m_to_type->ToString()),
-						as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext
+					(
+						std::format("No conversion from {} to {}. Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString(), expr_type->ToString(), as.m_to_type->ToString()), as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type)
+					);
 				}
 
 				as.m_from_type = expr_type;
 				as.m_type_data = as.m_to_type;
-				as.m_uses_convertable = has_convertable_instance;
+
+				// Use Convertable code generation if there's an instance OR a constraint
+				// Constraints will be resolved via method resolution map during specialization
+				as.m_uses_convertable = has_convertable_instance || has_convertable_constraint;
 				return as.m_type_data;
 			}
 		);

@@ -1,0 +1,16 @@
+// Test: generic `as` works with Convertable constraints.
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+defun ToText<T>(value: T) : Text where Convertable<T, Text> => {
+    return value as Text;
+};
+
+def b1 = ToText(true);
+def b2 = ToText(false);
+IO::PrintLine("true as Text: " ++ b1);
+IO::PrintLine("false as Text: " ++ b2);
+
+def i1 = ToText(42);
+IO::PrintLine("42 as Text: " ++ i1);
+
+IO::PrintLine("test_convertable_as_generic: PASS");

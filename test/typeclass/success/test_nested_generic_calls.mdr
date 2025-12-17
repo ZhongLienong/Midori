@@ -1,0 +1,30 @@
+// Test: Nested generic function calls with constraints
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+defun ToText<T>(value: T) : Text where Convertable<T, Text> => {
+    return value as Text;
+};
+
+defun ToInt<T>(value: T) : Int where Convertable<T, Int> => {
+    return value as Int;
+};
+
+// Function that uses other generic functions
+defun ProcessValue<T>(value: T) : Text
+    where Convertable<T, Text>, Convertable<T, Int> => {
+    def text_repr = ToText(value);
+    def int_repr = ToInt(value);
+    def int_as_text = ToText(int_repr);
+    return "Text: " ++ text_repr ++ ", Int: " ++ int_as_text;
+};
+
+def result1 = ProcessValue(42);
+IO::PrintLine(result1);
+
+def result2 = ProcessValue(true);
+IO::PrintLine(result2);
+
+def result3 = ProcessValue(7.5);
+IO::PrintLine(result3);
+
+IO::PrintLine("test_nested_generic_calls: PASS");

@@ -1,0 +1,67 @@
+// Test: Comprehensive test of constraint-based conversions
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
+
+// Generic comparison after conversion
+defun CompareAsInt<T1, T2>(a: T1, b: T2) : Text
+    where Convertable<T1, Int>, Convertable<T2, Int> => {
+    def a_int = a as Int;
+    def b_int = b as Int;
+    if a_int == b_int then {
+        return "equal";
+    } else {
+        return "not equal";
+    };
+};
+
+// Generic sum after conversion
+defun SumAsInt<T1, T2>(a: T1, b: T2) : Int
+    where Convertable<T1, Int>, Convertable<T2, Int> => {
+    def a_int = a as Int;
+    def b_int = b as Int;
+    return a_int + b_int;
+};
+
+// Generic function that formats a value with a label
+defun FormatWithLabel<T>(label: Text, value: T) : Text where Convertable<T, Text> => {
+    return label ++ ": " ++ (value as Text);
+};
+
+// Test FormatWithLabel with different types
+def fmt1 = FormatWithLabel("Integer", 42);
+IO::PrintLine(fmt1);
+
+def fmt2 = FormatWithLabel("Float", 3.14);
+IO::PrintLine(fmt2);
+
+def fmt3 = FormatWithLabel("Boolean", true);
+IO::PrintLine(fmt3);
+
+// Test CompareAsInt
+def cmp1 = CompareAsInt(5, 5.0);
+IO::PrintLine("5 vs 5.0: " ++ cmp1);
+
+def cmp2 = CompareAsInt(true, 1);
+IO::PrintLine("true vs 1: " ++ cmp2);
+
+def cmp3 = CompareAsInt(false, 1);
+IO::PrintLine("false vs 1: " ++ cmp3);
+
+// Test SumAsInt
+def sum1 = SumAsInt(10, 20);
+def sum1_text = sum1 as Text;
+IO::PrintLine("10 + 20 = " ++ sum1_text);
+
+def sum2 = SumAsInt(3.7, 4.2);
+def sum2_text = sum2 as Text;
+IO::PrintLine("3.7 + 4.2 (as ints) = " ++ sum2_text);
+
+def sum3 = SumAsInt(true, true);
+def sum3_text = sum3 as Text;
+IO::PrintLine("true + true (as ints) = " ++ sum3_text);
+
+// Mixed type sum
+def sum4 = SumAsInt(5, true);
+def sum4_text = sum4 as Text;
+IO::PrintLine("5 + true (as ints) = " ++ sum4_text);
+
+IO::PrintLine("test_constraint_comprehensive: PASS");
