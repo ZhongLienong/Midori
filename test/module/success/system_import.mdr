@@ -1,0 +1,6 @@
+import
+{
+	<IO>
+}
+
+IO::PrintLine("Testing system import with angle brackets!");

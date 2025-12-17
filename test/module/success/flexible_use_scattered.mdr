@@ -1,0 +1,16 @@
+// Test: use statements scattered throughout the code
+
+import { <IO> }
+
+defun greet(name: Text): Text => { "Hello, " ++ name };
+
+use IO.{PrintLine}
+
+defun calculate(x: Float): Float => { x * 2.0 + 10.0 };
+
+defun main(): Unit => {
+    PrintLine(greet("Alice"));
+    PrintLine("Result: " ++ (calculate(15.0) as Text));
+};
+
+main();

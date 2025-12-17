@@ -1,0 +1,5 @@
+import { "simple_module_lib.mdr" }
+
+use TestModule.{Foo}
+
+Foo();

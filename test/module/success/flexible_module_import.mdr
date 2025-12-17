@@ -1,0 +1,14 @@
+// Test: importing a module with flexible statement placement
+
+import { "flexible_module_lib.mdr", <IO> }
+
+use FlexMod.{Exported1, Exported2}
+
+use IO.{PrintLine}
+
+defun main(): Unit => {
+    PrintLine("Exported1(5) = " ++ (Exported1(5.0) as Text));
+    PrintLine("Exported2(5) = " ++ (Exported2(5.0) as Text));
+};
+
+main();

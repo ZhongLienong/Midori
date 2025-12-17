@@ -19,6 +19,8 @@
 #include <numeric>
 #include <sstream>
 
+using namespace std::string_literals;
+
 #if MIDORI_ENABLE_AST_DUMP
 #include "Utility/AbstractSyntaxTreePrinter/AbstractSyntaxTreePrinter.h"
 #endif
@@ -248,6 +250,29 @@ MidoriResult::CompilerResult Compiler::Compile()
 												if (!module_bytecode.has_value())
 												{
 													return std::unexpected(module_bytecode.error());
+												}
+
+												std::unordered_set<std::string> defined_exports;
+												for (const BytecodeModule::ExportedSymbol& exported_symbol : module_bytecode.value().m_exports)
+												{
+													defined_exports.insert(exported_symbol.m_name);
+												}
+
+												for (const auto& [typeclass_name, tc_metadata] : typeclass_metadata)
+												{
+													defined_exports.insert(typeclass_name);
+													for (const std::string& instance_method : tc_metadata.m_instance_methods)
+													{
+														defined_exports.insert(instance_method);
+													}
+												}
+
+												for (const std::string& exported_name : export_set)
+												{
+													if (!defined_exports.contains(exported_name))
+													{
+														return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'", 0, file_path));
+													}
 												}
 
 												CompiledModule compiled_module(module_name, file_path, std::move(symbols), std::move(type_signatures), std::move(typeclass_metadata));

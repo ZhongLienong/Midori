@@ -1,0 +1,12 @@
+// Test: circular dependency B -> A (part of circular test)
+
+module CircularB
+
+public export { FuncB }
+
+import { "circular_a.mdr" }
+use CircularA.{FuncA}
+
+defun FuncB(): Float => {
+    FuncA() + 2.0
+};

@@ -1,0 +1,12 @@
+// Test: multiple system imports
+
+import { <IO>, <Math> }
+
+use IO.{PrintLine}
+use Math.{SquareRoot}
+
+defun main(): Unit => {
+    PrintLine("sqrt(16) = " ++ (SquareRoot(16.0) as Text));
+};
+
+main();

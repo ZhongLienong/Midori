@@ -1,0 +1,6 @@
+// Test: exporting a name that does not exist should fail.
+
+module ExportMissingSymbol
+public export { definitely_not_defined }
+
+defun main() : Int => 0;

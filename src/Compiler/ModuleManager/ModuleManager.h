@@ -1,25 +1,34 @@
 #pragma once
 
+#include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
-#include "Compiler/Module/Module.h"
 
+#include <filesystem>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <string>
-#include <filesystem>
 
 class ModuleManager
 {
 private:
 	using ModuleDependencyGraph = std::unordered_map<std::string, std::vector<std::string>>;
 
+	enum class StatementType { MODULE, EXPORT, IMPORT, USE };
+
+	struct StatementSpan
+	{
+		StatementType m_type;
+		int m_start;
+		int m_end;
+		int m_line;
+	};
+
 	ModuleDependencyGraph m_dependency_graph;
 	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
 	TokenStream m_main_token_stream;
 	std::string m_main_file_name;
-	std::vector<std::filesystem::path> m_search_paths;
 
 public:
 	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name);
@@ -33,11 +42,15 @@ private:
 
 	void CalculateInDegrees(BuildGraph& build_graph);
 
-	std::tuple<std::string, bool, std::vector<ModuleExport>, int> ParseModuleDeclaration(const TokenStream& tokens, const std::string& file_path);
+	std::vector<StatementSpan> ScanModuleStatements(const TokenStream& tokens);
 
-	void InitializeSearchPaths();
+	int ComputeStatementEnd(const TokenStream& tokens, int start, StatementType type);
 
-	std::vector<std::filesystem::path> GetPossibleModulePaths(const std::string& module_name) const;
+	std::tuple<std::string, std::vector<ModuleExport>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+
+	std::vector<std::pair<std::string, int>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+
+	std::vector<UseImport> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
 	void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
 

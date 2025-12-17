@@ -1,0 +1,11 @@
+// Test: module declaration with code before it (should work at global scope)
+
+defun helper(x: Float): Float => { x + 1.0 };
+
+module FlexMod
+
+defun Exported1(x: Float): Float => { helper(x) * 2.0 };
+
+public export { Exported1, Exported2 }
+
+defun Exported2(x: Float): Float => { helper(x) * 3.0 };

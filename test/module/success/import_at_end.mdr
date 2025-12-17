@@ -1,0 +1,12 @@
+// Test: import statement at the very end
+
+defun helper(x: Float): Float => { x * 2.0 };
+
+defun main(): Unit => {
+    PrintLine("Result: " ++ (helper(10.0) as Text));
+};
+
+main();
+
+import { <IO> }
+use IO.{PrintLine}

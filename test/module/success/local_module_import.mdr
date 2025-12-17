@@ -1,0 +1,5 @@
+import { "local_module_lib.mdr" }
+
+use TestMod.{Foo}
+
+Foo();

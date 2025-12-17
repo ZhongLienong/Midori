@@ -52,7 +52,7 @@ void TokenStream::Insert(TokenStream::iterator iter, TokenStream&& tokens)
 
 void TokenStream::Erase(TokenStream::iterator iter)
 {
-	m_tokens.erase(m_tokens.begin(), iter);
+	m_tokens.erase(iter);
 }
 
 void TokenStream::PopBack() noexcept

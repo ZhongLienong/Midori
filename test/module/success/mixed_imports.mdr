@@ -1,0 +1,9 @@
+import
+{
+	<IO>,
+	<Math>
+}
+
+IO::PrintLine("System import: IO - Success!");
+IO::PrintLine("System import: Math - Success!");
+IO::PrintLine(Math::SquareRoot(16.0) as Text);

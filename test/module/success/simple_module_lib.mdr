@@ -1,0 +1,4 @@
+module TestModule
+public export { Foo }
+
+defun Foo(): Float => { 42.0 };

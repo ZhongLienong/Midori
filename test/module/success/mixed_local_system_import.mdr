@@ -1,0 +1,18 @@
+// Test: mixing local and system imports
+
+import {
+    "mixed_local_system_lib.mdr",
+    <IO>,
+    <Math>
+}
+
+use Utils.{FormatNumber}
+use IO.{PrintLine}
+use Math.{SquareRoot}
+
+defun main(): Unit => {
+    PrintLine(FormatNumber(SquareRoot(25.0)));
+    PrintLine("Mixed imports work!");
+};
+
+main();

@@ -1,0 +1,24 @@
+// Test: multiple separate import blocks
+
+import { <IO> }
+
+use IO.{PrintLine}
+
+defun first(): Unit => {
+    PrintLine("First function");
+};
+
+import { <Math> }
+
+use Math.{SquareRoot}
+
+defun second(): Unit => {
+    PrintLine("SquareRoot(4) = " ++ (SquareRoot(4.0) as Text));
+};
+
+defun main(): Unit => {
+    first();
+    second();
+};
+
+main();

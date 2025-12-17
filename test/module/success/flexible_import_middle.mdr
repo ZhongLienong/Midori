@@ -1,0 +1,16 @@
+// Test: import statement in the middle of code
+
+defun double(x: Float): Float => { x * 2.0 };
+
+import { <IO> }
+
+defun triple(x: Float): Float => { x * 3.0 };
+
+use IO.{PrintLine}
+
+defun main(): Unit => {
+    PrintLine("double(5) = " ++ (double(5.0) as Text));
+    PrintLine("triple(5) = " ++ (triple(5.0) as Text));
+};
+
+main();
