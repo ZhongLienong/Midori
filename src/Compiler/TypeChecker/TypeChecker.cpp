@@ -598,7 +598,7 @@ std::size_t TypeChecker::InstanceKeyHash::operator()(const InstanceKey& key) con
 	std::size_t hash = std::hash<std::string>{}(key.m_class_name);
 	for (const auto& type : key.m_concrete_types)
 	{
-		hash ^= std::hash<std::string>{}(type) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+		hash ^= std::hash<std::string>{}(type) + HASH_OFFSET_BASIS + (hash << HASH_LEFT_SHIFT) + (hash >> HASH_RIGHT_SHIFT);
 	}
 	return hash;
 }

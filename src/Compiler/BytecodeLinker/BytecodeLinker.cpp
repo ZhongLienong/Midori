@@ -22,7 +22,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 	AssignModuleBaseOffsets();
 
-	std::expected<void, std::string> symbol_result = BuildGlobalSymbolTable();
+	MidoriResult::VoidResult symbol_result = BuildGlobalSymbolTable();
 	if (!symbol_result.has_value())
 	{
 		return std::unexpected(symbol_result.error());
@@ -32,7 +32,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	MergeFunctionNames();
 	MergeGlobalVariables();
 
-	std::expected<void, std::string> import_result = ResolveImportsAndPatch();
+	MidoriResult::VoidResult import_result = ResolveImportsAndPatch();
 	if (!import_result.has_value())
 	{
 		return std::unexpected(import_result.error());
@@ -81,17 +81,17 @@ void BytecodeLinker::AssignModuleBaseOffsets()
 	static_cast<void>(std::accumulate(m_modules.begin(), m_modules.end(), 0uz, assign_and_accumulate));
 }
 
-std::expected<void, std::string> BytecodeLinker::BuildGlobalSymbolTable()
+MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 {
-	using ExportProcessorFn = std::function<std::expected<void, std::string>(const BytecodeModule&)>;
+	using ExportProcessorFn = std::function<MidoriResult::VoidResult(const BytecodeModule&)>;
 
-	ExportProcessorFn process_module_exports = [this](const BytecodeModule& module) -> std::expected<void, std::string>
+	ExportProcessorFn process_module_exports = [this](const BytecodeModule& module) -> MidoriResult::VoidResult
 		{
 			size_t module_base = m_module_base_procedure_indices[module.m_module_name];
 
-			using ExportValidatorFn = std::function<std::expected<void, std::string>(const BytecodeModule::ExportedSymbol&)>;
+			using ExportValidatorFn = std::function<MidoriResult::VoidResult(const BytecodeModule::ExportedSymbol&)>;
 
-			ExportValidatorFn validate_and_register = [this, &module, module_base](const BytecodeModule::ExportedSymbol& exp) -> std::expected<void, std::string>
+			ExportValidatorFn validate_and_register = [this, &module, module_base](const BytecodeModule::ExportedSymbol& exp) -> MidoriResult::VoidResult
 				{
 					std::string symbol_key = MakeSymbolKey(module.m_module_name, exp.m_name);
 					size_t global_procedure_index = module_base + exp.m_procedure_index;
@@ -105,30 +105,30 @@ std::expected<void, std::string> BytecodeLinker::BuildGlobalSymbolTable()
 					return {};
 				};
 
-			std::vector<std::expected<void, std::string>> results;
+			std::vector<MidoriResult::VoidResult> results;
 			std::ranges::transform(module.m_exports, std::back_inserter(results), validate_and_register);
 
-			std::vector<std::expected<void, std::string>>::const_iterator error_it = std::ranges::find_if_not
+			std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
 			(
 				results,
-				[](const std::expected<void, std::string>& result) { return result.has_value(); }
+				[](const MidoriResult::VoidResult& result) { return result.has_value(); }
 			);
 
-			return (error_it != results.end()) ? *error_it : std::expected<void, std::string>{};
+			return (error_it != results.end()) ? *error_it : MidoriResult::VoidResult{};
 		};
 
-	using ModuleResultPair = std::pair<const BytecodeModule&, std::expected<void, std::string>>;
+	using ModuleResultPair = std::pair<const BytecodeModule&, MidoriResult::VoidResult>;
 
-	std::vector<std::expected<void, std::string>> module_results;
+	std::vector<MidoriResult::VoidResult> module_results;
 	std::ranges::transform(m_modules, std::back_inserter(module_results), process_module_exports);
 
-	std::vector<std::expected<void, std::string>>::const_iterator error_it = std::ranges::find_if_not
+	std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
 	(
 		module_results,
-		[](const std::expected<void, std::string>& result) { return result.has_value(); }
+		[](const MidoriResult::VoidResult& result) { return result.has_value(); }
 	);
 
-	return (error_it != module_results.end()) ? *error_it : std::expected<void, std::string>{};
+	return (error_it != module_results.end()) ? *error_it : MidoriResult::VoidResult{};
 }
 
 void BytecodeLinker::MergeConstantPools()
@@ -181,18 +181,18 @@ void BytecodeLinker::MergeGlobalVariables()
 	static_cast<void>(std::accumulate(m_modules.begin(), m_modules.end(), 0uz, accumulate_globals));
 }
 
-std::expected<void, std::string> BytecodeLinker::ResolveImportsAndPatch()
+MidoriResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
 {
-	using ImportValidatorFn = std::function<std::expected<void, std::string>(const BytecodeModule::ImportedSymbol&)>;
+	using ImportValidatorFn = std::function<MidoriResult::VoidResult(const BytecodeModule::ImportedSymbol&)>;
 
-	std::vector<std::expected<void, std::string>> validation_results;
+	std::vector<MidoriResult::VoidResult> validation_results;
 
 	std::ranges::for_each
 	(
 		m_modules,
 		[this, &validation_results](const BytecodeModule& module)
 		{
-			ImportValidatorFn validate_import = [this, &module](const BytecodeModule::ImportedSymbol& import) -> std::expected<void, std::string>
+			ImportValidatorFn validate_import = [this, &module](const BytecodeModule::ImportedSymbol& import) -> MidoriResult::VoidResult
 				{
 					std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
 					bool found_as_procedure = m_global_symbol_to_procedure.contains(symbol_key);
@@ -233,13 +233,13 @@ std::expected<void, std::string> BytecodeLinker::ResolveImportsAndPatch()
 		}
 	);
 
-	std::vector<std::expected<void, std::string>>::const_iterator error_it = std::ranges::find_if_not
+	std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
 	(
 		validation_results,
-		[](const std::expected<void, std::string>& result) { return result.has_value(); }
+		[](const MidoriResult::VoidResult& result) { return result.has_value(); }
 	);
 
-	return (error_it != validation_results.end()) ? *error_it : std::expected<void, std::string>{};
+	return (error_it != validation_results.end()) ? *error_it : MidoriResult::VoidResult{};
 }
 
 void BytecodeLinker::ConcatenateBytecode()

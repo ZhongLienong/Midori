@@ -146,8 +146,8 @@ public:
 	         std::is_same_v<T, NeverType>
 	static const std::shared_ptr<MidoriType>& MakeLiteralType()
 	{
-		static std::shared_ptr<MidoriType> literal_type = std::make_shared<MidoriType>(T{});
-		return literal_type;
+		static std::shared_ptr<MidoriType> s_literal_type = std::make_shared<MidoriType>(T{});
+		return s_literal_type;
 	}
 
 	static const std::shared_ptr<MidoriType> MakeUndecidedType();

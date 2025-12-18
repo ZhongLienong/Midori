@@ -32,7 +32,7 @@ public:
 private:
 	void AssignModuleBaseOffsets();
 
-	std::expected<void, std::string> BuildGlobalSymbolTable();
+	MidoriResult::VoidResult BuildGlobalSymbolTable();
 
 	void MergeConstantPools();
 
@@ -40,7 +40,7 @@ private:
 
 	void MergeGlobalVariables();
 
-	std::expected<void, std::string> ResolveImportsAndPatch();
+	MidoriResult::VoidResult ResolveImportsAndPatch();
 
 	void ConcatenateBytecode();
 

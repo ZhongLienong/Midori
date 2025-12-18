@@ -246,7 +246,7 @@ int VirtualMachine::GetLineFromIP(InstructionPointer ip, int proc_index) noexcep
 
 std::string VirtualMachine::GenerateStackTrace() noexcept
 {
-	std::string trace = "Stack trace:\n"s;
+	std::string trace = std::string(STACK_TRACE_HEADER);
 	std::string_view file_name = m_executable.GetFileName();
 	std::string_view function_color = Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
 	std::string_view reset = "\033[0m";
@@ -261,7 +261,7 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 	}
 	else
 	{
-		trace.append(std::format("  at {}<anonymous>{} in {} (line {})\n", function_color, reset, file_name, current_line));
+		trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, ANONYMOUS_FUNCTION, reset, file_name, current_line));
 	}
 
 	// Walk the call stack
@@ -282,7 +282,7 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 		}
 		else
 		{
-			trace.append(std::format("  at {}<anonymous>{} in {} (line {})\n", function_color, reset, file_name, line));
+			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, ANONYMOUS_FUNCTION, reset, file_name, line));
 		}
 
 		--frame_ptr;
@@ -1796,9 +1796,9 @@ int VirtualMachine::Execute() noexcept
 #ifndef __EMSCRIPTEN__
 	// Skip library loading in WASM - no DLL support in browser
 #ifdef _WIN32
-	m_library_handle = LoadLibrary("./MidoriStdLib.dll");
+	m_library_handle = LoadLibrary(STDLIB_DLL_PATH);
 #else
-	m_library_handle = dlopen("./libMidoriStdLib.so", RTLD_LAZY);
+	m_library_handle = dlopen(STDLIB_SO_PATH, RTLD_LAZY);
 #endif
 
 	if (m_library_handle == NULL) [[unlikely]]
@@ -1808,7 +1808,7 @@ int VirtualMachine::Execute() noexcept
 #else
 		dlclose(m_library_handle);
 #endif
-		return TerminateExecution("Failed to load the standard library.");
+		return TerminateExecution(STDLIB_LOAD_ERROR.data());
 	}
 #endif
 
@@ -1824,11 +1824,11 @@ int VirtualMachine::Execute() noexcept
 		Printer::Print<Printer::Color::BRIGHT_RED>("Runtime Error");
 		Printer::Print(" at ");
 		Printer::Print<Printer::Color::BRIGHT_CYAN>("line ");
-		printf("%d\n", GetLine());
+		Printer::PrintFormatted("{}\n", GetLine());
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("Stack overflow - exceeded maximum stack depth\n");
 
 		// Print stack trace
-		Printer::Print("Stack trace:\n");
+		Printer::Print(STACK_TRACE_HEADER.data());
 		std::string_view file_name = m_executable.GetFileName();
 
 		// Current frame
@@ -1839,11 +1839,11 @@ int VirtualMachine::Execute() noexcept
 		{
 			Printer::Print("  at ");
 			Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable.m_procedure_names[current_proc].GetCString());
-			printf(" in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), current_line);
+			Printer::PrintFormatted(" in {} (line {})\n", file_name, current_line);
 		}
 		else
 		{
-			printf("  at <anonymous> in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), current_line);
+			Printer::PrintFormatted("  at {} in {} (line {})\n", ANONYMOUS_FUNCTION, file_name, current_line);
 		}
 
 		// Walk the call stack
@@ -1862,11 +1862,11 @@ int VirtualMachine::Execute() noexcept
 			{
 				Printer::Print("  at ");
 				Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable.m_procedure_names[proc_index].GetCString());
-				printf(" in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), line);
+				Printer::PrintFormatted(" in {} (line {})\n", file_name, line);
 			}
 			else
 			{
-				printf("  at <anonymous> in %.*s (line %d)\n", static_cast<int>(file_name.size()), file_name.data(), line);
+				Printer::PrintFormatted("  at {} in {} (line {})\n", ANONYMOUS_FUNCTION, file_name, line);
 			}
 
 			--frame_ptr;
@@ -1877,7 +1877,7 @@ int VirtualMachine::Execute() noexcept
 		if (frame_count >= s_max_stack_trace_depth - 1 && total_frames > s_max_stack_trace_depth)
 		{
 			int remaining = total_frames - s_max_stack_trace_depth;
-			printf("  ... (%d more frame%s)\n", remaining, remaining == 1 ? "" : "s");
+			Printer::PrintFormatted("  ... ({} more frame{})\n", remaining, remaining == 1 ? "" : "s");
 		}
 
 		return EXIT_FAILURE;

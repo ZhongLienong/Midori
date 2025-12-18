@@ -1558,7 +1558,7 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 		(
 			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MidoriExpression>&& range)->MidoriResult::ExpressionResult
 			{
-				static int for_counter = 0;
+				static int s_for_counter = 0;
 				BeginScope();
 
 				// Add loop variable to scope
@@ -1569,12 +1569,12 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				// Reserve two additional local variable slots for hidden step and end values
 				// These are not actual variables that can be referenced by name, but they need
 				// to occupy local variable slots to prevent conflicts with body variables
-				RegisterOrUpdateLocalVariable("__for_hidden_step__"s + std::to_string(for_counter));
+				RegisterOrUpdateLocalVariable("__for_hidden_step__"s + std::to_string(s_for_counter));
 				int hidden_step_index = m_total_variables - 1;
 
-				RegisterOrUpdateLocalVariable("__for_hidden_end__"s + std::to_string(for_counter));
+				RegisterOrUpdateLocalVariable("__for_hidden_end__"s + std::to_string(s_for_counter));
 				int hidden_end_index = m_total_variables - 1;
-				for_counter += 1;
+				s_for_counter += 1;
 
 				// NOW set the loop local count, after the 3 for loop variables are registered
 				// This ensures continue/break don't try to pop these loop control variables

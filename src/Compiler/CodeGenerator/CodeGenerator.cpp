@@ -41,27 +41,27 @@ void CodeGenerator::EmitTextConstant(std::string_view data, int line)
 
 void CodeGenerator::EmitTwoBytes(int byte1, int byte2, int line)
 {
-	EmitByte(static_cast<OpCode>(byte1 & 0xff), line);
-	EmitByte(static_cast<OpCode>(byte2 & 0xff), line);
+	EmitByte(static_cast<OpCode>(byte1 & BYTE_MASK), line);
+	EmitByte(static_cast<OpCode>(byte2 & BYTE_MASK), line);
 }
 
 void CodeGenerator::EmitThreeBytes(int byte1, int byte2, int byte3, int line)
 {
-	EmitByte(static_cast<OpCode>(byte1 & 0xff), line);
-	EmitByte(static_cast<OpCode>(byte2 & 0xff), line);
-	EmitByte(static_cast<OpCode>(byte3 & 0xff), line);
+	EmitByte(static_cast<OpCode>(byte1 & BYTE_MASK), line);
+	EmitByte(static_cast<OpCode>(byte2 & BYTE_MASK), line);
+	EmitByte(static_cast<OpCode>(byte3 & BYTE_MASK), line);
 }
 
 void CodeGenerator::EmitNumericConstant(MidoriInteger val, int line, bool is_integer)
 {
-	int byte1 = val & 0xff;
-	int byte2 = (val >> 8) & 0xff;
-	int byte3 = (val >> 16) & 0xff;
-	int byte4 = (val >> 24) & 0xff;
-	int byte5 = (val >> 32) & 0xff;
-	int byte6 = (val >> 40) & 0xff;
-	int byte7 = (val >> 48) & 0xff;
-	int byte8 = (val >> 56) & 0xff;
+	int byte1 = val & BYTE_MASK;
+	int byte2 = (val >> SHIFT_8_BITS) & BYTE_MASK;
+	int byte3 = (val >> SHIFT_16_BITS) & BYTE_MASK;
+	int byte4 = (val >> SHIFT_24_BITS) & BYTE_MASK;
+	int byte5 = (val >> SHIFT_32_BITS) & BYTE_MASK;
+	int byte6 = (val >> SHIFT_40_BITS) & BYTE_MASK;
+	int byte7 = (val >> SHIFT_48_BITS) & BYTE_MASK;
+	int byte8 = (val >> SHIFT_56_BITS) & BYTE_MASK;
 
 	if (is_integer)
 	{
@@ -136,8 +136,8 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 int CodeGenerator::EmitJump(OpCode op, int line)
 {
 	EmitByte(op, line);
-	EmitByte(static_cast<OpCode>(0xff), line);
-	EmitByte(static_cast<OpCode>(0xff), line);
+	EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+	EmitByte(static_cast<OpCode>(BYTE_MASK), line);
 	return m_procedures[m_current_procedure_index].GetByteCodeSize() - 2;
 }
 
@@ -150,8 +150,8 @@ void CodeGenerator::PatchJump(int offset, int line)
 		return;
 	}
 
-	m_procedures[m_current_procedure_index].SetByteCode(offset, static_cast<OpCode>(jump & 0xff));
-	m_procedures[m_current_procedure_index].SetByteCode(offset + 1, static_cast<OpCode>((jump >> 8) & 0xff));
+	m_procedures[m_current_procedure_index].SetByteCode(offset, static_cast<OpCode>(jump & BYTE_MASK));
+	m_procedures[m_current_procedure_index].SetByteCode(offset + 1, static_cast<OpCode>((jump >> SHIFT_8_BITS) & BYTE_MASK));
 }
 
 void CodeGenerator::EmitLoop(int loop_start, int line)
@@ -165,8 +165,8 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 		return;
 	}
 
-	EmitByte(static_cast<OpCode>(offset & 0xff), line);
-	EmitByte(static_cast<OpCode>((offset >> 8) & 0xff), line);
+	EmitByte(static_cast<OpCode>(offset & BYTE_MASK), line);
+	EmitByte(static_cast<OpCode>((offset >> SHIFT_8_BITS) & BYTE_MASK), line);
 }
 
 void CodeGenerator::BeginLoop(int loop_start)
@@ -1592,8 +1592,8 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 		for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
 		{
 			case_offset_positions.emplace_back(m_procedures[m_current_procedure_index].GetByteCodeSize());
-			EmitByte(static_cast<OpCode>(0xff), line);
-			EmitByte(static_cast<OpCode>(0xff), line);
+			EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+			EmitByte(static_cast<OpCode>(BYTE_MASK), line);
 		}
 
 		// Emit all case bodies and patch offsets
@@ -1606,8 +1606,8 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 			// Patch the jump table offset for this case
 			int case_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
 			int offset_from_table = case_start - static_cast<int>(case_offset_positions[0u] + sorted_cases.size() * 2u);
-			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i], static_cast<OpCode>(offset_from_table & 0xff));
-			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i] + 1, static_cast<OpCode>((offset_from_table >> 8) & 0xff));
+			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i], static_cast<OpCode>(offset_from_table & BYTE_MASK));
+			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i] + 1, static_cast<OpCode>((offset_from_table >> SHIFT_8_BITS) & BYTE_MASK));
 
 			// Emit case body
 			std::visit([this](auto&& arg) { (*this)(arg); }, **member_case->m_expr);
@@ -2318,7 +2318,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 	using namespace std::string_literals;
 
 	return std::visit(
-		[&](auto&& type_variant) -> std::shared_ptr<MidoriType>
+		[&type, &generic_type_map, this](auto&& type_variant) -> std::shared_ptr<MidoriType>
 		{
 			using T = std::decay_t<decltype(type_variant)>;
 
@@ -2452,7 +2452,7 @@ std::size_t CodeGenerator::FunctionSignatureHash::operator()(const FunctionSigna
 		sig.m_concrete_types,
 		[&hash](const std::string& type)
 		{
-			hash ^= std::hash<std::string>{}(type)+0x9e3779b9 + (hash << 6) + (hash >> 2);
+			hash ^= std::hash<std::string>{}(type)+HASH_OFFSET_BASIS + (hash << HASH_LEFT_SHIFT) + (hash >> HASH_RIGHT_SHIFT);
 		}
 	);
 	return hash;

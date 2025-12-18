@@ -97,7 +97,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 #ifndef __EMSCRIPTEN__
 								// Native: Use async compilation for parallel builds
-								std::vector<std::future<std::expected<CompiledModule, std::string>>> futures;
+								std::vector<MidoriResult::FutureModuleResult> futures;
 								futures.reserve(stream.size());
 
 								for (const std::string& file_path : stream)
@@ -107,13 +107,13 @@ MidoriResult::CompilerResult Compiler::Compile()
 										std::async
 										(
 											std::launch::async,
-											[&, file_path]() -> std::expected<CompiledModule, std::string>
+											[&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, file_path]() -> std::expected<CompiledModule, std::string>
 											{
 #else
 								// WASM: Use synchronous compilation (no thread support)
 								for (const std::string& file_path : stream)
 								{
-									auto compile_module = [&]() -> std::expected<CompiledModule, std::string>
+									auto compile_module = [&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, &file_path]() -> std::expected<CompiledModule, std::string>
 									{
 #endif
 												size_t current_module;

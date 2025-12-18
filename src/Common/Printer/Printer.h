@@ -234,4 +234,19 @@ namespace Printer
 		}
 		std::printf("+\033[0m\n");
 	}
+
+	// Formatted print using C++23 std::print with optional color
+	template<Color color = Color::WHITE, typename... Args>
+	void PrintFormatted(std::format_string<Args...> fmt, Args&&... args)
+	{
+		if constexpr (color != Color::WHITE)
+		{
+			std::printf("%s", Detail::GetColorCode(color));
+		}
+		std::print(fmt, std::forward<Args>(args)...);
+		if constexpr (color != Color::WHITE)
+		{
+			std::printf("\033[0m");
+		}
+	}
 }

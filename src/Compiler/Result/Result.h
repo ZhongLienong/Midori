@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,4 +30,11 @@ namespace MidoriResult
 	using CodeGeneratorResult = std::expected<BytecodeModule, std::string>;
 	using CompiledModuleResult = std::expected<CompiledModule, std::string>;
 	using CompilerResult = std::expected<MidoriExecutable, std::string>;
+
+	// Generic result types
+	using VoidResult = std::expected<void, std::string>;
+	using VoidResultList = std::vector<VoidResult>;
+
+	// Async compilation result types
+	using FutureModuleResult = std::future<CompiledModuleResult>;
 }
