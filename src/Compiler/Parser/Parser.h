@@ -40,12 +40,17 @@ private:
 	};
 
 	using Scopes = std::vector<Scope>;
-	
+
+	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
+	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
+	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
+
 	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
-	std::unordered_map<std::string, std::unordered_set<std::string>> m_class_methods;
-	std::unordered_map<std::string, std::vector<std::string>> m_typeclass_type_params;
-	std::unordered_map<std::string, std::vector<std::string>> m_class_instances;
-	std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_typeclass_method_types;
+	TypeclassMethodMap m_class_methods;
+	TypeclassInstanceMap m_typeclass_type_params;
+	TypeclassInstanceMap m_class_instances;
+	TypeclassMethodTypeMap m_typeclass_method_types;
 	TokenStream m_tokens;
 	std::string m_file_name;
 	Scopes m_scopes{ Scope() };
@@ -67,7 +72,7 @@ public:
 
 	MidoriResult::ParserResult Parse();
 
-	const std::unordered_map<std::string, std::unordered_set<std::string>>& GetTypeclassMethods() const;
+	const TypeclassMethodMap& GetTypeclassMethods() const;
 
 	CompiledModule::TypeclassMetadataMap GetTypeclassMetadata() const;
 

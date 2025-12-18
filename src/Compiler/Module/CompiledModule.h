@@ -36,6 +36,7 @@ struct CompiledModule
 		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
 	};
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
+	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassMetadataMap = std::unordered_map<std::string, TypeclassMetadata>;
 
 	SymbolTable m_symbols;

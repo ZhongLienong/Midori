@@ -113,7 +113,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 								// WASM: Use synchronous compilation (no thread support)
 								for (const std::string& file_path : stream)
 								{
-									auto compile_module = [&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, &file_path]() -> std::expected<CompiledModule, std::string>
+									std::function<MidoriResult::CompiledModuleResult()> compile_module = [&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, &file_path]() -> std::expected<CompiledModule, std::string>
 									{
 #endif
 												size_t current_module;
@@ -193,7 +193,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 												for (const auto& [typeclass_name, metadata] : imported_typeclass_metadata)
 												{
 													// Create ClassInfo for imported typeclasses with method types
-													TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::ClassConstraint>{}, std::unordered_map<std::string, std::shared_ptr<MidoriType>>(metadata.m_method_types), std::unordered_set<std::string>{});
+													TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::ClassConstraint>{}, TypeChecker::TypeEnvironment(metadata.m_method_types), std::unordered_set<std::string>{});
 													imported_typeclass_infos[typeclass_name] = std::move(info);
 												}
 

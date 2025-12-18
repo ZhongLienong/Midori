@@ -185,7 +185,7 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_class_methods, const std::unordered_map<std::string, std::vector<std::string>>& imported_class_instances)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
@@ -2051,7 +2051,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	specialized_name += ">"s;
 
 	// Build parameter name -> concrete type map
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> prev_param_map = m_param_type_map;
+	TypeEnvironment prev_param_map = m_param_type_map;
 	m_param_type_map.clear();
 
 	for (size_t i = 0u; i < generic_info.m_params.size() && i < concrete_arg_types.size(); i += 1u)
@@ -2062,7 +2062,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	// Build generic type parameter -> concrete type map
 	// Match generic parameters to concrete types by position
 	// For each parameter that has a generic/type variable type, assign it the next generic parameter in order
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> generic_type_map;
+	TypeEnvironment generic_type_map;
 
 	size_t generic_param_index = 0;
 	for (size_t i = 0u; i < generic_info.m_param_types.size() && i < concrete_arg_types.size(); i += 1u)
@@ -2091,7 +2091,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 	for (const MidoriType::ClassConstraint& constraint : generic_info.m_constraints)
 	{
-		std::unordered_map<std::string, std::unordered_set<std::string>>::iterator tc_it = m_class_methods.find(constraint.m_class_name);
+		TypeclassMethodMap::iterator tc_it = m_class_methods.find(constraint.m_class_name);
 		if (tc_it != m_class_methods.end())
 		{
 			std::vector<std::shared_ptr<MidoriType>> concrete_type_args;
@@ -2120,7 +2120,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 				std::string resolved_method_name = mangled_name_prefix;
 				bool instance_found = false;
 
-				std::unordered_map<std::string, std::vector<std::string>>::iterator instances_it = m_class_instances.find(constraint.m_class_name);
+				TypeclassInstanceMap::iterator instances_it = m_class_instances.find(constraint.m_class_name);
 				if (instances_it != m_class_instances.end())
 				{
 					std::string pattern_with_at = mangled_name_prefix + ModuleSeparator;
@@ -2303,7 +2303,7 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 	if (!m_param_type_map.empty() && expr->IsExpression<MidoriExpression::BoundedName>())
 	{
 		const MidoriExpression::BoundedName& bounded_name = expr->GetExpression<MidoriExpression::BoundedName>();
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = m_param_type_map.find(bounded_name.m_name.m_lexeme);
+		TypeEnvironment::iterator it = m_param_type_map.find(bounded_name.m_name.m_lexeme);
 		if (it != m_param_type_map.end())
 		{
 			return it->second;
@@ -2313,7 +2313,7 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 	return expr->GetType();
 }
 
-std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& generic_type_map)
+std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map)
 {
 	using namespace std::string_literals;
 
@@ -2325,7 +2325,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
 			{
 				// This is a generic parameter - substitute it with the concrete type
-				auto it = generic_type_map.find(type_variant.m_name);
+				TypeEnvironment::const_iterator it = generic_type_map.find(type_variant.m_name);
 				if (it != generic_type_map.end())
 				{
 					return it->second;
@@ -2336,7 +2336,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
 			{
 				// Recursively substitute in array element type
-				auto substituted_element = SubstituteGenericTypes(type_variant.m_element_type, generic_type_map);
+				std::shared_ptr<MidoriType> substituted_element = SubstituteGenericTypes(type_variant.m_element_type, generic_type_map);
 				if (substituted_element != type_variant.m_element_type)
 				{
 					return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
@@ -2348,9 +2348,9 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 				// Recursively substitute in tuple element types
 				std::vector<std::shared_ptr<MidoriType>> substituted_elements;
 				bool changed = false;
-				for (const auto& elem_type : type_variant.m_element_types)
+				for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
 				{
-					auto substituted = SubstituteGenericTypes(elem_type, generic_type_map);
+					std::shared_ptr<MidoriType> substituted = SubstituteGenericTypes(elem_type, generic_type_map);
 					substituted_elements.push_back(substituted);
 					if (substituted != elem_type)
 					{
@@ -2368,16 +2368,16 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 				// Recursively substitute in parameter and return types
 				std::vector<std::shared_ptr<MidoriType>> substituted_params;
 				bool changed = false;
-				for (const auto& param_type : type_variant.m_param_types)
+				for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
 				{
-					auto substituted = SubstituteGenericTypes(param_type, generic_type_map);
+					std::shared_ptr<MidoriType> substituted = SubstituteGenericTypes(param_type, generic_type_map);
 					substituted_params.push_back(substituted);
 					if (substituted != param_type)
 					{
 						changed = true;
 					}
 				}
-				auto substituted_return = SubstituteGenericTypes(type_variant.m_return_type, generic_type_map);
+				std::shared_ptr<MidoriType> substituted_return = SubstituteGenericTypes(type_variant.m_return_type, generic_type_map);
 				if (substituted_return != type_variant.m_return_type)
 				{
 					changed = true;

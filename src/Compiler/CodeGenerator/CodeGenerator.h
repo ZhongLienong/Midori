@@ -57,6 +57,10 @@ private:
 		std::size_t operator()(const FunctionSignature& sig) const;
 	};
 
+	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
+	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
+
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
 	std::vector<MidoriText> m_procedure_names;
 	MidoriProgramTree m_program_tree;
@@ -68,9 +72,9 @@ private:
 	std::unordered_map<std::string, int> m_local_variables;
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_param_type_map;
-	std::unordered_map<std::string, std::unordered_set<std::string>> m_class_methods;
-	std::unordered_map<std::string, std::vector<std::string>> m_class_instances;
+	TypeEnvironment m_param_type_map;
+	TypeclassMethodMap m_class_methods;
+	TypeclassInstanceMap m_class_instances;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 
 	MidoriExecutable m_executable;
@@ -88,7 +92,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const std::unordered_map<std::string, std::unordered_set<std::string>>& imported_class_methods = {}, const std::unordered_map<std::string, std::vector<std::string>>& imported_class_instances = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
@@ -224,7 +228,7 @@ private:
 
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 
-	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& generic_type_map);
+	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map);
 
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
 

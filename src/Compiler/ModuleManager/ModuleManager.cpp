@@ -64,7 +64,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 
 		for (const auto& [import_specifier, line] : import_paths)
 		{
-			auto resolved_opt = resolver.Resolve(import_specifier);
+			std::optional<ImportResolver::ResolvedImport> resolved_opt = resolver.Resolve(import_specifier);
 			if (!resolved_opt.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Could not resolve import: "s + import_specifier, line, m_main_file_name));

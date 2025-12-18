@@ -240,7 +240,7 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 	{
 		// For GenericParam, check if we've already freshened this parameter name
 		const std::string& param_name = type->GetType<MidoriType::GenericParam>().m_name;
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = context.m_generic_params.find(param_name);
+		TypeEnvironment::iterator it = context.m_generic_params.find(param_name);
 		if (it != context.m_generic_params.end())
 		{
 			// We've already freshened this generic parameter - return the same type variable
@@ -570,7 +570,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	return false;
 }
 
-TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults)
+TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, TypeEnvironment&& methods, std::unordered_set<std::string>&& defaults)
 	: m_name(name),
 	m_type_param_names(std::move(params)),
 	m_superclasses(std::move(supers)),
@@ -596,7 +596,7 @@ bool TypeChecker::InstanceKey::operator==(const InstanceKey& other) const
 std::size_t TypeChecker::InstanceKeyHash::operator()(const InstanceKey& key) const
 {
 	std::size_t hash = std::hash<std::string>{}(key.m_class_name);
-	for (const auto& type : key.m_concrete_types)
+	for (const std::string& type : key.m_concrete_types)
 	{
 		hash ^= std::hash<std::string>{}(type) + HASH_OFFSET_BASIS + (hash << HASH_LEFT_SHIFT) + (hash >> HASH_RIGHT_SHIFT);
 	}
@@ -911,7 +911,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction
 	for (const Token& generic_param : defun.m_generic_params)
 	{
 		const std::string& param_name = generic_param.m_lexeme;
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = freshening_context.m_generic_params.find(param_name);
+		TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
 		if (it == freshening_context.m_generic_params.end())
 		{
 			std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
@@ -1060,7 +1060,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> method_types;
+	TypeEnvironment method_types;
 	std::unordered_set<std::string> methods_with_defaults;
 	for (std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
@@ -1151,7 +1151,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		}
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> type_param_substitutions;
+	TypeEnvironment type_param_substitutions;
 	for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
 	{
 		type_param_substitutions.emplace(tc_info.m_type_param_names[i], instance_stmt.m_type_args[i]);
@@ -1168,7 +1168,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
 		}
 
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator expected_it = tc_info.m_method_types.find(method_name);
+		TypeEnvironment::const_iterator expected_it = tc_info.m_method_types.find(method_name);
 		if (expected_it == tc_info.m_method_types.cend())
 		{
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
@@ -1236,8 +1236,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				}
 
 				const MidoriType::UnionType& union_type = arg_type->GetType<MidoriType::UnionType>();
-				auto key_view = union_type.m_member_info | std::views::transform([](const auto& pair) { return pair.first; });
-				std::unordered_set<std::string> expected_member_names(key_view.begin(), key_view.end());
+				std::unordered_set<std::string> expected_member_names;
+				for (const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::value_type& pair : union_type.m_member_info)
+				{
+					expected_member_names.insert(pair.first);
+				}
 				bool has_default_case = false;
 				std::shared_ptr<MidoriType>* prev_case_type = nullptr;
 
@@ -1723,7 +1726,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				}
 
 				const ClassInfo& tc_info = tc_it->second;
-				std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(method_name);
+				TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(method_name);
 				if (method_it != tc_info.m_method_types.cend())
 				{
 					std::vector<std::shared_ptr<MidoriType>> arg_results;
@@ -1738,7 +1741,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						arg_results.emplace_back(std::move(arg_result.value()));
 					}
 
-					std::unordered_map<std::string, std::shared_ptr<MidoriType>> env_substitutions;
+					TypeEnvironment env_substitutions;
 					for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
 					{
 						for (const TypeEnvironment::value_type& entry : *it)
@@ -1795,7 +1798,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: constraint type argument count mismatch for class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 
-					std::unordered_map<std::string, std::shared_ptr<MidoriType>> class_substitutions;
+					TypeEnvironment class_substitutions;
 					for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
 					{
 						std::shared_ptr<MidoriType> resolved_type_arg = MidoriType::SubstituteTypeParams(selected_constraint.m_type_args[i], env_substitutions);
@@ -1969,7 +1972,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& 
 			}
 
 			const ClassInfo& tc_info = tc_it->second;
-			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(symbol_name);
+			TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(symbol_name);
 			if (method_it != tc_info.m_method_types.cend())
 			{
 				variable.m_type_data = Freshen(method_it->second);
@@ -2003,7 +2006,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& 
 		if (tc_it != m_classes.end())
 		{
 			const ClassInfo& tc_info = tc_it->second;
-			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator method_it = tc_info.m_method_types.find(variable.m_name.m_lexeme);
+			TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(variable.m_name.m_lexeme);
 			if (method_it != tc_info.m_method_types.cend())
 			{
 				// This is a valid class method - return its type

@@ -297,7 +297,7 @@ std::string MidoriType::MangleInstanceMethodName(const std::string& method_name,
 {
 	std::string mangled = method_name + "_"s + typeclass_name;
 
-	for (const auto& type_arg : type_args)
+	for (const std::shared_ptr<MidoriType>& type_arg : type_args)
 	{
 		std::string type_str = type_arg->ToString();
 		std::ranges::replace_if(type_str, [](char c) { return !std::isalnum(c); }, '_');	// Replace special characters with underscores for valid identifier

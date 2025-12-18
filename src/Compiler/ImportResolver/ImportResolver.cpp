@@ -143,9 +143,9 @@ std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolveSystemImpor
 	std::vector<std::filesystem::path> possible_paths = GetModuleFilePaths(module_name);
 
 	// Search through all system search paths
-	for (const auto& search_dir : m_system_search_paths)
+	for (const std::filesystem::path& search_dir : m_system_search_paths)
 	{
-		for (const auto& module_path : possible_paths)
+		for (const std::filesystem::path& module_path : possible_paths)
 		{
 			std::filesystem::path full_path = search_dir / module_path;
 			if (std::filesystem::exists(full_path) && std::filesystem::is_regular_file(full_path))

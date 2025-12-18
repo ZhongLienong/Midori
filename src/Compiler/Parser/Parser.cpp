@@ -31,7 +31,7 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 bool Parser::SharesNamespace(const std::string& namespace1, const std::string& namespace2) const
 {
 	// Extract top-level namespace (everything before first '.')
-	auto get_top_level_namespace = [](const std::string& full_name) -> std::string
+	std::function<std::string(const std::string&)> get_top_level_namespace = [](const std::string& full_name) -> std::string
 		{
 			size_t pos = full_name.find('.');
 			if (pos != std::string::npos)
@@ -391,7 +391,7 @@ std::vector<Parser::Scope>::const_reverse_iterator Parser::FindVariableScope(std
 	}
 
 	std::string mangled_name;
-	for (auto end_idx : std::views::iota(0u, m_namespaces.size()))
+	for (size_t end_idx : std::views::iota(0u, m_namespaces.size()))
 	{
 		std::string stacked_namespace;
 		for (size_t idx : std::views::iota(0u, end_idx + 1u))
@@ -654,7 +654,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 
 									if (found_scope_it != m_scopes.crend())
 									{
-										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
 										{
 											return std::make_unique<MidoriExpression>(MidoriExpression::Bind(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
@@ -699,7 +699,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 
 									if (found_scope_it != m_scopes.crend())
 									{
-										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
 										{
 											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
@@ -734,7 +734,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 
 									if (found_scope_it != m_scopes.crend())
 									{
-										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
 										{
 											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
@@ -769,7 +769,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 
 									if (found_scope_it != m_scopes.crend())
 									{
-										auto find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
+										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
 										{
 											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Global()));
@@ -1419,7 +1419,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 
 MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 {
-	auto build_block = [this](std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr = nullptr) -> MidoriResult::ExpressionResult
+	std::function<MidoriResult::ExpressionResult(std::vector<std::unique_ptr<MidoriStatement>>&&, std::unique_ptr<MidoriExpression>&&)> build_block = [this](std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr) -> MidoriResult::ExpressionResult
 		{
 			return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after block expression.")
 				.and_then
@@ -1469,7 +1469,7 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 							// Only fall back if this was an intentional absence
 							if (err.empty())
 							{
-								return build_block(std::move(stmts));
+								return build_block(std::move(stmts), nullptr);
 							}
 							else
 							{
@@ -1674,7 +1674,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 					(
 						[this](Token&& define_name) -> MidoriResult::StatementResult
 						{
-							auto def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MidoriType>> type_annotation)
+							std::function<MidoriResult::StatementResult(std::optional<std::shared_ptr<MidoriType>>)> def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MidoriType>> type_annotation)
 								{
 									std::optional<int> local_index = RegisterOrUpdateLocalVariable(define_name.m_lexeme);
 
@@ -1807,7 +1807,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																size_t prev_constraints_size = m_active_constraints.size();
 																if (Match(Token::Name::WHERE))
 																{
-																	auto parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, std::string>
+																	std::function<std::expected<MidoriType::ClassConstraint, std::string>()> parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, std::string>
 																	{
 																		return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
 																			.and_then
@@ -1839,7 +1839,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																			);
 																	};
 
-																	auto constraints_result = ParseDelimitedZeroOrMoreUnlimited<MidoriType::ClassConstraint>
+																	std::expected<std::vector<MidoriType::ClassConstraint>, std::string> constraints_result = ParseDelimitedZeroOrMoreUnlimited<MidoriType::ClassConstraint>
 																		(
 																			parse_constraint,
 																			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
@@ -2876,7 +2876,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
-	auto handle_body = [this](Token& keyword, std::vector<std::string>&& binding_names, Token&& member_name) -> MidoriResult::ExpressionResult
+	std::function<MidoriResult::ExpressionResult(Token&, std::vector<std::string>&&, Token&&)> handle_body = [this](Token& keyword, std::vector<std::string>&& binding_names, Token&& member_name) -> MidoriResult::ExpressionResult
 		{
 			return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 				.and_then
@@ -3056,7 +3056,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 	}
 	else if (Match(Token::Name::FUNCTION))
 	{
-		auto func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
+		std::function<MidoriResult::TypeResult(std::vector<std::shared_ptr<MidoriType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
 			{
 				return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type token.")
 					.and_then
@@ -3416,7 +3416,7 @@ Parser::VariableContext::VariableContext(int relative_index, int absolute_index,
 {
 }
 
-const std::unordered_map<std::string, std::unordered_set<std::string>>& Parser::GetTypeclassMethods() const
+const Parser::TypeclassMethodMap& Parser::GetTypeclassMethods() const
 {
 	return m_class_methods;
 }
