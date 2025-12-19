@@ -1,0 +1,75 @@
+import
+{
+    <IO>
+}
+
+IO::PrintLine("=== Tuple Literal Tests ===");
+
+// Unit type (empty tuple)
+def unit = ();
+IO::PrintLine("Unit/empty tuple: ()");
+
+// Pair tuples
+def int_pair = (1, 2);
+def float_pair = (3.14, 2.71);
+def text_pair = ("hello", "world");
+def bool_pair = (true, false);
+
+IO::PrintLine("Integer pair: (1, 2)");
+IO::PrintLine("Float pair: (3.14, 2.71)");
+IO::PrintLine("Text pair: (hello, world)");
+IO::PrintLine("Boolean pair: (true, false)");
+
+// Triple tuples
+def int_triple = (1, 2, 3);
+def mixed_triple = (42, "answer", true);
+
+IO::PrintLine("Integer triple: (1, 2, 3)");
+IO::PrintLine("Mixed triple: (42, answer, true)");
+
+// Larger tuples
+def quadruple = (1, 2, 3, 4);
+def quintuple = (10, 20, 30, 40, 50);
+
+IO::PrintLine("Quadruple: (1, 2, 3, 4)");
+IO::PrintLine("Quintuple: (10, 20, 30, 40, 50)");
+
+// Mixed type tuples
+def person_info = ("Alice", 30, true, 5.6);
+IO::PrintLine("Person info tuple: (name, age, active, height)");
+
+def coordinate_3d = (10.5, 20.3, -5.7);
+IO::PrintLine("3D coordinate: (10.5, 20.3, -5.7)");
+
+// Nested tuples
+def nested_pair = ((1, 2), (3, 4));
+def nested_mixed = ((10, "ten"), (20, "twenty"));
+
+IO::PrintLine("Nested pair tuple created");
+IO::PrintLine("Nested mixed tuple created");
+
+// Tuple with Unicode
+def unicode_tuple = ("English", "中文", "日本語");
+IO::PrintLine("Unicode tuple: (English, 中文, 日本語)");
+
+// Tuple with negative values
+def negative_tuple = (-1, -2, -3, -4);
+IO::PrintLine("Negative tuple: (-1, -2, -3, -4)");
+
+// Tuple with mixed signs
+def mixed_signs = (-10, 10, -20, 20);
+IO::PrintLine("Mixed signs: (-10, 10, -20, 20)");
+
+// Large tuple
+def large_tuple = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+IO::PrintLine("Large tuple with 10 elements created");
+
+// Tuple with array elements
+def tuple_with_array = ([1, 2, 3], [4, 5, 6]);
+IO::PrintLine("Tuple with array elements created");
+
+// Complex nested structure
+def complex = ((1, (2, 3)), (4, (5, 6)));
+IO::PrintLine("Complex nested tuple created");
+
+IO::PrintLine("=== All Tuple Tests Passed ===");

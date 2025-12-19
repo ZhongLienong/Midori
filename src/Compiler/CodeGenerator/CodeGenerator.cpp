@@ -3,6 +3,7 @@
 #include <format>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
@@ -1294,7 +1295,18 @@ void CodeGenerator::operator()(MidoriExpression::FloatLiteral& float_literal)
 void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
 {
 	int line = integer.m_token.m_line;
-	EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), line);
+	try
+	{
+		EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), line);
+	}
+	catch (const std::out_of_range&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775807.", integer.m_token, m_file_name, m_source_lines));
+	}
+	catch (const std::invalid_argument&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid integer literal '" + integer.m_token.m_lexeme + "'", integer.m_token, m_file_name, m_source_lines));
+	}
 }
 
 void CodeGenerator::operator()(MidoriExpression::UnitLiteral& unit)

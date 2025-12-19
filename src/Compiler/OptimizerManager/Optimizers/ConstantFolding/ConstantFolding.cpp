@@ -1,6 +1,27 @@
 #include "ConstantFolding.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/Token/Token.h"
+#include <stdexcept>
+#include <optional>
+
+namespace
+{
+	std::optional<MidoriInteger> SafeParseInteger(const std::string& str)
+	{
+		try
+		{
+			return std::stoll(str);
+		}
+		catch (const std::out_of_range&)
+		{
+			return std::nullopt;
+		}
+		catch (const std::invalid_argument&)
+		{
+			return std::nullopt;
+		}
+	}
+}
 
 int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
 {
@@ -40,8 +61,16 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 
 	if (binary.m_left->IsExpression<MidoriExpression::IntegerLiteral>() && binary.m_right->IsExpression<MidoriExpression::IntegerLiteral>())
 	{
-		MidoriInteger left_val = std::stoll(binary.m_left->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
-		MidoriInteger right_val = std::stoll(binary.m_right->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+		std::optional<MidoriInteger> left_opt = SafeParseInteger(binary.m_left->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+		std::optional<MidoriInteger> right_opt = SafeParseInteger(binary.m_right->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+
+		if (!left_opt.has_value() || !right_opt.has_value())
+		{
+			return;
+		}
+
+		MidoriInteger left_val = left_opt.value();
+		MidoriInteger right_val = right_opt.value();
 		MidoriInteger result = 0ll;
 
 		switch (op.m_token_name)
@@ -218,7 +247,14 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 
 	if (unary.m_expr->IsExpression<MidoriExpression::IntegerLiteral>())
 	{
-		MidoriInteger val = std::stoll(unary.m_expr->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+		std::optional<MidoriInteger> val_opt = SafeParseInteger(unary.m_expr->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+
+		if (!val_opt.has_value())
+		{
+			return;
+		}
+
+		MidoriInteger val = val_opt.value();
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
 			MidoriInteger result = -val;

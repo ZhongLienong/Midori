@@ -1,0 +1,102 @@
+import
+{
+    <IO>
+}
+
+IO::PrintLine("=== Range Literal Tests ===");
+
+// Basic ranges with positive step
+def range_0_to_10 = 0..1..10;
+def range_1_to_5 = 1..1..5;
+def range_0_to_100 = 0..10..100;
+
+IO::PrintLine("Testing range 0..1..10");
+def sum1 = 0;
+for i in range_0_to_10
+{
+    sum1 = sum1 + i;
+};
+IO::PrintLine("Sum of 0..1..10: " ++ (sum1 as Text));
+
+IO::PrintLine("Testing range 1..1..5");
+def sum2 = 0;
+for i in range_1_to_5
+{
+    sum2 = sum2 + i;
+};
+IO::PrintLine("Sum of 1..1..5: " ++ (sum2 as Text));
+
+// Ranges with larger steps
+def range_0_to_20_by_2 = 0..2..20;
+def range_0_to_30_by_3 = 0..3..30;
+def range_0_to_50_by_5 = 0..5..50;
+
+IO::PrintLine("Testing range 0..2..20 (evens)");
+def sum3 = 0;
+for i in range_0_to_20_by_2
+{
+    sum3 = sum3 + i;
+};
+IO::PrintLine("Sum of 0..2..20: " ++ (sum3 as Text));
+
+IO::PrintLine("Testing range 0..5..50");
+def sum4 = 0;
+for i in range_0_to_50_by_5
+{
+    sum4 = sum4 + i;
+};
+IO::PrintLine("Sum of 0..5..50: " ++ (sum4 as Text));
+
+// Backward ranges (negative step)
+def range_10_to_0 = 10..-1..0;
+def range_20_to_0_by_2 = 20..-2..0;
+
+IO::PrintLine("Testing range 10..-1..0 (backward)");
+def sum5 = 0;
+for i in range_10_to_0
+{
+    sum5 = sum5 + i;
+};
+IO::PrintLine("Sum of 10..-1..0: " ++ (sum5 as Text));
+
+// Single element range
+def range_single = 5..1..6;
+IO::PrintLine("Testing single element range 5..1..6");
+def sum6 = 0;
+for i in range_single
+{
+    sum6 = sum6 + i;
+};
+IO::PrintLine("Sum of 5..1..6: " ++ (sum6 as Text));
+
+// Large range
+def range_large = 0..1..1000;
+IO::PrintLine("Testing large range 0..1..1000");
+def count = 0;
+for i in range_large
+{
+    count = count + 1;
+};
+IO::PrintLine("Count in 0..1..1000: " ++ (count as Text));
+
+// Negative ranges
+def range_negative = -10..1..10;
+IO::PrintLine("Testing negative range -10..1..10");
+def sum7 = 0;
+for i in range_negative
+{
+    sum7 = sum7 + i;
+};
+IO::PrintLine("Sum of -10..1..10: " ++ (sum7 as Text));
+
+// Float ranges (if supported)
+def range_float = 0.0..0.5..5.0;
+IO::PrintLine("Testing float range 0.0..0.5..5.0");
+def sum8 = 0.0;
+for i in range_float
+{
+    sum8 = sum8 + i;
+};
+IO::PrintLine("Sum of float range: " ++ (sum8 as Text));
+
+IO::PrintLine("=== All Range Tests Passed ===");

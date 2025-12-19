@@ -108,6 +108,8 @@ class TestRunner:
                 [str(self.midori_exe), str(test_path)],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=30
             )
 

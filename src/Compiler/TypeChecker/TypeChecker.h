@@ -6,8 +6,12 @@
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 
+class ExpectedTypeGuard;
+
 class TypeChecker
 {
+	friend class ExpectedTypeGuard;
+
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 
@@ -71,8 +75,9 @@ private:
 	std::vector<MidoriType::ClassConstraint> m_active_constraints;
 	const std::vector<std::string>& m_source_lines;
 	int m_next_type_var_id;
-	std::shared_ptr<MidoriType> m_expected_return_type; 
-	std::shared_ptr<MidoriType> m_expected_break_type; 
+	std::shared_ptr<MidoriType> m_expected_return_type;
+	std::shared_ptr<MidoriType> m_expected_break_type;
+	std::shared_ptr<MidoriType> m_expected_expr_type; 
 	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
 	const std::array<Token::Name, 1u> m_binary_concatenation_operators{ Token::Name::DOUBLE_PLUS };
 	const std::array<Token::Name, 4u> m_binary_partial_order_comparison_operators{ Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL };

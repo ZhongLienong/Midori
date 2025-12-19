@@ -1,0 +1,36 @@
+import
+{
+    <IO>
+}
+
+IO::PrintLine("=== Bidirectional Type Inference Test ===");
+
+// Test 1: Empty array with type annotation (should work as before)
+def empty_with_annotation : Array<Int> = [];
+IO::PrintLine("Test 1: Empty array with type annotation - PASS");
+
+// Test 2: Empty array in function call (expected type from parameter)
+defun take_int_array(arr: Array<Int>) : Int => {
+    return 42;
+};
+
+def result = take_int_array([]);
+IO::PrintLine("Test 2: Empty array in function call - PASS");
+
+// Test 3: Empty array in return statement (expected type from function return type)
+defun return_empty_int_array() : Array<Int> => {
+    return [];
+};
+
+def empty_from_return = return_empty_int_array();
+IO::PrintLine("Test 3: Empty array in return - PASS");
+
+// Test 4: Nested empty arrays
+defun take_nested_array(arr: Array<Array<Text>>) : Int => {
+    return 42;
+};
+
+def nested_result = take_nested_array([]);
+IO::PrintLine("Test 4: Nested empty array - PASS");
+
+IO::PrintLine("=== All Bidirectional Inference Tests Passed ===");

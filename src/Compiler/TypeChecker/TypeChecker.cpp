@@ -9,6 +9,28 @@
 
 using namespace std::string_literals;
 
+class ExpectedTypeGuard
+{
+private:
+	TypeChecker& m_type_checker;
+	std::shared_ptr<MidoriType> m_saved_type;
+
+public:
+	ExpectedTypeGuard(TypeChecker& tc, std::shared_ptr<MidoriType> new_expected)
+		: m_type_checker(tc), m_saved_type(tc.m_expected_expr_type)
+	{
+		m_type_checker.m_expected_expr_type = std::move(new_expected);
+	}
+
+	~ExpectedTypeGuard()
+	{
+		m_type_checker.m_expected_expr_type = std::move(m_saved_type);
+	}
+
+	ExpectedTypeGuard(const ExpectedTypeGuard&) = delete;
+	ExpectedTypeGuard& operator=(const ExpectedTypeGuard&) = delete;
+};
+
 MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right)
 {
 	// Apply current substitutions first
@@ -768,6 +790,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Define& def)
 					return std::unexpected<std::string>(std::move(error));
 				}
 			);
+	}
+
+	// Set expected type from annotation if present
+	std::unique_ptr<ExpectedTypeGuard> expected_type_guard;
+	if (def.m_annotated_type.has_value())
+	{
+		expected_type_guard = std::make_unique<ExpectedTypeGuard>(*this, def.m_annotated_type.value());
 	}
 
 	// General case
@@ -1857,9 +1886,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				}
 
 				std::vector<std::shared_ptr<MidoriType>> arg_results;
-				for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+				for (size_t idx = 0u; idx < call.m_arguments.size(); idx += 1u)
 				{
-					MidoriResult::TypeResult arg_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **call_arg);
+					// Propagate expected type from parameter type
+					ExpectedTypeGuard guard(*this, function_type.m_param_types[idx]);
+
+					MidoriResult::TypeResult arg_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **call.m_arguments[idx]);
 					if (!arg_result.has_value())
 					{
 						return arg_result;
@@ -2407,6 +2439,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 {
 	if (array.m_elems.empty())
 	{
+		if (m_expected_expr_type && m_expected_expr_type->IsType<MidoriType::ArrayType>())
+		{
+			array.m_type_data = m_expected_expr_type;
+			return array.m_type_data;
+		}
 		array.m_type_data = MidoriType::MakeArrayType(MidoriType::MakeUndecidedType());
 		return array.m_type_data;
 	}
@@ -2758,6 +2795,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& return_expr)
 {
+	ExpectedTypeGuard guard(*this, m_expected_return_type);
+
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **return_expr.m_value)
 		.and_then
 		(

@@ -6,13 +6,89 @@
 #include <execution>
 #include <ranges>
 
+namespace UTF8
+{
+	bool IsContinuationByte(char byte)
+	{
+		return (static_cast<unsigned char>(byte) & 0xC0u) == 0x80u;
+	}
+
+	int GetCharacterByteCount(const char* str)
+	{
+		unsigned char first_byte = static_cast<unsigned char>(*str);
+
+		if ((first_byte & 0x80u) == 0x00u)
+		{
+			return 1; // ASCII: 0xxxxxxx
+		}
+		else if ((first_byte & 0xE0u) == 0xC0u)
+		{
+			return 2; // 110xxxxx
+		}
+		else if ((first_byte & 0xF0u) == 0xE0u)
+		{
+			return 3; // 1110xxxx
+		}
+		else if ((first_byte & 0xF8u) == 0xF0u)
+		{
+			return 4; // 11110xxx
+		}
+		else
+		{
+			return 1; // Invalid UTF-8, treat as single byte
+		}
+	}
+
+	int CountCodePoints(const char* str, int byte_length)
+	{
+		int count = 0;
+		for (int i = 0; i < byte_length;)
+		{
+			int char_bytes = GetCharacterByteCount(str + i);
+			count += 1;
+			i += char_bytes;
+		}
+		return count;
+	}
+
+	int GetByteOffsetOfCodePoint(const char* str, int byte_length, int code_point_index)
+	{
+		int count = 0;
+		int offset = 0;
+		while (offset < byte_length && count < code_point_index)
+		{
+			int char_bytes = GetCharacterByteCount(str + offset);
+			offset += char_bytes;
+			count += 1;
+		}
+		return offset;
+	}
+
+	int StepBackward(const char* str, int current_offset)
+	{
+		if (current_offset <= 0)
+		{
+			return 0;
+		}
+
+		int offset = current_offset - 1;
+		while (offset > 0 && IsContinuationByte(str[offset]))
+		{
+			offset -= 1;
+		}
+		return offset;
+	}
+}
+
 MidoriText ConvertToQuotedText(const MidoriText& input)
 {
 	MidoriText result("\"");
 
-	for (int i = 0; i < input.GetLength(); i += 1)
+	// Iterate over bytes to handle escape sequences (which are ASCII)
+	const char* str = input.GetCString();
+	for (int i = 0; i < input.GetByteLength(); i += 1)
 	{
-		char c = input[i];
+		char c = str[i];
 		switch (c)
 		{
 		case '\n':
@@ -42,6 +118,8 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 		}
 		default:
 		{
+			// For non-escape characters, just append the byte
+			// UTF-8 multi-byte sequences will be passed through correctly
 			result.Append(c);
 		}
 		}
@@ -610,6 +688,11 @@ MidoriText::~MidoriText()
 
 int MidoriText::GetLength() const noexcept
 {
+	return UTF8::CountCodePoints(m_data, m_size);
+}
+
+int MidoriText::GetByteLength() const noexcept
+{
 	return m_size;
 }
 
@@ -618,11 +701,12 @@ const char* MidoriText::GetCString() const noexcept
 	return m_data;
 }
 
-MidoriText& MidoriText::Pop() 
+MidoriText& MidoriText::Pop()
 {
-	if (m_size > 0) 
+	if (m_size > 0)
 	{
-		m_size -= 1;
+		int new_size = UTF8::StepBackward(m_data, m_size);
+		m_size = new_size;
 		m_data[static_cast<size_t>(m_size)] = '\0';
 	}
 	return *this;
@@ -691,11 +775,9 @@ MidoriText& MidoriText::Prepend(const char* str)
 		int new_capacity = std::max(new_size, m_capacity * 2);
 		Expand(new_capacity);
 	}
-
-	// Shift existing data to the right
-	std::memmove(m_data + len, m_data, sizeof(char) * m_size);
-	// Copy new data at the beginning
-	std::memcpy(m_data, str, sizeof(char) * len);
+ 
+	std::memmove(m_data + len, m_data, sizeof(char) * m_size); 	// Shift existing data to the right
+	std::memcpy(m_data, str, sizeof(char) * len); 	// Copy new data at the beginning
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
 	return *this;
@@ -710,10 +792,9 @@ MidoriText& MidoriText::Prepend(char c)
 		Expand(new_capacity);
 	}
 
-	// Shift existing data to the right
-	std::memmove(m_data + 1, m_data, sizeof(char) * m_size);
-	// Put new character at the beginning
-	m_data[0] = c;
+
+	std::memmove(m_data + 1, m_data, sizeof(char) * m_size);	// Shift existing data to the right
+	m_data[0] = c; 	// Put new character at the beginning
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
 	return *this;
@@ -726,7 +807,9 @@ MidoriText& MidoriText::Prepend(const MidoriText& other)
 
 char MidoriText::operator[](int index) const
 {
-	return m_data[static_cast<size_t>(index)];
+	// Find the byte offset of the nth code point
+	int byte_offset = UTF8::GetByteOffsetOfCodePoint(m_data, m_size, index);
+	return m_data[static_cast<size_t>(byte_offset)];
 }
 
 bool MidoriText::operator==(const MidoriText& other) const 
@@ -765,23 +848,23 @@ MidoriText MidoriText::FromFloat(MidoriFloat value)
 	return MidoriText(buffer);
 }
 
-MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b) 
+MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 {
-	int len_a = a.GetLength();
-	int len_b = b.GetLength();
-	int total_len = len_a + len_b;
+	int byte_len_a = a.GetByteLength();
+	int byte_len_b = b.GetByteLength();
+	int total_byte_len = byte_len_a + byte_len_b;
 
 	MidoriText result;
-	if (total_len > INLINE_THRESHOLD) 
+	if (total_byte_len > INLINE_THRESHOLD)
 	{
-		result.m_data = static_cast<char*>(std::malloc(total_len + 1));
-		result.m_capacity = total_len;
+		result.m_data = static_cast<char*>(std::malloc(total_byte_len + 1));
+		result.m_capacity = total_byte_len;
 	}
 
-	std::memcpy(result.m_data, a.GetCString(), sizeof(char) * len_a);
-	std::memcpy(result.m_data + len_a, b.GetCString(), sizeof(char) * len_b);
-	result.m_data[total_len] = '\0';
-	result.m_size = total_len;
+	std::memcpy(result.m_data, a.GetCString(), sizeof(char) * byte_len_a);
+	std::memcpy(result.m_data + byte_len_a, b.GetCString(), sizeof(char) * byte_len_b);
+	result.m_data[total_byte_len] = '\0';
+	result.m_size = total_byte_len;
 	return result;
 }
 

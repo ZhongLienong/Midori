@@ -3,6 +3,33 @@
 
 #include "StrengthReduction.h"
 #include "Compiler/Token/Token.h"
+#include <stdexcept>
+#include <optional>
+
+namespace
+{
+	std::optional<MidoriInteger> SafeParseInteger(const std::string& str)
+	{
+		try
+		{
+			return std::stoll(str);
+		}
+		catch (const std::out_of_range&)
+		{
+			return std::nullopt;
+		}
+		catch (const std::invalid_argument&)
+		{
+			return std::nullopt;
+		}
+	}
+
+	bool IntegerEquals(const std::string& str, MidoriInteger expected)
+	{
+		std::optional<MidoriInteger> val = SafeParseInteger(str);
+		return val.has_value() && val.value() == expected;
+	}
+}
 
 int StrengthReduction::Optimize(MidoriProgramTree& program_tree)
 {
@@ -86,12 +113,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x * 0 -> 0
 		if (op.m_token_name == Token::Name::STAR)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line);
 				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
 			}
-			if (left_int && std::stoll(left_int->m_token.m_lexeme) == 0ll)
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line);
 				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
@@ -101,11 +128,11 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x * 1 -> x
 		if (op.m_token_name == Token::Name::STAR)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 1ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 1ll))
 			{
 				return std::move(binary.m_left);
 			}
-			if (left_int && std::stoll(left_int->m_token.m_lexeme) == 1ll)
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 1ll))
 			{
 				return std::move(binary.m_right);
 			}
@@ -114,7 +141,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x / 1 -> x
 		if (op.m_token_name == Token::Name::SLASH)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 1ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 1ll))
 			{
 				return std::move(binary.m_left);
 			}
@@ -123,11 +150,11 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x + 0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_PLUS)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
 			{
 				return std::move(binary.m_left);
 			}
-			if (left_int && std::stoll(left_int->m_token.m_lexeme) == 0ll)
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
 				return std::move(binary.m_right);
 			}
@@ -136,7 +163,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x - 0 -> x
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == 0ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
 			{
 				return std::move(binary.m_left);
 			}
@@ -145,7 +172,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// 0 - x -> -x
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
-			if (left_int && std::stoll(left_int->m_token.m_lexeme) == 0ll)
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
 				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_right)));
@@ -155,12 +182,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x * -1 -> -x
 		if (op.m_token_name == Token::Name::STAR)
 		{
-			if (right_int && std::stoll(right_int->m_token.m_lexeme) == -1ll)
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, -1ll))
 			{
 				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_left)));
 			}
-			if (left_int && std::stoll(left_int->m_token.m_lexeme) == -1ll)
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, -1ll))
 			{
 				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_right)));
@@ -170,7 +197,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x * 2^n -> x << n (only if right side is power of 2)
 		if (op.m_token_name == Token::Name::STAR && right_int)
 		{
-			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
+			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
+			if (!right_val_opt.has_value())
+			{
+				return nullptr;
+			}
+			MidoriInteger right_val = right_val_opt.value();
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{
@@ -183,7 +215,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x / 2^n -> x >> n (only if right side is power of 2)
 		if (op.m_token_name == Token::Name::SLASH && right_int)
 		{
-			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
+			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
+			if (!right_val_opt.has_value())
+			{
+				return nullptr;
+			}
+			MidoriInteger right_val = right_val_opt.value();
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{
@@ -196,7 +233,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		// x % 2^n -> x & (2^n - 1)
 		if (op.m_token_name == Token::Name::PERCENT && right_int)
 		{
-			MidoriInteger right_val = std::stoll(right_int->m_token.m_lexeme);
+			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
+			if (!right_val_opt.has_value())
+			{
+				return nullptr;
+			}
+			MidoriInteger right_val = right_val_opt.value();
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{

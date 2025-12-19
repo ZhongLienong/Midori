@@ -158,6 +158,8 @@ public:
 
 	int GetLength() const noexcept;
 
+	int GetByteLength() const noexcept;
+
 	const char* GetCString() const noexcept;
 
 	MidoriText& Pop();
