@@ -17,7 +17,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 {
 	if (m_modules.empty())
 	{
-		return std::unexpected("Cannot link: no modules provided");
+		return std::unexpected("Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)");
 	}
 
 	AssignModuleBaseOffsets();

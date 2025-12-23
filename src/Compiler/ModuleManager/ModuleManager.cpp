@@ -21,6 +21,11 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
+	return GenerateBuildGraphImpl(build_graph);
+}
+
+MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph)
+{
 
 	if (m_main_token_stream.Size() != 0)
 	{
@@ -102,7 +107,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 			TokenStream imported_token_stream = std::move(lex_result.value());
 
 			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str));
-			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraph();
+			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(nested_build_graph_result.error(), line, m_main_file_name));

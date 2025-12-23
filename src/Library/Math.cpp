@@ -5,7 +5,7 @@
 
 extern "C"
 {
-	MIDORI_STDLIB_API void SquareRoot(void** args, void* ret) noexcept
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(SquareRoot)(void** args, void* ret) noexcept
 	{
 		double data;
 		std::memcpy(&data, args, sizeof(double));

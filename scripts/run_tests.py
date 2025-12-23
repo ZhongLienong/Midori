@@ -50,6 +50,7 @@ class TestResult:
     passed: bool
     expected_to_fail: bool
     output: str
+    exit_code: int = 0
     error: Optional[str] = None
     duration_ms: float = 0.0
 
@@ -137,6 +138,7 @@ class TestRunner:
                 passed=passed,
                 expected_to_fail=expected_to_fail,
                 output=output,
+                exit_code=result.returncode,
                 duration_ms=duration_ms
             )
 
@@ -211,6 +213,7 @@ class TestRunner:
         print(f"{status_icon} {test_type} {result.name} {Color.GRAY}({result.duration_ms:.0f}ms){Color.RESET}")
 
         if not result.passed and (self.verbose or show_output):
+            print(f"  {Color.YELLOW}Exit code: {result.exit_code}{Color.RESET}")
             if result.error:
                 print(f"  {Color.RED}Error: {result.error}{Color.RESET}")
             else:

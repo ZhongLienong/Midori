@@ -475,7 +475,7 @@ void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
 	int line = foreign.m_function_name.m_line;
 
 	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
-	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>()))
+	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>() || type.m_return_type->IsType<MidoriType::TextType>()))
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
 		return;

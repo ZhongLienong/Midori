@@ -8,21 +8,19 @@
 #define MIDORI_STDLIB_API
 #endif
 
+#define MIDORI_FFI_FUNC(name) MIDORI_FFI_##name
+
 extern "C"
 {
-	MIDORI_STDLIB_API void Print(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void OverwriteToFile(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void AppendToFile(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void FileExists(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void DeleteFile(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void OpenWriteFile(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void OpenAppendFile(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void CloseFileHandle(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void FlushFileHandle(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void WriteToFileHandle(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void WriteLineToFileHandle(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Print)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(PrintError)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadInput)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadLine)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(WriteFile)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(AppendToFile)(void** args, void* ret) noexcept;
 
-	MIDORI_STDLIB_API void SquareRoot(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(SquareRoot)(void** args, void* ret) noexcept;
 
-	MIDORI_STDLIB_API void GetTime(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetTime)(void** args, void* ret) noexcept;
 }

@@ -36,6 +36,8 @@ public:
 	MidoriResult::ModuleManagerResult GenerateBuildGraph();
 
 private:
+	MidoriResult::ModuleManagerResult GenerateBuildGraphImpl(BuildGraph& build_graph);
+
 	bool HasCircularDependency() const;
 
 	void BuildDependencyGraph(BuildGraph& build_graph);

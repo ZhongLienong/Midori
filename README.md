@@ -200,6 +200,22 @@ def second = counter();  // 2
 - **Type Constraints**: Class constraints with `where`
 - **Type Inference**: Automatic type deduction at instantiation
 
+#### Numeric Limits
+
+**Integer (Int)** - 64-bit signed integer:
+- Maximum value: `9223372036854775807` (2^63 - 1)
+- Minimum value: `-9223372036854775807` (practical limit)
+- **Note**: The literal `-9223372036854775808` (INT64_MIN) causes a parser overflow and should be avoided
+
+**Float** - Double-precision floating point:
+- Range: Approximately ±1.7E+308
+- Precision: ~15-17 decimal digits
+
+**Unicode Text Support**:
+- Full UTF-8 encoding support
+- String length returns code point count (not byte count)
+- Supports multi-byte characters from all Unicode planes
+
 ### Operators
 - **Arithmetic**: `+`, `-`, `*`, `/`, `%`
 - **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`

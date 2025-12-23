@@ -132,139 +132,152 @@ int Lexer::ConsumeAlphaNumeric()
 MidoriResult::TokenResult Lexer::SkipLineComment()
 {
 	ConsumeWhile([this](char c) { return c != '\n'; });
-	return SkipWhitespaceAndComments();
+	return Token(" "s, Token::Name::WHITESPACE, m_line);
 }
 
 MidoriResult::TokenResult Lexer::SkipBlockComment()
 {
 	// Already consumed "/*"
-	if (LookAhead(0) == '*' && LookAhead(1) == '/')
+	while (true)
 	{
-		Advance(); // '*'
-		Advance(); // '/'
-		return SkipWhitespaceAndComments();
-	}
+		if (LookAhead(0) == '*' && LookAhead(1) == '/')
+		{
+			Advance(); // '*'
+			Advance(); // '/'
+			return Token(" "s, Token::Name::WHITESPACE, m_line);
+		}
 
-	if (IsAtEnd(0))
-	{
-		int column = m_current - m_line_start;
-		return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_line, column, m_file_name, m_source_lines));
-	}
+		if (IsAtEnd(0))
+		{
+			int column = m_current - m_line_start;
+			return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_line, column, m_file_name, m_source_lines));
+		}
 
-	if (LookAhead(0) == '\n')
-	{
-		m_line += 1;
-		m_line_start = m_current + 1;
-	}
+		if (LookAhead(0) == '\n')
+		{
+			m_line += 1;
+			m_line_start = m_current + 1;
+		}
 
-	Advance();
-	return SkipBlockComment();
+		Advance();
+	}
 }
 
 MidoriResult::TokenResult Lexer::SkipWhitespaceAndComments()
 {
-	if (IsAtEnd(0))
+	while (true)
 	{
-		return Token(" "s, Token::Name::WHITESPACE, m_line);
-	}
-
-	char c = LookAhead(0);
-
-	switch (c)
-	{
-	case ' ':
-	case '\r':
-	case '\t':
-		Advance();
-		return SkipWhitespaceAndComments();
-	case '\n':
-		m_line += 1;
-		Advance();
-		m_line_start = m_current;
-		return SkipWhitespaceAndComments();
-	case '/':
-		if (LookAhead(1) == '/')
+		if (IsAtEnd(0))
 		{
-			Advance(); // '/'
-			Advance(); // '/'
-			return SkipLineComment();
+			return Token(" "s, Token::Name::WHITESPACE, m_line);
 		}
-		else if (LookAhead(1) == '*')
+
+		char c = LookAhead(0);
+
+		switch (c)
 		{
-			Advance(); // '/'
-			Advance(); // '*'
-			return SkipBlockComment();
+		case ' ':
+		case '\r':
+		case '\t':
+			Advance();
+			continue;
+		case '\n':
+			m_line += 1;
+			Advance();
+			m_line_start = m_current;
+			continue;
+		case '/':
+			if (LookAhead(1) == '/')
+			{
+				Advance(); // '/'
+				Advance(); // '/'
+				(void)SkipLineComment();
+				continue;
+			}
+			else if (LookAhead(1) == '*')
+			{
+				Advance(); // '/'
+				Advance(); // '*'
+				MidoriResult::TokenResult result = SkipBlockComment();
+				if (!result.has_value())
+				{
+					return result;
+				}
+				continue;
+			}
+			return Token(" "s, Token::Name::WHITESPACE, m_line);
+		default:
+			return Token(" "s, Token::Name::WHITESPACE, m_line);
 		}
-		return Token(" "s, Token::Name::WHITESPACE, m_line);
-	default:
-		return Token(" "s, Token::Name::WHITESPACE, m_line);
 	}
 }
 
 MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 {
-	if (IsAtEnd(0))
+	while (true)
 	{
-		int column = m_begin - m_line_start;
-		return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_line, column, m_file_name, m_source_lines));
-	}
-
-	if (LookAhead(0) == '"')
-	{
-		Advance();
-		return MakeToken(Token::Name::TEXT_LITERAL, std::move(acc));
-	}
-
-	if (LookAhead(0) == '\n')
-	{
-		m_line += 1;
-	}
-
-	if (LookAhead(0) == '\\' && !IsAtEnd(1))
-	{
-		char escape_char = LookAhead(1);
-		char escaped_value;
-		bool add_backslash = false;
-
-		switch (escape_char)
+		if (IsAtEnd(0))
 		{
-		case 't':
-			escaped_value = '\t';
-			break;
-		case 'n':
-			escaped_value = '\n';
-			break;
-		case 'b':
-			escaped_value = '\b';
-			break;
-		case 'f':
-			escaped_value = '\f';
-			break;
-		case '"':
-			escaped_value = '"';
-			break;
-		case '\\':
-			escaped_value = '\\';
-			break;
-		default:
-			add_backslash = true;
-			escaped_value = escape_char;
-			break;
+			int column = m_begin - m_line_start;
+			return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_line, column, m_file_name, m_source_lines));
 		}
 
-		if (add_backslash)
+		if (LookAhead(0) == '"')
 		{
-			acc += '\\';
+			Advance();
+			return MakeToken(Token::Name::TEXT_LITERAL, std::move(acc));
 		}
-		acc += escaped_value;
 
-		Advance(); // Skip the backslash
-		Advance(); // Skip the escape character
-		return MatchStringRecursive(std::move(acc));
+		if (LookAhead(0) == '\n')
+		{
+			m_line += 1;
+		}
+
+		if (LookAhead(0) == '\\' && !IsAtEnd(1))
+		{
+			char escape_char = LookAhead(1);
+			char escaped_value;
+			bool add_backslash = false;
+
+			switch (escape_char)
+			{
+			case 't':
+				escaped_value = '\t';
+				break;
+			case 'n':
+				escaped_value = '\n';
+				break;
+			case 'b':
+				escaped_value = '\b';
+				break;
+			case 'f':
+				escaped_value = '\f';
+				break;
+			case '"':
+				escaped_value = '"';
+				break;
+			case '\\':
+				escaped_value = '\\';
+				break;
+			default:
+				add_backslash = true;
+				escaped_value = escape_char;
+				break;
+			}
+
+			if (add_backslash)
+			{
+				acc += '\\';
+			}
+			acc += escaped_value;
+
+			Advance(); // Skip the backslash
+			Advance(); // Skip the escape character
+			continue;
+		}
+
+		acc += Advance();
 	}
-
-	acc += Advance();
-	return MatchStringRecursive(std::move(acc));
 }
 
 MidoriResult::TokenResult Lexer::MatchString()
@@ -437,35 +450,31 @@ Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
 
 MidoriResult::LexerResult Lexer::LexRecursive(TokenStream&& tokens, std::string&& errors)
 {
-	if (IsAtEnd(0))
+	while (!IsAtEnd(0))
 	{
-		if (!errors.empty())
-		{
-			return std::unexpected<std::string>(std::move(errors));
-		}
+		MidoriResult::TokenResult token_result = LexOneToken();
 
-		if (tokens.Size() == 0 || (std::prev(tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
+		if (token_result.has_value())
 		{
-			tokens.AddToken(MakeToken(Token::Name::END_OF_FILE));
+			tokens.AddToken(std::move(token_result.value()));
 		}
-
-		return std::move(tokens);
+		else
+		{
+			errors.append(std::move(token_result.error())).append("\n");
+		}
 	}
 
-	return LexOneToken()
-		.and_then(
-			[this, &tokens, &errors](Token&& token) mutable
-			{
-				return LexRecursive(std::move(tokens.AddToken(std::move(token))), std::move(errors));
-			}
-		)
-		.or_else
-		(
-			[this, &tokens, &errors](std::string&& error) mutable
-			{
-				return LexRecursive(std::move(tokens), std::move(errors.append(std::move(error)).append("\n")));
-			}
-		);
+	if (!errors.empty())
+	{
+		return std::unexpected<std::string>(std::move(errors));
+	}
+
+	if (tokens.Size() == 0 || (std::prev(tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
+	{
+		tokens.AddToken(MakeToken(Token::Name::END_OF_FILE));
+	}
+
+	return std::move(tokens);
 }
 
 MidoriResult::LexerResult Lexer::Lex()

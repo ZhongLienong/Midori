@@ -1,4 +1,4 @@
 module DateTime
 public export { GetTime }
 
-foreign "GetTime" GetTime : fn() -> Float;
+foreign "MIDORI_FFI_GetTime" GetTime : fn() -> Float;

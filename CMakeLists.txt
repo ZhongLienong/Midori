@@ -66,7 +66,6 @@ if (MSVC)
         $<$<CONFIG:Release>:/Gw>        # Optimize global data
         $<$<CONFIG:Release>:/arch:AVX2> # Use AVX2 instructions
         $<$<CONFIG:Release>:/Qpar>      # Auto-parallelization
-        $<$<CONFIG:Release>:/MT>        # Static runtime library
         $<$<CONFIG:Release>:/DNDEBUG>   # NDEBUG macro
     )
 
@@ -157,6 +156,13 @@ else()
 
     # Add source to this project's executable.
     add_executable(Midori ${SRC_FILES})
+
+    # Main executable uses static runtime library in Release
+    if (MSVC)
+        target_compile_options(Midori PRIVATE
+            $<$<CONFIG:Release>:/MT>
+        )
+    endif()
 endif()
 
 # Standard library configuration (skip for WASM builds)
@@ -168,6 +174,15 @@ if(NOT EMSCRIPTEN)
 
     # Add standard library as a dynamically linked library
     add_library(MidoriStdLib SHARED ${STD_LIB_SRC_FILES})
+
+    # DLLs require dynamic runtime library
+    if (MSVC)
+        target_compile_options(MidoriStdLib PRIVATE
+            $<$<CONFIG:Debug>:/MDd>
+            $<$<CONFIG:Development>:/MD>
+            $<$<CONFIG:Release>:/MD>
+        )
+    endif()
 
     # Set the output name for Unix-like systems to follow naming convention
     if (UNIX)

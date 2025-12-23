@@ -1,10 +1,37 @@
 module IO
-public export { Print, OverwriteToFile, AppendToFile, PrintLine }
+public export
+{
+    Print, PrintLine, PrintError, PrintErrorLine,
+    ReadInput, ReadLine,
+    ReadFile, WriteFile, AppendToFile
+}
 
-foreign "Print" Print : fn(Text) -> Unit;
+/*
+* Console Output
+*/
 
-foreign "OverwriteToFile" OverwriteToFile : fn(Text, Text) -> Bool;
-
-foreign "AppendToFile" AppendToFile : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
 
 defun PrintLine(text: Text) : Unit => { Print(text ++ "\n"); };
+
+foreign "MIDORI_FFI_PrintError" PrintError : fn(Text) -> Unit;
+
+defun PrintErrorLine(text: Text) : Unit => { PrintError(text ++ "\n"); };
+
+/*
+* Console Input
+*/
+
+foreign "MIDORI_FFI_ReadInput" ReadInput : fn() -> Text;
+
+foreign "MIDORI_FFI_ReadLine" ReadLine : fn() -> Text;
+
+/*
+* File Operations
+*/
+
+foreign "MIDORI_FFI_ReadFile" ReadFile : fn(Text) -> Text;
+
+foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
+
+foreign "MIDORI_FFI_AppendToFile" AppendToFile : fn(Text, Text) -> Bool;

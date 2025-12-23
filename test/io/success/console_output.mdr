@@ -1,0 +1,19 @@
+import
+{
+    <IO>
+}
+
+// Test basic console output
+IO::Print("Hello, ");
+IO::Print("World!");
+IO::PrintLine("");
+
+// Test PrintLine
+IO::PrintLine("This is a line");
+IO::PrintLine("Another line");
+
+// Test PrintError and PrintErrorLine
+IO::PrintError("Warning: ");
+IO::PrintErrorLine("This goes to stderr");
+
+IO::PrintLine("Console output test completed");

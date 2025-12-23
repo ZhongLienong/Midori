@@ -5,7 +5,7 @@
 
 extern "C"
 {
-	MIDORI_STDLIB_API void GetTime(void**, void* ret) noexcept
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetTime)(void**, void* ret) noexcept
 	{
 		const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 		const std::chrono::time_point now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
