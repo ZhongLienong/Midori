@@ -65,6 +65,38 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void ByteConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		MidoriByte operand = static_cast<MidoriByte>(executable.ReadByteCode(offset + 1, proc_index));
+		offset += 2;
+
+		std::ostringstream formated_str;
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(static_cast<unsigned int>(operand)));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << static_cast<unsigned int>(operand)).str());
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
+	void WordConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		std::byte operand_bytes[8];
+		for (int i = 0; i < 8; i += 1)
+		{
+			operand_bytes[i] = static_cast<std::byte>(executable.ReadByteCode(offset + 1 + i, proc_index));
+		}
+		offset += 9;
+
+		std::ostringstream formated_str;
+		MidoriWord operand = *reinterpret_cast<MidoriWord*>(operand_bytes);
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << operand).str());
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void LoadStringInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -316,6 +348,12 @@ namespace Disassembler
 		case OpCode::FLOAT_CONSTANT:
 			NumericConstantInstruction(false, "FLOAT_CONSTANT", executable, proc_index, offset);
 			break;
+		case OpCode::BYTE_CONSTANT:
+			ByteConstantInstruction("BYTE_CONSTANT", executable, proc_index, offset);
+			break;
+		case OpCode::WORD_CONSTANT:
+			WordConstantInstruction("WORD_CONSTANT", executable, proc_index, offset);
+			break;
 		case OpCode::OP_UNIT:
 			SimpleInstruction("OP_UNIT", offset);
 			break;
@@ -400,11 +438,53 @@ namespace Disassembler
 		case OpCode::INT_TO_TEXT:
 			SimpleInstruction("INT_TO_TEXT", offset);
 			break;
+		case OpCode::BYTE_TO_INT:
+			SimpleInstruction("BYTE_TO_INT", offset);
+			break;
+		case OpCode::INT_TO_BYTE:
+			SimpleInstruction("INT_TO_BYTE", offset);
+			break;
+		case OpCode::BYTE_TO_WORD:
+			SimpleInstruction("BYTE_TO_WORD", offset);
+			break;
+		case OpCode::WORD_TO_BYTE:
+			SimpleInstruction("WORD_TO_BYTE", offset);
+			break;
+		case OpCode::WORD_TO_INT:
+			SimpleInstruction("WORD_TO_INT", offset);
+			break;
+		case OpCode::INT_TO_WORD:
+			SimpleInstruction("INT_TO_WORD", offset);
+			break;
+		case OpCode::BYTE_TO_FLOAT:
+			SimpleInstruction("BYTE_TO_FLOAT", offset);
+			break;
+		case OpCode::FLOAT_TO_BYTE:
+			SimpleInstruction("FLOAT_TO_BYTE", offset);
+			break;
+		case OpCode::WORD_TO_FLOAT:
+			SimpleInstruction("WORD_TO_FLOAT", offset);
+			break;
+		case OpCode::FLOAT_TO_WORD:
+			SimpleInstruction("FLOAT_TO_WORD", offset);
+			break;
 		case OpCode::LEFT_SHIFT:
 			SimpleInstruction("LEFT_SHIFT", offset);
 			break;
 		case OpCode::RIGHT_SHIFT:
 			SimpleInstruction("RIGHT_SHIFT", offset);
+			break;
+		case OpCode::LEFT_SHIFT_BYTE:
+			SimpleInstruction("LEFT_SHIFT_BYTE", offset);
+			break;
+		case OpCode::RIGHT_SHIFT_BYTE:
+			SimpleInstruction("RIGHT_SHIFT_BYTE", offset);
+			break;
+		case OpCode::LEFT_SHIFT_WORD:
+			SimpleInstruction("LEFT_SHIFT_WORD", offset);
+			break;
+		case OpCode::RIGHT_SHIFT_WORD:
+			SimpleInstruction("RIGHT_SHIFT_WORD", offset);
 			break;
 		case OpCode::BITWISE_AND:
 			SimpleInstruction("BITWISE_AND", offset);
@@ -447,6 +527,36 @@ namespace Disassembler
 			break;
 		case OpCode::MODULO_INTEGER:
 			SimpleInstruction("MODULO_INTEGER", offset);
+			break;
+		case OpCode::ADD_BYTE:
+			SimpleInstruction("ADD_BYTE", offset);
+			break;
+		case OpCode::SUBTRACT_BYTE:
+			SimpleInstruction("SUBTRACT_BYTE", offset);
+			break;
+		case OpCode::MULTIPLY_BYTE:
+			SimpleInstruction("MULTIPLY_BYTE", offset);
+			break;
+		case OpCode::DIVIDE_BYTE:
+			SimpleInstruction("DIVIDE_BYTE", offset);
+			break;
+		case OpCode::MODULO_BYTE:
+			SimpleInstruction("MODULO_BYTE", offset);
+			break;
+		case OpCode::ADD_WORD:
+			SimpleInstruction("ADD_WORD", offset);
+			break;
+		case OpCode::SUBTRACT_WORD:
+			SimpleInstruction("SUBTRACT_WORD", offset);
+			break;
+		case OpCode::MULTIPLY_WORD:
+			SimpleInstruction("MULTIPLY_WORD", offset);
+			break;
+		case OpCode::DIVIDE_WORD:
+			SimpleInstruction("DIVIDE_WORD", offset);
+			break;
+		case OpCode::MODULO_WORD:
+			SimpleInstruction("MODULO_WORD", offset);
 			break;
 		case OpCode::CONCAT_ARRAY:
 			SimpleInstruction("CONCAT_ARRAY", offset);
@@ -546,6 +656,42 @@ namespace Disassembler
 			break;
 		case OpCode::LESS_EQUAL_INTEGER:
 			SimpleInstruction("LESS_EQUAL_INTEGER", offset);
+			break;
+		case OpCode::EQUAL_BYTE:
+			SimpleInstruction("EQUAL_BYTE", offset);
+			break;
+		case OpCode::NOT_EQUAL_BYTE:
+			SimpleInstruction("NOT_EQUAL_BYTE", offset);
+			break;
+		case OpCode::GREATER_BYTE:
+			SimpleInstruction("GREATER_BYTE", offset);
+			break;
+		case OpCode::GREATER_EQUAL_BYTE:
+			SimpleInstruction("GREATER_EQUAL_BYTE", offset);
+			break;
+		case OpCode::LESS_BYTE:
+			SimpleInstruction("LESS_BYTE", offset);
+			break;
+		case OpCode::LESS_EQUAL_BYTE:
+			SimpleInstruction("LESS_EQUAL_BYTE", offset);
+			break;
+		case OpCode::EQUAL_WORD:
+			SimpleInstruction("EQUAL_WORD", offset);
+			break;
+		case OpCode::NOT_EQUAL_WORD:
+			SimpleInstruction("NOT_EQUAL_WORD", offset);
+			break;
+		case OpCode::GREATER_WORD:
+			SimpleInstruction("GREATER_WORD", offset);
+			break;
+		case OpCode::GREATER_EQUAL_WORD:
+			SimpleInstruction("GREATER_EQUAL_WORD", offset);
+			break;
+		case OpCode::LESS_WORD:
+			SimpleInstruction("LESS_WORD", offset);
+			break;
+		case OpCode::LESS_EQUAL_WORD:
+			SimpleInstruction("LESS_EQUAL_WORD", offset);
 			break;
 		case OpCode::EQUAL_TEXT:
 			SimpleInstruction("EQUAL_TEXT", offset);

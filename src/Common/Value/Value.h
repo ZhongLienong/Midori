@@ -29,6 +29,8 @@ class MidoriText;
 
 using MidoriInteger = int64_t;
 using MidoriFloat = double;
+using MidoriByte = uint8_t;
+using MidoriWord = uint64_t;
 using MidoriUnit = std::monostate;
 using MidoriBool = bool;
 
@@ -79,6 +81,8 @@ private:
 	{
 		FLOAT = 0,
 		INT,
+		BYTE,
+		WORD,
 		BOOL,
 		POINTER,
 		UNIT,
@@ -94,6 +98,10 @@ public:
 	MidoriValue(MidoriFloat d) noexcept;
 
 	MidoriValue(MidoriInteger l) noexcept;
+
+	MidoriValue(MidoriByte byte) noexcept;
+
+	MidoriValue(MidoriWord word) noexcept;
 
 	MidoriValue(MidoriBool b) noexcept;
 
@@ -111,6 +119,10 @@ public:
 
 	MidoriInteger GetInteger() const noexcept;
 
+	MidoriByte GetByte() const noexcept;
+
+	MidoriWord GetWord() const noexcept;
+
 	MidoriUnit GetUnit() const noexcept;
 
 	MidoriBool GetBool() const noexcept;
@@ -119,6 +131,16 @@ public:
 
 #if MIDORI_DEBUG_INFO
 	MidoriText ToText() const;
+
+	bool IsPointer() const noexcept
+	{
+		return m_tag == POINTER;
+	}
+
+	DebugTypeTag GetTag() const noexcept
+	{
+		return m_tag;
+	}
 #endif
 };
 
@@ -129,7 +151,7 @@ template<typename T>
 concept MidoriTraceableConstructible = std::constructible_from<MidoriTraceable, T>;
 
 template <typename T>
-concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriInteger>;
+concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriInteger> || std::same_as<T, MidoriByte> || std::same_as<T, MidoriWord>;
 
 class MidoriText
 {

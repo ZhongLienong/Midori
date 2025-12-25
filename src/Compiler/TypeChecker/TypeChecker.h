@@ -178,6 +178,10 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::IntegerLiteral& integer);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::ByteLiteral& byte_literal);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::WordLiteral& word_literal);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::UnitLiteral& unit);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Function& function);

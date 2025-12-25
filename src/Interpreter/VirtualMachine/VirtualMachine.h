@@ -72,6 +72,10 @@ private:
 
 	MidoriFloat ReadFloatConstant() noexcept;
 
+	MidoriByte ReadByteConstant() noexcept;
+
+	MidoriWord ReadWordConstant() noexcept;
+
 	int ReadGlobalVariable() noexcept;
 
 	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;

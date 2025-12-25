@@ -44,6 +44,16 @@ MidoriExpression::IntegerLiteral::IntegerLiteral(const Token& token)
 {
 }
 
+MidoriExpression::ByteLiteral::ByteLiteral(const Token& token)
+	: m_token(token)
+{
+}
+
+MidoriExpression::WordLiteral::WordLiteral(const Token& token)
+	: m_token(token)
+{
+}
+
 MidoriExpression::UnitLiteral::UnitLiteral(const Token& token)
 	: m_token(token)
 {

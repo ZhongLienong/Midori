@@ -1,0 +1,54 @@
+// Basic Byte Type Tests
+import { "../../MidoriPrelude/IO.mdr" }
+
+IO::PrintLine("=== Byte Basic Operations Test ===");
+
+// Arithmetic
+def b1: Byte = 0x64;  // 100
+def b2: Byte = 0x32;  // 50
+def b_add: Byte = b1 + b2;
+def b_sub: Byte = b1 - b2;
+def b_mul: Byte = 0x0A * 0x05;  // 10 * 5
+def b_div: Byte = b1 / 0x04;  // 100 / 4
+def b_mod: Byte = b1 % 0x07;  // 100 % 7
+
+IO::Print("Addition (100 + 50): ");
+IO::PrintLine(b_add as Text);
+IO::Print("Subtraction (100 - 50): ");
+IO::PrintLine(b_sub as Text);
+IO::Print("Multiplication (10 * 5): ");
+IO::PrintLine(b_mul as Text);
+IO::Print("Division (100 / 4): ");
+IO::PrintLine(b_div as Text);
+IO::Print("Modulo (100 % 7): ");
+IO::PrintLine(b_mod as Text);
+
+// Comparisons
+IO::PrintLine("");
+IO::PrintLine("=== Comparisons ===");
+def cmp1: Bool = b1 > b2;
+def cmp2: Bool = b1 < b2;
+def cmp3: Bool = b1 == 0x64;
+def cmp4: Bool = b1 != b2;
+
+IO::Print("100 > 50: ");
+if cmp1 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+IO::Print("100 < 50: ");
+if cmp2 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+IO::Print("100 == 100: ");
+if cmp3 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+IO::Print("100 != 50: ");
+if cmp4 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+
+// Overflow
+IO::PrintLine("");
+IO::PrintLine("=== Overflow Behavior ===");
+def overflow: Byte = 0xFF + 0x01;  // 255 + 1 = 0
+def underflow: Byte = 0x00 - 0x01;  // 0 - 1 = 255
+
+IO::Print("255 + 1 (wrap to 0): ");
+IO::PrintLine(overflow as Text);
+IO::Print("0 - 1 (wrap to 255): ");
+IO::PrintLine(underflow as Text);
+
+IO::PrintLine("=== Test Complete ===");

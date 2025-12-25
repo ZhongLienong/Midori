@@ -8,6 +8,8 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	// types
 	{"Float"s, Token::Name::FLOAT},
 	{"Int"s, Token::Name::INTEGER},
+	{"Byte"s, Token::Name::BYTE},
+	{"Word"s, Token::Name::WORD},
 	{"Text"s, Token::Name::TEXT},
 	{"Bool"s, Token::Name::BOOL},
 	{"Unit"s, Token::Name::UNIT},
@@ -287,14 +289,30 @@ MidoriResult::TokenResult Lexer::MatchString()
 
 MidoriResult::TokenResult Lexer::MatchNumber()
 {
-	ConsumeDigits();
+	if (LookAhead(-1) == '0' && (LookAhead(0) == 'x' || LookAhead(0) == 'X'))
+	{
+		Advance();
+		ConsumeWhile([](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); });
+		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
+	}
+	else if (LookAhead(-1) == '0' && (LookAhead(0) == 'b' || LookAhead(0) == 'B'))
+	{
+		Advance(); 
+		ConsumeWhile([](char c) { return c == '0' || c == '1'; });
+		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
+	}
+	else
+	{
+		// Normal decimal number
+		ConsumeDigits();
 
-	// Look for a decimal part.
-	bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
+		// Look for a decimal part.
+		bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
 
-	return (is_float
-		? (Advance(), ConsumeDigits(), MakeTokenResult(Token::Name::FLOAT_LITERAL))
-		: MakeTokenResult(Token::Name::INTEGER_LITERAL));
+		return (is_float
+			? (Advance(), ConsumeDigits(), MakeTokenResult(Token::Name::FLOAT_LITERAL))
+			: MakeTokenResult(Token::Name::INTEGER_LITERAL));
+	}
 }
 
 MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()

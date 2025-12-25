@@ -154,6 +154,22 @@ MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 {
 }
 
+MidoriValue::MidoriValue(MidoriByte byte) noexcept
+	: m_data{ .m_integer = static_cast<MidoriInteger>(byte) }
+#if MIDORI_DEBUG_INFO
+	, m_tag(BYTE)
+#endif
+{
+}
+
+MidoriValue::MidoriValue(MidoriWord word) noexcept
+	: m_data{ .m_integer = static_cast<MidoriInteger>(word) }
+#if MIDORI_DEBUG_INFO
+	, m_tag(WORD)
+#endif
+{
+}
+
 MidoriValue::MidoriValue(MidoriBool b) noexcept
 	: m_data{ .m_bool = b }
 #if MIDORI_DEBUG_INFO
@@ -178,6 +194,16 @@ MidoriFloat MidoriValue::GetFloat() const noexcept
 MidoriInteger MidoriValue::GetInteger() const noexcept
 {
 	return m_data.m_integer;
+}
+
+MidoriByte MidoriValue::GetByte() const noexcept
+{
+	return static_cast<MidoriByte>(m_data.m_integer & 0xFF);
+}
+
+MidoriWord MidoriValue::GetWord() const noexcept
+{
+	return static_cast<MidoriWord>(m_data.m_integer);
 }
 
 MidoriUnit MidoriValue::GetUnit() const noexcept
@@ -205,6 +231,10 @@ MidoriText MidoriValue::ToText() const
 		return MidoriText::FromFloat(GetFloat());
 	case MidoriValue::INT:
 		return MidoriText::FromInteger(GetInteger());
+	case MidoriValue::BYTE:
+		return MidoriText::FromInteger(static_cast<MidoriInteger>(GetByte()));
+	case MidoriValue::WORD:
+		return MidoriText::FromInteger(static_cast<MidoriInteger>(GetWord()));
 	case MidoriValue::BOOL:
 		return GetBool() ? "true" : "false";
 	case MidoriValue::UNIT:

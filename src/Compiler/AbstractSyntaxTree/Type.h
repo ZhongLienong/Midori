@@ -31,6 +31,8 @@ public:
 
 	struct FloatType {};
 	struct IntegerType {};
+	struct ByteType {};
+	struct WordType {};
 	struct TextType {};
 	struct BoolType {};
 	struct UnitType {};
@@ -101,6 +103,8 @@ public:
 		TypeVariable,
 		FloatType,
 		IntegerType,
+		ByteType,
+		WordType,
 		TextType,
 		BoolType,
 		UnitType,
@@ -140,6 +144,8 @@ public:
 	template<typename T>
 	requires std::is_same_v<T, FloatType> ||
 	         std::is_same_v<T, IntegerType> ||
+	         std::is_same_v<T, ByteType> ||
+	         std::is_same_v<T, WordType> ||
 	         std::is_same_v<T, BoolType> ||
 	         std::is_same_v<T, TextType> ||
 	         std::is_same_v<T, UnitType> ||

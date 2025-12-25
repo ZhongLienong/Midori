@@ -199,6 +199,24 @@ MidoriFloat VirtualMachine::ReadFloatConstant() noexcept
 	return std::bit_cast<MidoriFloat>(bits);
 }
 
+MidoriByte VirtualMachine::ReadByteConstant() noexcept
+{
+	MidoriByte value = static_cast<MidoriByte>(*m_instruction_pointer);
+	m_instruction_pointer += sizeof(MidoriByte);
+	return value;
+}
+
+MidoriWord VirtualMachine::ReadWordConstant() noexcept
+{
+	uint64_t bits = 0u;
+	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+	bits = std::byteswap(bits);
+#endif
+	m_instruction_pointer += sizeof(MidoriWord);
+	return bits;
+}
+
 int VirtualMachine::ReadGlobalVariable() noexcept
 {
 	int index = static_cast<int>(ReadByte());
@@ -491,6 +509,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(ReadFloatConstant());
 			break;
 		}
+		case OpCode::BYTE_CONSTANT:
+		{
+			Push(ReadByteConstant());
+			break;
+		}
+		case OpCode::WORD_CONSTANT:
+		{
+			Push(ReadWordConstant());
+			break;
+		}
 		case OpCode::OP_UNIT:
 		{
 			Push(MidoriValue());
@@ -754,6 +782,56 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek() = m_garbage_collector.AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()), PointerTag::TEXT);
 			break;
 		}
+		case OpCode::BYTE_TO_INT:
+		{
+			Peek() = static_cast<MidoriInteger>(Peek().GetByte());
+			break;
+		}
+		case OpCode::INT_TO_BYTE:
+		{
+			Peek() = static_cast<MidoriByte>(Peek().GetInteger() & 0xFF);
+			break;
+		}
+		case OpCode::BYTE_TO_WORD:
+		{
+			Peek() = static_cast<MidoriWord>(Peek().GetByte());
+			break;
+		}
+		case OpCode::WORD_TO_BYTE:
+		{
+			Peek() = static_cast<MidoriByte>(Peek().GetWord() & 0xFF);
+			break;
+		}
+		case OpCode::WORD_TO_INT:
+		{
+			Peek() = static_cast<MidoriInteger>(Peek().GetWord());
+			break;
+		}
+		case OpCode::INT_TO_WORD:
+		{
+			Peek() = static_cast<MidoriWord>(Peek().GetInteger());
+			break;
+		}
+		case OpCode::BYTE_TO_FLOAT:
+		{
+			Peek() = static_cast<MidoriFloat>(Peek().GetByte());
+			break;
+		}
+		case OpCode::FLOAT_TO_BYTE:
+		{
+			Peek() = static_cast<MidoriByte>(Peek().GetFloat());
+			break;
+		}
+		case OpCode::WORD_TO_FLOAT:
+		{
+			Peek() = static_cast<MidoriFloat>(Peek().GetWord());
+			break;
+		}
+		case OpCode::FLOAT_TO_WORD:
+		{
+			Peek() = static_cast<MidoriWord>(Peek().GetFloat());
+			break;
+		}
 		case OpCode::LEFT_SHIFT:
 		{
 			MidoriValue right = Pop();
@@ -768,6 +846,42 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue& left = Peek();
 
 			left = left.GetInteger() >> right.GetInteger();
+
+			break;
+		}
+		case OpCode::LEFT_SHIFT_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() << right.GetByte());
+
+			break;
+		}
+		case OpCode::RIGHT_SHIFT_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() >> right.GetByte());
+
+			break;
+		}
+		case OpCode::LEFT_SHIFT_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() << right.GetWord();
+
+			break;
+		}
+		case OpCode::RIGHT_SHIFT_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() >> right.GetWord();
 
 			break;
 		}
@@ -893,6 +1007,96 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue& left = Peek();
 
 			left = left.GetInteger() % right.GetInteger();
+
+			break;
+		}
+		case OpCode::ADD_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() + right.GetByte());
+
+			break;
+		}
+		case OpCode::SUBTRACT_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() - right.GetByte());
+
+			break;
+		}
+		case OpCode::MULTIPLY_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() * right.GetByte());
+
+			break;
+		}
+		case OpCode::DIVIDE_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() / right.GetByte());
+
+			break;
+		}
+		case OpCode::MODULO_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = static_cast<MidoriByte>(left.GetByte() % right.GetByte());
+
+			break;
+		}
+		case OpCode::ADD_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() + right.GetWord();
+
+			break;
+		}
+		case OpCode::SUBTRACT_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() - right.GetWord();
+
+			break;
+		}
+		case OpCode::MULTIPLY_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() * right.GetWord();
+
+			break;
+		}
+		case OpCode::DIVIDE_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() / right.GetWord();
+
+			break;
+		}
+		case OpCode::MODULO_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() % right.GetWord();
 
 			break;
 		}
@@ -1202,6 +1406,114 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
+		case OpCode::EQUAL_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() == right.GetByte();
+
+			break;
+		}
+		case OpCode::NOT_EQUAL_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() != right.GetByte();
+
+			break;
+		}
+		case OpCode::GREATER_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() > right.GetByte();
+
+			break;
+		}
+		case OpCode::GREATER_EQUAL_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() >= right.GetByte();
+
+			break;
+		}
+		case OpCode::LESS_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() < right.GetByte();
+
+			break;
+		}
+		case OpCode::LESS_EQUAL_BYTE:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetByte() <= right.GetByte();
+
+			break;
+		}
+		case OpCode::EQUAL_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() == right.GetWord();
+
+			break;
+		}
+		case OpCode::NOT_EQUAL_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() != right.GetWord();
+
+			break;
+		}
+		case OpCode::GREATER_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() > right.GetWord();
+
+			break;
+		}
+		case OpCode::GREATER_EQUAL_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() >= right.GetWord();
+
+			break;
+		}
+		case OpCode::LESS_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() < right.GetWord();
+
+			break;
+		}
+		case OpCode::LESS_EQUAL_WORD:
+		{
+			MidoriValue right = Pop();
+			MidoriValue& left = Peek();
+
+			left = left.GetWord() <= right.GetWord();
+
+			break;
+		}
 		case OpCode::EQUAL_TEXT:
 		{
 			MidoriValue right = Pop();
@@ -1477,6 +1789,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MidoriValue foreign_function_name = Pop();
 			int arity = static_cast<int>(ReadByte());
+
+#if MIDORI_DEBUG_INFO
+			if (!foreign_function_name.IsPointer())
+			{
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
+			}
+#endif
+
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
 #ifdef __EMSCRIPTEN__
@@ -1527,6 +1847,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
 
+#if MIDORI_DEBUG_INFO
+			if (!callable.IsPointer())
+			{
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
 			// Return address: pop all the arguments and the callee
 			PushCallFrame(m_value_stack_base_pointer, m_value_stack_pointer - arity, m_instruction_pointer, m_curr_environment);
 
@@ -1542,6 +1869,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
+
+#if MIDORI_DEBUG_INFO
+			if (!callable.IsPointer())
+			{
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
 
 			// Move arguments down to base pointer
 			MidoriValue* args_source = m_value_stack_pointer - arity;

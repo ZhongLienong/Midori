@@ -107,6 +107,8 @@ struct Token
 		// types
 		FLOAT,
 		INTEGER,
+		BYTE,
+		WORD,
 		TEXT,
 		BOOL,
 		UNIT,

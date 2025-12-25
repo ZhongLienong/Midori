@@ -97,6 +97,10 @@ protected:
 
 	virtual void operator()(MidoriExpression::IntegerLiteral& integer);
 
+	virtual void operator()(MidoriExpression::ByteLiteral& byte_literal);
+
+	virtual void operator()(MidoriExpression::WordLiteral& word_literal);
+
 	virtual void operator()(MidoriExpression::UnitLiteral& unit);
 
 	virtual void operator()(MidoriExpression::Function& function);

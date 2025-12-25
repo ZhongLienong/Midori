@@ -232,6 +232,20 @@ public:
 		IntegerLiteral(const Token& token);
 	};
 
+	struct ByteLiteral : BaseExpression
+	{
+		Token m_token;
+
+		ByteLiteral(const Token& token);
+	};
+
+	struct WordLiteral : BaseExpression
+	{
+		Token m_token;
+
+		WordLiteral(const Token& token);
+	};
+
 	struct UnitLiteral : BaseExpression
 	{
 		Token m_token;
@@ -506,7 +520,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:

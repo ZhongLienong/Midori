@@ -306,6 +306,20 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IntegerLiteral&
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ByteLiteral& byte_literal, int depth) const
+{
+	PrintWithIndentation(depth, "Byte {");
+	PrintWithIndentation(depth + 1, "Value: " + byte_literal.m_token.m_lexeme);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::WordLiteral& word_literal, int depth) const
+{
+	PrintWithIndentation(depth, "Word {");
+	PrintWithIndentation(depth + 1, "Value: " + word_literal.m_token.m_lexeme);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnitLiteral&, int depth) const
 {
 	PrintWithIndentation(depth, "()");

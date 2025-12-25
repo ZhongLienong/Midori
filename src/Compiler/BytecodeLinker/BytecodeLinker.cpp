@@ -316,13 +316,14 @@ void BytecodeLinker::ConcatenateBytecode()
 							int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 
 
+
 							if (IsImportIndex(old_global_index))
 							{
 								size_t import_array_index = ConvertImportIndex(old_global_index);
 								if (import_array_index < import_resolved_indices.size())
 								{
 									size_t resolved_index = import_resolved_indices[import_array_index];
-									procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
+										procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
 								}
 							}
 							else
@@ -486,9 +487,13 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 
 int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream& procedure, int offset) const
 {
-	if (opcode == OpCode::INTEGER_CONSTANT || opcode == OpCode::FLOAT_CONSTANT)
+	if (opcode == OpCode::INTEGER_CONSTANT || opcode == OpCode::FLOAT_CONSTANT || opcode == OpCode::WORD_CONSTANT)
 	{
 		return 9;
+	}
+	else if (opcode == OpCode::BYTE_CONSTANT)
+	{
+		return 2;
 	}
 	else if (opcode == OpCode::CREATE_ARRAY)
 	{

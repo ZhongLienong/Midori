@@ -1522,7 +1522,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				}
 
 				// Check for built-in primitive conversions
-				if ((expr_type->IsType<MidoriType::IntegerType>() && (as.m_to_type->IsType<MidoriType::FloatType>() || as.m_to_type->IsType<MidoriType::TextType>())) || (expr_type->IsType<MidoriType::FloatType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::TextType>())) || (expr_type->IsType<MidoriType::TextType>() && (as.m_to_type->IsType<MidoriType::IntegerType>() || as.m_to_type->IsType<MidoriType::FloatType>())))
+				bool const is_from_int = expr_type->IsType<MidoriType::IntegerType>();
+				bool const is_from_float = expr_type->IsType<MidoriType::FloatType>();
+				bool const is_from_text = expr_type->IsType<MidoriType::TextType>();
+				bool const is_from_byte = expr_type->IsType<MidoriType::ByteType>();
+				bool const is_from_word = expr_type->IsType<MidoriType::WordType>();
+
+				bool const is_to_int = as.m_to_type->IsType<MidoriType::IntegerType>();
+				bool const is_to_float = as.m_to_type->IsType<MidoriType::FloatType>();
+				bool const is_to_text = as.m_to_type->IsType<MidoriType::TextType>();
+				bool const is_to_byte = as.m_to_type->IsType<MidoriType::ByteType>();
+				bool const is_to_word = as.m_to_type->IsType<MidoriType::WordType>();
+
+				if ((is_from_int && (is_to_float || is_to_text || is_to_byte || is_to_word)) ||
+					(is_from_float && (is_to_int || is_to_text || is_to_byte || is_to_word)) ||
+					(is_from_text && (is_to_int || is_to_float)) ||
+					(is_from_byte && (is_to_int || is_to_float || is_to_word || is_to_text)) ||
+					(is_from_word && (is_to_int || is_to_float || is_to_byte || is_to_text)))
 				{
 					is_builtin_conversion = true;
 				}
@@ -1559,6 +1575,29 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 					(
 						[&left_type, &binary, this](std::shared_ptr<MidoriType>&& right_type) ->MidoriResult::TypeResult
 						{
+							// Special handling for shift operators: right operand must be Int, left can be Int/Byte/Word
+							if (binary.m_op.m_token_name == Token::Name::LEFT_SHIFT || binary.m_op.m_token_name == Token::Name::RIGHT_SHIFT)
+							{
+								std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
+								std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
+
+								// Right operand (shift amount) must be Int
+								if (!resolved_right->IsType<MidoriType::IntegerType>() && !resolved_right->IsType<MidoriType::TypeVariable>())
+								{
+									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", binary.m_op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+								}
+
+								// Left operand must be Int, Byte, or Word
+								if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
+								{
+									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", binary.m_op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+								}
+
+								// Result type is the same as left operand type
+								binary.m_type_data = left_type;
+								return binary.m_type_data;
+							}
+
 							return Unify(binary.m_op, left_type, right_type)
 								.and_then
 								(
@@ -1602,9 +1641,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										else if (std::ranges::contains(m_binary_bitwise_operators.cbegin(), m_binary_bitwise_operators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
+											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::ByteType>() && !resolved_self->IsType<MidoriType::WordType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 											}
 										}
 										else if (std::ranges::contains(m_binary_equality_operators.cbegin(), m_binary_equality_operators.cend(), binary.m_op.m_token_name))
@@ -2286,6 +2325,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IntegerLitera
 {
 	integer.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 	return integer.m_type_data;
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ByteLiteral& byte_literal)
+{
+	byte_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
+	return byte_literal.m_type_data;
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::WordLiteral& word_literal)
+{
+	word_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
+	return word_literal.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnitLiteral& unit)

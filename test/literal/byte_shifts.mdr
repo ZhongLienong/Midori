@@ -1,0 +1,45 @@
+// Byte Shift Operations Test
+import { "../../MidoriPrelude/IO.mdr" }
+
+// Define all test values first
+def b1: Byte = 0x01;  // 1
+def b2: Byte = 0xFF;  // 255
+def b3: Byte = 0x80;  // 128
+
+// Left shifts
+def left1: Byte = b1 <~ 4;  // 1 << 4 = 16
+def left2: Byte = b1 <~ 7;  // 1 << 7 = 128
+def left3: Byte = b2 <~ 1;  // 255 << 1 = 254 (wraps)
+
+// Right shifts
+def right1: Byte = b3 ~> 1;  // 128 >> 1 = 64
+def right2: Byte = b3 ~> 4;  // 128 >> 4 = 8
+def right3: Byte = b1 ~> 1;  // 1 >> 1 = 0
+
+// Shift by Int variable
+def shift_amount: Int = 3;
+def shift_var: Byte = 0x08 <~ shift_amount;  // 8 << 3 = 64
+
+// Now perform all output
+IO::PrintLine("=== Byte Shift Operations Test ===");
+
+IO::Print("Left shift: 1 << 4 = ");
+IO::PrintLine(left1 as Text);
+IO::Print("Left shift: 1 << 7 = ");
+IO::PrintLine(left2 as Text);
+IO::Print("Left shift: 255 << 1 (wrap) = ");
+IO::PrintLine(left3 as Text);
+
+IO::PrintLine("");
+IO::Print("Right shift: 128 >> 1 = ");
+IO::PrintLine(right1 as Text);
+IO::Print("Right shift: 128 >> 4 = ");
+IO::PrintLine(right2 as Text);
+IO::Print("Right shift: 1 >> 1 = ");
+IO::PrintLine(right3 as Text);
+
+IO::PrintLine("");
+IO::Print("Shift by variable: 8 << 3 = ");
+IO::PrintLine(shift_var as Text);
+
+IO::PrintLine("=== Test Complete ===");

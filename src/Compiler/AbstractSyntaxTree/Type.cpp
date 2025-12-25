@@ -214,6 +214,14 @@ std::string MidoriType::ToString() const
 			{
 				return "Int"s;
 			}
+			else if constexpr (std::is_same_v<Type, ByteType>)
+			{
+				return "Byte"s;
+			}
+			else if constexpr (std::is_same_v<Type, WordType>)
+			{
+				return "Word"s;
+			}
 			else if constexpr (std::is_same_v<Type, TextType>)
 			{
 				return "Text"s;
@@ -324,7 +332,7 @@ std::string MidoriType::DemangleInstanceMethodName(const std::string& mangled_na
 
 bool MidoriType::IsNumericType() const
 {
-	return IsType<FloatType>() || IsType<IntegerType>();
+	return IsType<FloatType>() || IsType<IntegerType>() || IsType<ByteType>() || IsType<WordType>();
 }
 
 bool MidoriType::CompareGenericStructs(const StructType& a, const StructType& b)

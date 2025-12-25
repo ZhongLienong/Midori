@@ -165,6 +165,14 @@ void MidoriOptimizer::operator()(MidoriExpression::IntegerLiteral&)
 {
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::ByteLiteral&)
+{
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::WordLiteral&)
+{
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::UnitLiteral&)
 {
 }

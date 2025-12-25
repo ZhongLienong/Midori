@@ -195,6 +195,188 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 		Token result_token(std::move(result), Token::Name::TEXT_LITERAL, op.m_line);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(result_token));
 	}
+	else if (binary.m_left->IsExpression<MidoriExpression::ByteLiteral>() && binary.m_right->IsExpression<MidoriExpression::ByteLiteral>())
+	{
+		MidoriByte left_val = static_cast<MidoriByte>(std::stoul(binary.m_left->GetExpression<MidoriExpression::ByteLiteral>().m_token.m_lexeme, nullptr, 0));
+		MidoriByte right_val = static_cast<MidoriByte>(std::stoul(binary.m_right->GetExpression<MidoriExpression::ByteLiteral>().m_token.m_lexeme, nullptr, 0));
+		MidoriByte result = 0;
+
+		switch (op.m_token_name)
+		{
+		case Token::Name::SINGLE_PLUS:
+			result = left_val + right_val;
+			break;
+		case Token::Name::SINGLE_MINUS:
+			result = left_val - right_val;
+			break;
+		case Token::Name::STAR:
+			result = left_val * right_val;
+			break;
+		case Token::Name::SLASH:
+			if (right_val == 0)
+			{
+				return;
+			}
+			result = left_val / right_val;
+			break;
+		case Token::Name::PERCENT:
+			if (right_val == 0)
+			{
+				return;
+			}
+			result = left_val % right_val;
+			break;
+		case Token::Name::LEFT_SHIFT:
+			result = left_val << right_val;
+			break;
+		case Token::Name::RIGHT_SHIFT:
+			result = left_val >> right_val;
+			break;
+		case Token::Name::SINGLE_AMPERSAND:
+			result = left_val & right_val;
+			break;
+		case Token::Name::SINGLE_BAR:
+			result = left_val | right_val;
+			break;
+		case Token::Name::CARET:
+			result = left_val ^ right_val;
+			break;
+		default:
+			if (op.m_token_name == Token::Name::LEFT_ANGLE || op.m_token_name == Token::Name::RIGHT_ANGLE || op.m_token_name == Token::Name::LESS_EQUAL || op.m_token_name == Token::Name::GREATER_EQUAL || op.m_token_name == Token::Name::DOUBLE_EQUAL || op.m_token_name == Token::Name::BANG_EQUAL)
+			{
+				bool bool_result = false;
+				switch (op.m_token_name)
+				{
+				case Token::Name::LEFT_ANGLE:
+					bool_result = left_val < right_val;
+					break;
+				case Token::Name::RIGHT_ANGLE:
+					bool_result = left_val > right_val;
+					break;
+				case Token::Name::LESS_EQUAL:
+					bool_result = left_val <= right_val;
+					break;
+				case Token::Name::GREATER_EQUAL:
+					bool_result = left_val >= right_val;
+					break;
+				case Token::Name::DOUBLE_EQUAL:
+					bool_result = left_val == right_val;
+					break;
+				case Token::Name::BANG_EQUAL:
+					bool_result = left_val != right_val;
+					break;
+				default:
+					break;
+				}
+
+				if (bool_result)
+				{
+					Token result_token("true", Token::Name::TRUE, op.m_line);
+					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
+				}
+				else
+				{
+					Token result_token("false", Token::Name::FALSE, op.m_line);
+					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
+				}
+				return;
+			}
+		}
+
+		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(result_token));
+	}
+	else if (binary.m_left->IsExpression<MidoriExpression::WordLiteral>() && binary.m_right->IsExpression<MidoriExpression::WordLiteral>())
+	{
+		MidoriWord left_val = std::stoull(binary.m_left->GetExpression<MidoriExpression::WordLiteral>().m_token.m_lexeme, nullptr, 0);
+		MidoriWord right_val = std::stoull(binary.m_right->GetExpression<MidoriExpression::WordLiteral>().m_token.m_lexeme, nullptr, 0);
+		MidoriWord result = 0;
+
+		switch (op.m_token_name)
+		{
+		case Token::Name::SINGLE_PLUS:
+			result = left_val + right_val;
+			break;
+		case Token::Name::SINGLE_MINUS:
+			result = left_val - right_val;
+			break;
+		case Token::Name::STAR:
+			result = left_val * right_val;
+			break;
+		case Token::Name::SLASH:
+			if (right_val == 0)
+			{
+				return;
+			}
+			result = left_val / right_val;
+			break;
+		case Token::Name::PERCENT:
+			if (right_val == 0)
+			{
+				return;
+			}
+			result = left_val % right_val;
+			break;
+		case Token::Name::LEFT_SHIFT:
+			result = left_val << right_val;
+			break;
+		case Token::Name::RIGHT_SHIFT:
+			result = left_val >> right_val;
+			break;
+		case Token::Name::SINGLE_AMPERSAND:
+			result = left_val & right_val;
+			break;
+		case Token::Name::SINGLE_BAR:
+			result = left_val | right_val;
+			break;
+		case Token::Name::CARET:
+			result = left_val ^ right_val;
+			break;
+		default:
+			if (op.m_token_name == Token::Name::LEFT_ANGLE || op.m_token_name == Token::Name::RIGHT_ANGLE || op.m_token_name == Token::Name::LESS_EQUAL || op.m_token_name == Token::Name::GREATER_EQUAL || op.m_token_name == Token::Name::DOUBLE_EQUAL || op.m_token_name == Token::Name::BANG_EQUAL)
+			{
+				bool bool_result = false;
+				switch (op.m_token_name)
+				{
+				case Token::Name::LEFT_ANGLE:
+					bool_result = left_val < right_val;
+					break;
+				case Token::Name::RIGHT_ANGLE:
+					bool_result = left_val > right_val;
+					break;
+				case Token::Name::LESS_EQUAL:
+					bool_result = left_val <= right_val;
+					break;
+				case Token::Name::GREATER_EQUAL:
+					bool_result = left_val >= right_val;
+					break;
+				case Token::Name::DOUBLE_EQUAL:
+					bool_result = left_val == right_val;
+					break;
+				case Token::Name::BANG_EQUAL:
+					bool_result = left_val != right_val;
+					break;
+				default:
+					break;
+				}
+
+				if (bool_result)
+				{
+					Token result_token("true", Token::Name::TRUE, op.m_line);
+					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
+				}
+				else
+				{
+					Token result_token("false", Token::Name::FALSE, op.m_line);
+					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
+				}
+				return;
+			}
+		}
+
+		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(result_token));
+	}
 	else if (binary.m_left->IsExpression<MidoriExpression::BoolLiteral>() && binary.m_right->IsExpression<MidoriExpression::BoolLiteral>())
 	{
 		MidoriBool left_val = (binary.m_left->GetExpression<MidoriExpression::BoolLiteral>().m_token.m_token_name == Token::Name::TRUE);
@@ -274,6 +456,26 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 		MidoriFloat result = -val;
 		Token result_token(std::to_string(result), Token::Name::FLOAT_LITERAL, op.m_line);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(result_token));
+	}
+	else if (unary.m_expr->IsExpression<MidoriExpression::ByteLiteral>())
+	{
+		MidoriByte val = static_cast<MidoriByte>(std::stoul(unary.m_expr->GetExpression<MidoriExpression::ByteLiteral>().m_token.m_lexeme, nullptr, 0));
+		if (op.m_token_name == Token::Name::TILDE)
+		{
+			MidoriByte result = ~val;
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(result_token));
+		}
+	}
+	else if (unary.m_expr->IsExpression<MidoriExpression::WordLiteral>())
+	{
+		MidoriWord val = std::stoull(unary.m_expr->GetExpression<MidoriExpression::WordLiteral>().m_token.m_lexeme, nullptr, 0);
+		if (op.m_token_name == Token::Name::TILDE)
+		{
+			MidoriWord result = ~val;
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(result_token));
+		}
 	}
 	else if (unary.m_expr->IsExpression<MidoriExpression::BoolLiteral>())
 	{

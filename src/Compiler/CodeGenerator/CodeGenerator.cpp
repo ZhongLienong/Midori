@@ -122,6 +122,33 @@ void CodeGenerator::EmitIntegerConstant(MidoriInteger value, int line)
 	}
 }
 
+void CodeGenerator::EmitByteConstant(MidoriByte value, int line)
+{
+	EmitByte(OpCode::BYTE_CONSTANT, line);
+	EmitByte(static_cast<OpCode>(value), line);
+}
+
+void CodeGenerator::EmitWordConstant(MidoriWord value, int line)
+{
+	EmitByte(OpCode::WORD_CONSTANT, line);
+	int byte1 = value & BYTE_MASK;
+	int byte2 = (value >> SHIFT_8_BITS) & BYTE_MASK;
+	int byte3 = (value >> SHIFT_16_BITS) & BYTE_MASK;
+	int byte4 = (value >> SHIFT_24_BITS) & BYTE_MASK;
+	int byte5 = (value >> SHIFT_32_BITS) & BYTE_MASK;
+	int byte6 = (value >> SHIFT_40_BITS) & BYTE_MASK;
+	int byte7 = (value >> SHIFT_48_BITS) & BYTE_MASK;
+	int byte8 = (value >> SHIFT_56_BITS) & BYTE_MASK;
+	EmitByte(static_cast<OpCode>(byte1), line);
+	EmitByte(static_cast<OpCode>(byte2), line);
+	EmitByte(static_cast<OpCode>(byte3), line);
+	EmitByte(static_cast<OpCode>(byte4), line);
+	EmitByte(static_cast<OpCode>(byte5), line);
+	EmitByte(static_cast<OpCode>(byte6), line);
+	EmitByte(static_cast<OpCode>(byte7), line);
+	EmitByte(static_cast<OpCode>(byte8), line);
+}
+
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 {
 	if (variable_index <= MAX_LOCAL_VARIABLES)
@@ -636,6 +663,14 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		{
 			EmitByte(OpCode::TEXT_TO_FLOAT, line);
 		}
+		else if (from_type->IsType<MidoriType::ByteType>())
+		{
+			EmitByte(OpCode::BYTE_TO_FLOAT, line);
+		}
+		else if (from_type->IsType<MidoriType::WordType>())
+		{
+			EmitByte(OpCode::WORD_TO_FLOAT, line);
+		}
 		else if (from_type->IsType<MidoriType::FloatType>())
 		{
 			// Do nothing
@@ -655,6 +690,14 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		{
 			EmitByte(OpCode::TEXT_TO_INT, line);
 		}
+		else if (from_type->IsType<MidoriType::ByteType>())
+		{
+			EmitByte(OpCode::BYTE_TO_INT, line);
+		}
+		else if (from_type->IsType<MidoriType::WordType>())
+		{
+			EmitByte(OpCode::WORD_TO_INT, line);
+		}
 		else if (from_type->IsType<MidoriType::IntegerType>())
 		{
 			// Do nothing
@@ -662,6 +705,52 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		else
 		{
 			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to int' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+		}
+	}
+	else if (target_type->IsType<MidoriType::ByteType>())
+	{
+		if (from_type->IsType<MidoriType::IntegerType>())
+		{
+			EmitByte(OpCode::INT_TO_BYTE, line);
+		}
+		else if (from_type->IsType<MidoriType::WordType>())
+		{
+			EmitByte(OpCode::WORD_TO_BYTE, line);
+		}
+		else if (from_type->IsType<MidoriType::FloatType>())
+		{
+			EmitByte(OpCode::FLOAT_TO_BYTE, line);
+		}
+		else if (from_type->IsType<MidoriType::ByteType>())
+		{
+			// Do nothing
+		}
+		else
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to byte' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+		}
+	}
+	else if (target_type->IsType<MidoriType::WordType>())
+	{
+		if (from_type->IsType<MidoriType::IntegerType>())
+		{
+			EmitByte(OpCode::INT_TO_WORD, line);
+		}
+		else if (from_type->IsType<MidoriType::ByteType>())
+		{
+			EmitByte(OpCode::BYTE_TO_WORD, line);
+		}
+		else if (from_type->IsType<MidoriType::FloatType>())
+		{
+			EmitByte(OpCode::FLOAT_TO_WORD, line);
+		}
+		else if (from_type->IsType<MidoriType::WordType>())
+		{
+			// Do nothing
+		}
+		else
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to word' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::UnitType>())
@@ -676,6 +765,16 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else if (from_type->IsType<MidoriType::IntegerType>())
 		{
+			EmitByte(OpCode::INT_TO_TEXT, line);
+		}
+		else if (from_type->IsType<MidoriType::ByteType>())
+		{
+			EmitByte(OpCode::BYTE_TO_INT, line);
+			EmitByte(OpCode::INT_TO_TEXT, line);
+		}
+		else if (from_type->IsType<MidoriType::WordType>())
+		{
+			EmitByte(OpCode::WORD_TO_INT, line);
 			EmitByte(OpCode::INT_TO_TEXT, line);
 		}
 		else if (from_type->IsType<MidoriType::TextType>())
@@ -723,53 +822,92 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		switch (binary.m_op.m_token_name)
 		{
 		case Token::Name::SINGLE_PLUS:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line) : EmitByte(OpCode::ADD_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::ADD_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::ADD_WORD, line)
+				: EmitByte(OpCode::ADD_INTEGER, line);
 			break;
 		case Token::Name::DOUBLE_PLUS:
 			operand_type->IsType<MidoriType::TextType>() ? EmitByte(OpCode::CONCAT_TEXT, line) : EmitByte(OpCode::CONCAT_ARRAY, line);
 			break;
 		case Token::Name::SINGLE_MINUS:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line) : EmitByte(OpCode::SUBTRACT_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::SUBTRACT_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::SUBTRACT_WORD, line)
+				: EmitByte(OpCode::SUBTRACT_INTEGER, line);
 			break;
 		case Token::Name::STAR:
 			operand_type->IsType<MidoriType::FloatType>()
 				? EmitByte(OpCode::MULTIPLY_FLOAT, line)
 				: operand_type->IsType<MidoriType::IntegerType>()
 				? EmitByte(OpCode::MULTIPLY_INTEGER, line)
+				: operand_type->IsType<MidoriType::ByteType>()
+				? EmitByte(OpCode::MULTIPLY_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>()
+				? EmitByte(OpCode::MULTIPLY_WORD, line)
 				: EmitByte(OpCode::DUP_ARRAY, line);
 			break;
 		case Token::Name::SLASH:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line) : EmitByte(OpCode::DIVIDE_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::DIVIDE_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::DIVIDE_WORD, line)
+				: EmitByte(OpCode::DIVIDE_INTEGER, line);
 			break;
 		case Token::Name::PERCENT:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line) : EmitByte(OpCode::MODULO_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::MODULO_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::MODULO_WORD, line)
+				: EmitByte(OpCode::MODULO_INTEGER, line);
 			break;
 		case Token::Name::LEFT_SHIFT:
-			EmitByte(OpCode::LEFT_SHIFT, line);
+			operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LEFT_SHIFT_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LEFT_SHIFT_WORD, line)
+				: EmitByte(OpCode::LEFT_SHIFT, line);
 			break;
 		case Token::Name::RIGHT_SHIFT:
-			EmitByte(OpCode::RIGHT_SHIFT, line);
+			operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::RIGHT_SHIFT_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::RIGHT_SHIFT_WORD, line)
+				: EmitByte(OpCode::RIGHT_SHIFT, line);
 			break;
 		case Token::Name::LEFT_ANGLE:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line) : EmitByte(OpCode::LESS_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_WORD, line)
+				: EmitByte(OpCode::LESS_INTEGER, line);
 			break;
 		case Token::Name::LESS_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line) : EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_EQUAL_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_EQUAL_WORD, line)
+				: EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
 			break;
 		case Token::Name::RIGHT_ANGLE:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line) : EmitByte(OpCode::GREATER_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_WORD, line)
+				: EmitByte(OpCode::GREATER_INTEGER, line);
 			break;
 		case Token::Name::GREATER_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line) : EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_EQUAL_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_EQUAL_WORD, line)
+				: EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
 			break;
 		case Token::Name::BANG_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line) : EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line)
+				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::NOT_EQUAL_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::NOT_EQUAL_WORD, line)
+				: EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
 			break;
 		case Token::Name::DOUBLE_EQUAL:
 			operand_type->IsType<MidoriType::FloatType>()
 				? EmitByte(OpCode::EQUAL_FLOAT, line)
 				: operand_type->IsType<MidoriType::IntegerType>()
 				? EmitByte(OpCode::EQUAL_INTEGER, line)
+				: operand_type->IsType<MidoriType::ByteType>()
+				? EmitByte(OpCode::EQUAL_BYTE, line)
+				: operand_type->IsType<MidoriType::WordType>()
+				? EmitByte(OpCode::EQUAL_WORD, line)
 				: operand_type->IsType<MidoriType::TextType>()
 				? EmitByte(OpCode::EQUAL_TEXT, line)
 				: EmitByte(OpCode::EQUAL_INTEGER, line); // This remaining case is bool, we just treat them as integers
@@ -1306,6 +1444,74 @@ void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
 	catch (const std::invalid_argument&)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid integer literal '" + integer.m_token.m_lexeme + "'", integer.m_token, m_file_name, m_source_lines));
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::ByteLiteral& byte_literal)
+{
+	int line = byte_literal.m_token.m_line;
+	const std::string& lexeme = byte_literal.m_token.m_lexeme;
+	try
+	{
+		uint64_t value = 0u;
+		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+		{
+			value = std::stoull(lexeme, nullptr, 16);
+		}
+		else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+		{
+			value = std::stoull(lexeme, nullptr, 2);
+		}
+		else
+		{
+			value = std::stoull(lexeme);
+		}
+
+		if (value > 0xFF)
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + lexeme + "' is out of range. Maximum value is 255 (0xFF).", byte_literal.m_token, m_file_name, m_source_lines));
+			return;
+		}
+		EmitByteConstant(static_cast<MidoriByte>(value), line);
+	}
+	catch (const std::out_of_range&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + lexeme + "' is out of range. Maximum value is 255 (0xFF).", byte_literal.m_token, m_file_name, m_source_lines));
+	}
+	catch (const std::invalid_argument&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid byte literal '" + lexeme + "'", byte_literal.m_token, m_file_name, m_source_lines));
+	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::WordLiteral& word_literal)
+{
+	int line = word_literal.m_token.m_line;
+	const std::string& lexeme = word_literal.m_token.m_lexeme;
+	try
+	{
+		uint64_t value = 0u;
+		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+		{
+			value = std::stoull(lexeme, nullptr, 16);
+		}
+		else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+		{
+			value = std::stoull(lexeme, nullptr, 2);
+		}
+		else
+		{
+			value = std::stoull(lexeme);
+		}
+		EmitWordConstant(value, line);
+	}
+	catch (const std::out_of_range&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Word literal '" + lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", word_literal.m_token, m_file_name, m_source_lines));
+	}
+	catch (const std::invalid_argument&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid word literal '" + lexeme + "'", word_literal.m_token, m_file_name, m_source_lines));
 	}
 }
 

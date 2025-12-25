@@ -116,6 +116,10 @@ private:
 
 	void EmitIntegerConstant(MidoriInteger value, int line);
 
+	void EmitByteConstant(MidoriByte value, int line);
+
+	void EmitWordConstant(MidoriWord value, int line);
+
 	void EmitVariable(int variable_index, OpCode op, int line);
 
 	int EmitJump(OpCode op, int line);
@@ -183,6 +187,10 @@ private:
 	void operator()(MidoriExpression::FloatLiteral& float_literal);
 
 	void operator()(MidoriExpression::IntegerLiteral& integer);
+
+	void operator()(MidoriExpression::ByteLiteral& byte_literal);
+
+	void operator()(MidoriExpression::WordLiteral& word_literal);
 
 	void operator()(MidoriExpression::UnitLiteral& unit);
 

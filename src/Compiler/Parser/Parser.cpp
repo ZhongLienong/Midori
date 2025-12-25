@@ -1300,7 +1300,44 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(Previous()));
+		Token& token = Previous();
+		const std::string& lexeme = token.m_lexeme;
+
+		// Check if it's a hex or binary literal
+		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+		{
+			uint64_t value = 0u;
+			if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
+			{
+				value = std::stoull(lexeme, nullptr, 16);
+			}
+			else
+			{
+				value = std::stoull(lexeme, nullptr, 2);
+			}
+
+			// Determine type based on value
+			if (value <= 0xFF)
+			{
+				// Fits in Byte (0-255)
+				return std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(token));
+			}
+			else if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+			{
+				// Fits in signed Int
+				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(token));
+			}
+			else
+			{
+				// Needs Word (unsigned 64-bit)
+				return std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(token));
+			}
+		}
+		else
+		{
+			// Decimal literal - keep as IntegerLiteral for backwards compatibility
+			return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(token));
+		}
 	}
 	else if (Match(Token::Name::TEXT_LITERAL))
 	{
@@ -3016,6 +3053,14 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 	else if (Match(Token::Name::INTEGER))
 	{
 		return MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	}
+	else if (Match(Token::Name::BYTE))
+	{
+		return MidoriType::MakeLiteralType<MidoriType::ByteType>();
+	}
+	else if (Match(Token::Name::WORD))
+	{
+		return MidoriType::MakeLiteralType<MidoriType::WordType>();
 	}
 	else if (Match(Token::Name::BOOL))
 	{

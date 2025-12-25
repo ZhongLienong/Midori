@@ -56,6 +56,10 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::IntegerLiteral& integer, int depth = 0) const;
 
+	void operator()(const MidoriExpression::ByteLiteral& byte_literal, int depth = 0) const;
+
+	void operator()(const MidoriExpression::WordLiteral& word_literal, int depth = 0) const;
+
 	void operator()(const MidoriExpression::UnitLiteral&, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Function& closure, int depth = 0) const;
