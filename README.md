@@ -242,6 +242,237 @@ The `MidoriPrelude` directory contains standard modules:
 - **Array.mdr** - Array utilities
 - **DateTime.mdr** - Timing and date operations
 
+## Foreign Function Interface (FFI)
+
+Midori supports calling external C/C++ functions through its Foreign Function Interface, enabling integration with native libraries and system APIs.
+
+### Declaring Foreign Functions
+
+Use the `foreign` keyword to declare external functions:
+
+```midori
+// Declare a foreign function
+foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+
+// With multiple parameters
+foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
+
+// Returning complex types
+foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+```
+
+### Supported Types
+
+**Primitive Types** (passed by value):
+- `Int` (64-bit signed integer)
+- `Float` (64-bit double)
+- `Bool` (boolean)
+- `Byte` (8-bit unsigned integer)
+- `Word` (64-bit unsigned integer)
+- `Unit` (empty/void)
+
+**Heap Types** (automatically marshalled):
+- `Text` - VM passes C-string pointer, FFI returns `malloc`'d C-string
+- `Array<T>` - VM passes struct pointer, FFI returns struct pointer
+
+### FFI Function Signature
+
+All FFI functions must follow this signature:
+
+```cpp
+extern "C" {
+    MIDORI_STDLIB_API void MIDORI_FFI_FunctionName(void** args, void* ret) noexcept;
+}
+```
+
+**Parameters:**
+- `args`: Array of pointers to arguments (indexed by parameter position)
+- `ret`: Pointer to 8-byte return value buffer
+
+### Type Marshalling
+
+#### Primitive Types
+
+**Receiving Arguments:**
+```cpp
+// Int, Float, Byte, Word
+int64_t value;
+std::memcpy(&value, args[0], sizeof(int64_t));
+
+// Bool
+bool flag;
+std::memcpy(&flag, args[0], sizeof(bool));
+```
+
+**Returning Values:**
+```cpp
+// Int
+int64_t result = 42;
+std::memcpy(ret, &result, sizeof(int64_t));
+
+// Bool
+bool success = true;
+std::memcpy(ret, &success, sizeof(bool));
+
+// Unit (void)
+std::memset(ret, 0, sizeof(double));
+```
+
+#### Text Type
+
+**Receiving Text Arguments:**
+```cpp
+// VM passes const char* directly
+const char* str = reinterpret_cast<const char*>(args[0]);
+```
+
+**Returning Text:**
+```cpp
+// Allocate with malloc (NOT new)
+char* result = static_cast<char*>(std::malloc(size));
+std::memcpy(result, data, size);
+
+// Return pointer as int64_t
+const int64_t ptr = reinterpret_cast<int64_t>(result);
+std::memcpy(ret, &ptr, sizeof(int64_t));
+
+// VM will copy to GC memory and free() the result
+```
+
+#### Array Type
+
+**Receiving Array Arguments:**
+```cpp
+struct ArrayArgument {
+    void* data;    // Pointer to array of MidoriValue (8 bytes each)
+    int length;    // Number of elements
+};
+
+ArrayArgument* array = reinterpret_cast<ArrayArgument*>(args[0]);
+double* elements = reinterpret_cast<double*>(array->data);
+
+// Access elements
+for (int i = 0; i < array->length; i++) {
+    int64_t value;
+    std::memcpy(&value, &elements[i], sizeof(double));
+    // Use value...
+}
+```
+
+**Returning Arrays:**
+```cpp
+struct FFIArray {
+    void* data;    // Pointer to array of doubles (8 bytes each)
+    int length;
+};
+
+// Allocate array data
+double* array_data = static_cast<double*>(std::malloc(length * sizeof(double)));
+
+// Fill array
+for (int i = 0; i < length; i++) {
+    int64_t value = i * 10;
+    std::memcpy(&array_data[i], &value, sizeof(double));
+}
+
+// Allocate return struct
+FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
+result->data = array_data;
+result->length = length;
+
+// Return pointer
+const int64_t ptr = reinterpret_cast<int64_t>(result);
+std::memcpy(ret, &ptr, sizeof(int64_t));
+
+// VM will copy to GC memory and free both struct and data
+```
+
+### Memory Management Rules
+
+**Critical Rules:**
+
+1. **Use `malloc`/`free`, NOT `new`/`delete`**: FFI allocations are freed by the VM using `std::free()`
+
+2. **Heap Returns are Copied**: VM copies FFI-allocated Text/Array data into GC-managed memory, then immediately frees FFI allocation
+
+3. **No GC Access**: FFI functions cannot access the VM's garbage collector or internal types
+
+4. **8-Byte Limit**: All return values must fit in 8 bytes (`sizeof(double)`)
+
+**Memory Flow:**
+```
+FFI: malloc() → return pointer
+ ↓
+VM: copy to GC memory → free() FFI allocation
+ ↓
+GC: manage lifetime
+```
+
+### Complete Example
+
+**Midori Declaration:**
+```midori
+// In your module
+foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+
+// Usage
+def data = ReadBinaryFile("file.bin");
+IO::Print((data[0] as Int) as Text);
+```
+
+**C++ Implementation:**
+```cpp
+#include "Library/MidoriStdLibExports.h"
+#include <fstream>
+#include <vector>
+
+extern "C" {
+    MIDORI_STDLIB_API void MIDORI_FFI_ReadBinaryFile(void** args, void* ret) noexcept
+    {
+        struct FFIArray {
+            void* data;
+            int length;
+        };
+
+        const char* file_path = reinterpret_cast<const char*>(args[0]);
+
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            const int64_t null_ptr = 0;
+            std::memcpy(ret, &null_ptr, sizeof(int64_t));
+            return;
+        }
+
+        // Read file
+        file.seekg(0, std::ios::end);
+        const std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        std::vector<char> buffer(size);
+        file.read(buffer.data(), size);
+
+        // Allocate array (MidoriValue = 8 bytes each)
+        double* array_data = static_cast<double*>(
+            std::malloc(size * sizeof(double))
+        );
+
+        // Convert bytes to array elements
+        for (std::streamsize i = 0; i < size; i++) {
+            const int64_t byte = static_cast<uint8_t>(buffer[i]);
+            std::memcpy(&array_data[i], &byte, sizeof(double));
+        }
+
+        // Create return struct
+        FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
+        result->data = array_data;
+        result->length = static_cast<int>(size);
+
+        const int64_t ptr = reinterpret_cast<int64_t>(result);
+        std::memcpy(ret, &ptr, sizeof(int64_t));
+    }
+}
+```
+
 ## Development
 
 ### Building Midori
@@ -342,26 +573,6 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
         default =>
             new List::Nil()
     ;
-};
-```
-
-### Quicksort
-```midori
-defun quicksort(arr: Array<Int>) : Array<Int> => {
-    if arr == [] then return [];
-
-    def pivot = arr[0];
-    def less = [];
-    def greater = [];
-
-    for i in 1..1..((arr |> length) - 1) {
-        if arr[i] < pivot then
-            less = less ++ [arr[i]]
-        else
-            greater = greater ++ [arr[i]];
-    };
-
-    return quicksort(less) ++ [pivot] ++ quicksort(greater);
 };
 ```
 

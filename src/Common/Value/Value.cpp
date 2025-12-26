@@ -546,6 +546,25 @@ MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
 	return result;
 }
 
+MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
+{
+	MidoriArray result;
+	if (ffi_allocated_data == nullptr || length <= 0)
+	{
+		std::free(ffi_allocated_data);
+		return result;
+	}
+
+	result.m_size = (length < s_initial_capacity) ? s_initial_capacity : length;
+	result.m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(result.m_size) * sizeof(MidoriValue)));
+	result.m_end = length;
+
+	std::memcpy(result.m_data, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MidoriValue));
+	std::free(ffi_allocated_data);
+
+	return result;
+}
+
 MidoriRange::MidoriRange(MidoriValue start, MidoriValue end, MidoriValue step, bool is_float)
 	: m_start(start), m_end(end), m_step(step), m_is_float(is_float)
 {
@@ -571,9 +590,9 @@ bool MidoriRange::IsFloat() const
 	return m_is_float;
 }
 
-MidoriText::MidoriText() 
-	: m_data(m_small_buffer), 
-	m_size(0), 
+MidoriText::MidoriText()
+	: m_data(m_small_buffer),
+	m_size(0),
 	m_capacity(INLINE_THRESHOLD)
 {
 	m_small_buffer[0u] = '\0';
@@ -581,22 +600,22 @@ MidoriText::MidoriText()
 
 MidoriText::MidoriText(const char* str)
 {
-	if (!str) 
+	if (!str)
 	{
 		m_data = m_small_buffer;
 		m_size = 0;
 		m_capacity = INLINE_THRESHOLD;
 		m_small_buffer[0u] = '\0';
 	}
-	else 
+	else
 	{
 		m_size = static_cast<int>(std::strlen(str));
-		if (m_size <= INLINE_THRESHOLD) 
+		if (m_size <= INLINE_THRESHOLD)
 		{
 			m_data = m_small_buffer;
 			m_capacity = INLINE_THRESHOLD;
 		}
-		else 
+		else
 		{
 			m_capacity = m_size;
 			m_data = static_cast<char*>(std::malloc(m_capacity + 1));
@@ -606,15 +625,15 @@ MidoriText::MidoriText(const char* str)
 	}
 }
 
-MidoriText::MidoriText(const MidoriText& other) 
-	: m_size(other.m_size) 
+MidoriText::MidoriText(const MidoriText& other)
+	: m_size(other.m_size)
 {
-	if (other.IsInlined()) 
+	if (other.IsInlined())
 	{
 		m_data = m_small_buffer;
 		m_capacity = INLINE_THRESHOLD;
 	}
-	else 
+	else
 	{
 		m_capacity = other.m_capacity;
 		m_data = static_cast<char*>(std::malloc(m_capacity + 1));
@@ -623,17 +642,17 @@ MidoriText::MidoriText(const MidoriText& other)
 	m_data[m_size] = '\0';
 }
 
-MidoriText::MidoriText(MidoriText&& other) noexcept 
+MidoriText::MidoriText(MidoriText&& other) noexcept
 	: m_size(other.m_size),
-	m_capacity(other.m_capacity) 
+	m_capacity(other.m_capacity)
 {
-	if (other.IsInlined()) 
+	if (other.IsInlined())
 	{
 		m_data = m_small_buffer;
 		m_capacity = INLINE_THRESHOLD;
 		std::memcpy(m_small_buffer, other.m_small_buffer, sizeof(char) * (m_size + 1));
 	}
-	else 
+	else
 	{
 		m_data = other.m_data;
 		other.m_data = other.m_small_buffer;
@@ -643,7 +662,7 @@ MidoriText::MidoriText(MidoriText&& other) noexcept
 	other.m_small_buffer[0u] = '\0';
 }
 
-MidoriText& MidoriText::operator=(const MidoriText& other) 
+MidoriText& MidoriText::operator=(const MidoriText& other)
 {
 	if (this == &other)
 	{
@@ -651,20 +670,20 @@ MidoriText& MidoriText::operator=(const MidoriText& other)
 	}
 
 	m_size = other.m_size;
-	if (other.IsInlined()) 
+	if (other.IsInlined())
 	{
-		if (!IsInlined()) 
+		if (!IsInlined())
 		{
 			std::free(m_data);
 		}
 		m_data = m_small_buffer;
 		m_capacity = INLINE_THRESHOLD;
 	}
-	else 
+	else
 	{
-		if (other.m_size > m_capacity) 
+		if (other.m_size > m_capacity)
 		{
-			if (!IsInlined()) 
+			if (!IsInlined())
 			{
 				std::free(m_data);
 			}
@@ -677,27 +696,27 @@ MidoriText& MidoriText::operator=(const MidoriText& other)
 	return *this;
 }
 
-MidoriText& MidoriText::operator=(MidoriText&& other) noexcept 
+MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
 {
-	if (this == &other) 
+	if (this == &other)
 	{
 		return *this;
 	}
 
-	if (!IsInlined()) 
+	if (!IsInlined())
 	{
 		std::free(m_data);
 	}
 
 	m_size = other.m_size;
 	m_capacity = other.m_capacity;
-	if (other.IsInlined()) 
+	if (other.IsInlined())
 	{
 		m_data = m_small_buffer;
 		m_capacity = INLINE_THRESHOLD;
 		std::memcpy(m_small_buffer, other.m_small_buffer, sizeof(char) * (m_size + 1));
 	}
-	else 
+	else
 	{
 		m_data = other.m_data;
 		other.m_data = other.m_small_buffer;
@@ -708,9 +727,9 @@ MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
 	return *this;
 }
 
-MidoriText::~MidoriText() 
+MidoriText::~MidoriText()
 {
-	if (!IsInlined()) 
+	if (!IsInlined() && m_data != nullptr)
 	{
 		std::free(m_data);
 	}
@@ -895,6 +914,18 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 	std::memcpy(result.m_data + byte_len_a, b.GetCString(), sizeof(char) * byte_len_b);
 	result.m_data[total_byte_len] = '\0';
 	result.m_size = total_byte_len;
+	return result;
+}
+
+MidoriText MidoriText::FromFFI(char* ffi_allocated_string)
+{
+	if (ffi_allocated_string == nullptr)
+	{
+		return MidoriText();
+	}
+
+	MidoriText result(ffi_allocated_string);
+	std::free(ffi_allocated_string);
 	return result;
 }
 

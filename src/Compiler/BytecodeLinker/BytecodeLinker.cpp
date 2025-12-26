@@ -527,6 +527,10 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		int case_count = static_cast<int>(procedure.ReadByteCode(offset + 1));
 		return 2 + (case_count * 2);
 	}
+	else if (opcode == OpCode::CALL_FOREIGN)
+	{
+		return 3;
+	}
 	else if
 	(
 		opcode == OpCode::ALLOCATE_CLOSURE ||
@@ -539,7 +543,6 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		opcode == OpCode::GET_CELL ||
 		opcode == OpCode::SET_CELL ||
 		opcode == OpCode::CALL_DEFINED ||
-		opcode == OpCode::CALL_FOREIGN ||
 		opcode == OpCode::CONSTRUCT_CLOSURE ||
 		opcode == OpCode::GET_MEMBER ||
 		opcode == OpCode::SET_MEMBER ||

@@ -3,7 +3,8 @@ public export
 {
     Print, PrintLine, PrintError, PrintErrorLine,
     ReadInput, ReadLine,
-    ReadFile, WriteFile, AppendToFile
+    ReadFile, WriteFile, AppendToFile,
+    ReadBinaryFile, WriteBinaryFile
 }
 
 /*
@@ -35,3 +36,11 @@ foreign "MIDORI_FFI_ReadFile" ReadFile : fn(Text) -> Text;
 foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
 
 foreign "MIDORI_FFI_AppendToFile" AppendToFile : fn(Text, Text) -> Bool;
+
+/*
+* Binary File Operations
+*/
+
+foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+
+foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFile : fn(Text, Array<Byte>) -> Bool;

@@ -1789,6 +1789,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MidoriValue foreign_function_name = Pop();
 			int arity = static_cast<int>(ReadByte());
+			uint8_t return_type = static_cast<uint8_t>(ReadByte());
 
 #if MIDORI_DEBUG_INFO
 			if (!foreign_function_name.IsPointer())
@@ -1814,6 +1815,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
 			}
 
+			struct ArrayArgument
+			{
+				void* data;
+				int length;
+			};
+
+			std::vector<ArrayArgument> array_arg_storage;
 			void* args[UINT8_MAX];
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
@@ -1827,6 +1835,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 					{
 						args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
 					}
+					else if (ptr->IsTraceable<MidoriArray>())
+					{
+						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
+						ArrayArgument array_arg;
+						array_arg.data = &array[0u];
+						array_arg.length = array.GetLength();
+						array_arg_storage.push_back(array_arg);
+						args[static_cast<size_t>(idx)] = &array_arg_storage.back();
+					}
 				}
 				else
 				{
@@ -1838,7 +1855,49 @@ int VirtualMachine::ExecuteLoop() noexcept
 			void(*ffi)(void**, void*) = reinterpret_cast<void(*)(void**, void*)>(proc);
 			ffi(args, reinterpret_cast<void*>(&return_val));
 
-			Push(return_val);
+			if (return_type == 1)
+			{
+				int64_t ptr_val = return_val.GetInteger();
+				if (ptr_val == 0)
+				{
+					Push(m_garbage_collector.AllocateTraceable("", PointerTag::TEXT));
+				}
+				else
+				{
+					char* ffi_string = reinterpret_cast<char*>(ptr_val);
+					Push(m_garbage_collector.AllocateTraceable(ffi_string, PointerTag::TEXT));
+					std::free(ffi_string);
+				}
+			}
+			else if (return_type == 2)
+			{
+				struct FFIArray
+				{
+					void* data;
+					int length;
+				};
+
+				int64_t ptr_val = return_val.GetInteger();
+				if (ptr_val == 0)
+				{
+					Push(m_garbage_collector.AllocateTraceable(MidoriArray(), PointerTag::ARRAY));
+				}
+				else
+				{
+					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
+					MidoriValue* ffi_array_data = static_cast<MidoriValue*>(ffi_array->data);
+					int length = ffi_array->length;
+
+					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
+					Push(m_garbage_collector.AllocateTraceable(std::move(wrapped_array), PointerTag::ARRAY));
+
+					std::free(ffi_array);
+				}
+			}
+			else
+			{
+				Push(return_val);
+			}
 
 			break;
 		}
@@ -2125,6 +2184,27 @@ int VirtualMachine::ExecuteLoop() noexcept
 	}
 }
 
+#ifdef _WIN32
+struct ExceptionInfo
+{
+	ULONG_PTR exception_address;
+	ULONG_PTR fault_address;
+	bool captured;
+};
+
+static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* out_info)
+{
+	if (ex_info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION)
+	{
+		out_info->exception_address = (ULONG_PTR)ex_info->ExceptionRecord->ExceptionAddress;
+		out_info->fault_address = ex_info->ExceptionRecord->ExceptionInformation[1];
+		out_info->captured = true;
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int VirtualMachine::Execute() noexcept
 {
 #ifndef __EMSCRIPTEN__
@@ -2148,18 +2228,48 @@ int VirtualMachine::Execute() noexcept
 
 #ifdef _WIN32
 	// Structured exception handling for guard page access violations (stack overflow)
+	ExceptionInfo ex_info = { 0, 0, false };
+
 	__try
 	{
 		return ExecuteLoop();
 	}
-	__except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+	__except (CaptureExceptionFilter(GetExceptionInformation(), &ex_info))
 	{
+		// Determine if this is a stack overflow or other memory corruption
+		bool is_stack_overflow = false;
+		if (ex_info.captured && m_value_stack_region != nullptr)
+		{
+			ULONG_PTR stackStart = (ULONG_PTR)m_value_stack_begin;
+			ULONG_PTR stackEnd = stackStart + (s_value_stack_size * sizeof(MidoriValue));
+
+			// Check if fault address is within or just beyond the stack region
+			if (ex_info.fault_address >= stackStart && ex_info.fault_address <= stackEnd + 4096)
+			{
+				is_stack_overflow = true;
+			}
+		}
+
 		// Print error header
 		Printer::Print<Printer::Color::BRIGHT_RED>("Runtime Error");
 		Printer::Print(" at ");
 		Printer::Print<Printer::Color::BRIGHT_CYAN>("line ");
 		Printer::PrintFormatted("{}\n", GetLine());
-		Printer::Print<Printer::Color::BRIGHT_WHITE>("Stack overflow - exceeded maximum stack depth\n");
+
+		// Print specific error message
+		if (is_stack_overflow)
+		{
+			Printer::Print<Printer::Color::BRIGHT_WHITE>("Stack overflow - exceeded maximum stack depth\n");
+		}
+		else
+		{
+			Printer::Print<Printer::Color::BRIGHT_WHITE>("Memory access violation - possible bytecode corruption or invalid operation\n");
+			if (ex_info.captured)
+			{
+				Printer::Print<Printer::Color::DARK_GRAY>("(Exception at 0x");
+				Printer::PrintFormatted("{:X}, fault address 0x{:X})\n", ex_info.exception_address, ex_info.fault_address);
+			}
+		}
 
 		// Print stack trace
 		Printer::Print(STACK_TRACE_HEADER.data());

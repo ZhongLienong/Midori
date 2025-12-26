@@ -502,7 +502,7 @@ void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
 	int line = foreign.m_function_name.m_line;
 
 	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
-	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>() || type.m_return_type->IsType<MidoriType::TextType>()))
+	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>() || type.m_return_type->IsType<MidoriType::TextType>() || type.m_return_type->IsType<MidoriType::ArrayType>() || type.m_return_type->IsType<MidoriType::ByteType>() || type.m_return_type->IsType<MidoriType::WordType>()))
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
 		return;
@@ -1092,17 +1092,29 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		if (call.m_is_foreign)
 		{
 			EmitByte(OpCode::CALL_FOREIGN, line);
+			EmitByte(static_cast<OpCode>(arity), line);
+
+			uint8_t return_type_tag = 0;
+			if (call.m_type_data->IsType<MidoriType::TextType>())
+			{
+				return_type_tag = 1;
+			}
+			else if (call.m_type_data->IsType<MidoriType::ArrayType>())
+			{
+				return_type_tag = 2;
+			}
+			EmitByte(static_cast<OpCode>(return_type_tag), line);
 		}
 		else if (call.m_is_tail_call)
 		{
 			EmitByte(OpCode::TAIL_CALL, line);
+			EmitByte(static_cast<OpCode>(arity), line);
 		}
 		else
 		{
 			EmitByte(OpCode::CALL_DEFINED, line);
+			EmitByte(static_cast<OpCode>(arity), line);
 		}
-
-		EmitByte(static_cast<OpCode>(arity), line);
 	}
 }
 

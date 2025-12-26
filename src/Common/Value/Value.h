@@ -214,6 +214,8 @@ public:
 
 	static MidoriText Concatenate(const MidoriText& a, const MidoriText& b);
 
+	static MidoriText FromFFI(char* ffi_allocated_string);
+
 private:
 	void Expand(int new_size);
 
@@ -254,6 +256,8 @@ public:
 	int GetLength() const;
 
 	static MidoriArray Concatenate(const MidoriArray& a, const MidoriArray& b);
+
+	static MidoriArray FromFFI(MidoriValue* ffi_allocated_data, int length);
 
 private:
 	void Expand();

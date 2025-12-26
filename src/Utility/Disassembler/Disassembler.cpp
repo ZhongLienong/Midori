@@ -221,6 +221,24 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void CallForeignInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int arity = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int return_type = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(return_type));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// params: " + std::to_string(arity) + ", return: ");
+
+		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
+		formated_str << return_type_str;
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void MemberInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -766,7 +784,7 @@ namespace Disassembler
 			MatchJumpTableInstruction("MATCH_JUMP_TABLE", executable, proc_index, offset);
 			break;
 		case OpCode::CALL_FOREIGN:
-			CallInstruction("CALL_FOREIGN", executable, proc_index, offset);
+			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);
 			break;
 		case OpCode::CALL_DEFINED:
 			CallInstruction("CALL_DEFINED", executable, proc_index, offset);
