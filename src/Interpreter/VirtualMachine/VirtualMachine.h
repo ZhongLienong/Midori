@@ -29,10 +29,9 @@ private:
     using InstructionPointer = const OpCode*;
     using GlobalVariables = std::vector<MidoriValue>;
 
-    struct CallFrame 
+    struct CallFrame
 	{
         ValueStackPointer return_bp;
-        ValueStackPointer return_sp;
         InstructionPointer return_ip;
         MidoriArray* closure_ptr;
     };
@@ -41,7 +40,6 @@ private:
     MidoriExecutable m_executable;
     GlobalVariables m_global_vars;
     std::vector<MidoriCellValue*> m_cells_to_promote;
-    std::vector<std::string> m_string_pool;
     GarbageCollector m_garbage_collector;
 
     MidoriArray* m_curr_environment = nullptr;
@@ -170,7 +168,11 @@ private:
 
 	int GetLineFromIP(InstructionPointer ip, int proc_index) noexcept;
 
-    void PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept;
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept
+	{
+		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_ptr};
+		++m_call_stack_pointer;
+	}
 
     MIDORI_FORCE_INLINE MidoriValue& Peek() noexcept
     {

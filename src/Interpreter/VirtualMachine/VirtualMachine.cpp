@@ -226,14 +226,6 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 	return trace;
 }
 
-void VirtualMachine::PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept
-{
-	*m_call_stack_pointer = CallFrame{return_bp, return_sp, return_ip, closure_ptr};
-	++m_call_stack_pointer;
-}
-
-// Peek() and Pop() moved to header for inlining
-
 void VirtualMachine::PromoteCells() noexcept
 {
 	for (MidoriCellValue* cell : m_cells_to_promote)
@@ -1813,8 +1805,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 #endif
 
-			// Return address: pop all the arguments and the callee
-			PushCallFrame(m_value_stack_base_pointer, m_value_stack_pointer - arity, m_instruction_pointer, m_curr_environment);
+			// Save caller's frame before switching to callee
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
@@ -2052,8 +2044,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue value = Pop();
 			--m_call_stack_pointer;
 			const CallFrame& frame = *m_call_stack_pointer;
+
+			// Callee's bp points to where args started, which is our return point
+			ValueStackPointer return_point = m_value_stack_base_pointer;
+
 			m_value_stack_base_pointer = frame.return_bp;
-			m_value_stack_pointer = frame.return_sp;
+			m_value_stack_pointer = return_point;
 			m_instruction_pointer = frame.return_ip;
 			m_curr_environment = frame.closure_ptr;
 
