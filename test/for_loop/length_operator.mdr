@@ -1,0 +1,32 @@
+// Test the # length operator
+
+import
+{
+    "../../MidoriPrelude/IO.mdr"
+}
+
+use IO.{PrintLine}
+
+// Basic length
+def arr = [10, 20, 30, 40, 50];
+PrintLine((#arr) as Text);  // 5
+
+// Empty array
+def empty: Array<Int> = [];
+PrintLine((#empty) as Text);  // 0
+
+// String array
+def names = ["Alice", "Bob"];
+PrintLine((#names) as Text);  // 2
+
+// Nested expression
+def nested = [[1, 2], [3, 4, 5]];
+PrintLine((#nested) as Text);  // 2
+
+// Use in for loop condition
+def nums = [1, 2, 3, 4];
+for i in 0..1..(#nums) {
+    PrintLine((nums[i]) as Text);
+};
+
+PrintLine("Done");

@@ -798,7 +798,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 
 MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 {
-	if (Match(Token::Name::BANG, Token::Name::TILDE))
+	if (Match(Token::Name::BANG, Token::Name::TILDE, Token::Name::HASH))
 	{
 		Token& op = Previous();
 		return ParseUnaryLogicalBitwise()

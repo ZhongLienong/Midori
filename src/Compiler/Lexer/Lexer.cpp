@@ -431,6 +431,8 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 					return MatchNext('>')
 						? (MatchNext('=') ? MakeTokenResult(Token::Name::RIGHT_SHIFT_EQUAL) : MakeTokenResult(Token::Name::RIGHT_SHIFT))
 						: MakeTokenResult(Token::Name::TILDE);
+				case '#':
+					return MakeTokenResult(Token::Name::HASH);
 				case '"':
 					return MatchString();
 				default:

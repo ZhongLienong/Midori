@@ -1783,6 +1783,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires integer type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 					}
 				}
+				else if (unary.m_op.m_token_name == Token::Name::HASH)
+				{
+					if (!actual_type->IsType<MidoriType::ArrayType>())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Length operator '#' requires array type, got " + actual_type->ToString(), unary.m_op, m_file_name, m_source_lines));
+					}
+					unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+					return unary.m_type_data;
+				}
 
 				unary.m_type_data = std::move(actual_type);
 				return unary.m_type_data;

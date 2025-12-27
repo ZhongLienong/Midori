@@ -980,6 +980,9 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	case Token::Name::TILDE:
 		EmitByte(OpCode::BITWISE_NOT, unary.m_op.m_line);
 		break;
+	case Token::Name::HASH:
+		EmitByte(OpCode::GET_ARRAY_LENGTH, unary.m_op.m_line);
+		break;
 	default:
 		return;
 	}
