@@ -575,6 +575,12 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 	return;
 }
 
+void CodeGenerator::operator()(MidoriStatement::TypeAlias&)
+{
+	// Type aliases are resolved at compile time, no runtime code generation needed
+	return;
+}
+
 void CodeGenerator::operator()(MidoriExpression::As& as)
 {
 	int line = as.m_as_keyword.m_line;

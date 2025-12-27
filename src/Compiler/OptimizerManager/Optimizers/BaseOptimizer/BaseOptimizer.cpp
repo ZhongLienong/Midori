@@ -63,6 +63,10 @@ void MidoriOptimizer::operator()(MidoriStatement::Instance&)
 {
 }
 
+void MidoriOptimizer::operator()(MidoriStatement::TypeAlias&)
+{
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::As& as)
 {
 	VisitAndReplace(as.m_expr);

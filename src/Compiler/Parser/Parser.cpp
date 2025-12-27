@@ -9,7 +9,7 @@
 
 using namespace std::string_literals;
 
-Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata)
+Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata)
 	: m_tokens(std::move(tokens)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
@@ -17,7 +17,8 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 	m_use_imports(nullptr),
 	m_current_module(module_decl),
 	m_current_use_imports(use_imports),
-	m_imported_symbols(imports)
+	m_imported_symbols(imports),
+	m_imported_type_signatures(imported_type_signatures)
 {
 	for (const auto& [tc_name, metadata] : imported_typeclass_metadata)
 	{
@@ -2635,6 +2636,79 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		);
 }
 
+MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
+{
+	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected type alias name.")
+		.and_then
+		(
+			[this](Token&& alias_name) -> MidoriResult::StatementResult
+			{
+				alias_name.m_lexeme = Mangle(alias_name.m_lexeme);
+				if (alias_name.m_lexeme[0u] != std::toupper(alias_name.m_lexeme[0u]))
+				{
+					return std::unexpected<std::string>(GenerateParserError("Type alias name must start with a capital letter.", alias_name));
+				}
+
+				constexpr bool is_variable = false;
+				return DefineName(alias_name, is_variable)
+					.and_then
+					(
+						[this](Token&& alias_name) -> MidoriResult::StatementResult
+						{
+							std::vector<Token> generic_params;
+							std::vector<std::shared_ptr<MidoriType>> generic_param_types;
+							bool has_generic_params = false;
+
+							if (Match(Token::Name::LEFT_ANGLE))
+							{
+								has_generic_params = true;
+								BeginScope();
+
+								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
+								if (!generic_parse_result.has_value())
+								{
+									EndScope();
+									return std::unexpected<std::string>(generic_parse_result.error());
+								}
+
+								generic_params = std::move(generic_parse_result.value());
+							}
+
+							return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type alias name.")
+								.and_then
+								(
+									[&alias_name, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
+									{
+										return ParseType()
+											.and_then
+											(
+												[&alias_name, &generic_params, has_generic_params, this](std::shared_ptr<MidoriType>&& aliased_type) -> MidoriResult::StatementResult
+												{
+													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after type alias definition.")
+														.and_then
+														(
+															[&alias_name, &generic_params, &aliased_type, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
+															{
+																if (has_generic_params)
+																{
+																	EndScope();
+																}
+
+																m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
+
+																return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(alias_name), std::move(generic_params), std::move(aliased_type)));
+															}
+														);
+												}
+											);
+									}
+								);
+						}
+					);
+			}
+		);
+}
+
 MidoriResult::StatementResult Parser::ParseContinueStatement()
 {
 	Token& keyword = Previous();
@@ -3212,12 +3286,56 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 					std::string mangled_name = Mangle(type_name.m_lexeme);
 					std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
 
-					if (found_scope_it == m_scopes.crend())
-					{
-						return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
-					}
+					std::shared_ptr<MidoriType> base_type = nullptr;
 
-					const std::shared_ptr<MidoriType>& base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
+					if (found_scope_it != m_scopes.crend())
+					{
+						base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
+					}
+					else
+					{
+						// Check imported type signatures via use imports
+						for (const UseImport& use_import : m_current_use_imports)
+						{
+							if (use_import.m_symbol_name == type_name.m_lexeme)
+							{
+								std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_imported_type_signatures.find(use_import.m_module_name);
+								if (module_it != m_imported_type_signatures.cend())
+								{
+									TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
+									if (type_it != module_it->second.cend())
+									{
+										base_type = type_it->second;
+										break;
+									}
+								}
+							}
+						}
+
+						// Check for qualified access (ModuleName::TypeName)
+						if (base_type == nullptr)
+						{
+							std::string qualifier = ExtractQualifier(type_name.m_lexeme);
+							if (!qualifier.empty())
+							{
+								std::string symbol_name = ExtractSymbolName(type_name.m_lexeme);
+								std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_imported_type_signatures.find(qualifier);
+								if (module_it != m_imported_type_signatures.cend())
+								{
+									TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
+									if (type_it != module_it->second.cend())
+									{
+										base_type = type_it->second;
+									}
+								}
+							}
+						}
+
+						if (base_type == nullptr)
+						{
+							return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
+						}
+					}
 
 					// Check if there are generic type arguments
 					if (Match(Token::Name::LEFT_ANGLE))
@@ -3305,6 +3423,10 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 	else if (Match(Token::Name::FOREIGN))
 	{
 		return ParseForeignStatement();
+	}
+	else if (Match(Token::Name::TYPE))
+	{
+		return ParseTypeAliasDeclaration();
 	}
 	else
 	{

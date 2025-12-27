@@ -1,0 +1,24 @@
+// Test importing type aliases from another module
+
+import
+{
+    "../../MidoriPrelude/IO.mdr",
+    "./module_lib.mdr"
+}
+
+use TypeAliasLib.{UserId, Name, Position, createPoint, getUserId}
+use IO.{PrintLine}
+
+// Use imported type aliases
+def id: UserId = getUserId();
+def name: Name = "Alice";
+def pos: Position = createPoint(10.0, 20.0);
+
+PrintLine(id as Text);
+PrintLine(name);
+PrintLine(pos.x as Text);
+PrintLine(pos.y as Text);
+
+// Also test qualified access
+def id2: TypeAliasLib::UserId = 100;
+PrintLine(id2 as Text);

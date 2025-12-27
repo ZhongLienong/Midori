@@ -7,6 +7,7 @@ A statically-typed functional programming language featuring algebraic data type
 - **Static Type System** - Strong static typing with type inference and generics
 - **Pattern Matching** - Exhaustive pattern matching on algebraic data types
 - **Algebraic Data Types** - Structs (product types) and unions (sum types)
+- **Type Aliases** - Create readable names for complex types
 - **Typeclasses** - Haskell-style constrained generics for polymorphism
 - **Module System** - Explicit imports/exports with privacy enforcement
 - **Pipe Operator** - Functional composition with `|>` operator
@@ -109,6 +110,28 @@ def maybe_value = new Option::Some(42);
 def empty_list = new List::Nil();
 ```
 
+### Type Aliases
+```midori
+// Basic type aliases
+type UserId = Int;
+type Name = Text;
+
+def user_id: UserId = 42;
+def user_name: Name = "Alice";
+
+// Type alias for struct
+struct Point { x: Float, y: Float };
+type Position = Point;
+
+def pos: Position = new Point(10.0, 20.0);
+
+// Generic type alias
+struct Pair<A, B> { first: A, second: B };
+type IntPair = Pair<Int, Int>;
+
+def coords: IntPair = new Pair(1, 2);
+```
+
 ### Pattern Matching
 ```midori
 union Result<T, E> = Ok(T) | Err(E);
@@ -196,6 +219,7 @@ def second = counter();  // 2
 - **Primitive Types**: `Int`, `Float`, `Bool`, `Text`, `Unit`
 - **Composite Types**: `Array<T>`, structs, unions
 - **Function Types**: `fn(T1, T2) -> R`
+- **Type Aliases**: `type UserId = Int;` for readable type names
 - **Generic Parameters**: Single and multiple type parameters
 - **Type Constraints**: Class constraints with `where`
 - **Type Inference**: Automatic type deduction at instantiation
@@ -582,3 +606,10 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 - **Optimizer**: Constant folding, tail call optimization, strength reduction
 - **Backend**: Bytecode generator → Linker
 - **Runtime**: Stack-based VM with mark-and-sweep GC
+
+## Documentation
+
+See the [docs](docs/) folder for detailed technical documentation:
+
+- [Type System](docs/type-system.md) - Hindley-Milner type inference, type classes, and algebraic data types
+- [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking

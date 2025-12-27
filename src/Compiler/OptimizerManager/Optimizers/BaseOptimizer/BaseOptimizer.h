@@ -61,6 +61,8 @@ protected:
 
 	virtual void operator()(MidoriStatement::Instance& instance_stmt);
 
+	virtual void operator()(MidoriStatement::TypeAlias& type_alias);
+
 	virtual void operator()(MidoriExpression::As& as);
 
 	virtual void operator()(MidoriExpression::Binary& binary);

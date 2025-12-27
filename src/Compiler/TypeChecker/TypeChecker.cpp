@@ -706,8 +706,11 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::Foreign>)
 				{
-					// Extract foreign function signature
 					signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
+				}
+				else if constexpr (std::is_same_v<T, MidoriStatement::TypeAlias>)
+				{
+					signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
 				}
 				// Other statement types (Simple, Define, etc.) don't export types
 			},
@@ -1249,6 +1252,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 	// Store instance metadata (methods will be compiled separately by CodeGenerator)
 	m_instances[instance_key] = InstanceInfo(instance_stmt.m_class_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(instance_stmt.m_type_args), std::vector<MidoriType::ClassConstraint>(instance_stmt.m_constraints), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>());
+	return MidoriType::MakeUndecidedType();
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& type_alias)
+{
+	if (!type_alias.m_generic_params.empty())
+	{
+		std::unordered_set<std::string> generic_param_names;
+		for (const Token& generic_param : type_alias.m_generic_params)
+		{
+			if (!generic_param_names.insert(generic_param.m_lexeme).second)
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+			}
+		}
+	}
+
+	// Type alias is already registered in the parser's type table
+	// Nothing more to do at type-checking time - the alias is resolved at parse time
 	return MidoriType::MakeUndecidedType();
 }
 

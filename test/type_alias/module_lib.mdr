@@ -1,0 +1,23 @@
+// Library module that exports type aliases
+
+module TypeAliasLib
+public export { UserId, Name, Point, Position, createPoint, getUserId }
+
+// Type aliases for primitives
+type UserId = Int;
+type Name = Text;
+
+// Struct definition
+struct Point
+{
+    x: Float,
+    y: Float
+};
+
+// Type alias for struct
+type Position = Point;
+
+// Functions using type aliases
+defun createPoint(x: Float, y: Float) : Position => new Point(x, y);
+
+defun getUserId() : UserId => 42;

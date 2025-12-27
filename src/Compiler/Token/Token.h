@@ -103,6 +103,7 @@ struct Token
 		CLASS,
 		INSTANCE,
 		WHERE,
+		TYPE,
 
 		// types
 		FLOAT,

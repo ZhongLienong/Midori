@@ -152,6 +152,8 @@ private:
 
 	void operator()(MidoriStatement::Instance& instance_stmt);
 
+	void operator()(MidoriStatement::TypeAlias& type_alias);
+
 	void operator()(MidoriExpression::As& as);
 
 	void operator()(MidoriExpression::Binary& binary);

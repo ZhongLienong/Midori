@@ -1,0 +1,18 @@
+// Test: Basic type alias functionality
+// Expected: Type aliases should work as synonyms for existing types
+
+import
+{
+	"../../MidoriPrelude/IO.mdr"
+}
+
+// Simple type alias
+type UserId = Int;
+type Name = Text;
+
+// Use the type aliases
+def user_id: UserId = 42;
+def name: Name = "Alice";
+
+IO::PrintLine(user_id as Text);
+IO::PrintLine(name);

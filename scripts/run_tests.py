@@ -73,7 +73,7 @@ class TestRunner:
     def find_executable(self) -> Optional[Path]:
         """Find the Midori executable based on build configuration."""
         possible_paths = [
-            self.root_dir / f"out/build/x64-{self.build_config.lower()}/Midori.exe",
+            self.root_dir / f"out/build/x64-{self.build_config.lower()}/out/Midori.exe",
         ]
 
         for path in possible_paths:

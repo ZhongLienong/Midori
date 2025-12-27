@@ -1,0 +1,54 @@
+// Test: Comprehensive type alias functionality
+// Expected: Type aliases work with primitives, structs, and generic types
+
+import
+{
+	"../../MidoriPrelude/IO.mdr"
+}
+
+// Simple type aliases for primitive types
+type UserId = Int;
+type Name = Text;
+type Score = Float;
+
+// Test simple aliases
+def user_id: UserId = 123;
+def name: Name = "Bob";
+def score: Score = 95.5;
+
+IO::PrintLine(user_id as Text);
+IO::PrintLine(name);
+IO::PrintLine(score as Text);
+
+// Type alias for struct
+struct Point
+{
+	x: Float,
+	y: Float
+};
+
+type Position = Point;
+
+def pos: Position = new Point(10.0, 20.0);
+IO::PrintLine(pos.x as Text);
+IO::PrintLine(pos.y as Text);
+
+// Type alias for array type
+type IntList = Array<Int>;
+
+def numbers: IntList = [1, 2, 3, 4, 5];
+IO::PrintLine(numbers[2] as Text);
+
+// Type alias with function parameter type
+defun apply_to_id(id: UserId) : Text =>
+{
+	"User ID: " ++ (id as Text)
+};
+
+IO::PrintLine(apply_to_id(user_id));
+
+// Type alias with function return type
+defun get_default_id() : UserId => 0;
+
+def default_id: UserId = get_default_id();
+IO::PrintLine(default_id as Text);

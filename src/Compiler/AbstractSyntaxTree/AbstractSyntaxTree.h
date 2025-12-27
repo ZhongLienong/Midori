@@ -112,8 +112,17 @@ public:
 		Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
+	struct TypeAlias
+	{
+		Token m_name;
+		std::vector<Token> m_generic_params;
+		std::shared_ptr<MidoriType> m_aliased_type;
+
+		TypeAlias(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& aliased_type);
+	};
+
 private:
-	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Class, Instance>;
+	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Class, Instance, TypeAlias>;
 	StatementUnion m_stmt_data;
 
 public:

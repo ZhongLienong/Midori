@@ -352,3 +352,10 @@ MidoriStatement::Instance::Instance(const Token& class_name, std::vector<std::sh
 	m_methods(std::move(methods))
 {
 }
+
+MidoriStatement::TypeAlias::TypeAlias(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& aliased_type)
+	: m_name(name),
+	m_generic_params(std::move(generic_params)),
+	m_aliased_type(std::move(aliased_type))
+{
+}

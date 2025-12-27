@@ -48,7 +48,8 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"use"s, Token::Name::USE},
 	{"class"s, Token::Name::CLASS},
 	{"instance"s, Token::Name::INSTANCE},
-	{"where"s, Token::Name::WHERE}
+	{"where"s, Token::Name::WHERE},
+	{"type"s, Token::Name::TYPE}
 };
 
 template<typename Predicate>

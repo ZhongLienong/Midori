@@ -1,0 +1,37 @@
+// Test: Generic type aliases
+// Expected: Type aliases with generic parameters should work
+
+import
+{
+	"../../MidoriPrelude/IO.mdr"
+}
+
+// Generic struct for testing
+struct Pair<A, B>
+{
+	first: A,
+	second: B
+};
+
+// Generic type alias
+type IntPair = Pair<Int, Int>;
+type TextIntPair = Pair<Text, Int>;
+
+// Use the type aliases
+def p1: IntPair = new Pair(10, 20);
+def p2: TextIntPair = new Pair("Age", 30);
+
+IO::PrintLine(p1.first as Text);
+IO::PrintLine(p1.second as Text);
+IO::PrintLine(p2.first);
+IO::PrintLine(p2.second as Text);
+
+// Type alias for Array with concrete type
+type IntArray = Array<Int>;
+type TextArray = Array<Text>;
+
+def nums: IntArray = [100, 200, 300];
+def names: TextArray = ["Alice", "Bob", "Charlie"];
+
+IO::PrintLine(nums[1] as Text);
+IO::PrintLine(names[1]);

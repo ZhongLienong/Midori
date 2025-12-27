@@ -145,12 +145,14 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 												// Build imports from already-compiled dependencies
 												std::unordered_map<std::string, CompiledModule::SymbolTable> imports;
+												std::unordered_map<std::string, TypeChecker::TypeEnvironment> imported_type_sigs;
 												CompiledModule::TypeclassMetadataMap imported_typeclass_metadata;
 												for (const std::string& dep_path : node.m_dependencies)
 												{
 													std::lock_guard<std::mutex> lock(modules_mutex);
 													const CompiledModule& dep = compiled_modules.at(dep_path);
 													imports[dep.m_module_name] = dep.m_symbols;
+													imported_type_sigs[dep.m_module_name] = dep.m_type_signatures;
 													for (const auto& [tc_name, metadata] : dep.m_typeclass_metadata)
 													{
 														imported_typeclass_metadata[tc_name] = metadata;
@@ -159,7 +161,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 												const ModuleDeclaration* module_decl = build_graph.m_module_declarations.contains(file_path) ? &build_graph.m_module_declarations.at(file_path) : nullptr;
 
-												Parser parser(std::move(node.m_tokens), file_path, m_source_lines, imports, node.m_use_imports, module_decl, imported_typeclass_metadata);
+												Parser parser(std::move(node.m_tokens), file_path, m_source_lines, imports, imported_type_sigs, node.m_use_imports, module_decl, imported_typeclass_metadata);
 												std::expected<MidoriProgramTree, std::string> ast = parser.Parse();
 												if (!ast.has_value())
 												{
@@ -265,6 +267,12 @@ MidoriResult::CompilerResult Compiler::Compile()
 													{
 														defined_exports.insert(instance_method);
 													}
+												}
+
+												// Include type signatures (structs, unions, type aliases) as valid exports
+												for (const auto& [type_name, type_ptr] : type_signatures)
+												{
+													defined_exports.insert(type_name);
 												}
 
 												for (const std::string& exported_name : export_set)

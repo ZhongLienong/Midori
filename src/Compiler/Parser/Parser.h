@@ -47,6 +47,7 @@ private:
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
 
 	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
+	std::unordered_map<std::string, TypeEnvironment> m_imported_type_signatures;
 	TypeclassMethodMap m_class_methods;
 	TypeclassInstanceMap m_typeclass_type_params;
 	TypeclassInstanceMap m_class_instances;
@@ -68,7 +69,7 @@ private:
 	int m_total_variables = 0;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
 
 	MidoriResult::ParserResult Parse();
 
@@ -446,6 +447,8 @@ private:
 	MidoriResult::StatementResult ParseClassDeclaration();
 
 	MidoriResult::StatementResult ParseInstanceDeclaration();
+
+	MidoriResult::StatementResult ParseTypeAliasDeclaration();
 
 	MidoriResult::StatementResult ParseContinueStatement();
 
