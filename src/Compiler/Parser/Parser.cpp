@@ -1604,32 +1604,40 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
 				int var_index = m_total_variables - 1; // The index that was just assigned
 
-				// Reserve two additional local variable slots for hidden step and end values
+				// Reserve additional local variable slots for hidden loop state values
 				// These are not actual variables that can be referenced by name, but they need
 				// to occupy local variable slots to prevent conflicts with body variables
-				RegisterOrUpdateLocalVariable("__for_hidden_step__"s + std::to_string(s_for_counter));
+				// For range iteration: step and end
+				// For array iteration: current index, length, and array reference
+				// Names use '$' prefix which is not valid in user identifiers
+				RegisterOrUpdateLocalVariable("$for_step_"s + std::to_string(s_for_counter));
 				int hidden_step_index = m_total_variables - 1;
 
-				RegisterOrUpdateLocalVariable("__for_hidden_end__"s + std::to_string(s_for_counter));
+				RegisterOrUpdateLocalVariable("$for_end_"s + std::to_string(s_for_counter));
 				int hidden_end_index = m_total_variables - 1;
+
+				RegisterOrUpdateLocalVariable("$for_array_"s + std::to_string(s_for_counter));
+				int hidden_array_index = m_total_variables - 1;
 				s_for_counter += 1;
 
-				// NOW set the loop local count, after the 3 for loop variables are registered
+				// NOW set the loop local count, after the 4 for loop variables are registered
 				// This ensures continue/break don't try to pop these loop control variables
 				m_local_count_before_loop.emplace(m_total_variables);
 
 				return ParseExpression()
 					.and_then
 					(
-						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, hidden_step_index, hidden_end_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, hidden_step_index, hidden_end_index, hidden_array_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
 						{
 							EndScope();
 
 							m_local_count_before_loop.pop();
 							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
-							std::get<MidoriExpression::For>(**for_expr).m_loop_variable_index = var_index;
-							std::get<MidoriExpression::For>(**for_expr).m_hidden_step_index = hidden_step_index;
-							std::get<MidoriExpression::For>(**for_expr).m_hidden_end_index = hidden_end_index;
+							MidoriExpression::For& for_expr_ref = for_expr->GetExpression<MidoriExpression::For>();
+							for_expr_ref.m_loop_variable_index = var_index;
+							for_expr_ref.m_hidden_step_index = hidden_step_index;
+							for_expr_ref.m_hidden_end_index = hidden_end_index;
+							for_expr_ref.m_hidden_array_index = hidden_array_index;
 							return for_expr;
 						}
 					);

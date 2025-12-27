@@ -1,0 +1,28 @@
+// Test array iteration in for-loops
+
+import
+{
+    "../../MidoriPrelude/IO.mdr"
+}
+
+use IO.{PrintLine}
+
+// Basic array iteration
+def numbers = [10, 20, 30, 40, 50];
+for x in numbers {
+    PrintLine(x as Text);
+};
+
+// Iteration over string array
+def names = ["Alice", "Bob", "Charlie"];
+for name in names {
+    PrintLine(name);
+};
+
+// Empty array should not execute body
+def empty: Array<Int> = [];
+for x in empty {
+    PrintLine("This should not print");
+};
+
+PrintLine("Done");

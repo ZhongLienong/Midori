@@ -505,8 +505,10 @@ public:
 		std::unique_ptr<MidoriExpression> m_range;
 		std::unique_ptr<MidoriExpression> m_body;
 		int m_loop_variable_index = -1;
-		int m_hidden_step_index = -1; 
-		int m_hidden_end_index = -1;
+		int m_hidden_step_index = -1;   // For range: step; For array: current index
+		int m_hidden_end_index = -1;    // For range: end; For array: length
+		int m_hidden_array_index = -1;  // For array iteration: stores array reference
+		bool m_is_array_iteration = false;
 
 		For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body);
 	};

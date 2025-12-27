@@ -1443,12 +1443,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 			{
 				std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
 
-				if (!resolved_range->IsType<MidoriType::RangeType>())
-				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
-				}
+				std::shared_ptr<MidoriType> element_type;
 
-				std::shared_ptr<MidoriType> element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+				if (resolved_range->IsType<MidoriType::RangeType>())
+				{
+					element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+					for_expr.m_is_array_iteration = false;
+				}
+				else if (resolved_range->IsType<MidoriType::ArrayType>())
+				{
+					element_type = resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
+					for_expr.m_is_array_iteration = true;
+				}
+				else
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range or Array type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+				}
 
 				BeginScope();
 

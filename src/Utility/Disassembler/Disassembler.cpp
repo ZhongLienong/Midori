@@ -423,6 +423,9 @@ namespace Disassembler
 		case OpCode::ADD_FRONT_ARRAY:
 			SimpleInstruction("ADD_FRONT_ARRAY", offset);
 			break;
+		case OpCode::GET_ARRAY_LENGTH:
+			SimpleInstruction("GET_ARRAY_LENGTH", offset);
+			break;
 		case OpCode::CREATE_INT_RANGE:
 			SimpleInstruction("CREATE_INT_RANGE", offset);
 			break;

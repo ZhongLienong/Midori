@@ -34,6 +34,7 @@ enum class OpCode : uint8_t
 	DUP_ARRAY,
 	ADD_BACK_ARRAY,
 	ADD_FRONT_ARRAY,
+	GET_ARRAY_LENGTH,
 
 	// Range Operations
 	CREATE_INT_RANGE,

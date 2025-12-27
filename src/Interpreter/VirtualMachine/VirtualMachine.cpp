@@ -601,6 +601,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
+		case OpCode::GET_ARRAY_LENGTH:
+		{
+			MidoriValue arr = Pop();
+			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
+			MidoriInteger length = static_cast<MidoriInteger>(arr_ref.GetLength());
+			Push(length);
+			break;
+		}
 		case OpCode::CREATE_INT_RANGE:
 		{
 			MidoriValue end = Pop();
