@@ -4,6 +4,9 @@
 #include "Common/Executable/Executable.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 
+#include <bit>
+#include <cstring>
+
 // handle std library
 #ifdef WIN32
 #include <windows.h>
@@ -26,7 +29,13 @@ private:
     using InstructionPointer = const OpCode*;
     using GlobalVariables = std::vector<MidoriValue>;
 
-    using CallFrame = std::tuple<ValueStackPointer, ValueStackPointer, InstructionPointer, MidoriArray*>;
+    struct CallFrame 
+	{
+        ValueStackPointer return_bp;
+        ValueStackPointer return_sp;
+        InstructionPointer return_ip;
+        MidoriArray* closure_ptr;
+    };
     using CallStackPointer = CallFrame*;
 
     MidoriExecutable m_executable;
@@ -62,21 +71,96 @@ private:
 	// only used for error reporting, efficiency is not a concern
 	int GetLine() noexcept;
 
-	OpCode ReadByte() noexcept;
+	// Hot path functions - inlined for performance
+	MIDORI_FORCE_INLINE OpCode ReadByte() noexcept
+	{
+		return *m_instruction_pointer++;
+	}
 
-	int ReadShort() noexcept;
+#if defined(MIDORI_LITTLE_ENDIAN)
+	MIDORI_FORCE_INLINE int ReadShort() noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+		int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
+		m_instruction_pointer += 2;
+		return value;
+	}
 
-	int ReadThreeBytes() noexcept;
+	MIDORI_FORCE_INLINE int ReadThreeBytes() noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+		const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
+		int value = static_cast<int>(static_cast<uint32_t>(b0) | (static_cast<uint32_t>(b1) << 8) | (static_cast<uint32_t>(b2) << 16));
+		m_instruction_pointer += 3;
+		return value;
+	}
+#elif defined(MIDORI_BIG_ENDIAN)
+	MIDORI_FORCE_INLINE int ReadShort() noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+		int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
+		m_instruction_pointer += 2;
+		return value;
+	}
 
-	MidoriInteger ReadIntegerConstant() noexcept;
+	MIDORI_FORCE_INLINE int ReadThreeBytes() noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
+		const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
+		int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
+		m_instruction_pointer += 3;
+		return value;
+	}
+#endif
 
-	MidoriFloat ReadFloatConstant() noexcept;
+	MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant() noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		m_instruction_pointer += sizeof(MidoriInteger);
+		return static_cast<MidoriInteger>(bits);
+	}
 
-	MidoriByte ReadByteConstant() noexcept;
+	MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant() noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		m_instruction_pointer += sizeof(MidoriFloat);
+		return std::bit_cast<MidoriFloat>(bits);
+	}
 
-	MidoriWord ReadWordConstant() noexcept;
+	MIDORI_FORCE_INLINE MidoriByte ReadByteConstant() noexcept
+	{
+		MidoriByte value = static_cast<MidoriByte>(*m_instruction_pointer);
+		m_instruction_pointer += sizeof(MidoriByte);
+		return value;
+	}
 
-	int ReadGlobalVariable() noexcept;
+	MIDORI_FORCE_INLINE MidoriWord ReadWordConstant() noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		m_instruction_pointer += sizeof(MidoriWord);
+		return bits;
+	}
+
+	MIDORI_FORCE_INLINE int ReadGlobalVariable() noexcept
+	{
+		return static_cast<int>(ReadByte());
+	}
 
 	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;
 
@@ -88,9 +172,15 @@ private:
 
     void PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept;
 
-    MidoriValue& Peek() noexcept;
+    MIDORI_FORCE_INLINE MidoriValue& Peek() noexcept
+    {
+        return *(m_value_stack_pointer - 1);
+    }
 
-    MidoriValue Pop() noexcept;
+    MIDORI_FORCE_INLINE MidoriValue Pop() noexcept
+    {
+        return *(--m_value_stack_pointer);
+    }
 
 	void PromoteCells() noexcept;
 

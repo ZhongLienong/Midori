@@ -1,5 +1,36 @@
 #pragma once
 
+// Cross-compiler force inline macro for hot path functions
+#if defined(_MSC_VER)
+    #define MIDORI_FORCE_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+    #define MIDORI_FORCE_INLINE __attribute__((always_inline)) inline
+#else
+    #define MIDORI_FORCE_INLINE inline
+#endif
+
+// Compiler hint for unreachable code
+#if defined(_MSC_VER)
+    #define MIDORI_UNREACHABLE() __assume(0)
+#elif defined(__GNUC__) || defined(__clang__)
+    #define MIDORI_UNREACHABLE() __builtin_unreachable()
+#else
+    #define MIDORI_UNREACHABLE() ((void)0)
+#endif
+
+// Endianness detection (fallback if not defined by CMake)
+#if !defined(MIDORI_LITTLE_ENDIAN) && !defined(MIDORI_BIG_ENDIAN)
+    #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        #define MIDORI_BIG_ENDIAN
+    #elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        #define MIDORI_LITTLE_ENDIAN
+    #elif defined(_WIN32) || defined(__x86_64__) || defined(__i386__)
+        #define MIDORI_LITTLE_ENDIAN
+    #else
+        #error "Cannot determine endianness"
+    #endif
+#endif
+
 // Build configuration levels for Midori compiler
 //
 // MIDORI_BUILD_DEBUG (3):

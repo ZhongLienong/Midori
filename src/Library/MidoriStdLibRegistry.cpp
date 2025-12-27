@@ -37,7 +37,8 @@ namespace MidoriStdLib
 			} 
 		};
 
-		const decltype(functions)::const_iterator it it = std::ranges::find_if(functions, [target](const FunctionEntry& entry) { return entry.m_name == target; });
+		const decltype(functions)::const_iterator it = std::ranges::find_if(functions, [target](const FunctionEntry& entry){ return entry.m_name == target;	});
+
 
 		return it != functions.cend() ? it->m_function : nullptr;
 	}

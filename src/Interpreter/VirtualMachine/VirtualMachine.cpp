@@ -128,100 +128,9 @@ int VirtualMachine::GetLine() noexcept
 	return TerminateExecution(GenerateRuntimeError("Invalid instruction pointer.", 0));
 }
 
-OpCode VirtualMachine::ReadByte() noexcept
-{
-	OpCode op_code = *m_instruction_pointer;
-	++m_instruction_pointer;
-	return op_code;
-}
-
-#if defined(MIDORI_LITTLE_ENDIAN)
-int VirtualMachine::ReadShort() noexcept
-{
-	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-	int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
-	m_instruction_pointer += 2;
-	return value;
-}
-
-int VirtualMachine::ReadThreeBytes() noexcept
-{
-	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-	const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
-	int value = static_cast<int>(static_cast<uint32_t>(b0) | (static_cast<uint32_t>(b1) << 8) | (static_cast<uint32_t>(b2) << 16));
-	m_instruction_pointer += 3;
-	return value;
-}
-#elif defined(MIDORI_BIG_ENDIAN)
-int VirtualMachine::ReadShort() noexcept
-{
-	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-	int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
-	m_instruction_pointer += 2;
-	return value;
-}
-
-int VirtualMachine::ReadThreeBytes() noexcept
-{
-	const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-	const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-	const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
-	int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
-	m_instruction_pointer += 3;
-	return value;
-}
-#else
-#error "Endianness not defined!"
-#endif
-
-MidoriInteger VirtualMachine::ReadIntegerConstant() noexcept
-{
-	uint64_t bits = 0u;
-	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-	bits = std::byteswap(bits);
-#endif
-	m_instruction_pointer += sizeof(MidoriInteger);
-	return static_cast<MidoriInteger>(bits);
-}
-
-MidoriFloat VirtualMachine::ReadFloatConstant() noexcept
-{
-	uint64_t bits = 0u;
-	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-	bits = std::byteswap(bits);
-#endif
-	m_instruction_pointer += sizeof(MidoriFloat);
-	return std::bit_cast<MidoriFloat>(bits);
-}
-
-MidoriByte VirtualMachine::ReadByteConstant() noexcept
-{
-	MidoriByte value = static_cast<MidoriByte>(*m_instruction_pointer);
-	m_instruction_pointer += sizeof(MidoriByte);
-	return value;
-}
-
-MidoriWord VirtualMachine::ReadWordConstant() noexcept
-{
-	uint64_t bits = 0u;
-	std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-	bits = std::byteswap(bits);
-#endif
-	m_instruction_pointer += sizeof(MidoriWord);
-	return bits;
-}
-
-int VirtualMachine::ReadGlobalVariable() noexcept
-{
-	int index = static_cast<int>(ReadByte());
-	return index;
-}
+// Hot path functions moved to header for inlining:
+// ReadByte(), ReadShort(), ReadThreeBytes(), ReadIntegerConstant(),
+// ReadFloatConstant(), ReadByteConstant(), ReadWordConstant(), ReadGlobalVariable()
 
 std::string VirtualMachine::GenerateRuntimeError(std::string_view message, int line) noexcept
 {
@@ -289,10 +198,10 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 	while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
 	{
-		auto [return_bp, return_sp, return_ip, closure_ptr] = *frame_ptr;
+		const CallFrame& frame = *frame_ptr;
 
-		int proc_index = GetProcedureIndexFromIP(return_ip);
-		int line = GetLineFromIP(return_ip, proc_index);
+		int proc_index = GetProcedureIndexFromIP(frame.return_ip);
+		int line = GetLineFromIP(frame.return_ip, proc_index);
 
 		if (proc_index >= 0 && proc_index < static_cast<int>(m_executable.m_procedure_names.size()))
 		{
@@ -319,20 +228,11 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 void VirtualMachine::PushCallFrame(ValueStackPointer return_bp, ValueStackPointer return_sp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept
 {
-	*m_call_stack_pointer = std::make_tuple(return_bp, return_sp, return_ip, closure_ptr);
-
-	m_call_stack_pointer++;
+	*m_call_stack_pointer = CallFrame{return_bp, return_sp, return_ip, closure_ptr};
+	++m_call_stack_pointer;
 }
 
-MidoriValue& VirtualMachine::Peek() noexcept
-{
-	return *(m_value_stack_pointer - 1);
-}
-
-MidoriValue VirtualMachine::Pop() noexcept
-{
-	return *(--m_value_stack_pointer);
-}
+// Peek() and Pop() moved to header for inlining
 
 void VirtualMachine::PromoteCells() noexcept
 {
@@ -2151,7 +2051,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriValue value = Pop();
 			--m_call_stack_pointer;
-			std::tie(m_value_stack_base_pointer, m_value_stack_pointer, m_instruction_pointer, m_curr_environment) = *m_call_stack_pointer;
+			const CallFrame& frame = *m_call_stack_pointer;
+			m_value_stack_base_pointer = frame.return_bp;
+			m_value_stack_pointer = frame.return_sp;
+			m_instruction_pointer = frame.return_ip;
+			m_curr_environment = frame.closure_ptr;
 
 			Push(value);
 
@@ -2174,11 +2078,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		default:
 		{
-#ifdef _MSC_VER
-			__assume(0);
-#else
-			__builtin_unreachable();
-#endif
+			MIDORI_UNREACHABLE();
 		}
 		}
 	}
@@ -2297,10 +2197,10 @@ int VirtualMachine::Execute() noexcept
 
 		while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
 		{
-			auto [return_bp, return_sp, return_ip, closure_ptr] = *frame_ptr;
+			const CallFrame& frame = *frame_ptr;
 
-			int proc_index = GetProcedureIndexFromIP(return_ip);
-			int line = GetLineFromIP(return_ip, proc_index);
+			int proc_index = GetProcedureIndexFromIP(frame.return_ip);
+			int line = GetLineFromIP(frame.return_ip, proc_index);
 
 			if (proc_index >= 0 && proc_index < static_cast<int>(m_executable.m_procedure_names.size()))
 			{
