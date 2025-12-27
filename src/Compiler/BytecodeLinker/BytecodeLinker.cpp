@@ -117,8 +117,6 @@ MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 			return (error_it != results.end()) ? *error_it : MidoriResult::VoidResult{};
 		};
 
-	using ModuleResultPair = std::pair<const BytecodeModule&, MidoriResult::VoidResult>;
-
 	std::vector<MidoriResult::VoidResult> module_results;
 	std::ranges::transform(m_modules, std::back_inserter(module_results), process_module_exports);
 

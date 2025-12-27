@@ -133,7 +133,7 @@ int Lexer::ConsumeAlphaNumeric()
 
 MidoriResult::TokenResult Lexer::SkipLineComment()
 {
-	ConsumeWhile([this](char c) { return c != '\n'; });
+	ConsumeWhile([](char c) { return c != '\n'; });
 	return Token(" "s, Token::Name::WHITESPACE, m_line);
 }
 

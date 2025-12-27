@@ -156,7 +156,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 #endif
 
 	// MARK
-	size_t mark_count = 0;
+	size_t mark_count = 0u;
 #if MIDORI_DEBUG_INFO
 	TimePoint t_mark_start = Clock::now();
 #endif
