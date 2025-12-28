@@ -2248,6 +2248,179 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 	}
 }
 
+void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
+{
+	int line = comp.m_bracket.m_line;
+
+	// Update m_local_count to account for the 5 reserved locals
+	if (m_local_count < comp.m_result_array_index + 1)
+	{
+		m_local_count = comp.m_result_array_index + 1;
+	}
+
+	// Push 5 placeholders for: loop_var, step/index, end/length, array_ref, result_array
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // loop variable
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // step/index
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // end/length
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // array ref (for array iteration)
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // result array
+
+	// Create empty result array and store it
+	EmitByte(OpCode::CREATE_ARRAY, line);
+	EmitThreeBytes(0, 0, 0, line);  // Empty array with 0 elements
+	EmitVariable(comp.m_result_array_index, OpCode::SET_LOCAL, line);
+	EmitByte(OpCode::POP, line);
+
+	if (comp.m_is_array_iteration)
+	{
+		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_range);
+
+		// Store array reference
+		EmitByte(OpCode::DUP, line);
+		EmitVariable(comp.m_hidden_array_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		// Get and store array length
+		EmitByte(OpCode::GET_ARRAY_LENGTH, line);
+		EmitVariable(comp.m_hidden_end_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		// Initialize index to 0
+		EmitByte(OpCode::INT_0, line);
+		EmitVariable(comp.m_hidden_step_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		// Jump to condition check
+		int skip_first_increment = EmitJump(OpCode::JUMP, line);
+
+		// Continue target: Increment index
+		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
+		EmitByte(OpCode::INT_1, line);
+		EmitByte(OpCode::ADD_INTEGER, line);
+		EmitVariable(comp.m_hidden_step_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		PatchJump(skip_first_increment, line);
+
+		// Check if index < length
+		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
+		EmitVariable(comp.m_hidden_end_index, OpCode::GET_LOCAL, line);
+		int exit_jump = EmitJump(OpCode::IF_INTEGER_LESS, line);
+
+		// Get element at current index and store in loop variable
+		EmitVariable(comp.m_hidden_array_index, OpCode::GET_LOCAL, line);
+		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
+		EmitByte(OpCode::GET_ARRAY, line);
+		EmitByte(static_cast<OpCode>(1), line);  // 1 index dimension
+		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		// Get result array, evaluate transform expression, append
+		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		EmitByte(OpCode::ADD_BACK_ARRAY, line);
+		EmitByte(OpCode::POP, line);
+
+		EmitLoop(continue_target, line);
+
+		PatchJump(exit_jump, line);
+	}
+	else
+	{
+		bool is_float = comp.m_range->GetType()->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::FloatType>();
+
+		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_range);
+
+		// Duplicate range for each extraction
+		EmitByte(OpCode::DUP, line);
+		EmitByte(OpCode::DUP, line);
+
+		EmitByte(OpCode::GET_RANGE_START, line);
+		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		EmitByte(OpCode::GET_RANGE_STEP, line);
+		EmitVariable(comp.m_hidden_step_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		EmitByte(OpCode::GET_RANGE_END, line);
+		EmitVariable(comp.m_hidden_end_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		// Jump to condition check
+		int skip_first_increment = EmitJump(OpCode::JUMP, line);
+
+		// Continue target: Increment loop variable
+		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		EmitVariable(comp.m_loop_variable_index, OpCode::GET_LOCAL, line);
+		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
+		EmitByte(is_float ? OpCode::ADD_FLOAT : OpCode::ADD_INTEGER, line);
+		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
+
+		PatchJump(skip_first_increment, line);
+
+		// Runtime check for step direction
+		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
+		if (is_float)
+		{
+			EmitFloatConstant(0.0, line);
+		}
+		else
+		{
+			EmitByte(OpCode::INT_0, line);
+		}
+
+		OpCode step_comparison = is_float ? OpCode::IF_FLOAT_GREATER : OpCode::IF_INTEGER_GREATER;
+		int backward_jump = EmitJump(step_comparison, line);
+
+		// Forward iteration (step > 0): exit loop if i >= end
+		EmitVariable(comp.m_loop_variable_index, OpCode::GET_LOCAL, line);
+		EmitVariable(comp.m_hidden_end_index, OpCode::GET_LOCAL, line);
+		OpCode forward_comparison = is_float ? OpCode::IF_FLOAT_LESS : OpCode::IF_INTEGER_LESS;
+		int forward_exit_jump = EmitJump(forward_comparison, line);
+
+		int body_jump = EmitJump(OpCode::JUMP, line);
+
+		// Backward iteration (step <= 0): exit loop if i <= end
+		PatchJump(backward_jump, line);
+		EmitVariable(comp.m_loop_variable_index, OpCode::GET_LOCAL, line);
+		EmitVariable(comp.m_hidden_end_index, OpCode::GET_LOCAL, line);
+		OpCode backward_comparison = is_float ? OpCode::IF_FLOAT_GREATER : OpCode::IF_INTEGER_GREATER;
+		int backward_exit_jump = EmitJump(backward_comparison, line);
+
+		PatchJump(body_jump, line);
+
+		// Get result array, evaluate transform expression, append
+		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		EmitByte(OpCode::ADD_BACK_ARRAY, line);
+		EmitByte(OpCode::POP, line);
+
+		EmitLoop(continue_target, line);
+
+		PatchJump(forward_exit_jump, line);
+		PatchJump(backward_exit_jump, line);
+	}
+
+	// Clean up: pop 4 placeholders and the result placeholder, then push result array
+	// Stack: [..., loop_var, step, end, array_ref, result_placeholder]
+	EmitByte(OpCode::POP, line);  // Pop array ref / unused slot
+	EmitByte(OpCode::POP, line);  // Pop end/length
+	EmitByte(OpCode::POP, line);  // Pop step/index
+	EmitByte(OpCode::POP, line);  // Pop loop variable
+	// Stack: [..., result_placeholder]
+
+	// Pop the result placeholder and push the actual result array
+	EmitByte(OpCode::POP, line);  // Pop result_placeholder
+	// Stack: [...]
+
+	// Push the result array as the expression value
+	EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+	// Stack: [..., result_array]
+}
+
 void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
 {
 	int line = break_expr.m_keyword.m_line;

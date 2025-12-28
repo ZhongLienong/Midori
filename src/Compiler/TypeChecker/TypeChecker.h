@@ -214,6 +214,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::For& for_expr);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::ArrayComprehension& comp);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Break& break_expr);

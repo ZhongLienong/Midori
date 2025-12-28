@@ -1,0 +1,39 @@
+// Test basic array comprehension
+
+import
+{
+    "../../MidoriPrelude/IO.mdr"
+}
+
+use IO.{PrintLine}
+
+// Basic range comprehension
+def doubled = [x * 2 for x in 0..1..5];
+PrintLine("Doubled 0-4:");
+for x in doubled {
+    PrintLine(x as Text);
+};
+
+// Array transformation
+def nums = [1, 2, 3, 4, 5];
+def squared = [x * x for x in nums];
+PrintLine("Squared:");
+for x in squared {
+    PrintLine(x as Text);
+};
+
+// Range with step
+def evens = [x for x in 0..2..10];
+PrintLine("Evens 0-8:");
+for x in evens {
+    PrintLine(x as Text);
+};
+
+// Identity transformation
+def identity = [x for x in [10, 20, 30]];
+PrintLine("Identity:");
+for x in identity {
+    PrintLine(x as Text);
+};
+
+PrintLine("Done");

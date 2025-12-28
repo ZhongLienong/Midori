@@ -63,6 +63,9 @@ constexpr std::string_view FOR_STEP_PREFIX = "$for_step_";
 constexpr std::string_view FOR_END_PREFIX = "$for_end_";
 constexpr std::string_view FOR_ARRAY_PREFIX = "$for_array_";
 
+// Array comprehension hidden variable prefix
+constexpr std::string_view COMPREHENSION_RESULT_PREFIX = "$comp_result_";
+
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";

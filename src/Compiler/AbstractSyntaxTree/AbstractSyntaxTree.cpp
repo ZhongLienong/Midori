@@ -181,6 +181,16 @@ MidoriExpression::ArraySet::ArraySet(const Token& op, std::vector<std::unique_pt
 {
 }
 
+MidoriExpression::ArrayComprehension::ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword,
+	std::unique_ptr<MidoriExpression>&& transform_expr, std::unique_ptr<MidoriExpression>&& range)
+	: m_bracket(bracket),
+	m_loop_variable(loop_variable),
+	m_in_keyword(in_keyword),
+	m_transform_expr(std::move(transform_expr)),
+	m_range(std::move(range))
+{
+}
+
 MidoriExpression::RangeBinary::RangeBinary(const Token& range_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& end)
 	: m_range_op(range_op),
 	m_start(std::move(start)),

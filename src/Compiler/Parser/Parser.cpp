@@ -1347,33 +1347,70 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	else if (Match(Token::Name::LEFT_BRACKET))
 	{
 		Token& op = Previous();
-		return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+
+		// Check for empty array first
+		if (Match(Token::Name::RIGHT_BRACKET) || Match(Token::Name::RIGHT_LEFT_BRACKET))
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, {}));
+		}
+
+		// Look ahead to detect array comprehension [expr for x in range]
+		// If detected, we need to register the loop variable BEFORE parsing the transform expression
+		std::optional<int> comp_var_offset = DetectArrayComprehension();
+		if (comp_var_offset.has_value())
+		{
+			return ParseArrayComprehension(op);
+		}
+
+		// Otherwise, parse as normal array literal
+		return ParseExpression()
+			.and_then
 			(
-				[this]() { return ParseExpression(); },
-				[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-				[this]() -> MidoriResult::TokenResult
+				[&op, this](std::unique_ptr<MidoriExpression>&& first_expr) -> MidoriResult::ExpressionResult
 				{
-					if (Match(Token::Name::RIGHT_BRACKET))
+					if (Match(Token::Name::COMMA))
 					{
-						return Previous();
+						// Parse remaining elements
+						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+							(
+								[this]() { return ParseExpression(); },
+								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
+								[this]() -> MidoriResult::TokenResult
+								{
+									if (Match(Token::Name::RIGHT_BRACKET))
+									{
+										return Previous();
+									}
+									else if (Match(Token::Name::RIGHT_LEFT_BRACKET))
+									{
+										return Previous();
+									}
+									else
+									{
+										return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+									}
+								}
+							)
+							.and_then
+							(
+								[&op, first_expr = std::move(first_expr)](std::vector<std::unique_ptr<MidoriExpression>>&& expressions) mutable -> MidoriResult::ExpressionResult
+								{
+									expressions.insert(expressions.begin(), std::move(first_expr));
+									return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, std::move(expressions)));
+								}
+							);
 					}
-					else if (Match(Token::Name::RIGHT_LEFT_BRACKET))
+					else if (Match(Token::Name::RIGHT_BRACKET) || Match(Token::Name::RIGHT_LEFT_BRACKET))
 					{
-						// RIGHT_LEFT_BRACKET '][' can end an array literal followed by array access
-						// e.g., [1,2,3][0] where '][' is lexed as one token
-						return Previous();
+						// Single element array
+						std::vector<std::unique_ptr<MidoriExpression>> expressions;
+						expressions.emplace_back(std::move(first_expr));
+						return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, std::move(expressions)));
 					}
 					else
 					{
-						return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+						return std::unexpected<std::string>(GenerateParserError("Expected ',' or ']' after array element.", Peek(0)));
 					}
-				}
-			)
-			.and_then
-			(
-				[&op](std::vector<std::unique_ptr<MidoriExpression>>&& expressions) ->MidoriResult::ExpressionResult
-				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, std::move(expressions)));
 				}
 			);
 	}
@@ -1639,6 +1676,165 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 							for_expr_ref.m_hidden_end_index = hidden_end_index;
 							for_expr_ref.m_hidden_array_index = hidden_array_index;
 							return for_expr;
+						}
+					);
+			}
+		);
+}
+
+std::optional<int> Parser::DetectArrayComprehension()
+{
+	// Look ahead to find `for identifier in` pattern at bracket depth 0
+	// Returns offset to the identifier token if found, std::nullopt otherwise
+	// We're positioned right after '[', looking for: expr for identifier in range ]
+
+	int offset = 0;
+	int bracket_depth = 0;
+	int paren_depth = 0;
+	int brace_depth = 0;
+
+	while (!IsAtEnd())
+	{
+		Token::Name current = Peek(offset).m_token_name;
+
+		// Track nesting
+		if (current == Token::Name::LEFT_BRACKET || current == Token::Name::RIGHT_LEFT_BRACKET)
+		{
+			bracket_depth += 1;
+		}
+		else if (current == Token::Name::RIGHT_BRACKET)
+		{
+			if (bracket_depth == 0)
+			{
+				// Reached end of array without finding comprehension
+				return std::nullopt;
+			}
+			bracket_depth -= 1;
+		}
+		else if (current == Token::Name::LEFT_PAREN)
+		{
+			paren_depth += 1;
+		}
+		else if (current == Token::Name::RIGHT_PAREN)
+		{
+			paren_depth -= 1;
+		}
+		else if (current == Token::Name::LEFT_BRACE)
+		{
+			brace_depth += 1;
+		}
+		else if (current == Token::Name::RIGHT_BRACE)
+		{
+			brace_depth -= 1;
+		}
+		else if (current == Token::Name::FOR && bracket_depth == 0 && paren_depth == 0 && brace_depth == 0)
+		{
+			// Found 'for' at depth 0, check for 'identifier in' pattern
+			if (Peek(offset + 1).m_token_name == Token::Name::IDENTIFIER_LITERAL && Peek(offset + 2).m_token_name == Token::Name::IN)
+			{
+				// Return offset to the identifier
+				return offset + 1;
+			}
+		}
+		else if (current == Token::Name::COMMA && bracket_depth == 0 && paren_depth == 0 && brace_depth == 0)
+		{
+			// Comma at depth 0 means this is a regular array literal
+			return std::nullopt;
+		}
+
+		offset += 1;
+
+		// Safety limit to prevent infinite loop
+		if (offset > MAX_ARRAY_SIZE)
+		{
+			return std::nullopt;
+		}
+	}
+
+	return std::nullopt;
+}
+
+MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
+{
+	std::optional<int> var_offset = DetectArrayComprehension();
+	if (!var_offset.has_value())
+	{
+		return std::unexpected<std::string>(GenerateParserError("Internal error: comprehension detection failed.", Peek(0)));
+	}
+
+	Token loop_variable = Peek(var_offset.value());
+
+	static int s_comp_counter = 0;
+	BeginScope();
+
+	// Register loop variable FIRST so it's in scope for the transform expression
+	std::string var_name(loop_variable.m_lexeme);
+	RegisterOrUpdateLocalVariable(var_name);
+	int var_index = m_total_variables - 1;
+
+	// Reserve hidden variable slots (similar to For loop)
+	RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter));
+	int hidden_step_index = m_total_variables - 1;
+
+	RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter));
+	int hidden_end_index = m_total_variables - 1;
+
+	RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter));
+	int hidden_array_index = m_total_variables - 1;
+
+	RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter));
+	int result_array_index = m_total_variables - 1;
+
+	s_comp_counter += 1;
+
+	return ParseExpression()
+		.and_then
+		(
+			[&bracket, &loop_variable, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
+			{
+				if (!Match(Token::Name::FOR))
+				{
+					EndScope();
+					return std::unexpected<std::string>(GenerateParserError("Expected 'for' in array comprehension.", Peek(0)));
+				}
+
+				if (!Match(Token::Name::IDENTIFIER_LITERAL))
+				{
+					EndScope();
+					return std::unexpected<std::string>(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
+				}
+				Token actual_loop_var = Previous();
+
+				if (!Match(Token::Name::IN))
+				{
+					EndScope();
+					return std::unexpected<std::string>(GenerateParserError("Expected 'in' after loop variable in array comprehension.", Peek(0)));
+				}
+				Token in_keyword = Previous();
+
+				return ParseExpression()
+					.and_then
+					(
+						[&bracket, &actual_loop_var, &in_keyword, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
+						{
+							if (!Match(Token::Name::RIGHT_BRACKET) && !Match(Token::Name::RIGHT_LEFT_BRACKET))
+							{
+								EndScope();
+								return std::unexpected<std::string>(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
+							}
+
+							EndScope();
+
+							std::unique_ptr<MidoriExpression> comp_expr = std::make_unique<MidoriExpression>(MidoriExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
+
+							MidoriExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MidoriExpression::ArrayComprehension>();
+							comp_ref.m_loop_variable_index = var_index;
+							comp_ref.m_hidden_step_index = hidden_step_index;
+							comp_ref.m_hidden_end_index = hidden_end_index;
+							comp_ref.m_hidden_array_index = hidden_array_index;
+							comp_ref.m_result_array_index = result_array_index;
+
+							return comp_expr;
 						}
 					);
 			}

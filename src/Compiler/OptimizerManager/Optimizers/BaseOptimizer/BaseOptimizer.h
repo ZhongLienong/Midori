@@ -115,6 +115,8 @@ protected:
 
 	virtual void operator()(MidoriExpression::ArraySet& array_set);
 
+	virtual void operator()(MidoriExpression::ArrayComprehension& comp);
+
 	virtual void operator()(MidoriExpression::RangeBinary& range_binary);
 
 	virtual void operator()(MidoriExpression::RangeTernary& range_ternary);

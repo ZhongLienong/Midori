@@ -237,6 +237,12 @@ void MidoriOptimizer::operator()(MidoriExpression::ArraySet& array_set)
 	VisitAndReplace(array_set.m_value);
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::ArrayComprehension& comp)
+{
+	VisitAndReplace(comp.m_transform_expr);
+	VisitAndReplace(comp.m_range);
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::RangeBinary& range_binary)
 {
 	VisitAndReplace(range_binary.m_start);

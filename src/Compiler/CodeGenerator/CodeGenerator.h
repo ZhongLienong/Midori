@@ -228,6 +228,8 @@ private:
 
 	void operator()(MidoriExpression::For& for_expr);
 
+	void operator()(MidoriExpression::ArrayComprehension& comp);
+
 	void operator()(MidoriExpression::Break& break_expr);
 
 	void operator()(MidoriExpression::Return& return_expr);

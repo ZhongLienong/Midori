@@ -1496,6 +1496,57 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 		);
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehension& comp)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **comp.m_range)
+		.and_then
+		(
+			[&comp, this](std::shared_ptr<MidoriType>&& range_type) -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
+
+				std::shared_ptr<MidoriType> element_type;
+
+				if (resolved_range->IsType<MidoriType::RangeType>())
+				{
+					element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+					comp.m_is_array_iteration = false;
+				}
+				else if (resolved_range->IsType<MidoriType::ArrayType>())
+				{
+					element_type = resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
+					comp.m_is_array_iteration = true;
+				}
+				else
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: expected Range or Array type for iteration",comp.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+				}
+
+				BeginScope();
+
+				// Add loop variable to scope with element type
+				std::string var_name(comp.m_loop_variable.m_lexeme);
+				m_name_type_table.back()[var_name] = element_type;
+
+				// Type check the transform expression
+				return std::visit
+				(
+					[this](auto&& arg) { return (*this)(arg); }, **comp.m_transform_expr)
+					.and_then
+					(
+						[&comp, this](std::shared_ptr<MidoriType>&& transform_type) -> MidoriResult::TypeResult
+						{
+							EndScope();
+
+							// Result type is Array<T> where T is the type of the transform expression
+							comp.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(transform_type));
+							return comp.m_type_data;
+						}
+					);
+			}
+		);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **as.m_expr)

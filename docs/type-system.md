@@ -36,6 +36,20 @@ Homogeneous, dynamically-sized collections:
 [[Text]]        -- Array of arrays of text
 ```
 
+**Length Operator**: Use `#` to get array length:
+```
+def arr = [1, 2, 3, 4, 5];
+def len = #arr;  -- 5
+```
+
+**Array Iteration**: Arrays can be used directly in for-loops:
+```
+def names = ["Alice", "Bob", "Charlie"];
+for name in names {
+    PrintLine(name);  -- Iterates over elements
+};
+```
+
 ### Tuples
 
 Fixed-size, heterogeneous collections:
@@ -64,6 +78,19 @@ Iterator types for numeric sequences:
 Int..Int      -- Integer range
 Float..Float  -- Float range
 ```
+
+Ranges are created with the `start..step..end` syntax and used in for-loops:
+```
+for i in 0..1..10 {    -- 0, 1, 2, ..., 9
+    PrintLine(i as Text);
+};
+
+for i in 10..-1..0 {   -- 10, 9, 8, ..., 1 (backward)
+    PrintLine(i as Text);
+};
+```
+
+Both ranges and arrays are valid iterables for `for` expressions.
 
 ## Algebraic Data Types
 

@@ -366,6 +366,8 @@ private:
 
 	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
 
+	std::optional<int> DetectArrayComprehension();
+
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
 
 	MidoriResult::ExpressionResult ParseExpression();
@@ -419,6 +421,8 @@ private:
 	MidoriResult::ExpressionResult ParseLoopExpression();
 
 	MidoriResult::ExpressionResult ParseForExpression();
+
+	MidoriResult::ExpressionResult ParseArrayComprehension(Token& bracket);
 
 	MidoriResult::ExpressionResult ParseReturnExpression();
 

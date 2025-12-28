@@ -431,6 +431,23 @@ public:
 		ArraySet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
 	};
 
+	struct ArrayComprehension : BaseExpression
+	{
+		Token m_bracket;                
+		Token m_loop_variable;                         
+		Token m_in_keyword;                                 
+		std::unique_ptr<MidoriExpression> m_transform_expr;
+		std::unique_ptr<MidoriExpression> m_range;    
+		int m_loop_variable_index = -1;
+		int m_hidden_step_index = -1;    
+		int m_hidden_end_index = -1;  
+		int m_hidden_array_index = -1;
+		int m_result_array_index = -1;  
+		bool m_is_array_iteration = false;
+
+		ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& transform_expr, std::unique_ptr<MidoriExpression>&& range);
+	};
+
 	struct RangeBinary : BaseExpression
 	{
 		Token m_range_op;
@@ -533,7 +550,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_expr_data;
 
 public:
@@ -636,6 +653,10 @@ public:
 				else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
 				{
 					return node.m_value->template Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::ArrayComprehension>)
+				{
+					return node.m_transform_expr->template Contains<Kind>() || node.m_range->template Contains<Kind>();
 				}
 				else
 				{
