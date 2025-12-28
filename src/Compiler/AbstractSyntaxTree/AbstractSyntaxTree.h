@@ -194,6 +194,8 @@ public:
 		Token m_op;
 		std::unique_ptr<MidoriExpression> m_left;
 		std::unique_ptr<MidoriExpression> m_right;
+		bool m_uses_equatable = false;   // True if using Equatable typeclass for == or !=
+		bool m_uses_orderable = false;   // True if using Orderable typeclass for <, >, <=, >=
 
 		Binary(const Token& op, std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right);
 	};

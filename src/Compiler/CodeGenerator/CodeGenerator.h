@@ -128,6 +128,10 @@ private:
 
 	void EmitLoop(int loop_start, int line);
 
+	void EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line);
+
+	void EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line);
+
 	void BeginLoop(int loop_start);
 
 	void EndLoop(int line);

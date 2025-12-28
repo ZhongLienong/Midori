@@ -43,7 +43,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	m_global_procedures.insert(m_global_procedures.begin(), BytecodeStream());
 
 	// Create bootstrap name with entry module context for debugging
-	std::string bootstrap_name = std::format("__module_bootstrap__@{}", m_entry_module_name);
+	std::string bootstrap_name = std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
 	m_global_procedure_names.insert(m_global_procedure_names.begin(), MidoriText(bootstrap_name.c_str()));
 
 	PatchBootstrapOffsets();

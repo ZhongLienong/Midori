@@ -197,6 +197,38 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 	EmitByte(static_cast<OpCode>((offset >> SHIFT_8_BITS) & BYTE_MASK), line);
 }
 
+void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line)
+{
+	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(EQUALS_MANGLED_PREFIX) + operand_type->ToString();
+	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
+	if (it != m_global_variables.end())
+	{
+		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
+		EmitByte(OpCode::CALL_DEFINED, line);
+		EmitByte(static_cast<OpCode>(2), line);
+	}
+	else
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Equatable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
+	}
+}
+
+void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line)
+{
+	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COMPARE_MANGLED_PREFIX) + operand_type->ToString();
+	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
+	if (it != m_global_variables.end())
+	{
+		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
+		EmitByte(OpCode::CALL_DEFINED, line);
+		EmitByte(static_cast<OpCode>(2), line);
+	}
+	else
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Orderable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
+	}
+}
+
 void CodeGenerator::BeginLoop(int loop_start)
 {
 	m_loop_contexts.emplace(std::vector<int>(), loop_start, loop_start);
@@ -222,7 +254,7 @@ CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view 
 	m_class_methods(imported_class_methods),
 	m_class_instances(imported_class_instances)
 {
-	std::string main_proc_name = "__main__@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
+	std::string main_proc_name = std::string(MAIN_PROCEDURE_PREFIX) + "@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
 	m_procedure_names.emplace_back(main_proc_name.c_str());
 }
 
@@ -631,7 +663,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		// Not in a specialized context, try direct lookup for concrete Convertable instances
 		if (!from_type->IsType<MidoriType::TypeVariable>() && !target_type->IsType<MidoriType::TypeVariable>())
 		{
-			std::string mangled_name = "Convert_Convertable_"s + from_type->ToString() + "_"s + target_type->ToString();
+			std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(CONVERT_MANGLED_PREFIX) + from_type->ToString() + "_"s + target_type->ToString();
 			std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
 			if (it != m_global_variables.end())
 			{
@@ -876,47 +908,98 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 				: EmitByte(OpCode::RIGHT_SHIFT, line);
 			break;
 		case Token::Name::LEFT_ANGLE:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_WORD, line)
-				: EmitByte(OpCode::LESS_INTEGER, line);
+			if (binary.m_uses_orderable)
+			{
+				EmitOrderableCompare(operand_type, line);
+				EmitIntegerConstant(0, line);
+				EmitByte(OpCode::LESS_INTEGER, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line)
+					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_WORD, line)
+					: EmitByte(OpCode::LESS_INTEGER, line);
+			}
 			break;
 		case Token::Name::LESS_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_EQUAL_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_EQUAL_WORD, line)
-				: EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+			if (binary.m_uses_orderable)
+			{
+				EmitOrderableCompare(operand_type, line);
+				EmitIntegerConstant(0, line);
+				EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line)
+					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_EQUAL_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_EQUAL_WORD, line)
+					: EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+			}
 			break;
 		case Token::Name::RIGHT_ANGLE:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_WORD, line)
-				: EmitByte(OpCode::GREATER_INTEGER, line);
+			if (binary.m_uses_orderable)
+			{
+				EmitOrderableCompare(operand_type, line);
+				EmitIntegerConstant(0, line);
+				EmitByte(OpCode::GREATER_INTEGER, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line)
+					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_WORD, line)
+					: EmitByte(OpCode::GREATER_INTEGER, line);
+			}
 			break;
 		case Token::Name::GREATER_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_EQUAL_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_EQUAL_WORD, line)
-				: EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+			if (binary.m_uses_orderable)
+			{
+				EmitOrderableCompare(operand_type, line);
+				EmitIntegerConstant(0, line);
+				EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line)
+					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_EQUAL_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_EQUAL_WORD, line)
+					: EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+			}
 			break;
 		case Token::Name::BANG_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::NOT_EQUAL_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::NOT_EQUAL_WORD, line)
-				: EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+			if (binary.m_uses_equatable)
+			{
+				EmitEquatableEquals(operand_type, line);
+				EmitByte(OpCode::NOT, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line)
+					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::NOT_EQUAL_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::NOT_EQUAL_WORD, line)
+					: EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+			}
 			break;
 		case Token::Name::DOUBLE_EQUAL:
-			operand_type->IsType<MidoriType::FloatType>()
-				? EmitByte(OpCode::EQUAL_FLOAT, line)
-				: operand_type->IsType<MidoriType::IntegerType>()
-				? EmitByte(OpCode::EQUAL_INTEGER, line)
-				: operand_type->IsType<MidoriType::ByteType>()
-				? EmitByte(OpCode::EQUAL_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>()
-				? EmitByte(OpCode::EQUAL_WORD, line)
-				: operand_type->IsType<MidoriType::TextType>()
-				? EmitByte(OpCode::EQUAL_TEXT, line)
-				: EmitByte(OpCode::EQUAL_INTEGER, line); // This remaining case is bool, we just treat them as integers
+			if (binary.m_uses_equatable)
+			{
+				EmitEquatableEquals(operand_type, line);
+			}
+			else
+			{
+				operand_type->IsType<MidoriType::FloatType>()
+					? EmitByte(OpCode::EQUAL_FLOAT, line)
+					: operand_type->IsType<MidoriType::IntegerType>()
+					? EmitByte(OpCode::EQUAL_INTEGER, line)
+					: operand_type->IsType<MidoriType::ByteType>()
+					? EmitByte(OpCode::EQUAL_BYTE, line)
+					: operand_type->IsType<MidoriType::WordType>()
+					? EmitByte(OpCode::EQUAL_WORD, line)
+					: operand_type->IsType<MidoriType::TextType>()
+					? EmitByte(OpCode::EQUAL_TEXT, line)
+					: EmitByte(OpCode::EQUAL_INTEGER, line);
+			}
 			break;
 		case Token::Name::SINGLE_AMPERSAND:
 			EmitByte(OpCode::BITWISE_AND, line);

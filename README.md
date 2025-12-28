@@ -76,6 +76,16 @@ for i in 0..1..10 {
     IO::PrintLine(i as Text);
 };
 
+// For loop with arrays
+def names = ["Alice", "Bob", "Charlie"];
+for name in names {
+    IO::PrintLine(name);
+};
+
+// Array length operator
+def arr = [1, 2, 3, 4, 5];
+def len = #arr;  // 5
+
 // Loop with break
 def sum = loop {
     if count >= 10 then break total else ();
@@ -247,12 +257,14 @@ def second = counter();  // 2
 - **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
 - **String**: `++` (concatenation)
 - **Pipe**: `|>` (function composition)
+- **Length**: `#` (array length)
 - **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `++=`
 
 ### Advanced Features
 - **Recursive Data Types**: Self-referential unions for lists, trees
 - **Exhaustive Matching**: Compiler-enforced pattern coverage
 - **Range Expressions**: `start..step..end` with positive/negative steps
+- **Array Iteration**: `for x in array` iterates over elements
 - **Float Ranges**: Support for decimal step values
 - **Nested Generics**: Complex generic type compositions
 - **Cross-Module Classes**: Import and use classes across modules

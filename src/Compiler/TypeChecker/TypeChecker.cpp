@@ -1652,11 +1652,36 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 										if (std::ranges::contains(m_binary_partial_order_comparison_operators.cbegin(), m_binary_partial_order_comparison_operators.cend(), binary.m_op.m_token_name))
 										{
-											// Allow type variables (will be constrained by usage) or concrete numeric types
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											if (!resolved_self->IsNumericType() && !resolved_self->IsType<MidoriType::TypeVariable>())
+											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TypeVariable>();
+
+											if (!is_builtin)
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+												// Check for Orderable<T> instance
+												InstanceKey orderable_key{std::string(ORDERABLE_CLASS_NAME),{resolved_self->ToString()}};
+												std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it = m_instances.find(orderable_key);
+												bool has_orderable_instance = (instance_it != m_instances.end());
+
+												// Check for Orderable<T> constraint
+												bool has_orderable_constraint = false;
+												if (!has_orderable_instance)
+												{
+													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+													{
+														if (constraint.m_class_name == ORDERABLE_CLASS_NAME && constraint.m_type_args.size() == 1 && *constraint.m_type_args[0] == *resolved_self)
+														{
+															has_orderable_constraint = true;
+															break;
+														}
+													}
+												}
+
+												if (!has_orderable_instance && !has_orderable_constraint)
+												{
+													return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Comparison operator requires numeric type or Orderable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+												}
+
+												binary.m_uses_orderable = true;
 											}
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
@@ -1681,9 +1706,35 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										else if (std::ranges::contains(m_binary_equality_operators.cbegin(), m_binary_equality_operators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											if (!resolved_self->IsNumericType() && !resolved_self->IsType<MidoriType::TextType>() && !resolved_self->IsType<MidoriType::BoolType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
+											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TextType>() || resolved_self->IsType<MidoriType::BoolType>() || resolved_self->IsType<MidoriType::TypeVariable>();
+
+											if (!is_builtin)
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected comparable type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>(), MidoriType::MakeLiteralType<MidoriType::TextType>(), MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+												// Check for Equatable<T> instance
+												InstanceKey equatable_key{std::string(EQUATABLE_CLASS_NAME),{resolved_self->ToString()}};
+												std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it = m_instances.find(equatable_key);
+												bool has_equatable_instance = (instance_it != m_instances.end());
+
+												// Check for Equatable<T> constraint
+												bool has_equatable_constraint = false;
+												if (!has_equatable_instance)
+												{
+													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+													{
+														if (constraint.m_class_name == EQUATABLE_CLASS_NAME && constraint.m_type_args.size() == 1 && *constraint.m_type_args[0] == *resolved_self)
+														{
+															has_equatable_constraint = true;
+															break;
+														}
+													}
+												}
+
+												if (!has_equatable_instance && !has_equatable_constraint)
+												{
+													return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Equality operator requires primitive type or Equatable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+												}
+
+												binary.m_uses_equatable = true;
 											}
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();

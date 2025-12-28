@@ -1610,13 +1610,13 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				// For range iteration: step and end
 				// For array iteration: current index, length, and array reference
 				// Names use '$' prefix which is not valid in user identifiers
-				RegisterOrUpdateLocalVariable("$for_step_"s + std::to_string(s_for_counter));
+				RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_for_counter));
 				int hidden_step_index = m_total_variables - 1;
 
-				RegisterOrUpdateLocalVariable("$for_end_"s + std::to_string(s_for_counter));
+				RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_for_counter));
 				int hidden_end_index = m_total_variables - 1;
 
-				RegisterOrUpdateLocalVariable("$for_array_"s + std::to_string(s_for_counter));
+				RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter));
 				int hidden_array_index = m_total_variables - 1;
 				s_for_counter += 1;
 
@@ -2609,12 +2609,11 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																					MidoriStatement::DefineFunction& defun = method_stmt->GetStatement<MidoriStatement::DefineFunction>();
 
 																					std::string method_name = defun.m_name.m_lexeme;
-																																				// Build mangled name with all type arguments
-																																				std::string mangled_name = method_name + "_" + typeclass_name.m_lexeme;
-																																				for (const std::shared_ptr<MidoriType>& type_arg : type_args)
-																																				{
-																																					mangled_name += "_" + type_arg->ToString();
-																																				}
+																					std::string mangled_name = std::string(1, INTERNAL_NAME_PREFIX) + method_name + "_" + typeclass_name.m_lexeme;
+																					for (const std::shared_ptr<MidoriType>& type_arg : type_args)
+																					{
+																						mangled_name += "_" + type_arg->ToString();
+																					}
 
 																					// Track the mangled instance method WITH module suffix for cross-module resolution
 																					std::string mangled_name_with_module = mangled_name;

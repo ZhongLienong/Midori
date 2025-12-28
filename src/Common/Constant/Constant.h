@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <string>
 #include <string_view>
 
 inline constexpr int MAX_CAPTURED_COUNT{ UINT8_MAX };
@@ -30,6 +31,7 @@ inline constexpr int MAX_NESTED_ARRAY_INDEX{ UINT8_MAX };
 constexpr std::string_view NameSeparator = "::";
 
 constexpr char ModuleSeparator = '@';
+constexpr char INTERNAL_NAME_PREFIX = '$';
 
 // Byte manipulation constants
 inline constexpr uint8_t BYTE_MASK = 0xffu;
@@ -52,13 +54,27 @@ inline constexpr unsigned int HASH_LEFT_SHIFT = 6u;
 inline constexpr unsigned int HASH_RIGHT_SHIFT = 2u;
 
 // Main procedure naming
-constexpr std::string_view MAIN_PROCEDURE_PREFIX = "__main__";
+constexpr std::string_view MAIN_PROCEDURE_PREFIX = "$main$";
+constexpr std::string_view MODULE_BOOTSTRAP_PREFIX = "$module_bootstrap$";
 constexpr std::string_view MODULE_SEPARATOR_STR = "@";
+
+// For-loop hidden variable prefixes
+constexpr std::string_view FOR_STEP_PREFIX = "$for_step_";
+constexpr std::string_view FOR_END_PREFIX = "$for_end_";
+constexpr std::string_view FOR_ARRAY_PREFIX = "$for_array_";
 
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";
 constexpr std::string_view CONVERT_MANGLED_PREFIX = "Convert_Convertable_";
+
+constexpr std::string_view EQUATABLE_CLASS_NAME = "Equatable";
+constexpr std::string_view EQUALS_METHOD_NAME = "Equals";
+constexpr std::string_view EQUALS_MANGLED_PREFIX = "Equals_Equatable_";
+
+constexpr std::string_view ORDERABLE_CLASS_NAME = "Orderable";
+constexpr std::string_view COMPARE_METHOD_NAME = "Compare";
+constexpr std::string_view COMPARE_MANGLED_PREFIX = "Compare_Orderable_";
 
 // Standard library paths
 constexpr std::string_view STDLIB_DLL_NAME = "MidoriStdLib.dll";

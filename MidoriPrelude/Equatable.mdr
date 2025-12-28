@@ -1,0 +1,7 @@
+module Equatable
+public export { Equatable }
+
+class Equatable<T>
+{
+    Equals: fn(a: T, b: T) -> Bool;
+};
