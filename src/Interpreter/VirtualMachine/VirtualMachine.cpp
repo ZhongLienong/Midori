@@ -228,15 +228,22 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 void VirtualMachine::PromoteCells() noexcept
 {
-	for (MidoriCellValue* cell : m_cells_to_promote)
+	if (m_cells_to_promote.empty())
 	{
-		if (!cell->m_is_on_heap && cell->GetStackPointer() >= m_value_stack_base_pointer)
-		{
-			cell->m_is_on_heap = true;
-			cell->m_data = *cell->GetStackPointer();
-		}
+		return;
 	}
-	m_cells_to_promote.clear();
+	else
+	{
+		for (MidoriCellValue* cell : m_cells_to_promote)
+		{
+			if (!cell->m_is_on_heap && cell->GetStackPointer() >= m_value_stack_base_pointer)
+			{
+				cell->m_is_on_heap = true;
+				cell->m_data = *cell->GetStackPointer();
+			}
+		}
+		m_cells_to_promote.clear();
+	}
 }
 
 int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noexcept
@@ -246,7 +253,10 @@ int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noex
 	{
 		return TerminateExecution(GenerateRuntimeError(std::format("Index out of bounds at index: {}.", val), GetLine()));
 	}
-	return 0;
+	else
+	{
+		return 0;
+	}
 }
 
 int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
