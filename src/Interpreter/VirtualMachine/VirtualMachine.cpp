@@ -2,6 +2,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
 #include "Utility/Disassembler/Disassembler.h"
+#include "Interpreter/TaskRunner/TaskRunner.h"
 #include "VirtualMachine.h"
 
 #ifdef _WIN32
@@ -26,7 +27,7 @@
 
 using namespace std::string_literals;
 
-VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_executable(std::move(executable))
+VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_executable(std::move(executable)), m_is_worker_vm(false)
 {
 #ifdef _WIN32
 	// Use VirtualAlloc with guard pages for zero-overhead stack overflow detection
@@ -80,6 +81,67 @@ VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept : m_execu
 	m_global_vars.resize(static_cast<size_t>(m_executable.GetGlobalVariableCount()));
 	constexpr int runtime_startup_proc_index = 0;
 	m_instruction_pointer = &*m_executable.GetBytecodeStream(runtime_startup_proc_index).cbegin();
+}
+
+VirtualMachine::VirtualMachine(std::shared_ptr<const MidoriExecutable> executable, const MidoriClosure& entry_closure, const GlobalVariables& parent_globals) noexcept
+	: m_executable(*executable), m_is_worker_vm(true)
+{
+#ifdef _WIN32
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	size_t page_size = si.dwPageSize;
+
+	size_t value_stack_bytes = s_value_stack_size * sizeof(MidoriValue);
+	size_t value_total_pages = (value_stack_bytes + page_size - 1u) / page_size + 1u;
+	size_t value_total_size = value_total_pages * page_size;
+
+	m_value_stack_region = VirtualAlloc(nullptr, value_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (m_value_stack_region)
+	{
+		m_value_stack_begin = static_cast<MidoriValue*>(m_value_stack_region);
+
+		void* value_guard_page = static_cast<char*>(m_value_stack_region) + (value_total_size - page_size);
+		DWORD old_protect;
+		VirtualProtect(value_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+	}
+
+	size_t call_stack_bytes = s_call_stack_size * sizeof(CallFrame);
+	size_t call_total_pages = (call_stack_bytes + page_size - 1u) / page_size + 1u;
+	size_t call_total_size = call_total_pages * page_size;
+
+	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (m_call_stack_region)
+	{
+		m_call_stack_begin = static_cast<CallFrame*>(m_call_stack_region);
+
+		void* call_guard_page = static_cast<char*>(m_call_stack_region) + (call_total_size - page_size);
+		DWORD old_protect;
+		VirtualProtect(call_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+	}
+#else
+	m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(s_value_stack_size * sizeof(MidoriValue)));
+	m_call_stack_begin = static_cast<CallFrame*>(std::malloc(s_call_stack_size * sizeof(CallFrame)));
+#endif
+
+	m_value_stack_base_pointer = m_value_stack_begin;
+	m_value_stack_pointer = m_value_stack_base_pointer;
+	m_call_stack_pointer = m_call_stack_begin;
+
+	m_global_vars = parent_globals;
+
+	MidoriTraceable* closure_traceable = m_garbage_collector.AllocateTraceable
+	(
+		MidoriClosure{.m_cell_values = entry_closure.m_cell_values, .m_proc_index = entry_closure.m_proc_index},
+		PointerTag::FUNCTION
+	);
+	m_curr_environment = &closure_traceable->GetTraceable<MidoriClosure>().m_cell_values;
+
+	m_instruction_pointer = &*m_executable.GetBytecodeStream(entry_closure.m_proc_index).cbegin();
+}
+
+MidoriValue VirtualMachine::GetAsyncResult() const noexcept
+{
+	return m_async_result;
 }
 
 VirtualMachine::~VirtualMachine()
@@ -2180,6 +2242,41 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek() = Pop();
 			break;
 		}
+		case OpCode::SPAWN_ASYNC:
+		{
+			MidoriValue callable = Pop();
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+
+			MidoriFuture future_val(MidoriClosure{.m_cell_values = closure.m_cell_values, .m_proc_index = closure.m_proc_index});
+			MidoriTraceable* future_ptr = m_garbage_collector.AllocateTraceable(std::move(future_val), PointerTag::FUTURE);
+			MidoriFuture* future = &future_ptr->GetTraceable<MidoriFuture>();
+
+			std::shared_ptr<const MidoriExecutable> shared_executable = std::make_shared<const MidoriExecutable>(m_executable);
+			TaskRunner::Instance().SpawnTask(shared_executable, future, m_global_vars);
+
+			Push(future_ptr);
+			break;
+		}
+		case OpCode::AWAIT_FUTURE:
+		{
+			MidoriValue future_val = Pop();
+			MidoriFuture& future = future_val.GetPointer()->GetTraceable<MidoriFuture>();
+
+			MidoriValue result = future.Get();
+
+			if (future.m_has_error.load(std::memory_order_acquire))
+			{
+				return TerminateExecution(GenerateRuntimeError("Async task error", GetLine()));
+			}
+
+			Push(result);
+			break;
+		}
+		case OpCode::ASYNC_RETURN:
+		{
+			m_async_result = Pop();
+			return EXIT_SUCCESS;
+		}
 		default:
 		{
 			MIDORI_UNREACHABLE();
@@ -2232,11 +2329,11 @@ int VirtualMachine::Execute() noexcept
 		bool is_stack_overflow = false;
 		if (ex_info.captured && m_value_stack_region != nullptr)
 		{
-			ULONG_PTR stackStart = (ULONG_PTR)m_value_stack_begin;
-			ULONG_PTR stackEnd = stackStart + (s_value_stack_size * sizeof(MidoriValue));
+			ULONG_PTR stack_start = (ULONG_PTR)m_value_stack_begin;
+			ULONG_PTR stack_end = stack_start + (s_value_stack_size * sizeof(MidoriValue));
 
 			// Check if fault address is within or just beyond the stack region
-			if (ex_info.fault_address >= stackStart && ex_info.fault_address <= stackEnd + 4096)
+			if (ex_info.fault_address >= stack_start && ex_info.fault_address <= stack_end + 4096)
 			{
 				is_stack_overflow = true;
 			}

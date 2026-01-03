@@ -549,6 +549,10 @@ std::vector<std::pair<std::string, int>> ModuleManager::ExtractImports(const Tok
 
 						import_specifier = "<"s + module_name + ">"s;
 					}
+					else
+					{
+						current += 1;
+					}
 
 					if (!import_specifier.empty())
 					{

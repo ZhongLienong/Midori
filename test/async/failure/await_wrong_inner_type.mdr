@@ -1,0 +1,4 @@
+// ERROR: await Future<Bool> assigned to Int
+defun check() : Bool => true;
+def task : Future<Bool> = async check();
+def result : Int = await task;

@@ -217,6 +217,11 @@ enum class OpCode : uint8_t
 	RETURN,
 	HALT,
 
+	// Async
+	SPAWN_ASYNC,
+	AWAIT_FUTURE,
+	ASYNC_RETURN,
+
 	// Placeholder
 	PUSH_PLACEHOLDER,
 	UPDATE_PLACEHOLDER,

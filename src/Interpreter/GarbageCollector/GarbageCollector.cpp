@@ -138,6 +138,18 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 			}
 		}
 	}
+	else if (ptr->IsTraceable<MidoriFuture>())
+	{
+		MidoriArray& cell_values = ptr->GetTraceable<MidoriFuture>().m_closure.m_cell_values;
+		for (int i = 0; i < cell_values.GetLength(); i += 1)
+		{
+			MidoriValue& value = cell_values[i];
+			if (m_traceables.contains(value.GetPointer()))
+			{
+				Trace(value.GetPointer());
+			}
+		}
+	}
 }
 
 void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_clean)

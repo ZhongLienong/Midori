@@ -177,6 +177,7 @@ The parser implements a **recursive descent parser** with:
 - `Function` - Lambda expression
 - `Array` / `ArrayGet` / `ArraySet` - Array operations
 - `Get` / `Set` - Member access
+- `Async` / `Await` - Concurrent execution
 
 ### Key Features
 
@@ -349,6 +350,11 @@ Instructions are variable-length:
 - `RETURN` - Return from function
 - `ALLOCATE_CLOSURE` - Create closure object
 - `CONSTRUCT_CLOSURE` - Capture variables
+
+**Async/Await**:
+- `SPAWN_ASYNC` - Pop closure, spawn async task, push `Future<T>`
+- `AWAIT_FUTURE` - Pop future, block until complete, push result
+- `ASYNC_RETURN` - Return from async task (sets future result)
 
 **Data Structures**:
 - `NEW_ARRAY` - Create array

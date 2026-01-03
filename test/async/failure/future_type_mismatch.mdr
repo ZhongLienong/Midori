@@ -1,0 +1,2 @@
+// ERROR: async Int cannot be assigned to Future<Text>
+def task : Future<Text> = async 42;

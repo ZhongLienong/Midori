@@ -266,6 +266,18 @@ MidoriExpression::Break::Break(const Token& keyword, int number_to_pop, std::uni
 {
 }
 
+MidoriExpression::Async::Async(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr)
+	: m_keyword(keyword),
+	m_expr(std::move(expr))
+{
+}
+
+MidoriExpression::Await::Await(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr)
+	: m_keyword(keyword),
+	m_expr(std::move(expr))
+{
+}
+
 bool MidoriExpression::Block::HasDefine() const
 {
 	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::Define>(); });

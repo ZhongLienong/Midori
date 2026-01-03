@@ -2496,6 +2496,54 @@ void CodeGenerator::operator()(MidoriExpression::Return& return_expr)
 	EmitByte(OpCode::RETURN, line);
 }
 
+void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
+{
+	int line = async_expr.m_keyword.m_line;
+	int captured_count = async_expr.m_captured_count;
+
+	if (captured_count > MAX_CAPTURED_COUNT)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line, m_file_name, m_source_lines));
+		return;
+	}
+
+	size_t prev_index = m_current_procedure_index;
+	m_current_procedure_index = m_procedures.size();
+	m_procedures.emplace_back();
+
+	std::visit([this](auto&& arg) { (*this)(arg); }, **async_expr.m_expr);
+
+	EmitByte(OpCode::ASYNC_RETURN, line);
+
+	size_t async_proc_index = m_current_procedure_index;
+
+	std::string full_name = "async_task@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
+	m_procedure_names.emplace_back(full_name.c_str());
+
+	m_current_procedure_index = prev_index;
+
+	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
+		return;
+	}
+
+	EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+	EmitByte(static_cast<OpCode>(async_proc_index), line);
+
+	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+	EmitByte(static_cast<OpCode>(captured_count), line);
+
+	EmitByte(OpCode::SPAWN_ASYNC, line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Await& await_expr)
+{
+	int line = await_expr.m_keyword.m_line;
+	std::visit([this](auto&& arg) { (*this)(arg); }, **await_expr.m_expr);
+	EmitByte(OpCode::AWAIT_FUTURE, line);
+}
+
 void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line)
 {
 	int if_jump;

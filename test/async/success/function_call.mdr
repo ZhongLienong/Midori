@@ -1,0 +1,7 @@
+import { <IO> }
+
+defun add(a: Int, b: Int) : Int => a + b;
+
+def task : Future<Int> = async add(10, 20);
+def result : Int = await task;
+IO::PrintLine("Result: " ++ (result as Text));

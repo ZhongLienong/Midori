@@ -1,0 +1,10 @@
+import { <IO> }
+
+def task : Future<Int> = async {
+    def x : Int = 10;
+    def y : Int = 20;
+    x + y
+};
+
+def result : Int = await task;
+IO::PrintLine("Result: " ++ (result as Text));

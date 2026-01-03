@@ -1,9 +1,11 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <functional>
 #include <list>
 #include <optional>
+#include <thread>
 #include <unordered_set>
 #include <variant>
 
@@ -22,6 +24,7 @@ enum PointerTag : uint8_t
 	CELL = 0b011,
 	FUNCTION = 0b110,
 	RANGE = 0b101,
+	FUTURE = 0b111,
 };
 
 class MidoriTraceable;
@@ -318,10 +321,31 @@ struct MidoriUnion
 	int m_index{ 0 };
 };
 
+struct MidoriFuture
+{
+	MidoriClosure m_closure;
+	MidoriValue m_result;
+	std::atomic<bool> m_completed{false};
+	std::atomic<bool> m_has_error{false};
+
+	MidoriFuture(MidoriClosure&& closure);
+
+	MidoriFuture(const MidoriFuture&) = delete;
+	MidoriFuture& operator=(const MidoriFuture&) = delete;
+
+	MidoriFuture(MidoriFuture&& other) noexcept;
+	MidoriFuture& operator=(MidoriFuture&& other) noexcept;
+
+	void SetResult(MidoriValue value);
+	void SetError();
+	MidoriValue Get();
+	bool IsReady() const;
+};
+
 class MidoriTraceable
 {
 private:
-	std::variant<MidoriText, MidoriArray, MidoriRange, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure> m_value;
+	std::variant<MidoriText, MidoriArray, MidoriRange, MidoriStruct, MidoriUnion, MidoriCellValue, MidoriClosure, MidoriFuture> m_value;
 	size_t m_size;
 	bool m_is_marked = false;
 
@@ -379,6 +403,8 @@ private:
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
+
+	MidoriTraceable(MidoriFuture&& midori_future) noexcept;
 
 	friend class GarbageCollector;
 };

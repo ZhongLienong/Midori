@@ -168,18 +168,16 @@ else()
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
             /W4             # Warning level 4
-            /EHsc           # Enable async exception handling
+            /EHsc           # Enable exception handling
             /bigobj         # Allow large object files
 
             # Debug configuration - best debuggability, no optimization
             $<$<CONFIG:Debug>:/Od>      # No optimization
-            $<$<CONFIG:Debug>:/MDd>     # Debug runtime library
             $<$<CONFIG:Debug>:/Zi>      # Full debug info
             $<$<CONFIG:Debug>:/RTC1>    # Runtime checks
 
             # Development configuration - optimized with debug symbols
             $<$<CONFIG:Development>:/O2>    # Maximize speed
-            $<$<CONFIG:Development>:/MD>    # Release runtime library
             $<$<CONFIG:Development>:/Zi>    # Full debug info
 
             # Release configuration - maximum speed

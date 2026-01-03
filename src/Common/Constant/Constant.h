@@ -86,6 +86,9 @@ constexpr std::string_view LIBRARY_PATH_PREFIX = "./";
 constexpr char STDLIB_DLL_PATH[] = "./MidoriStdLib.dll";
 constexpr char STDLIB_SO_PATH[] = "./libMidoriStdLib.so";
 
+// Thread pool
+inline constexpr unsigned int DEFAULT_THREAD_POOL_SIZE = 4u;
+
 // Stack trace formatting
 constexpr std::string_view STACK_TRACE_HEADER = "Stack trace:\n";
 constexpr std::string_view ANONYMOUS_FUNCTION = "<anonymous>";

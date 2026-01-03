@@ -1,0 +1,14 @@
+import { <IO> }
+
+defun double(x: Int) : Int => x * 2;
+defun triple(x: Int) : Int => x * 3;
+
+def task1 : Future<Int> = async double(5);
+def task2 : Future<Int> = async triple(5);
+
+def r1 : Int = await task1;
+def r2 : Int = await task2;
+
+IO::PrintLine("Double: " ++ (r1 as Text));
+IO::PrintLine("Triple: " ++ (r2 as Text));
+IO::PrintLine("Sum: " ++ ((r1 + r2) as Text));

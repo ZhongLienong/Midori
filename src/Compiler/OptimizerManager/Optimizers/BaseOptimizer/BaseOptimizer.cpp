@@ -324,6 +324,16 @@ void MidoriOptimizer::operator()(MidoriExpression::Return& return_expr)
 	VisitAndReplace(return_expr.m_value);
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::Async& async_expr)
+{
+	VisitAndReplace(async_expr.m_expr);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Await& await_expr)
+{
+	VisitAndReplace(await_expr.m_expr);
+}
+
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 int MidoriOptimizer::GetOptimizationsPerformed() const
 {

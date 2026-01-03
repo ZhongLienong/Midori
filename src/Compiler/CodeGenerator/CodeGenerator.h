@@ -236,6 +236,10 @@ private:
 
 	void operator()(MidoriExpression::Return& return_expr);
 
+	void operator()(MidoriExpression::Async& async_expr);
+
+	void operator()(MidoriExpression::Await& await_expr);
+
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 
 	void EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0);

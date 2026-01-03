@@ -92,6 +92,29 @@ for i in 10..-1..0 {   -- 10, 9, 8, ..., 1 (backward)
 
 Both ranges and arrays are valid iterables for `for` expressions.
 
+### Futures
+
+`Future<T>` represents a value that will be available asynchronously:
+
+```
+Future<Int>     -- Future resolving to an integer
+Future<Text>    -- Future resolving to text
+Future<Array<Int>>  -- Future resolving to an array
+```
+
+Futures are created with `async` and consumed with `await`:
+
+```
+def task : Future<Int> = async expensive_computation();
+def result : Int = await task;
+```
+
+**Key Properties:**
+- `async expr` spawns a concurrent task and returns `Future<T>` where `T` is the type of `expr`
+- `await future` blocks until the future completes and returns the unwrapped value of type `T`
+- Multiple futures can execute concurrently
+- Each async task runs in an isolated VM with its own stack and garbage collector
+
 ## Algebraic Data Types
 
 ### Structs (Product Types)
@@ -346,7 +369,7 @@ Types are represented as a variant (tagged union) of possible type forms:
 - Primitive types (Int, Float, Bool, etc.)
 - Type variables (for inference)
 - Generic parameters (for polymorphism)
-- Composite types (Array, Function, Struct, Union, Tuple)
+- Composite types (Array, Future, Function, Struct, Union, Tuple)
 - Class constraints (for type classes)
 
 ### Type Checker (`TypeChecker.cpp`)

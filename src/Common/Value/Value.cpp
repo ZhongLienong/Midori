@@ -275,6 +275,10 @@ MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_value(
 {
 }
 
+MidoriTraceable::MidoriTraceable(MidoriFuture&& midori_future) noexcept : m_value(std::move(midori_future))
+{
+}
+
 #if MIDORI_DEBUG_INFO
 MidoriText MidoriTraceable::ToText()
 {
@@ -338,6 +342,12 @@ MidoriText MidoriTraceable::ToText()
 					struct_val.Append(arg.m_values[idx].ToText()).Append(", ");
 				}
 				return struct_val.Pop().Pop().Append("}");
+			}
+			else if constexpr (std::is_same_v<T, MidoriFuture>)
+			{
+				char buffer[64];
+				std::snprintf(buffer, sizeof(buffer), "<future at: %p>", (void*)std::addressof(arg));
+				return MidoriText(buffer);
 			}
 			else
 			{
@@ -985,4 +995,55 @@ MidoriValue* MidoriCellValue::GetStackPointer()
 	MidoriValue* ptr;
 	std::memcpy(&ptr, &m_data, sizeof(void*));
 	return ptr;
+}
+
+MidoriFuture::MidoriFuture(MidoriClosure&& closure)
+	: m_closure(std::move(closure))
+{
+}
+
+MidoriFuture::MidoriFuture(MidoriFuture&& other) noexcept
+	: m_closure(std::move(other.m_closure)),
+	m_result(other.m_result),
+	m_completed(other.m_completed.load(std::memory_order_acquire)),
+	m_has_error(other.m_has_error.load(std::memory_order_acquire))
+{
+}
+
+MidoriFuture& MidoriFuture::operator=(MidoriFuture&& other) noexcept
+{
+	if (this != &other)
+	{
+		m_closure = std::move(other.m_closure);
+		m_result = other.m_result;
+		m_completed.store(other.m_completed.load(std::memory_order_acquire), std::memory_order_release);
+		m_has_error.store(other.m_has_error.load(std::memory_order_acquire), std::memory_order_release);
+	}
+	return *this;
+}
+
+void MidoriFuture::SetResult(MidoriValue value)
+{
+	m_result = value;
+	m_completed.store(true, std::memory_order_release);
+}
+
+void MidoriFuture::SetError()
+{
+	m_has_error.store(true, std::memory_order_release);
+	m_completed.store(true, std::memory_order_release);
+}
+
+MidoriValue MidoriFuture::Get()
+{
+	while (!m_completed.load(std::memory_order_acquire))
+	{
+		std::this_thread::yield();
+	}
+	return m_result;
+}
+
+bool MidoriFuture::IsReady() const
+{
+	return m_completed.load(std::memory_order_acquire);
 }

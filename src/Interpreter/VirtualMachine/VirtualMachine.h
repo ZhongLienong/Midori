@@ -8,12 +8,20 @@
 #include <array>
 #include <bit>
 #include <cstring>
+#include <memory>
 
 class VirtualMachine
 {
 public:
+    using GlobalVariables = std::vector<MidoriValue>;
+
     VirtualMachine(MidoriExecutable&& executable) noexcept;
+
+    VirtualMachine(std::shared_ptr<const MidoriExecutable> executable, const MidoriClosure& entry_closure, const GlobalVariables& parent_globals) noexcept;
+
     ~VirtualMachine();
+
+    MidoriValue GetAsyncResult() const noexcept;
 
 private:
     static constexpr size_t s_value_stack_size = 10000u;
@@ -22,7 +30,6 @@ private:
 
     using ValueStackPointer = MidoriValue*;
     using InstructionPointer = const OpCode*;
-    using GlobalVariables = std::vector<MidoriValue>;
 
     struct CallFrame
 	{
@@ -44,6 +51,9 @@ private:
     ValueStackPointer m_value_stack_begin = nullptr;
     CallStackPointer m_call_stack_pointer = nullptr;
     CallStackPointer m_call_stack_begin = nullptr;
+
+    MidoriValue m_async_result;
+    bool m_is_worker_vm = false;
 
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
 

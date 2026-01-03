@@ -891,6 +891,15 @@ namespace Disassembler
 		case OpCode::UPDATE_PLACEHOLDER:
 			SimpleInstruction("UPDATE_PLACEHOLDER", offset);
 			break;
+		case OpCode::SPAWN_ASYNC:
+			SimpleInstruction("SPAWN_ASYNC", offset);
+			break;
+		case OpCode::AWAIT_FUTURE:
+			SimpleInstruction("AWAIT_FUTURE", offset);
+			break;
+		case OpCode::ASYNC_RETURN:
+			SimpleInstruction("ASYNC_RETURN", offset);
+			break;
 		default:
 #ifdef _MSC_VER
 			__assume(0);

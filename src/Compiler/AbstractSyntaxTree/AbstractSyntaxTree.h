@@ -549,8 +549,25 @@ public:
 		Break(const Token& keyword, int number_to_pop, std::unique_ptr<MidoriExpression>&& value);
 	};
 
+	struct Async : BaseExpression
+	{
+		Token m_keyword;
+		std::unique_ptr<MidoriExpression> m_expr;
+		int m_captured_count = 0;
+
+		Async(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr);
+	};
+
+	struct Await : BaseExpression
+	{
+		Token m_keyword;
+		std::unique_ptr<MidoriExpression> m_expr;
+
+		Await(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr);
+	};
+
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break, Async, Await>;
 	ExpressionUnion m_expr_data;
 
 public:
@@ -657,6 +674,14 @@ public:
 				else if constexpr (std::is_same_v<T, MidoriExpression::ArrayComprehension>)
 				{
 					return node.m_transform_expr->template Contains<Kind>() || node.m_range->template Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Async>)
+				{
+					return node.m_expr->template Contains<Kind>();
+				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::Await>)
+				{
+					return node.m_expr->template Contains<Kind>();
 				}
 				else
 				{

@@ -3015,3 +3015,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 			}
 		);
 }
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Async& async_expr)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **async_expr.m_expr)
+		.and_then
+		(
+			[&async_expr](std::shared_ptr<MidoriType>&& inner_type) -> MidoriResult::TypeResult
+			{
+				async_expr.m_type_data = MidoriType::MakeFutureType(std::move(inner_type));
+				return async_expr.m_type_data;
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Await& await_expr)
+{
+	return std::visit([this](auto&& arg) { return (*this)(arg); }, **await_expr.m_expr)
+		.and_then
+		(
+			[&await_expr, this](std::shared_ptr<MidoriType>&& expr_type) -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved = ApplySubstitution(expr_type);
+
+				if (!resolved->IsType<MidoriType::FutureType>())
+				{
+					std::shared_ptr<MidoriType> expected_type = MidoriType::MakeFutureType(FreshTypeVar());
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("'await' requires Future<T> type", await_expr.m_keyword, m_file_name, m_source_lines, expected_type, resolved));
+				}
+
+				await_expr.m_type_data = resolved->GetType<MidoriType::FutureType>().m_element_type;
+				return await_expr.m_type_data;
+			}
+		);
+}

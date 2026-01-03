@@ -13,6 +13,7 @@ A statically-typed functional programming language featuring algebraic data type
 - **Pipe Operator** - Functional composition with `|>` operator
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
+- **Async/Await** - Concurrent execution with `Future<T>` types
 - **Expression-Oriented** - Everything is an expression with a value
 
 ## Quick Start
@@ -223,11 +224,28 @@ def first = counter();   // 1
 def second = counter();  // 2
 ```
 
+### Async/Await
+```midori
+import { <IO> }
+
+defun compute(x: Int) : Int => x * x;
+
+// Spawn concurrent tasks
+def task1 : Future<Int> = async compute(10);
+def task2 : Future<Int> = async compute(20);
+
+// Await results (blocks until complete)
+def r1 : Int = await task1;
+def r2 : Int = await task2;
+
+IO::PrintLine("Results: " ++ (r1 as Text) ++ ", " ++ (r2 as Text));
+```
+
 ## Language Features
 
 ### Type System
 - **Primitive Types**: `Int`, `Float`, `Bool`, `Text`, `Unit`
-- **Composite Types**: `Array<T>`, structs, unions
+- **Composite Types**: `Array<T>`, `Future<T>`, structs, unions
 - **Function Types**: `fn(T1, T2) -> R`
 - **Type Aliases**: `type UserId = Int;` for readable type names
 - **Generic Parameters**: Single and multiple type parameters
@@ -268,6 +286,7 @@ def second = counter();  // 2
 - **Float Ranges**: Support for decimal step values
 - **Nested Generics**: Complex generic type compositions
 - **Cross-Module Classes**: Import and use classes across modules
+- **Async/Await**: Spawn concurrent tasks with `async`, retrieve results with `await`
 
 ## Standard Library
 
@@ -623,5 +642,5 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 
 See the [docs](docs/) folder for detailed technical documentation:
 
-- [Type System](docs/type-system.md) - Hindley-Milner type inference, type classes, and algebraic data types
+- [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking

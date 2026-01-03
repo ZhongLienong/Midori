@@ -1,0 +1,16 @@
+import { <IO> }
+
+defun compute(x: Int) : Int => x * x;
+
+def task1 : Future<Int> = async compute(2);
+def r1 : Int = await task1;
+
+def task2 : Future<Int> = async compute(r1);
+def r2 : Int = await task2;
+
+def task3 : Future<Int> = async compute(r2);
+def r3 : Int = await task3;
+
+IO::PrintLine("2^2 = " ++ (r1 as Text));
+IO::PrintLine("4^2 = " ++ (r2 as Text));
+IO::PrintLine("16^2 = " ++ (r3 as Text));

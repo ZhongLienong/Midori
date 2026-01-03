@@ -105,6 +105,8 @@ struct Token
 		INSTANCE,
 		WHERE,
 		TYPE,
+		ASYNC,
+		AWAIT,
 
 		// types
 		FLOAT,
@@ -115,6 +117,7 @@ struct Token
 		BOOL,
 		UNIT,
 		ARRAY,
+		FUTURE,
 		NEVER,
 
 		WHITESPACE,

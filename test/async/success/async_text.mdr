@@ -1,0 +1,7 @@
+import { <IO> }
+
+defun greet(name: Text) : Text => "Hello, " ++ name ++ "!";
+
+def task : Future<Text> = async greet("World");
+def result : Text = await task;
+IO::PrintLine(result);

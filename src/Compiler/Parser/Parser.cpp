@@ -828,6 +828,14 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 				}
 			);
 	}
+	else if (Match(Token::Name::ASYNC))
+	{
+		return ParseAsyncExpression();
+	}
+	else if (Match(Token::Name::AWAIT))
+	{
+		return ParseAwaitExpression();
+	}
 	else
 	{
 		return ParseConstruct();
@@ -3188,6 +3196,32 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		);
 }
 
+MidoriResult::ExpressionResult Parser::ParseAsyncExpression()
+{
+	Token& keyword = Previous();
+	return ParseExpression()
+		.and_then
+		(
+			[&keyword](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
+			{
+				return std::make_unique<MidoriExpression>(MidoriExpression::Async(keyword, std::move(expr)));
+			}
+		);
+}
+
+MidoriResult::ExpressionResult Parser::ParseAwaitExpression()
+{
+	Token& keyword = Previous();
+	return ParseUnaryArithmetic()
+		.and_then
+		(
+			[&keyword](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
+			{
+				return std::make_unique<MidoriExpression>(MidoriExpression::Await(keyword, std::move(expr)));
+			}
+		);
+}
+
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
 	std::function<MidoriResult::ExpressionResult(Token&, std::vector<std::string>&&, Token&&)> handle_body = [this](Token& keyword, std::vector<std::string>&& binding_names, Token&& member_name) -> MidoriResult::ExpressionResult
@@ -3369,6 +3403,31 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										[&type](Token&&)->MidoriResult::TypeResult
 										{
 											return MidoriType::MakeArrayType(type);
+										}
+									);
+							}
+						);
+				}
+			);
+	}
+	else if (Match(Token::Name::FUTURE))
+	{
+		return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Future'.")
+			.and_then
+			(
+				[this](Token&&) ->MidoriResult::TypeResult
+				{
+					return ParseType()
+						.and_then
+						(
+							[this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
+							{
+								return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after future type.")
+									.and_then
+									(
+										[&type](Token&&)->MidoriResult::TypeResult
+										{
+											return MidoriType::MakeFutureType(type);
 										}
 									);
 							}

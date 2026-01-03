@@ -82,6 +82,11 @@ std::shared_ptr<MidoriType> MidoriType::MakeRangeType(const std::shared_ptr<Mido
 	return std::make_shared<MidoriType>(MidoriTypeUnion(RangeType{.m_element_type = element_type}));
 }
 
+std::shared_ptr<MidoriType> MidoriType::MakeFutureType(const std::shared_ptr<MidoriType>& element_type)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(FutureType{.m_element_type = element_type}));
+}
+
 std::shared_ptr<MidoriType> MidoriType::MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types)
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(TupleType{.m_element_types = std::move(element_types)}));
@@ -128,6 +133,10 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 					else if constexpr (std::is_same_v<T, RangeType>)
 					{
 						return MakeRangeType(substitute(type_variant.m_element_type));
+					}
+					else if constexpr (std::is_same_v<T, FutureType>)
+					{
+						return MakeFutureType(substitute(type_variant.m_element_type));
 					}
 					else if constexpr (std::is_same_v<T, TupleType>)
 					{
@@ -247,6 +256,10 @@ std::string MidoriType::ToString() const
 			else if constexpr (std::is_same_v<Type, RangeType>)
 			{
 				return "Range<"s + type_variant.m_element_type->ToString() + ">"s;
+			}
+			else if constexpr (std::is_same_v<Type, FutureType>)
+			{
+				return "Future<"s + type_variant.m_element_type->ToString() + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, TupleType>)
 			{
@@ -523,6 +536,14 @@ bool operator==(const MidoriType& lhs, const MidoriType& rhs)
 				return a.m_id == b.m_id;
 			}
 			else if constexpr (std::is_same_v<TypeA, MidoriType::ArrayType>)
+			{
+				return *a.m_element_type == *b.m_element_type;
+			}
+			else if constexpr (std::is_same_v<TypeA, MidoriType::RangeType>)
+			{
+				return *a.m_element_type == *b.m_element_type;
+			}
+			else if constexpr (std::is_same_v<TypeA, MidoriType::FutureType>)
 			{
 				return *a.m_element_type == *b.m_element_type;
 			}

@@ -1,0 +1,12 @@
+import { <IO> }
+
+defun isEven(n: Int) : Bool => n % 2 == 0;
+
+def task1 : Future<Bool> = async isEven(4);
+def task2 : Future<Bool> = async isEven(7);
+
+def r1 : Bool = await task1;
+def r2 : Bool = await task2;
+
+IO::PrintLine("4 is even: " ++ (if r1 then "true" else "false"));
+IO::PrintLine("7 is even: " ++ (if r2 then "true" else "false"));

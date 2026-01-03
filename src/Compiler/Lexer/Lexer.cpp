@@ -14,6 +14,7 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"Bool"s, Token::Name::BOOL},
 	{"Unit"s, Token::Name::UNIT},
 	{"Array"s, Token::Name::ARRAY},
+	{"Future"s, Token::Name::FUTURE},
 	{"Never"s, Token::Name::NEVER},
 
 	// reserved keywords
@@ -49,7 +50,9 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"class"s, Token::Name::CLASS},
 	{"instance"s, Token::Name::INSTANCE},
 	{"where"s, Token::Name::WHERE},
-	{"type"s, Token::Name::TYPE}
+	{"type"s, Token::Name::TYPE},
+	{"async"s, Token::Name::ASYNC},
+	{"await"s, Token::Name::AWAIT}
 };
 
 template<typename Predicate>
