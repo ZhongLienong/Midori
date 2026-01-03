@@ -330,6 +330,21 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							);
 						}
 					}
+					else if constexpr (std::is_same_v<T, MidoriStatement::Define>)
+					{
+						const std::string& var_name = stmt.m_name.m_lexeme;
+						if (m_export_symbols.contains(var_name))
+						{
+							const size_t global_index = m_global_variables[var_name];
+							m_tracked_exports.emplace_back
+							(
+								var_name,
+								0,  // Global variables don't have procedure index
+								global_index,
+								BytecodeModule::SymbolType::GLOBAL_VARIABLE
+							);
+						}
+					}
 				},
 				**statement
 			);
@@ -538,6 +553,12 @@ void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
 		return;
+	}
+
+	std::optional<size_t> ffi_index = MidoriFFIRegistry::FindIndex(foreign.m_foreign_name);
+	if (ffi_index.has_value())
+	{
+		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();
 	}
 
 	bool is_global = !foreign.m_local_index.has_value();
@@ -1169,23 +1190,33 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		);
 
-		if (resolved_method_name.has_value())
+		std::optional<size_t> ffi_index_opt = std::nullopt;
+		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::BoundedName>())
 		{
-			if (!EmitResolvedNameGetGlobal(resolved_method_name.value(), line))
+			std::unordered_map<std::string, size_t>::iterator ffi_it = m_ffi_indices.find(function_name);
+			if (ffi_it != m_ffi_indices.end())
 			{
-				return;
+				ffi_index_opt = ffi_it->second;
 			}
 		}
-		else
+
+		if (!ffi_index_opt.has_value())
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+			if (resolved_method_name.has_value())
+			{
+				if (!EmitResolvedNameGetGlobal(resolved_method_name.value(), line))
+				{
+					return;
+				}
+			}
+			else
+			{
+				std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+			}
 		}
 
 		if (call.m_is_foreign)
 		{
-			EmitByte(OpCode::CALL_FOREIGN, line);
-			EmitByte(static_cast<OpCode>(arity), line);
-
 			uint8_t return_type_tag = 0;
 			if (call.m_type_data->IsType<MidoriType::TextType>())
 			{
@@ -1195,7 +1226,20 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			{
 				return_type_tag = 2;
 			}
-			EmitByte(static_cast<OpCode>(return_type_tag), line);
+
+			if (ffi_index_opt.has_value())
+			{
+				EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
+				EmitByte(static_cast<OpCode>(ffi_index_opt.value()), line);
+				EmitByte(static_cast<OpCode>(arity), line);
+				EmitByte(static_cast<OpCode>(return_type_tag), line);
+			}
+			else
+			{
+				EmitByte(OpCode::CALL_FOREIGN, line);
+				EmitByte(static_cast<OpCode>(arity), line);
+				EmitByte(static_cast<OpCode>(return_type_tag), line);
+			}
 		}
 		else if (call.m_is_tail_call)
 		{

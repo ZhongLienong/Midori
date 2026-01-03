@@ -184,6 +184,7 @@ enum class OpCode : uint8_t
 
 	// Callable
 	CALL_FOREIGN,
+	CALL_FOREIGN_INDEXED,
 	CALL_DEFINED,
 	TAIL_CALL,
 	CONSTRUCT_STRUCT,

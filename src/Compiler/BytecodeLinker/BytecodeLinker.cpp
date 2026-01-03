@@ -529,6 +529,10 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 	{
 		return 3;
 	}
+	else if (opcode == OpCode::CALL_FOREIGN_INDEXED)
+	{
+		return 4;  // opcode + ffi_index + arity + return_type
+	}
 	else if
 	(
 		opcode == OpCode::ALLOCATE_CLOSURE ||

@@ -1,4 +1,43 @@
 module DateTime
-public export { GetTime }
+public export
+{
+    GetTime,
+    GetYear, GetMonth, GetDay, GetHour, GetMinute, GetSecond,
+    GetDayOfWeek, GetDayOfYear,
+    FormatTime, GetTimezoneOffset,
+    GetUtcYear, GetUtcMonth, GetUtcDay, GetUtcHour, GetUtcMinute, GetUtcSecond
+}
 
 foreign "MIDORI_FFI_GetTime" GetTime : fn() -> Float;
+
+foreign "MIDORI_FFI_GetYear" GetYear : fn() -> Int;
+
+foreign "MIDORI_FFI_GetMonth" GetMonth : fn() -> Int;
+
+foreign "MIDORI_FFI_GetDay" GetDay : fn() -> Int;
+
+foreign "MIDORI_FFI_GetHour" GetHour : fn() -> Int;
+
+foreign "MIDORI_FFI_GetMinute" GetMinute : fn() -> Int;
+
+foreign "MIDORI_FFI_GetSecond" GetSecond : fn() -> Int;
+
+foreign "MIDORI_FFI_GetDayOfWeek" GetDayOfWeek : fn() -> Int;
+
+foreign "MIDORI_FFI_GetDayOfYear" GetDayOfYear : fn() -> Int;
+
+foreign "MIDORI_FFI_FormatTime" FormatTime : fn(Text) -> Text;
+
+foreign "MIDORI_FFI_GetTimezoneOffset" GetTimezoneOffset : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcYear" GetUtcYear : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcMonth" GetUtcMonth : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcDay" GetUtcDay : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcHour" GetUtcHour : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinute : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecond : fn() -> Int;

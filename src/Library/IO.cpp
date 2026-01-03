@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -71,7 +72,7 @@ extern "C"
 	}
 
 	// Console Input
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadInput)(void** args, void* ret) noexcept
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadInput)(void**, void* ret) noexcept
 	{
 		std::ostringstream buffer;
 		buffer << std::cin.rdbuf();
@@ -81,7 +82,7 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadLine)(void** args, void* ret) noexcept
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadLine)(void**, void* ret) noexcept
 	{
 		std::string line;
 		if (std::getline(std::cin, line))
@@ -265,5 +266,41 @@ extern "C"
 		const bool success = !file.fail();
 		std::memset(ret, 0, sizeof(double));
 		*reinterpret_cast<bool*>(ret) = success;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FileExists)(void** args, void* ret) noexcept
+	{
+		const char* file_path = reinterpret_cast<const char*>(args[0u]);
+		const bool exists = std::filesystem::exists(file_path);
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = exists;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(DeleteFile)(void** args, void* ret) noexcept
+	{
+		const char* file_path = reinterpret_cast<const char*>(args[0u]);
+		std::error_code ec;
+		const bool success = std::filesystem::remove(file_path, ec);
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = success && !ec;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(RenameFile)(void** args, void* ret) noexcept
+	{
+		const char* old_path = reinterpret_cast<const char*>(args[0u]);
+		const char* new_path = reinterpret_cast<const char*>(args[1u]);
+		std::error_code ec;
+		std::filesystem::rename(old_path, new_path, ec);
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = !ec;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetFileSize)(void** args, void* ret) noexcept
+	{
+		const char* file_path = reinterpret_cast<const char*>(args[0u]);
+		std::error_code ec;
+		const std::uintmax_t size = std::filesystem::file_size(file_path, ec);
+		const int64_t result = ec ? -1 : static_cast<int64_t>(size);
+		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 }

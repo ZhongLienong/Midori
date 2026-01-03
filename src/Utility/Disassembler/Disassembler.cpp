@@ -4,6 +4,7 @@
 
 #include "Common/Executable/Executable.h"
 #include "Common/Printer/Printer.h"
+#include "Library/MidoriFFIRegistry.h"
 #include "Disassembler.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY
@@ -235,6 +236,29 @@ namespace
 
 		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
 		formated_str << return_type_str;
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
+	void CallForeignIndexedInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int ffi_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		int return_type = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+		offset += 4;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(ffi_index));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(return_type));
+
+		std::string ffi_name = (static_cast<size_t>(ffi_index) < MidoriFFIRegistry::BUILTIN_COUNT)
+			? MidoriFFIRegistry::GetEntry(static_cast<size_t>(ffi_index)).m_name
+			: "unknown";
+		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
+
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + ffi_name + ", params: " + std::to_string(arity) + ", return: " + return_type_str);
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -788,6 +812,9 @@ namespace Disassembler
 			break;
 		case OpCode::CALL_FOREIGN:
 			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);
+			break;
+		case OpCode::CALL_FOREIGN_INDEXED:
+			CallForeignIndexedInstruction("CALL_FOREIGN_INDEXED", executable, proc_index, offset);
 			break;
 		case OpCode::CALL_DEFINED:
 			CallInstruction("CALL_DEFINED", executable, proc_index, offset);

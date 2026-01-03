@@ -5,8 +5,10 @@ Midori installer.
 Installs MidoriPrelude to a local directory and configures MIDORI_PATH so system imports
 like `import { <IO> }` can be resolved.
 
-Optionally installs Midori.exe/MidoriStdLib.dll and updates PATH so `Midori` is callable
+Optionally installs Midori.exe and updates PATH so `Midori` is callable
 from a new cmd/PowerShell session.
+
+Note: FFI functions are statically linked into Midori.exe, so no separate DLL is needed.
 """
 
 from __future__ import annotations
@@ -220,7 +222,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
     parser.add_argument("--preset", default="auto", help="CMake preset to locate Midori.exe (default: auto).")
     parser.add_argument("--midori-exe", default="", help="Explicit path to Midori.exe (overrides --preset).")
-    parser.add_argument("--copy-binaries", action="store_true", help="Install Midori.exe/MidoriStdLib.dll and add bin dir to PATH.")
+    parser.add_argument("--copy-binaries", action="store_true", help="Install Midori.exe and add bin dir to PATH.")
     args = parser.parse_args(argv)
 
     require_admin_for_machine(args.scope)
@@ -255,10 +257,6 @@ def main(argv: list[str]) -> int:
 
         target_layout.bin_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(exe_path, target_layout.bin_dir / "Midori.exe")
-
-        stdlib_path = exe_path.parent / "MidoriStdLib.dll"
-        if stdlib_path.is_file():
-            shutil.copy2(stdlib_path, target_layout.bin_dir / "MidoriStdLib.dll")
 
     write_install_marker(target_layout, args.scope)
 

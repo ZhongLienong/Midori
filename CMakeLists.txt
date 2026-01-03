@@ -104,7 +104,8 @@ if(EMSCRIPTEN)
         -sALLOW_TABLE_GROWTH=1
         -sNO_DISABLE_EXCEPTION_CATCHING
         -sFORCE_FILESYSTEM=1
-        -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile
+        -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile,wasmTable
+        -sEXPORTED_FUNCTIONS=_malloc,_free
         --no-entry
     )
 
@@ -120,10 +121,17 @@ if(EMSCRIPTEN)
 else()
     message(STATUS "Configuring for native build")
 
-    # Create main executable
+    # Collect library headers for static linking
+    file(GLOB_RECURSE LIBRARY_HEADERS
+        "src/Library/*.h"
+    )
+
+    # Create main executable with statically linked FFI functions
     add_executable(Midori
         ${COMMON_HEADERS}
         ${COMMON_SOURCES}
+        ${LIBRARY_HEADERS}
+        ${LIBRARY_SOURCES}
         "src/Midori.cpp"
     )
 
@@ -160,7 +168,7 @@ else()
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
             /W4             # Warning level 4
-            /EHa            # Enable async exception handling
+            /EHsc           # Enable async exception handling
             /bigobj         # Allow large object files
 
             # Debug configuration - best debuggability, no optimization
@@ -194,45 +202,4 @@ else()
         )
     endif()
 
-    # ========================================================================
-    # Standard Library DLL (Native builds only)
-    # ========================================================================
-    add_library(MidoriStdLib SHARED
-        ${LIBRARY_SOURCES}
-    )
-
-    # Standard library include directories
-    target_include_directories(MidoriStdLib PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-    )
-
-    # Standard library compile definitions
-    target_compile_definitions(MidoriStdLib PRIVATE
-        $<$<BOOL:${IS_BIG_ENDIAN}>:MIDORI_BIG_ENDIAN>
-        $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
-    )
-
-    # MSVC-specific configuration for standard library
-    if(MSVC)
-        # Common MSVC flags for standard library
-        target_compile_options(MidoriStdLib PRIVATE
-            /GR-            # Disable RTTI
-            /permissive-    # Standards-conformant mode
-            /W4             # Warning level 4
-            /EHa            # Enable async exception handling
-            /bigobj         # Allow large object files
-
-            # DLL requires dynamic runtime library for all configs
-            $<$<CONFIG:Debug>:/MDd>
-            $<$<CONFIG:Development>:/MD>
-            $<$<CONFIG:Release>:/MD>
-        )
-    endif()
-
-    # Set library output name for Unix-like systems
-    if(UNIX)
-        set_target_properties(MidoriStdLib PROPERTIES
-            OUTPUT_NAME "libMidoriStdLib"
-        )
-    endif()
 endif()

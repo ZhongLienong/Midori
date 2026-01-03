@@ -8,6 +8,7 @@
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
+#include "Library/MidoriFFIRegistry.h"
 
 class CodeGenerator
 {
@@ -76,6 +77,7 @@ private:
 	TypeclassMethodMap m_class_methods;
 	TypeclassInstanceMap m_class_instances;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
+	std::unordered_map<std::string, size_t> m_ffi_indices;
 
 	MidoriExecutable m_executable;
 	const std::vector<std::string>& m_source_lines;

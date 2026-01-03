@@ -343,8 +343,8 @@ Instructions are variable-length:
 
 **Functions**:
 - `CALL_DEFINED` - Call user function
-- `CALL_FOREIGN` - Call FFI function
-- `CALL_BUILTIN` - Call built-in function
+- `CALL_FOREIGN` - Call FFI function (dynamic lookup, fallback)
+- `CALL_FOREIGN_INDEXED` - Call FFI function by table index (fast path)
 - `TAIL_CALL` - Tail call optimization
 - `RETURN` - Return from function
 - `ALLOCATE_CLOSURE` - Create closure object
@@ -455,3 +455,77 @@ With debug builds (`MIDORI_BUILD_DEBUG`):
 - **Disassembly** - Human-readable bytecode listing
 - **Stack Trace** - Runtime call stack on errors
 - **Optimizer Stats** - Optimizations performed per pass
+
+## FFI (Foreign Function Interface) System
+
+**Source**: `src/Library/`
+
+The FFI system provides a hybrid approach for calling native functions with optimal performance.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    FFI Resolution                        │
+├─────────────────────────────────────────────────────────┤
+│  Static Builtins (index 0-N)                            │
+│  ├─ Print, ReadLine, SquareRoot, etc.                   │
+│  └─ Direct function pointer array in VM                 │
+│  └─ Resolved at compile time via CALL_FOREIGN_INDEXED   │
+├─────────────────────────────────────────────────────────┤
+│  Dynamic Fallback (CALL_FOREIGN)                        │
+│  ├─ For extensions not in the registry                  │
+│  └─ Runtime lookup with caching                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### FFI Registry
+
+The `MidoriFFIRegistry` class maintains a static table of builtin functions:
+
+```cpp
+// MidoriFFIRegistry.h
+using FFIFunction = void(*)(void** args, void* ret);
+
+struct FFIEntry {
+    const char* m_name;      // "MIDORI_FFI_Print"
+    FFIFunction m_function;  // Function pointer
+};
+```
+
+### Compile-Time Resolution
+
+During code generation, foreign function declarations are checked against the registry:
+
+1. **Registry lookup**: `MidoriFFIRegistry::FindIndex(foreign_name)`
+2. **If found**: Store index in `m_ffi_indices` map, emit `CALL_FOREIGN_INDEXED`
+3. **If not found**: Emit `CALL_FOREIGN` for runtime lookup
+
+### Bytecode Format
+
+**CALL_FOREIGN_INDEXED** (4 bytes):
+```
+[opcode][ffi_index][arity][return_type]
+```
+
+**CALL_FOREIGN** (3 bytes):
+```
+[opcode][arity][return_type]
+```
+
+### Performance
+
+| Approach | Lookup Cost |
+|----------|-------------|
+| CALL_FOREIGN (fallback) | ~20-50ns (registry lookup) |
+| CALL_FOREIGN_INDEXED | ~1-2ns (array access) |
+
+### Available FFI Functions
+
+| Category | Functions |
+|----------|-----------|
+| IO - Console | Print, PrintError, ReadInput, ReadLine |
+| IO - File | ReadFile, WriteFile, AppendToFile, ReadBinaryFile, WriteBinaryFile, FileExists, DeleteFile, RenameFile, GetFileSize |
+| Math | SquareRoot |
+| DateTime | GetTime |
+| System | Exit, GetEnv, Sleep, GetCurrentDirectory |

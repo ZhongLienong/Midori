@@ -4,7 +4,8 @@ public export
     Print, PrintLine, PrintError, PrintErrorLine,
     ReadInput, ReadLine,
     ReadFile, WriteFile, AppendToFile,
-    ReadBinaryFile, WriteBinaryFile
+    ReadBinaryFile, WriteBinaryFile,
+    FileExists, DeleteFile, RenameFile, GetFileSize
 }
 
 /*
@@ -44,3 +45,15 @@ foreign "MIDORI_FFI_AppendToFile" AppendToFile : fn(Text, Text) -> Bool;
 foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
 
 foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFile : fn(Text, Array<Byte>) -> Bool;
+
+/*
+* File System Utilities
+*/
+
+foreign "MIDORI_FFI_FileExists" FileExists : fn(Text) -> Bool;
+
+foreign "MIDORI_FFI_DeleteFile" DeleteFile : fn(Text) -> Bool;
+
+foreign "MIDORI_FFI_RenameFile" RenameFile : fn(Text, Text) -> Bool;
+
+foreign "MIDORI_FFI_GetFileSize" GetFileSize : fn(Text) -> Int;

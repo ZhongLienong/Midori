@@ -4,6 +4,13 @@
 #include "Utility/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include "Library/MidoriStdLib.h"
 #endif
@@ -79,11 +86,6 @@ VirtualMachine::~VirtualMachine()
 {
 	m_garbage_collector.CleanUp();
 #ifdef _WIN32
-	if (m_library_handle)
-	{
-		FreeLibrary(m_library_handle);
-	}
-
 	// Free guard-protected stacks
 	if (m_value_stack_region)
 	{
@@ -94,11 +96,6 @@ VirtualMachine::~VirtualMachine()
 		VirtualFree(m_call_stack_region, 0, MEM_RELEASE);
 	}
 #else
-	if (m_library_handle)
-	{
-		dlclose(m_library_handle);
-	}
-
 	// Fallback malloc cleanup
 	std::free(m_value_stack_begin);
 	std::free(m_call_stack_begin);
@@ -1713,12 +1710,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 #ifdef __EMSCRIPTEN__
 			void* proc = reinterpret_cast<void*>(MidoriStdLib::GetFunction(foreign_function_name_ref.GetCString()));
 #else
-			// Platform-specific dynamic loading from DLL
-#ifdef _WIN32
-			FARPROC proc = GetProcAddress(m_library_handle, foreign_function_name_ref.GetCString());
-#else
-			void* proc = dlsym(m_library_handle, foreign_function_name_ref.GetCString());
-#endif
+			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.GetCString());
+			FFIFunction proc = ffi_idx.has_value() ? m_ffi_table[ffi_idx.value()] : nullptr;
 #endif
 			if (proc == nullptr)
 			{
@@ -1762,8 +1755,105 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 
 			MidoriValue return_val;
+#ifdef __EMSCRIPTEN__
 			void(*ffi)(void**, void*) = reinterpret_cast<void(*)(void**, void*)>(proc);
 			ffi(args, reinterpret_cast<void*>(&return_val));
+#else
+			proc(args, reinterpret_cast<void*>(&return_val));
+#endif
+
+			if (return_type == 1)
+			{
+				int64_t ptr_val = return_val.GetInteger();
+				if (ptr_val == 0)
+				{
+					Push(m_garbage_collector.AllocateTraceable("", PointerTag::TEXT));
+				}
+				else
+				{
+					char* ffi_string = reinterpret_cast<char*>(ptr_val);
+					Push(m_garbage_collector.AllocateTraceable(ffi_string, PointerTag::TEXT));
+					std::free(ffi_string);
+				}
+			}
+			else if (return_type == 2)
+			{
+				struct FFIArray
+				{
+					void* data;
+					int length;
+				};
+
+				int64_t ptr_val = return_val.GetInteger();
+				if (ptr_val == 0)
+				{
+					Push(m_garbage_collector.AllocateTraceable(MidoriArray(), PointerTag::ARRAY));
+				}
+				else
+				{
+					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
+					MidoriValue* ffi_array_data = static_cast<MidoriValue*>(ffi_array->data);
+					int length = ffi_array->length;
+
+					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
+					Push(m_garbage_collector.AllocateTraceable(std::move(wrapped_array), PointerTag::ARRAY));
+
+					std::free(ffi_array);
+				}
+			}
+			else
+			{
+				Push(return_val);
+			}
+
+			break;
+		}
+		case OpCode::CALL_FOREIGN_INDEXED:
+		{
+			uint8_t ffi_index = static_cast<uint8_t>(ReadByte());
+			int arity = static_cast<int>(ReadByte());
+			uint8_t return_type = static_cast<uint8_t>(ReadByte());
+
+			FFIFunction proc = m_ffi_table[ffi_index];
+
+			struct ArrayArgument
+			{
+				void* data;
+				int length;
+			};
+
+			std::vector<ArrayArgument> array_arg_storage;
+			void* args[UINT8_MAX];
+			for (int i = arity - 1; i >= 0; i -= 1)
+			{
+				size_t idx = static_cast<size_t>(i);
+				MidoriValue arg = Pop();
+
+				if (m_garbage_collector.Contains(arg.GetPointer()))
+				{
+					MidoriTraceable* ptr = arg.GetPointer();
+					if (ptr->IsTraceable<MidoriText>())
+					{
+						args[idx] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+					}
+					else if (ptr->IsTraceable<MidoriArray>())
+					{
+						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
+						ArrayArgument array_arg;
+						array_arg.data = &array[0u];
+						array_arg.length = array.GetLength();
+						array_arg_storage.push_back(array_arg);
+						args[idx] = &array_arg_storage.back();
+					}
+				}
+				else
+				{
+					std::memcpy(&args[idx], &arg, MidoriValue::DATA_BUFFER_SIZE);
+				}
+			}
+
+			MidoriValue return_val;
+			proc(args, reinterpret_cast<void*>(&return_val));
 
 			if (return_type == 1)
 			{
@@ -2121,24 +2211,12 @@ static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* ou
 
 int VirtualMachine::Execute() noexcept
 {
-#ifndef __EMSCRIPTEN__
-	// Skip library loading in WASM - no DLL support in browser
-#ifdef _WIN32
-	m_library_handle = LoadLibrary(STDLIB_DLL_PATH);
-#else
-	m_library_handle = dlopen(STDLIB_SO_PATH, RTLD_LAZY);
-#endif
-
-	if (m_library_handle == NULL) [[unlikely]]
+	// Initialize FFI table with statically linked functions
+	const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& registry = MidoriFFIRegistry::GetTable();
+	for (size_t i = 0u; i < MidoriFFIRegistry::BUILTIN_COUNT; i += 1u)
 	{
-#ifdef _WIN32
-		FreeLibrary(m_library_handle);
-#else
-		dlclose(m_library_handle);
-#endif
-		return TerminateExecution(STDLIB_LOAD_ERROR.data());
+		m_ffi_table[i] = registry[i].m_function;
 	}
-#endif
 
 #ifdef _WIN32
 	// Structured exception handling for guard page access violations (stack overflow)
@@ -2180,7 +2258,7 @@ int VirtualMachine::Execute() noexcept
 			Printer::Print<Printer::Color::BRIGHT_WHITE>("Memory access violation - possible bytecode corruption or invalid operation\n");
 			if (ex_info.captured)
 			{
-				Printer::Print<Printer::Color::DARK_GRAY>("(Exception at 0x");
+				Printer::Print<Printer::Color::BRIGHT_WHITE>("(Exception at 0x");
 				Printer::PrintFormatted("{:X}, fault address 0x{:X})\n", ex_info.exception_address, ex_info.fault_address);
 			}
 		}

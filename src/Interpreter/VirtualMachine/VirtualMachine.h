@@ -3,16 +3,11 @@
 #include "Common/Error/Error.h"
 #include "Common/Executable/Executable.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
+#include "Library/MidoriFFIRegistry.h"
 
+#include <array>
 #include <bit>
 #include <cstring>
-
-// handle std library
-#ifdef WIN32
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 
 class VirtualMachine
 {
@@ -50,12 +45,11 @@ private:
     CallStackPointer m_call_stack_pointer = nullptr;
     CallStackPointer m_call_stack_begin = nullptr;
 
+    std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
+
 #ifdef _WIN32
     void* m_value_stack_region = nullptr;
     void* m_call_stack_region = nullptr;
-    HMODULE m_library_handle = nullptr;
-#else
-    void* m_library_handle = nullptr;
 #endif
 
 public:

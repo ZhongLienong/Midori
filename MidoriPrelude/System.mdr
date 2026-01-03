@@ -1,0 +1,25 @@
+module System
+public export
+{
+    Exit, GetEnv, SetEnv, Sleep,
+    GetCurrentDirectory, SetCurrentDirectory,
+    Execute, GetPlatform, GetProcessId
+}
+
+foreign "MIDORI_FFI_Exit" Exit : fn(Int) -> Unit;
+
+foreign "MIDORI_FFI_GetEnv" GetEnv : fn(Text) -> Text;
+
+foreign "MIDORI_FFI_SetEnv" SetEnv : fn(Text, Text) -> Bool;
+
+foreign "MIDORI_FFI_Sleep" Sleep : fn(Int) -> Unit;
+
+foreign "MIDORI_FFI_GetCurrentDirectory" GetCurrentDirectory : fn() -> Text;
+
+foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectory : fn(Text) -> Bool;
+
+foreign "MIDORI_FFI_Execute" Execute : fn(Text) -> Int;
+
+foreign "MIDORI_FFI_GetPlatform" GetPlatform : fn() -> Text;
+
+foreign "MIDORI_FFI_GetProcessId" GetProcessId : fn() -> Int;
