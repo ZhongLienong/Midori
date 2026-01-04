@@ -1106,9 +1106,9 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 							)
 							.or_else
 							(
-								[&data_name_token_value, this](std::string&&) ->MidoriResult::ExpressionResult
+								[&data_name_token_value, this](std::string&& original_error) ->MidoriResult::ExpressionResult
 								{
-									return std::unexpected<std::string>(GenerateParserError("Failed to parse constructor arguments.", data_name_token_value));
+									return std::unexpected<std::string>(std::move(original_error));
 								}
 							);
 					}
@@ -3711,6 +3711,7 @@ MidoriResult::ParserResult Parser::Parse()
 		else
 		{
 			errors.append(result.error()).push_back('\n');
+			break;
 		}
 	}
 

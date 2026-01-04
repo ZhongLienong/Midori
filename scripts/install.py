@@ -103,6 +103,16 @@ def resolve_midori_exe(repo: Path, preset: str, explicit_exe: Optional[str]) -> 
         exe_path = Path(explicit_exe).expanduser().resolve()
         return exe_path if exe_path.is_file() else None
 
+    # Check build/out/ first (CMake command-line builds)
+    for subdir in ["out", "Release", ""]:
+        if subdir:
+            candidate = repo / "build" / subdir / "Midori.exe"
+        else:
+            candidate = repo / "build" / "Midori.exe"
+        if candidate.is_file():
+            return candidate.resolve()
+
+    # Check out/build/<preset>/ (Visual Studio CMake presets)
     presets: list[str]
     if preset == "auto":
         presets = ["x64-release", "x64-development", "x64-debug"]
@@ -119,10 +129,22 @@ def resolve_midori_exe(repo: Path, preset: str, explicit_exe: Optional[str]) -> 
 
 def list_available_midori_exes(repo: Path) -> list[tuple[str, Path]]:
     results: list[tuple[str, Path]] = []
+
+    # Check build/out/ first (CMake command-line builds)
+    for label, subdir in [("build/out", "out"), ("build/Release", "Release"), ("build", "")]:
+        if subdir:
+            candidate = repo / "build" / subdir / "Midori.exe"
+        else:
+            candidate = repo / "build" / "Midori.exe"
+        if candidate.is_file():
+            results.append((label, candidate.resolve()))
+
+    # Check out/build/<preset>/ (Visual Studio CMake presets)
     for preset_name in ["x64-release", "x64-development", "x64-debug"]:
         candidate = repo / "out" / "build" / preset_name / "Midori.exe"
         if candidate.is_file():
             results.append((preset_name, candidate.resolve()))
+
     return results
 
 
