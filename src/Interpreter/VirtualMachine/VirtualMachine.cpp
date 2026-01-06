@@ -2176,6 +2176,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(Peek());
 			break;
 		}
+		case OpCode::SWAP:
+		{
+			MidoriValue first = Pop();
+			MidoriValue second = Pop();
+			Push(first);
+			Push(second);
+			break;
+		}
 		case OpCode::POP_LOCAL_SCOPE:
 		{
 			// on scope exit, promote all cells to heap

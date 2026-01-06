@@ -1,0 +1,21 @@
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+// Test nested array comprehension (Matrix creation)
+def rows = 3;
+def cols = 3;
+def matrix = [[x * 10 + y for y in 1..1..cols] for x in 1..1..rows];
+
+PrintLine("Matrix 3x3:");
+for row in matrix {
+    def line = "";
+    for val in row {
+        line = line ++ (val as Text) ++ " ";
+    };
+    PrintLine(line);
+};
+
+// Test 3-level nesting
+def cube = [[[x + y + z for z in 0..1..2] for y in 0..1..2] for x in 0..1..2];
+PrintLine("Cube element [1][1][1]:");
+PrintLine(cube[1][1][1] as Text);

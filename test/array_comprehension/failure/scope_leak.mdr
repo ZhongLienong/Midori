@@ -1,0 +1,5 @@
+import { "../../../MidoriPrelude/IO.mdr" }
+
+def x = [i for i in 0..1..5];
+// 'i' should not be visible here
+IO::PrintLine(i as Text);

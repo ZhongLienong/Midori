@@ -208,6 +208,7 @@ enum class OpCode : uint8_t
 	// Stack Operations
 	POP,
 	DUP,
+	SWAP,
 	POP_LOCAL_SCOPE,
 	POP_VALUES,
 	POP_BLOCK_SCOPE,

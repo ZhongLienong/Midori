@@ -10,10 +10,6 @@
 #include <string>
 #include <vector>
 
-#ifdef __EMSCRIPTEN__
-#include <iostream>
-#endif
-
 namespace
 {
 	char* AllocateString(const std::string& str)

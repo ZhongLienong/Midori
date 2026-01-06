@@ -1,0 +1,18 @@
+import { "../../../MidoriPrelude/IO.mdr" }
+
+// Iterating over an existing array of strings
+def names = ["Alice", "Bob", "Charlie"];
+def greetings = ["Hello, " ++ name for name in names];
+
+for g in greetings {
+    PrintLine(g);
+};
+
+// Iterating over mixed nested structures
+def points = [[1, 2], [3, 4], [5, 6]];
+def sums = [p[0] + p[1] for p in points];
+
+IO::PrintLine("Sums of points:");
+for s in sums {
+    IO::PrintLine(s as Text);
+};

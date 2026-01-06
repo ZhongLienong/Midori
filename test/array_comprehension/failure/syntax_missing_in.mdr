@@ -1,0 +1,2 @@
+// Missing 'in' keyword
+def x = [i for i 0..1..10];

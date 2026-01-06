@@ -1,0 +1,3 @@
+// Iterating over a non-iterable type
+def num = 100;
+def x = [i for i in num];

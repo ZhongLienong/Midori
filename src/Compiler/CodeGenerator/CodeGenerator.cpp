@@ -2360,9 +2360,10 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 
-		// Get result array, evaluate transform expression, append
-		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		// Evaluate transform expression first, then get result array, swap and append
 		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		EmitByte(OpCode::SWAP, line);
 		EmitByte(OpCode::ADD_BACK_ARRAY, line);
 		EmitByte(OpCode::POP, line);
 
@@ -2436,9 +2437,10 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 
 		PatchJump(body_jump, line);
 
-		// Get result array, evaluate transform expression, append
-		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		// Evaluate transform expression first, then get result array, swap and append
 		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
+		EmitByte(OpCode::SWAP, line);
 		EmitByte(OpCode::ADD_BACK_ARRAY, line);
 		EmitByte(OpCode::POP, line);
 
