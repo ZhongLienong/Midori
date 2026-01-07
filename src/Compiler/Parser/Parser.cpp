@@ -110,17 +110,17 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		// Global
 		if (IsGlobalName(found_scope_it))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Global()));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
 		}
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
 		}
 		// Cell
 		else
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
 		}
 	}
 
@@ -153,7 +153,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			{
 				Token qualified_token = name_token;
 				qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
-				return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(qualified_token, MidoriExpression::NameContext::Global()));
+				return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
 			}
 			else
 			{
@@ -648,9 +648,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 						(
 							[this, &left_expr, &equal](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
 							{
-								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
 								{
-									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
 									if (found_scope_it != m_scopes.crend())
@@ -658,28 +658,28 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Bind(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
+											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
 										}
 										else if (IsLocalName(find_result))
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Bind(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
 										}
 										else
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Bind(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
 										}
 									}
 									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								else if (left_expr->IsExpression<MidoriExpression::Get>())
+								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
 								{
-									MidoriExpression::Get& get_expr = left_expr->GetExpression<MidoriExpression::Get>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::Set(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
+									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
+									return std::make_unique<MidoriExpression>(MidoriExpression::MemberAssignment(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
 								}
-								else if (left_expr->IsExpression<MidoriExpression::ArrayGet>())
+								else if (left_expr->IsExpression<MidoriExpression::IndexAccess>())
 								{
-									MidoriExpression::ArrayGet& access_expr = left_expr->GetExpression<MidoriExpression::ArrayGet>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::ArraySet(access_expr.m_op, std::move(access_expr.m_indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
+									MidoriExpression::IndexAccess& access_expr = left_expr->GetExpression<MidoriExpression::IndexAccess>();
+									return std::make_unique<MidoriExpression>(MidoriExpression::IndexAssignment(access_expr.m_op, std::move(access_expr.m_indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
 								}
 								return std::unexpected<std::string>(GenerateParserError("Invalid binding target.", equal));
 							}
@@ -693,9 +693,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 						(
 							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
 							{
-								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
 								{
-									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
 									if (found_scope_it != m_scopes.crend())
@@ -728,9 +728,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 						(
 							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
 							{
-								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
 								{
-									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
 									if (found_scope_it != m_scopes.crend())
@@ -763,9 +763,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 						(
 							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
 							{
-								if (left_expr->IsExpression<MidoriExpression::BoundedName>())
+								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
 								{
-									MidoriExpression::BoundedName& variable_expr = left_expr->GetExpression<MidoriExpression::BoundedName>();
+									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
 									if (found_scope_it != m_scopes.crend())
@@ -889,7 +889,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 			(
 				[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::ArrayGet(op, std::move(indices), std::move(arr_var)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
 				}
 			);
 	}
@@ -911,7 +911,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 						(
 							[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
 							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::ArrayGet(op, std::move(indices), std::move(arr_var)));
+								return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
 							}
 						);
 				}
@@ -960,7 +960,7 @@ MidoriResult::ExpressionResult Parser::ParseCall()
 					(
 						[&parse_call_aux_fun, &expr](Token&& name) -> MidoriResult::ExpressionResult
 						{
-							return parse_call_aux_fun(std::make_unique<MidoriExpression>(MidoriExpression::Get(name, std::move(expr))));
+							return parse_call_aux_fun(std::make_unique<MidoriExpression>(MidoriExpression::MemberAccess(name, std::move(expr))));
 						}
 					);
 			}
@@ -1259,7 +1259,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_class_methods.find(constraint.m_class_name);
 							if (tc_it != m_class_methods.cend() && tc_it->second.contains(symbol_name))
 							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Global()));
+								return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 							}
 						}
 
@@ -1273,7 +1273,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								// Symbol is accessible - create a global reference
 								// (The symbol was defined in another module and is accessible)
 								// Keep the fully qualified name so the code generator can identify imports
-								return std::make_unique<MidoriExpression>(MidoriExpression::BoundedName(variable, MidoriExpression::NameContext::Global()));
+								return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 							}
 							else
 							{
@@ -1901,7 +1901,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 												(
 													[&names, &local_indices, &expr](Token&&) -> MidoriResult::StatementResult
 													{
-														return std::make_unique<MidoriStatement>(MidoriStatement::DefineTuple(std::move(names), std::move(expr), std::move(local_indices)));
+														return std::make_unique<MidoriStatement>(MidoriStatement::TupleDefinition(std::move(names), std::move(expr), std::move(local_indices)));
 													}
 												);
 										}
@@ -1943,7 +1943,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 																(
 																	[&define_name, &expr, &type_annotation, &local_index](Token&&) -> MidoriResult::StatementResult
 																	{
-																		return std::make_unique<MidoriStatement>(MidoriStatement::Define(define_name, std::move(expr), std::move(type_annotation), std::move(local_index)));
+																		return std::make_unique<MidoriStatement>(MidoriStatement::VariableDefinition(define_name, std::move(expr), std::move(type_annotation), std::move(local_index)));
 																	}
 																);
 														}
@@ -2149,7 +2149,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																									}
 
 																									std::vector<MidoriType::ClassConstraint> constraints_copy = constraints;
-																									return std::make_unique<MidoriStatement>(MidoriStatement::DefineFunction(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), m_total_variables, std::move(constraints_copy)));
+																									return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), m_total_variables, std::move(constraints_copy)));
 																								}
 																							);
 																					}
@@ -2587,7 +2587,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 																																		m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
 																																		m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
 
-																																		return std::make_unique<MidoriStatement>(MidoriStatement::DefineFunction(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>()));
+																																		return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>()));
 																																	}
 																																);
 																														}
@@ -2768,7 +2768,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																																					}
 
 																																					return std::make_unique<MidoriStatement>(
-																																						MidoriStatement::DefineFunction(
+																																						MidoriStatement::FunctionDefinition(
 																																							method_name,
 																																							std::move(generic_params),
 																																							std::move(params),
@@ -2808,9 +2808,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																		{
 																			for (std::unique_ptr<MidoriStatement>& method_stmt : methods)
 																			{
-																				if (method_stmt->IsStatement<MidoriStatement::DefineFunction>())
+																				if (method_stmt->IsStatement<MidoriStatement::FunctionDefinition>())
 																				{
-																					MidoriStatement::DefineFunction& defun = method_stmt->GetStatement<MidoriStatement::DefineFunction>();
+																					MidoriStatement::FunctionDefinition& defun = method_stmt->GetStatement<MidoriStatement::FunctionDefinition>();
 
 																					std::string method_name = defun.m_name.m_lexeme;
 																					std::string mangled_name = std::string(1, INTERNAL_NAME_PREFIX) + method_name + "_" + typeclass_name.m_lexeme;
@@ -2951,7 +2951,7 @@ MidoriResult::StatementResult Parser::ParseSimpleStatement()
 					(
 						[&expr](Token&& semi_colon) ->MidoriResult::StatementResult
 						{
-							return std::make_unique<MidoriStatement>(MidoriStatement::Simple(semi_colon, std::move(expr)));
+							return std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semi_colon, std::move(expr)));
 						}
 					);
 			}
@@ -3001,7 +3001,7 @@ MidoriResult::StatementResult Parser::ParseForeignStatement()
 																	(
 																		[&foreign_name, &function_name, &type, &local_index](Token&&) ->MidoriResult::StatementResult
 																		{
-																			return std::make_unique<MidoriStatement>(MidoriStatement::Foreign(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index)));
+																			return std::make_unique<MidoriStatement>(MidoriStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index)));
 																		}
 																	);
 															}

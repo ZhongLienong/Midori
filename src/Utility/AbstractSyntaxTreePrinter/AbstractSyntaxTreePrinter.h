@@ -10,17 +10,17 @@ struct PrintAbstractSyntaxTree
 
 	void PrintVariableSemantic(int depth, const MidoriExpression::NameContext::Tag& tag) const;
 
-	void operator()(const MidoriStatement::Simple& simple, int depth = 0) const;
+	void operator()(const MidoriStatement::ExpressionStatement& simple, int depth = 0) const;
 
-	void operator()(const MidoriStatement::Define& def, int depth = 0) const;
+	void operator()(const MidoriStatement::VariableDefinition& def, int depth = 0) const;
 
-	void operator()(const MidoriStatement::DefineTuple& def_tuple, int depth = 0) const;
+	void operator()(const MidoriStatement::TupleDefinition& def_tuple, int depth = 0) const;
 
-	void operator()(const MidoriStatement::DefineFunction& defun, int depth = 0) const;
+	void operator()(const MidoriStatement::FunctionDefinition& defun, int depth = 0) const;
 
 	void operator()(const MidoriStatement::Continue&, int depth = 0) const;
 
-	void operator()(const MidoriStatement::Foreign& foreign, int depth = 0) const;
+	void operator()(const MidoriStatement::ForeignDefinition& foreign, int depth = 0) const;
 
 	void operator()(const MidoriStatement::Struct& struct_stmt, int depth = 0) const;
 
@@ -40,13 +40,13 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Call& call, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Get& get, int depth = 0) const;
+	void operator()(const MidoriExpression::MemberAccess& get, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Set& set, int depth = 0) const;
+	void operator()(const MidoriExpression::MemberAssignment& set, int depth = 0) const;
 
-	void operator()(const MidoriExpression::BoundedName& variable, int depth = 0) const;
+	void operator()(const MidoriExpression::NameAccess& variable, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Bind& bind, int depth = 0) const;
+	void operator()(const MidoriExpression::Assignment& bind, int depth = 0) const;
 
 	void operator()(const MidoriExpression::TextLiteral& text, int depth = 0) const;
 
@@ -68,9 +68,9 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Array& array, int depth = 0) const;
 
-	void operator()(const MidoriExpression::ArrayGet& array_get, int depth = 0) const;
+	void operator()(const MidoriExpression::IndexAccess& array_get, int depth = 0) const;
 
-	void operator()(const MidoriExpression::ArraySet& array_set, int depth = 0) const;
+	void operator()(const MidoriExpression::IndexAssignment& array_set, int depth = 0) const;
 
 	void operator()(const MidoriExpression::RangeBinary& range_binary, int depth = 0) const;
 

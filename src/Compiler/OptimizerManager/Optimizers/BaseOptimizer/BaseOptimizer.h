@@ -41,17 +41,17 @@ protected:
 
 	virtual void Replace(std::unique_ptr<MidoriExpression>&& new_node, std::unique_ptr<MidoriExpression>& old_node);
 
-	virtual void operator()(MidoriStatement::Simple& simple);
+	virtual void operator()(MidoriStatement::ExpressionStatement& simple);
 
-	virtual void operator()(MidoriStatement::Define& def);
+	virtual void operator()(MidoriStatement::VariableDefinition& def);
 
-	virtual void operator()(MidoriStatement::DefineTuple& def_tuple);
+	virtual void operator()(MidoriStatement::TupleDefinition& def_tuple);
 
-	virtual void operator()(MidoriStatement::DefineFunction& defun);
+	virtual void operator()(MidoriStatement::FunctionDefinition& defun);
 
 	virtual void operator()(MidoriStatement::Continue& continue_stmt);
 
-	virtual void operator()(MidoriStatement::Foreign& foreign);
+	virtual void operator()(MidoriStatement::ForeignDefinition& foreign);
 
 	virtual void operator()(MidoriStatement::Struct& struct_stmt);
 
@@ -77,13 +77,13 @@ protected:
 
 	virtual void operator()(MidoriExpression::Call& call);
 
-	virtual void operator()(MidoriExpression::Get& get);
+	virtual void operator()(MidoriExpression::MemberAccess& get);
 
-	virtual void operator()(MidoriExpression::Set& set);
+	virtual void operator()(MidoriExpression::MemberAssignment& set);
 
-	virtual void operator()(MidoriExpression::BoundedName& variable);
+	virtual void operator()(MidoriExpression::NameAccess& variable);
 
-	virtual void operator()(MidoriExpression::Bind& bind);
+	virtual void operator()(MidoriExpression::Assignment& bind);
 
 	virtual void operator()(MidoriExpression::AppendAssign& append_assign);
 
@@ -111,9 +111,9 @@ protected:
 
 	virtual void operator()(MidoriExpression::Array& array);
 
-	virtual void operator()(MidoriExpression::ArrayGet& array_get);
+	virtual void operator()(MidoriExpression::IndexAccess& array_get);
 
-	virtual void operator()(MidoriExpression::ArraySet& array_set);
+	virtual void operator()(MidoriExpression::IndexAssignment& array_set);
 
 	virtual void operator()(MidoriExpression::ArrayComprehension& comp);
 

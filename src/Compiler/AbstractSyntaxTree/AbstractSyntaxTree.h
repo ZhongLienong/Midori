@@ -14,34 +14,34 @@ class MidoriStatement
 {
 public:
 
-	struct Simple
+	struct ExpressionStatement
 	{
 		Token m_semicolon;
 		std::unique_ptr<MidoriExpression> m_expr;
 
-		Simple(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr);
+		ExpressionStatement(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
-	struct Define
+	struct VariableDefinition
 	{
 		Token m_name;
 		std::unique_ptr<MidoriExpression> m_value;
 		std::optional<std::shared_ptr<MidoriType>> m_annotated_type;
 		std::optional<int> m_local_index;
 
-		Define(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
+		VariableDefinition(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
 	};
 
-	struct DefineTuple
+	struct TupleDefinition
 	{
 		std::vector<Token> m_names;
 		std::unique_ptr<MidoriExpression> m_value;
 		std::vector<std::optional<int>> m_local_indices;
 
-		DefineTuple(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices);
+		TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices);
 	};
 
-	struct DefineFunction
+	struct FunctionDefinition
 	{
 		Token m_name;
 		std::vector<Token> m_generic_params;
@@ -53,7 +53,7 @@ public:
 		std::optional<int> m_local_index;
 		int m_captured_count;
 
-		DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
+		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};
 
 	struct Continue
@@ -64,14 +64,14 @@ public:
 		Continue(const Token& keyword, int number_to_pop);
 	};
 
-	struct Foreign
+	struct ForeignDefinition
 	{
 		Token m_function_name;
 		std::string m_foreign_name;
 		std::shared_ptr<MidoriType> m_type;
 		std::optional<int> m_local_index;
 
-		Foreign(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index);
+		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index);
 	};
 
 	struct Struct
@@ -122,25 +122,25 @@ public:
 	};
 
 private:
-	using StatementUnion = std::variant<Simple, Define, DefineTuple, DefineFunction, Continue, Foreign, Struct, Union, Class, Instance, TypeAlias>;
-	StatementUnion m_stmt_data;
+	using StatementUnion = std::variant<ExpressionStatement, VariableDefinition, TupleDefinition, FunctionDefinition, Continue, ForeignDefinition, Struct, Union, Class, Instance, TypeAlias>;
+	StatementUnion m_variant;
 
 public:
 	template<typename T>
-	MidoriStatement(T&& stmt_data) : m_stmt_data(std::move(stmt_data))
+	MidoriStatement(T&& stmt_data) : m_variant(std::move(stmt_data))
 	{
 	}
 
 	template<typename T>
 	T& GetStatement()
 	{
-		return std::get<T>(m_stmt_data);
+		return std::get<T>(m_variant);
 	}
 
 	template<typename T>
 	constexpr bool IsStatement() const
 	{
-		return std::holds_alternative<T>(m_stmt_data);
+		return std::holds_alternative<T>(m_variant);
 	}
 
 	StatementUnion& operator*();
@@ -280,13 +280,13 @@ public:
 		UnarySuffix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
-	struct Bind : BaseExpression
+	struct Assignment : BaseExpression
 	{
 		Token m_name;
 		std::unique_ptr<MidoriExpression> m_value;
 		NameContext::Tag m_name_ctx;
 
-		Bind(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+		Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
 	struct AppendAssign : BaseExpression
@@ -317,12 +317,12 @@ public:
 		CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
-	struct BoundedName : BaseExpression
+	struct NameAccess : BaseExpression
 	{
 		Token m_name;
 		NameContext::Tag m_name_ctx;
 
-		BoundedName(const Token& name, NameContext::Tag&& name_ctx);
+		NameAccess(const Token& name, NameContext::Tag&& name_ctx);
 	};
 
 	struct Call : BaseExpression
@@ -385,23 +385,23 @@ public:
 		IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type);
 	};
 
-	struct Get : BaseExpression
+	struct MemberAccess : BaseExpression
 	{
 		Token m_member_name;
 		std::unique_ptr<MidoriExpression> m_struct;
 		int m_index;
 
-		Get(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index = -1);
+		MemberAccess(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index = -1);
 	};
 
-	struct Set : BaseExpression
+	struct MemberAssignment : BaseExpression
 	{
 		Token m_member_name;
 		std::unique_ptr<MidoriExpression> m_struct;
 		std::unique_ptr<MidoriExpression> m_value;
 		int m_index;
 
-		Set(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
+		MemberAssignment(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
 	};
 
 	struct Array : BaseExpression
@@ -412,23 +412,23 @@ public:
 		Array(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elems);
 	};
 
-	struct ArrayGet : BaseExpression
+	struct IndexAccess : BaseExpression
 	{
 		Token m_op;
 		std::vector<std::unique_ptr<MidoriExpression>> m_indices;
 		std::unique_ptr<MidoriExpression> m_arr_var;
 
-		ArrayGet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var);
+		IndexAccess(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var);
 	};
 
-	struct ArraySet : BaseExpression
+	struct IndexAssignment : BaseExpression
 	{
 		Token m_op;
 		std::vector<std::unique_ptr<MidoriExpression>> m_indices;
 		std::unique_ptr<MidoriExpression> m_arr_var;
 		std::unique_ptr<MidoriExpression> m_value;
 
-		ArraySet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
+		IndexAssignment(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
 	};
 
 	struct ArrayComprehension : BaseExpression
@@ -567,25 +567,25 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Bind, AppendAssign, PrependAssign, CompoundAssign, BoundedName, Call, Function, Construct, IfElse, Get, Set, Array, ArrayGet, ArraySet, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break, Async, Await>;
-	ExpressionUnion m_expr_data;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, AppendAssign, PrependAssign, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break, Async, Await>;
+	ExpressionUnion m_variant;
 
 public:
 	template<typename T>
-	MidoriExpression(T&& expr_data) : m_expr_data(std::move(expr_data))
+	MidoriExpression(T&& expr_data) : m_variant(std::move(expr_data))
 	{
 	}
 
 	template<typename T>
 	T& GetExpression()
 	{
-		return std::get<T>(m_expr_data);
+		return std::get<T>(m_variant);
 	}
 
 	template<typename T>
 	constexpr bool IsExpression() const
 	{
-		return std::holds_alternative<T>(m_expr_data);
+		return std::holds_alternative<T>(m_variant);
 	}
 
 	ExpressionUnion& operator*();
@@ -635,7 +635,7 @@ public:
 					(
 						node.m_stmts, [this](const std::unique_ptr<MidoriStatement>& stmt)
 						{
-							return stmt->template IsStatement<MidoriStatement::Simple>() && stmt->template GetStatement<MidoriStatement::Simple>().m_expr->template Contains<Kind>();
+							return stmt->template IsStatement<MidoriStatement::ExpressionStatement>() && stmt->template GetStatement<MidoriStatement::ExpressionStatement>().m_expr->template Contains<Kind>();
 						}
 					)
 						|| (node.m_final_expr.has_value() && node.m_final_expr.value()->template Contains<Kind>());
@@ -688,7 +688,7 @@ public:
 					return false;
 				}
 			},
-			m_expr_data
+			m_variant
 		);
 	}
 };

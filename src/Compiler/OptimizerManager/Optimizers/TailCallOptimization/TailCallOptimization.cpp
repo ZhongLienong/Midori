@@ -26,7 +26,7 @@ std::string_view TailCallOptimization::GetName() const
 	return "TailCallOptimization";
 }
 
-void TailCallOptimization::operator()(MidoriStatement::DefineFunction& defun)
+void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun)
 {
 	m_current_function = defun.m_name.m_lexeme;
 	m_has_tail_recursion = false;
@@ -47,9 +47,9 @@ bool TailCallOptimization::IsTailCall(std::unique_ptr<MidoriExpression>& expr, s
 	}
 
 	MidoriExpression::Call& call = expr->GetExpression<MidoriExpression::Call>();
-	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 	{
-		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		if (callee_name.m_name.m_lexeme == function_name)
 		{
 			call.m_is_tail_call = true;
@@ -64,9 +64,9 @@ bool TailCallOptimization::ContainsRecursiveCall(std::unique_ptr<MidoriExpressio
 	if (expr->IsExpression<MidoriExpression::Call>())
 	{
 		MidoriExpression::Call& call = expr->GetExpression<MidoriExpression::Call>();
-		if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+		if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 		{
-			MidoriExpression::BoundedName& callee = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+			MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 			if (callee.m_name.m_lexeme == function_name)
 			{
 				return true;

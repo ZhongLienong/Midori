@@ -122,17 +122,17 @@ private:
 
 	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Simple& simple);
+	MidoriResult::TypeResult operator()(MidoriStatement::ExpressionStatement& simple);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Define& def);
+	MidoriResult::TypeResult operator()(MidoriStatement::VariableDefinition& def);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::DefineTuple& def_tuple);
+	MidoriResult::TypeResult operator()(MidoriStatement::TupleDefinition& def_tuple);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::DefineFunction& defun);
+	MidoriResult::TypeResult operator()(MidoriStatement::FunctionDefinition& defun);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Continue& continue_stmt);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Foreign& foreign_stmt);
+	MidoriResult::TypeResult operator()(MidoriStatement::ForeignDefinition& foreign_stmt);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Struct& struct_stmt);
 
@@ -158,13 +158,13 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Call& call);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Get& get);
+	MidoriResult::TypeResult operator()(MidoriExpression::MemberAccess& get);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Set& set);
+	MidoriResult::TypeResult operator()(MidoriExpression::MemberAssignment& set);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::BoundedName& variable);
+	MidoriResult::TypeResult operator()(MidoriExpression::NameAccess& variable);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Bind& bind);
+	MidoriResult::TypeResult operator()(MidoriExpression::Assignment& bind);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::AppendAssign& append_assign);
 
@@ -192,9 +192,9 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Array& array);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::ArrayGet& array_get);
+	MidoriResult::TypeResult operator()(MidoriExpression::IndexAccess& array_get);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::ArraySet& array_set);
+	MidoriResult::TypeResult operator()(MidoriExpression::IndexAssignment& array_set);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::RangeBinary& range_binary);
 

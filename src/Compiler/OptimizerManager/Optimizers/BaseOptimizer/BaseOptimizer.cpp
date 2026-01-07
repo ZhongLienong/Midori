@@ -19,22 +19,22 @@ void MidoriOptimizer::Replace(std::unique_ptr<MidoriExpression>&& new_node, std:
 	MarkOptimization();
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Simple& simple)
+void MidoriOptimizer::operator()(MidoriStatement::ExpressionStatement& simple)
 {
 	VisitAndReplace(simple.m_expr);
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Define& def)
+void MidoriOptimizer::operator()(MidoriStatement::VariableDefinition& def)
 {
 	VisitAndReplace(def.m_value);
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::DefineTuple& def_tuple)
+void MidoriOptimizer::operator()(MidoriStatement::TupleDefinition& def_tuple)
 {
 	VisitAndReplace(def_tuple.m_value);
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::DefineFunction& defun)
+void MidoriOptimizer::operator()(MidoriStatement::FunctionDefinition& defun)
 {
 	VisitAndReplace(defun.m_body);
 }
@@ -43,7 +43,7 @@ void MidoriOptimizer::operator()(MidoriStatement::Continue&)
 {
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Foreign&)
+void MidoriOptimizer::operator()(MidoriStatement::ForeignDefinition&)
 {
 }
 
@@ -118,22 +118,22 @@ void MidoriOptimizer::operator()(MidoriExpression::Call& call)
 	);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Get& get)
+void MidoriOptimizer::operator()(MidoriExpression::MemberAccess& get)
 {
 	VisitAndReplace(get.m_struct);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Set& set)
+void MidoriOptimizer::operator()(MidoriExpression::MemberAssignment& set)
 {
 	VisitAndReplace(set.m_struct);
 	VisitAndReplace(set.m_value);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::BoundedName&)
+void MidoriOptimizer::operator()(MidoriExpression::NameAccess&)
 {
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Bind& bind)
+void MidoriOptimizer::operator()(MidoriExpression::Assignment& bind)
 {
 	VisitAndReplace(bind.m_value);
 }
@@ -210,7 +210,7 @@ void MidoriOptimizer::operator()(MidoriExpression::Array& array)
 	);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::ArrayGet& array_get)
+void MidoriOptimizer::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitAndReplace(array_get.m_arr_var);
 	std::ranges::for_each
@@ -223,7 +223,7 @@ void MidoriOptimizer::operator()(MidoriExpression::ArrayGet& array_get)
 	);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::ArraySet& array_set)
+void MidoriOptimizer::operator()(MidoriExpression::IndexAssignment& array_set)
 {
 	VisitAndReplace(array_set.m_arr_var);
 	std::ranges::for_each

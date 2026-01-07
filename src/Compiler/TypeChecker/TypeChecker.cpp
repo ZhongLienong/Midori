@@ -686,7 +686,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 			[&signatures](const auto& stmt) {
 				using T = std::decay_t<decltype(stmt)>;
 
-				if constexpr (std::is_same_v<T, MidoriStatement::DefineFunction>)
+				if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
 				{
 					// Extract function signature
 					signatures[stmt.m_name.m_lexeme] = MidoriType::MakeFunctionType(
@@ -704,7 +704,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 					// Union already has its complete type in m_self_type
 					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::Foreign>)
+				else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
 				{
 					signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
 				}
@@ -721,7 +721,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 	return signatures;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Simple& simple)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStatement& simple)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **simple.m_expr)
 		.and_then
@@ -740,7 +740,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Simple& simple
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Define& def)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefinition& def)
 {
 	// Special handling for functions (scope management required)
 	if (def.m_value->IsExpression<MidoriExpression::Function>())
@@ -854,7 +854,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Define& def)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineTuple& def_tuple)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinition& def_tuple)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **def_tuple.m_value)
 		.and_then
@@ -884,7 +884,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineTuple& d
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::DefineFunction& defun)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefinition& defun)
 {
 	// If function has generic parameters, check for lambda syntax error
 	if (!defun.m_generic_params.empty())
@@ -1021,7 +1021,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Continue&)
 	return MidoriType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Foreign& foreign)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ForeignDefinition& foreign)
 {
 	m_name_type_table.back()[foreign.m_function_name.m_lexeme] = foreign.m_type;
 	return MidoriType::MakeUndecidedType();
@@ -1096,12 +1096,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 	std::unordered_set<std::string> methods_with_defaults;
 	for (std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
-		if (!method->IsStatement<MidoriStatement::DefineFunction>())
+		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
 		}
 
-		MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 		if (method_types.contains(defun.m_name.m_lexeme))
 		{
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
@@ -1153,12 +1153,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	std::unordered_set<std::string> implemented_methods;
 	for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
-		if (!method->IsStatement<MidoriStatement::DefineFunction>())
+		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
-		MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 		std::string mangled_name = defun.m_name.m_lexeme;
 		std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
 
@@ -1191,7 +1191,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
-		const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+		const MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 		const std::string mangled_name = defun.m_name.m_lexeme;
 		const std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
 
@@ -1909,9 +1909,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnarySuffix&)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
-	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 	{
-		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		const std::string& full_name = callee_name.m_name.m_lexeme;
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
@@ -2102,7 +2102,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Get& get)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess& get)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **get.m_struct)
 		.and_then
@@ -2130,7 +2130,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Get& get)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Set& set)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignment& set)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **set.m_struct)
 		.and_then
@@ -2164,7 +2164,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Set& set)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& variable)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& variable)
 {
 	size_t separator_pos = variable.m_name.m_lexeme.rfind(NameSeparator.data());
 	if (separator_pos != std::string::npos)
@@ -2234,7 +2234,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoundedName& 
 	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("BoundedName expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Bind& bind)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& bind)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **bind.m_value)
 		.and_then
@@ -2668,7 +2668,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 	return array.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayGet& array_get)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **array_get.m_arr_var)
 		.and_then
@@ -2711,7 +2711,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayGet& arr
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArraySet& array_set)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignment& array_set)
 {
 	return std::visit([this](auto&& arg) { return (*this)(arg); }, **array_set.m_arr_var)
 		.and_then
@@ -2932,9 +2932,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 		if (!block.m_stmts.empty())
 		{
 			const std::unique_ptr<MidoriStatement>& last_stmt = block.m_stmts.back();
-			if (last_stmt->IsStatement<MidoriStatement::Simple>())
+			if (last_stmt->IsStatement<MidoriStatement::ExpressionStatement>())
 			{
-				const MidoriStatement::Simple& simple = last_stmt->GetStatement<MidoriStatement::Simple>();
+				const MidoriStatement::ExpressionStatement& simple = last_stmt->GetStatement<MidoriStatement::ExpressionStatement>();
 				if (simple.m_expr->IsExpression<MidoriExpression::Break>() ||
 				    simple.m_expr->IsExpression<MidoriExpression::Return>())
 				{

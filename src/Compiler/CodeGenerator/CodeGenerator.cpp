@@ -273,7 +273,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 				[this](const auto& stmt)
 				{
 					using T = std::decay_t<decltype(stmt)>;
-					if constexpr (std::is_same_v<T, MidoriStatement::DefineFunction>)
+					if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
 					{
 						const std::string& function_name = stmt.m_name.m_lexeme;
 						if (m_export_symbols.contains(function_name))
@@ -314,7 +314,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							);
 						}
 					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::Foreign>)
+					else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
 					{
 						const std::string& foreign_name = stmt.m_function_name.m_lexeme;
 						if (m_export_symbols.contains(foreign_name))
@@ -330,7 +330,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							);
 						}
 					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::Define>)
+					else if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
 					{
 						const std::string& var_name = stmt.m_name.m_lexeme;
 						if (m_export_symbols.contains(var_name))
@@ -397,13 +397,13 @@ CodeGenerator::GenericFunctionInfo::GenericFunctionInfo(std::string name, std::v
 	}
 }
 
-void CodeGenerator::operator()(MidoriStatement::Simple& simple)
+void CodeGenerator::operator()(MidoriStatement::ExpressionStatement& simple)
 {
 	std::visit([this](auto&& arg){ (*this)(arg); }, **simple.m_expr);
 	EmitByte(OpCode::POP, simple.m_semicolon.m_line);
 }
 
-void CodeGenerator::operator()(MidoriStatement::Define& def)
+void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 {
 	int line = def.m_name.m_line;
 	bool is_global = !def.m_local_index.has_value();
@@ -449,7 +449,7 @@ void CodeGenerator::operator()(MidoriStatement::Define& def)
 	}
 }
 
-void CodeGenerator::operator()(MidoriStatement::DefineTuple& def_tuple)
+void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 {
 	int line = def_tuple.m_names.empty() ? 0 : def_tuple.m_names[0].m_line;
 
@@ -480,7 +480,7 @@ void CodeGenerator::operator()(MidoriStatement::DefineTuple& def_tuple)
 	}
 }
 
-void CodeGenerator::operator()(MidoriStatement::DefineFunction& defun)
+void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 {
 	int line = defun.m_name.m_line;
 
@@ -544,7 +544,7 @@ void CodeGenerator::operator()(MidoriStatement::Continue& continue_stmt)
 	EmitLoop(m_loop_contexts.top().m_continue_target, line);
 }
 
-void CodeGenerator::operator()(MidoriStatement::Foreign& foreign)
+void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 {
 	int line = foreign.m_function_name.m_line;
 
@@ -594,9 +594,9 @@ void CodeGenerator::operator()(MidoriStatement::Class& class_stmt)
 
 	for (const std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
-		if (method->IsStatement<MidoriStatement::DefineFunction>())
+		if (method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
-			const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+			const MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 			method_names.insert(defun.m_name.m_lexeme);
 		}
 	}
@@ -613,9 +613,9 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 	{
 		std::visit([this](auto&& arg) { (*this)(arg); }, **method);
 
-		if (method->IsStatement<MidoriStatement::DefineFunction>())
+		if (method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
-			const MidoriStatement::DefineFunction& defun = method->GetStatement<MidoriStatement::DefineFunction>();
+			const MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 			std::vector<std::string>& instance_methods = m_class_instances[instance_stmt.m_class_name.m_lexeme];
 			if (std::ranges::find(instance_methods, defun.m_name.m_lexeme) == instance_methods.cend())
 			{
@@ -1114,9 +1114,9 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 	std::string function_name;
 	std::optional<std::string> resolved_method_name = std::nullopt;
 
-	if (call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 	{
-		MidoriExpression::BoundedName& callee_name = call.m_callee->GetExpression<MidoriExpression::BoundedName>();
+		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		function_name = callee_name.m_name.m_lexeme;
 
 		std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(function_name);
@@ -1191,7 +1191,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		);
 
 		std::optional<size_t> ffi_index_opt = std::nullopt;
-		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::BoundedName>())
+		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 		{
 			std::unordered_map<std::string, size_t>::iterator ffi_it = m_ffi_indices.find(function_name);
 			if (ffi_it != m_ffi_indices.end())
@@ -1254,7 +1254,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 	}
 }
 
-void CodeGenerator::operator()(MidoriExpression::Get& get)
+void CodeGenerator::operator()(MidoriExpression::MemberAccess& get)
 {
 	int line = get.m_member_name.m_line;
 
@@ -1263,7 +1263,7 @@ void CodeGenerator::operator()(MidoriExpression::Get& get)
 	EmitByte(static_cast<OpCode>(get.m_index), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::Set& set)
+void CodeGenerator::operator()(MidoriExpression::MemberAssignment& set)
 {
 	int line = set.m_member_name.m_line;
 
@@ -1273,7 +1273,7 @@ void CodeGenerator::operator()(MidoriExpression::Set& set)
 	EmitByte(static_cast<OpCode>(set.m_index), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::BoundedName& variable)
+void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 {
 	std::visit
 	(
@@ -1496,7 +1496,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 	}
 }
 
-void CodeGenerator::operator()(MidoriExpression::Bind& bind)
+void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 {
 	int line = bind.m_name.m_line;
 	std::visit([this](auto&& arg){ (*this)(arg); }, **bind.m_value);
@@ -1738,7 +1738,7 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 	EmitThreeBytes(length, length >> 8, length >> 16, line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::ArrayGet& array_get)
+void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	int line = array_get.m_op.m_line;
 
@@ -1763,7 +1763,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayGet& array_get)
 	EmitByte(static_cast<OpCode>(array_get.m_indices.size()), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::ArraySet& array_set)
+void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
 {
 	int line = array_set.m_op.m_line;
 
@@ -2970,9 +2970,9 @@ bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, 
 
 std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr)
 {
-	if (!m_param_type_map.empty() && expr->IsExpression<MidoriExpression::BoundedName>())
+	if (!m_param_type_map.empty() && expr->IsExpression<MidoriExpression::NameAccess>())
 	{
-		const MidoriExpression::BoundedName& bounded_name = expr->GetExpression<MidoriExpression::BoundedName>();
+		const MidoriExpression::NameAccess& bounded_name = expr->GetExpression<MidoriExpression::NameAccess>();
 		TypeEnvironment::iterator it = m_param_type_map.find(bounded_name.m_name.m_lexeme);
 		if (it != m_param_type_map.end())
 		{

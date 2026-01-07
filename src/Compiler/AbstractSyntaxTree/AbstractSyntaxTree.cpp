@@ -71,7 +71,7 @@ MidoriExpression::UnarySuffix::UnarySuffix(const Token& op, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Bind::Bind(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
+MidoriExpression::Assignment::Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_value(std::move(value)),
 	m_name_ctx(std::move(name_ctx))
@@ -100,7 +100,7 @@ MidoriExpression::CompoundAssign::CompoundAssign(const Token& name, const Token&
 {
 }
 
-MidoriExpression::BoundedName::BoundedName(const Token& name, NameContext::Tag&& name_ctx)
+MidoriExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))
 {
@@ -145,14 +145,14 @@ MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token,
 {
 }
 
-MidoriExpression::Get::Get(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index)
+MidoriExpression::MemberAccess::MemberAccess(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index)
 	: m_member_name(member_name),
 	m_struct(std::move(struct_expr)),
 	m_index(index)
 {
 }
 
-MidoriExpression::Set::Set(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
+MidoriExpression::MemberAssignment::MemberAssignment(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
 	: m_member_name(member_name),
 	m_struct(std::move(struct_expr)),
 	m_value(std::move(value)),
@@ -166,14 +166,14 @@ MidoriExpression::Array::Array(const Token& op, std::vector<std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::ArrayGet::ArrayGet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var)
+MidoriExpression::IndexAccess::IndexAccess(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var)
 	: m_op(op),
 	m_indices(std::move(indices)),
 	m_arr_var(std::move(arr_var))
 {
 }
 
-MidoriExpression::ArraySet::ArraySet(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value)
+MidoriExpression::IndexAssignment::IndexAssignment(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value)
 	: m_op(op),
 	m_indices(std::move(indices)),
 	m_arr_var(std::move(arr_var)),
@@ -280,30 +280,30 @@ MidoriExpression::Await::Await(const Token& keyword, std::unique_ptr<MidoriExpre
 
 bool MidoriExpression::Block::HasDefine() const
 {
-	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::Define>(); });
+	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::VariableDefinition>(); });
 }
 
 MidoriExpression::ExpressionUnion& MidoriExpression::operator*()
 {
-	return m_expr_data;
+	return m_variant;
 }
 
 std::shared_ptr<MidoriType>& MidoriExpression::GetType()
 {
-	return std::visit([](auto&& arg) -> std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_expr_data);
+	return std::visit([](auto&& arg) -> std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
 }
 
 MidoriStatement::StatementUnion& MidoriStatement::operator*()
 {
-	return m_stmt_data;
+	return m_variant;
 }
 
-MidoriStatement::Simple::Simple(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr)
+MidoriStatement::ExpressionStatement::ExpressionStatement(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr)
 	: m_semicolon(semicolon), m_expr(std::move(expr))
 {
 }
 
-MidoriStatement::Define::Define(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index)
+MidoriStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index)
 	: m_name(name),
 	m_value(std::move(value)),
 	m_annotated_type(std::move(annotated_type)),
@@ -311,7 +311,7 @@ MidoriStatement::Define::Define(const Token& name, std::unique_ptr<MidoriExpress
 {
 }
 
-MidoriStatement::DefineTuple::DefineTuple(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices)
+MidoriStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices)
 	: m_names(std::move(names)),
 	m_value(std::move(value)),
 	m_local_indices(std::move(local_indices))
@@ -324,7 +324,7 @@ MidoriStatement::Continue::Continue(const Token& keyword, int number_to_pop)
 {
 }
 
-MidoriStatement::Foreign::Foreign(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index)
+MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index)
 	: m_function_name(function_name),
 	m_foreign_name(foreign_name),
 	m_type(std::move(type)),
@@ -346,7 +346,7 @@ MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MidoriStatement::DefineFunction::DefineFunction(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MidoriType::ClassConstraint>&& constraints)
+MidoriStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MidoriType::ClassConstraint>&& constraints)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),

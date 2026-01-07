@@ -138,17 +138,17 @@ private:
 
 	void EndLoop(int line);
 
-	void operator()(MidoriStatement::Simple& simple);
+	void operator()(MidoriStatement::ExpressionStatement& simple);
 
-	void operator()(MidoriStatement::Define& def);
+	void operator()(MidoriStatement::VariableDefinition& def);
 
-	void operator()(MidoriStatement::DefineTuple& def_tuple);
+	void operator()(MidoriStatement::TupleDefinition& def_tuple);
 
-	void operator()(MidoriStatement::DefineFunction& defun);
+	void operator()(MidoriStatement::FunctionDefinition& defun);
 
 	void operator()(MidoriStatement::Continue& continue_stmt);
 
-	void operator()(MidoriStatement::Foreign& foreign);
+	void operator()(MidoriStatement::ForeignDefinition& foreign);
 
 	void operator()(MidoriStatement::Struct& struct_stmt);
 
@@ -174,13 +174,13 @@ private:
 
 	void operator()(MidoriExpression::Call& call);
 
-	void operator()(MidoriExpression::Get& get);
+	void operator()(MidoriExpression::MemberAccess& get);
 
-	void operator()(MidoriExpression::Set& set);
+	void operator()(MidoriExpression::MemberAssignment& set);
 
-	void operator()(MidoriExpression::BoundedName& variable);
+	void operator()(MidoriExpression::NameAccess& variable);
 
-	void operator()(MidoriExpression::Bind& bind);
+	void operator()(MidoriExpression::Assignment& bind);
 
 	void operator()(MidoriExpression::AppendAssign& append_assign);
 
@@ -208,9 +208,9 @@ private:
 
 	void operator()(MidoriExpression::Array& array);
 
-	void operator()(MidoriExpression::ArrayGet& array_get);
+	void operator()(MidoriExpression::IndexAccess& array_get);
 
-	void operator()(MidoriExpression::ArraySet& array_set);
+	void operator()(MidoriExpression::IndexAssignment& array_set);
 
 	void operator()(MidoriExpression::RangeBinary& range_binary);
 

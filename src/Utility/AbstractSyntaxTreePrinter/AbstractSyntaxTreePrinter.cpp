@@ -40,14 +40,14 @@ void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MidoriExpre
 	);
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Simple& simple, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::ExpressionStatement& simple, int depth) const
 {
 	PrintWithIndentation(depth, "Simple {");
 	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 1); }, **simple.m_expr);
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Define& def, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::VariableDefinition& def, int depth) const
 {
 	PrintWithIndentation(depth, "Define {");
 	PrintWithIndentation(depth + 1, "Name: " + def.m_name.m_lexeme);
@@ -56,7 +56,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Define& def, int
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineTuple& def_tuple, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::TupleDefinition& def_tuple, int depth) const
 {
 	PrintWithIndentation(depth, "DefineTuple {");
 	PrintWithIndentation(depth + 1, "Names: ");
@@ -73,7 +73,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineTuple& def
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::DefineFunction& defun, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::FunctionDefinition& defun, int depth) const
 {
 	PrintWithIndentation(depth, "DefineFunction {");
 	PrintWithIndentation(depth + 1, "Name: " + defun.m_name.m_lexeme);
@@ -98,7 +98,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Continue&, int d
 	PrintWithIndentation(depth, "Continue");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Foreign& foreign, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::ForeignDefinition& foreign, int depth) const
 {
 	PrintWithIndentation(depth, "ForeignFunctionInterface {");
 	PrintWithIndentation(depth + 1, "Name: " + foreign.m_function_name.m_lexeme);
@@ -236,7 +236,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Call& call, int
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Get& get, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAccess& get, int depth) const
 {
 	PrintWithIndentation(depth, "Get {");
 	PrintWithIndentation(depth + 1, "MidoriStruct: ");
@@ -245,7 +245,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Get& get, int d
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Set& set, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAssignment& set, int depth) const
 {
 	PrintWithIndentation(depth, "Set {");
 	PrintWithIndentation(depth + 1, "MidoriStruct: ");
@@ -256,7 +256,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Set& set, int d
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::BoundedName& variable, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::NameAccess& variable, int depth) const
 {
 	PrintWithIndentation(depth, "BoundedName {");
 	PrintWithIndentation(depth + 1, "Name: " + variable.m_name.m_lexeme);
@@ -266,7 +266,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::BoundedName& va
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Bind& bind, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Assignment& bind, int depth) const
 {
 	PrintWithIndentation(depth, "Bind {");
 	PrintWithIndentation(depth + 1, "Name: " + bind.m_name.m_lexeme);
@@ -375,7 +375,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Array& array, i
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ArrayGet& array_get, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAccess& array_get, int depth) const
 {
 	PrintWithIndentation(depth, "ArrayGet {");
 	PrintWithIndentation(depth + 1, "Array: ");
@@ -392,7 +392,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ArrayGet& array
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriExpression::ArraySet& array_set, int depth) const
+void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAssignment& array_set, int depth) const
 {
 	PrintWithIndentation(depth, "ArraySet {");
 	PrintWithIndentation(depth + 1, "Array: ");

@@ -17,7 +17,7 @@ public:
 protected:
 	using MidoriOptimizer::operator();
 
-	void operator()(MidoriStatement::DefineFunction& defun) override;
+	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 
 private:
 
