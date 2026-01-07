@@ -230,8 +230,9 @@ class MidoriArray
 private:
 	inline static constexpr int s_initial_capacity = 8;
 	MidoriValue* m_data{ nullptr };
-	int m_size{ 0 };
-	int m_end{ 0 };
+	int m_capacity{ 0 };
+	int m_start{ 0 };
+	int m_length{ 0 };
 
 public:
 	MidoriArray() = default;

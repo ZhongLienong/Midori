@@ -91,37 +91,37 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 		char c = str[i];
 		switch (c)
 		{
-		case '\n':
-		{
-			result.Append("\\n");
-			break;
-		}
-		case '\t':
-		{
-			result.Append("\\t");
-			break;
-		}
-		case '\r':
-		{
-			result.Append("\\r");
-			break;
-		}
-		case '\\':
-		{
-			result.Append("\\\\");
-			break;
-		}
-		case '\"':
-		{
-			result.Append("\\\"");
-			break;
-		}
-		default:
-		{
-			// For non-escape characters, just append the byte
-			// UTF-8 multi-byte sequences will be passed through correctly
-			result.Append(c);
-		}
+			case '\n':
+			{
+				result.Append("\\n");
+				break;
+			}
+			case '\t':
+			{
+				result.Append("\\t");
+				break;
+			}
+			case '\r':
+			{
+				result.Append("\\r");
+				break;
+			}
+			case '\\':
+			{
+				result.Append("\\\\");
+				break;
+			}
+			case '\"':
+			{
+				result.Append("\\\"");
+				break;
+			}
+			default:
+			{
+				// For non-escape characters, just append the byte
+				// UTF-8 multi-byte sequences will be passed through correctly
+				result.Append(c);
+			}
 		}
 	}
 
@@ -131,7 +131,7 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 }
 
 MidoriValue::MidoriValue() noexcept
-	: m_data{ .m_integer = 0 }
+	: m_data{.m_integer = 0}
 #if MIDORI_DEBUG_INFO
 	, m_tag(UNIT)
 #endif
@@ -139,7 +139,7 @@ MidoriValue::MidoriValue() noexcept
 }
 
 MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
-	: m_data{ .m_float = midori_float }
+	: m_data{.m_float = midori_float}
 #if MIDORI_DEBUG_INFO
 	, m_tag(FLOAT)
 #endif
@@ -147,7 +147,7 @@ MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 }
 
 MidoriValue::MidoriValue(MidoriInteger integer) noexcept
-	: m_data{ .m_integer = integer }
+	: m_data{.m_integer = integer}
 #if MIDORI_DEBUG_INFO
 	, m_tag(INT)
 #endif
@@ -155,7 +155,7 @@ MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 }
 
 MidoriValue::MidoriValue(MidoriByte byte) noexcept
-	: m_data{ .m_integer = static_cast<MidoriInteger>(byte) }
+	: m_data{.m_integer = static_cast<MidoriInteger>(byte)}
 #if MIDORI_DEBUG_INFO
 	, m_tag(BYTE)
 #endif
@@ -163,7 +163,7 @@ MidoriValue::MidoriValue(MidoriByte byte) noexcept
 }
 
 MidoriValue::MidoriValue(MidoriWord word) noexcept
-	: m_data{ .m_integer = static_cast<MidoriInteger>(word) }
+	: m_data{.m_integer = static_cast<MidoriInteger>(word)}
 #if MIDORI_DEBUG_INFO
 	, m_tag(WORD)
 #endif
@@ -171,7 +171,7 @@ MidoriValue::MidoriValue(MidoriWord word) noexcept
 }
 
 MidoriValue::MidoriValue(MidoriBool b) noexcept
-	: m_data{ .m_bool = b }
+	: m_data{.m_bool = b}
 #if MIDORI_DEBUG_INFO
 	, m_tag(BOOL)
 #endif
@@ -179,7 +179,7 @@ MidoriValue::MidoriValue(MidoriBool b) noexcept
 }
 
 MidoriValue::MidoriValue(MidoriTraceable* tagged_pointer) noexcept
-	: m_data{ .m_pointer = tagged_pointer }
+	: m_data{.m_pointer = tagged_pointer}
 #if MIDORI_DEBUG_INFO
 	, m_tag(POINTER)
 #endif
@@ -227,22 +227,22 @@ MidoriText MidoriValue::ToText() const
 {
 	switch (m_tag)
 	{
-	case MidoriValue::FLOAT:
-		return MidoriText::FromFloat(GetFloat());
-	case MidoriValue::INT:
-		return MidoriText::FromInteger(GetInteger());
-	case MidoriValue::BYTE:
-		return MidoriText::FromInteger(static_cast<MidoriInteger>(GetByte()));
-	case MidoriValue::WORD:
-		return MidoriText::FromInteger(static_cast<MidoriInteger>(GetWord()));
-	case MidoriValue::BOOL:
-		return GetBool() ? "true" : "false";
-	case MidoriValue::UNIT:
-		return "()";
-	case MidoriValue::POINTER:
-		return GetPointer()->ToText();
-	default:
-		return "!!!UNKNOWN!!!";
+		case MidoriValue::FLOAT:
+			return MidoriText::FromFloat(GetFloat());
+		case MidoriValue::INT:
+			return MidoriText::FromInteger(GetInteger());
+		case MidoriValue::BYTE:
+			return MidoriText::FromInteger(static_cast<MidoriInteger>(GetByte()));
+		case MidoriValue::WORD:
+			return MidoriText::FromInteger(static_cast<MidoriInteger>(GetWord()));
+		case MidoriValue::BOOL:
+			return GetBool() ? "true" : "false";
+		case MidoriValue::UNIT:
+			return "()";
+		case MidoriValue::POINTER:
+			return GetPointer()->ToText();
+		default:
+			return "!!!UNKNOWN!!!";
 	}
 }
 #endif
@@ -397,48 +397,73 @@ void MidoriTraceable::operator delete(void* object, size_t size) noexcept
 
 MidoriArray::MidoriArray(int size)
 {
-	m_size = size < 0 ? s_initial_capacity : size;
-	m_end = m_size;
+	m_capacity = size < 0 ? s_initial_capacity : size;
+	m_length = m_capacity;
+	m_start = 0;
 
-	m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(size) * sizeof(MidoriValue)));
+	m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(m_capacity) * sizeof(MidoriValue)));
 	if (!m_data)
 	{
 		std::exit(EXIT_FAILURE);
 	}
 }
 
-MidoriArray::MidoriArray(const MidoriArray& other) : m_size(other.m_size), m_end(other.m_end)
+MidoriArray::MidoriArray(const MidoriArray& other) : m_capacity(other.m_capacity), m_length(other.m_length), m_start(0)
 {
-	m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_size) * sizeof(MidoriValue)));
+	m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_capacity) * sizeof(MidoriValue)));
 	if (!m_data)
 	{
 		std::exit(EXIT_FAILURE);
 	}
-	std::memcpy(m_data, other.m_data, static_cast<size_t>(other.m_size) * sizeof(MidoriValue));
+
+	int tail_len = other.m_capacity - other.m_start;
+	if (m_length <= tail_len)
+	{
+		std::memcpy(m_data, other.m_data + other.m_start, static_cast<size_t>(m_length) * sizeof(MidoriValue));
+	}
+	else
+	{
+		std::memcpy(m_data, other.m_data + other.m_start, static_cast<size_t>(tail_len) * sizeof(MidoriValue));
+		std::memcpy(m_data + tail_len, other.m_data, static_cast<size_t>(m_length - tail_len) * sizeof(MidoriValue));
+	}
 }
 
-MidoriArray::MidoriArray(MidoriArray&& other) noexcept : m_data(other.m_data), m_size(other.m_size), m_end(other.m_end)
+MidoriArray::MidoriArray(MidoriArray&& other) noexcept : m_data(other.m_data), m_capacity(other.m_capacity), m_length(other.m_length), m_start(other.m_start)
 {
 	other.m_data = nullptr;
-	other.m_size = 0;
-	other.m_end = 0;
+	other.m_capacity = 0;
+	other.m_length = 0;
+	other.m_start = 0;
 }
 
 MidoriArray& MidoriArray::operator=(const MidoriArray& other)
 {
 	if (this != &other)
 	{
-		MidoriValue* new_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_size) * sizeof(MidoriValue)));
+		MidoriValue* new_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_capacity) * sizeof(MidoriValue)));
 		if (!new_data)
 		{
 			std::exit(EXIT_FAILURE);
 		}
-		std::memcpy(new_data, other.m_data, static_cast<size_t>(other.m_size) * sizeof(MidoriValue));
+
+		int tail_len = other.m_capacity - other.m_start;
+		int other_len = other.m_length;
+
+		if (other_len <= tail_len)
+		{
+			std::memcpy(new_data, other.m_data + other.m_start, static_cast<size_t>(other_len) * sizeof(MidoriValue));
+		}
+		else
+		{
+			std::memcpy(new_data, other.m_data + other.m_start, static_cast<size_t>(tail_len) * sizeof(MidoriValue));
+			std::memcpy(new_data + tail_len, other.m_data, static_cast<size_t>(other_len - tail_len) * sizeof(MidoriValue));
+		}
 
 		std::free(m_data);
 		m_data = new_data;
-		m_size = other.m_size;
-		m_end = other.m_end;
+		m_capacity = other.m_capacity;
+		m_length = other.m_length;
+		m_start = 0;
 	}
 	return *this;
 }
@@ -449,12 +474,14 @@ MidoriArray& MidoriArray::operator=(MidoriArray&& other) noexcept
 	{
 		std::free(m_data);
 		m_data = other.m_data;
-		m_size = other.m_size;
-		m_end = other.m_end;
+		m_capacity = other.m_capacity;
+		m_length = other.m_length;
+		m_start = other.m_start;
 
 		other.m_data = nullptr;
-		other.m_size = 0;
-		other.m_end = 0;
+		other.m_capacity = 0;
+		other.m_length = 0;
+		other.m_start = 0;
 	}
 	return *this;
 }
@@ -466,35 +493,55 @@ MidoriArray::~MidoriArray()
 
 MidoriValue& MidoriArray::operator[](int index)
 {
-	return m_data[static_cast<size_t>(index)];
+	return m_data[(m_start + index) % m_capacity];
 }
 
 void MidoriArray::Expand()
 {
-	size_t new_size = m_size == 0u
+	size_t new_capacity = m_capacity == 0
 		? s_initial_capacity
-		: static_cast<size_t>(m_size) * 2u;
-	MidoriValue* new_data = static_cast<MidoriValue*>(std::realloc(m_data, new_size * sizeof(MidoriValue)));
+		: static_cast<size_t>(m_capacity) * 2u;
+
+	MidoriValue* new_data = static_cast<MidoriValue*>(std::malloc(new_capacity * sizeof(MidoriValue)));
 	if (!new_data)
 	{
 		std::exit(EXIT_FAILURE);
 	}
+
+	if (m_data)
+	{
+		int tail_len = m_capacity - m_start;
+		if (m_length <= tail_len)
+		{
+			std::memcpy(new_data, m_data + m_start, static_cast<size_t>(m_length) * sizeof(MidoriValue));
+		}
+		else
+		{
+			std::memcpy(new_data, m_data + m_start, static_cast<size_t>(tail_len) * sizeof(MidoriValue));
+			std::memcpy(new_data + tail_len, m_data, static_cast<size_t>(m_length - tail_len) * sizeof(MidoriValue));
+		}
+		std::free(m_data);
+	}
+
 	m_data = new_data;
-	m_size = static_cast<int>(new_size);
+	m_capacity = static_cast<int>(new_capacity);
+	m_start = 0;
 }
 
 std::optional<MidoriValue> MidoriArray::Pop()
 {
-	if (m_end > 0)
+	if (m_length > 0)
 	{
-		m_end -= 1;
+		int idx = (m_start + m_length - 1) % m_capacity;
+		MidoriValue val = m_data[idx];
+		m_length -= 1;
 
-		if (m_end < m_size / 2)
+		if (m_length < m_capacity / 2)
 		{
 			Shrink();
 		}
 
-		return std::optional<MidoriValue>(m_data[m_end]);
+		return std::optional<MidoriValue>(val);
 	}
 	else
 	{
@@ -504,55 +551,91 @@ std::optional<MidoriValue> MidoriArray::Pop()
 
 void MidoriArray::AddFront(const MidoriValue& value)
 {
-	if (m_end >= m_size)
+	if (m_length >= m_capacity)
 	{
 		Expand();
 	}
 
-	for (int i = m_end; i > 0; i -= 1)
-	{
-		size_t idx = static_cast<size_t>(i);
-		m_data[idx] = m_data[idx - 1u];
-	}
-
-	m_data[0u] = value;
-	m_end += 1;
+	m_start = (m_start - 1 + m_capacity) % m_capacity;
+	m_data[m_start] = value;
+	m_length += 1;
 }
 
 void MidoriArray::Shrink()
 {
-	size_t new_size = static_cast<size_t>(m_size) / 2u;
-	MidoriValue* new_data = static_cast<MidoriValue*>(std::realloc(m_data, new_size * sizeof(MidoriValue)));
+	if (m_capacity <= s_initial_capacity)
+	{
+		return;
+	}
+
+	size_t new_capacity = static_cast<size_t>(m_capacity) / 2u;
+	if (new_capacity < static_cast<size_t>(m_length))
+	{
+		new_capacity = m_length;
+	}
+	if (new_capacity == 0)
+	{
+		new_capacity = s_initial_capacity;
+	}
+
+	MidoriValue* new_data = static_cast<MidoriValue*>(std::malloc(new_capacity * sizeof(MidoriValue)));
 	if (!new_data)
 	{
 		std::exit(EXIT_FAILURE);
 	}
+
+	int tail_len = m_capacity - m_start;
+	if (m_length <= tail_len)
+	{
+		std::memcpy(new_data, m_data + m_start, static_cast<size_t>(m_length) * sizeof(MidoriValue));
+	}
+	else
+	{
+		std::memcpy(new_data, m_data + m_start, static_cast<size_t>(tail_len) * sizeof(MidoriValue));
+		std::memcpy(new_data + tail_len, m_data, static_cast<size_t>(m_length - tail_len) * sizeof(MidoriValue));
+	}
+
+	std::free(m_data);
 	m_data = new_data;
-	m_size = static_cast<int>(new_size);
+	m_capacity = static_cast<int>(new_capacity);
+	m_start = 0;
 }
 
 void MidoriArray::AddBack(const MidoriValue& value)
 {
-	if (m_end >= m_size)
+	if (m_length >= m_capacity)
 	{
 		Expand();
 	}
 
-	m_data[m_end] = value;
-	m_end += 1;
+	m_data[(m_start + m_length) % m_capacity] = value;
+	m_length += 1;
 }
 
 int MidoriArray::GetLength() const
 {
-	return m_end;
+	return m_length;
 }
 
 MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
 {
 	MidoriArray result(a.GetLength() + b.GetLength());
-	std::memcpy(result.m_data, a.m_data, static_cast<size_t>(a.GetLength()) * sizeof(MidoriValue));
-	std::memcpy(result.m_data + a.GetLength(), b.m_data, static_cast<size_t>(b.GetLength()) * sizeof(MidoriValue));
-	result.m_end = a.GetLength() + b.GetLength();
+
+	// Copy a
+	int a_len = a.GetLength();
+	for (int i = 0; i < a_len; i += 1)
+	{
+		result.m_data[i] = a.m_data[(a.m_start + i) % a.m_capacity];
+	}
+
+	// Copy b
+	int b_len = b.GetLength();
+	for (int i = 0; i < b_len; i += 1)
+	{
+		result.m_data[a_len + i] = b.m_data[(b.m_start + i) % b.m_capacity];
+	}
+
+	result.m_length = a_len + b_len;
 	return result;
 }
 
@@ -565,9 +648,10 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 		return result;
 	}
 
-	result.m_size = (length < s_initial_capacity) ? s_initial_capacity : length;
-	result.m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(result.m_size) * sizeof(MidoriValue)));
-	result.m_end = length;
+	result.m_capacity = (length < s_initial_capacity) ? s_initial_capacity : length;
+	result.m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(result.m_capacity) * sizeof(MidoriValue)));
+	result.m_length = length;
+	result.m_start = 0;
 
 	std::memcpy(result.m_data, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MidoriValue));
 	std::free(ffi_allocated_data);
@@ -771,21 +855,21 @@ MidoriText& MidoriText::Pop()
 	return *this;
 }
 
-MidoriText& MidoriText::Append(const char* str) 
+MidoriText& MidoriText::Append(const char* str)
 {
-	if (!str) 
+	if (!str)
 	{
 		return *this;
 	}
 
 	int len = static_cast<int>(std::strlen(str));
-	if (len == 0) 
+	if (len == 0)
 	{
 		return *this;
 	}
 
 	int new_size = m_size + len;
-	if (new_size > m_capacity) 
+	if (new_size > m_capacity)
 	{
 		int new_capacity = std::max(new_size, m_capacity * 2);
 		Expand(new_capacity);
@@ -796,10 +880,10 @@ MidoriText& MidoriText::Append(const char* str)
 	return *this;
 }
 
-MidoriText& MidoriText::Append(char c) 
+MidoriText& MidoriText::Append(char c)
 {
 	int new_size = m_size + 1;
-	if (new_size > m_capacity) 
+	if (new_size > m_capacity)
 	{
 		int new_capacity = std::max(new_size, m_capacity * 2);
 		Expand(new_capacity);
@@ -834,7 +918,7 @@ MidoriText& MidoriText::Prepend(const char* str)
 		int new_capacity = std::max(new_size, m_capacity * 2);
 		Expand(new_capacity);
 	}
- 
+
 	std::memmove(m_data + len, m_data, sizeof(char) * m_size); 	// Shift existing data to the right
 	std::memcpy(m_data, str, sizeof(char) * len); 	// Copy new data at the beginning
 	m_size = new_size;
@@ -871,7 +955,7 @@ char MidoriText::operator[](int index) const
 	return m_data[static_cast<size_t>(byte_offset)];
 }
 
-bool MidoriText::operator==(const MidoriText& other) const 
+bool MidoriText::operator==(const MidoriText& other) const
 {
 	return (m_size == other.m_size) && (m_size == 0 || std::memcmp(m_data, other.m_data, sizeof(char) * m_size) == 0);
 }
@@ -939,20 +1023,20 @@ MidoriText MidoriText::FromFFI(char* ffi_allocated_string)
 	return result;
 }
 
-void MidoriText::Expand(int new_size) 
+void MidoriText::Expand(int new_size)
 {
-	if (new_size <= m_capacity) 
+	if (new_size <= m_capacity)
 	{
 		return;
 	}
 
 	char* new_data = static_cast<char*>(std::realloc(IsInlined() ? nullptr : m_data, new_size + 1));
-	if (!new_data) 
+	if (!new_data)
 	{
 		std::exit(EXIT_FAILURE);
 	}
 
-	if (IsInlined()) 
+	if (IsInlined())
 	{
 		std::memcpy(new_data, m_data, sizeof(char) * m_size);
 	}
