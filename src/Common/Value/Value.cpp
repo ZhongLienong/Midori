@@ -687,7 +687,8 @@ bool MidoriRange::IsFloat() const
 MidoriText::MidoriText()
 	: m_data(m_small_buffer),
 	m_size(0),
-	m_capacity(INLINE_THRESHOLD)
+	m_capacity(INLINE_THRESHOLD),
+	m_length_cache(0)
 {
 	m_small_buffer[0u] = '\0';
 }
@@ -700,6 +701,7 @@ MidoriText::MidoriText(const char* str)
 		m_size = 0;
 		m_capacity = INLINE_THRESHOLD;
 		m_small_buffer[0u] = '\0';
+		m_length_cache = 0;
 	}
 	else
 	{
@@ -716,11 +718,13 @@ MidoriText::MidoriText(const char* str)
 		}
 		std::memcpy(m_data, str, sizeof(char) * m_size);
 		m_data[m_size] = '\0';
+		m_length_cache = -1;
 	}
 }
 
 MidoriText::MidoriText(const MidoriText& other)
-	: m_size(other.m_size)
+	: m_size(other.m_size),
+	  m_length_cache(other.m_length_cache)
 {
 	if (other.IsInlined())
 	{
@@ -738,7 +742,8 @@ MidoriText::MidoriText(const MidoriText& other)
 
 MidoriText::MidoriText(MidoriText&& other) noexcept
 	: m_size(other.m_size),
-	m_capacity(other.m_capacity)
+	m_capacity(other.m_capacity),
+	m_length_cache(other.m_length_cache)
 {
 	if (other.IsInlined())
 	{
@@ -754,6 +759,7 @@ MidoriText::MidoriText(MidoriText&& other) noexcept
 	}
 	other.m_size = 0;
 	other.m_small_buffer[0u] = '\0';
+	other.m_length_cache = 0;
 }
 
 MidoriText& MidoriText::operator=(const MidoriText& other)
@@ -764,6 +770,7 @@ MidoriText& MidoriText::operator=(const MidoriText& other)
 	}
 
 	m_size = other.m_size;
+	m_length_cache = other.m_length_cache;
 	if (other.IsInlined())
 	{
 		if (!IsInlined())
@@ -804,6 +811,7 @@ MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
 
 	m_size = other.m_size;
 	m_capacity = other.m_capacity;
+	m_length_cache = other.m_length_cache;
 	if (other.IsInlined())
 	{
 		m_data = m_small_buffer;
@@ -818,6 +826,7 @@ MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
 	}
 	other.m_size = 0;
 	other.m_small_buffer[0u] = '\0';
+	other.m_length_cache = 0;
 	return *this;
 }
 
@@ -831,7 +840,11 @@ MidoriText::~MidoriText()
 
 int MidoriText::GetLength() const noexcept
 {
-	return UTF8::CountCodePoints(m_data, m_size);
+	if (m_length_cache == -1)
+	{
+		m_length_cache = UTF8::CountCodePoints(m_data, m_size);
+	}
+	return m_length_cache;
 }
 
 int MidoriText::GetByteLength() const noexcept
@@ -851,6 +864,10 @@ MidoriText& MidoriText::Pop()
 		int new_size = UTF8::StepBackward(m_data, m_size);
 		m_size = new_size;
 		m_data[static_cast<size_t>(m_size)] = '\0';
+		if (m_length_cache > 0)
+		{
+			m_length_cache -= 1;
+		}
 	}
 	return *this;
 }
@@ -877,6 +894,7 @@ MidoriText& MidoriText::Append(const char* str)
 	std::memcpy(m_data + m_size, str, sizeof(char) * len);
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
+	m_length_cache = -1;
 	return *this;
 }
 
@@ -891,12 +909,43 @@ MidoriText& MidoriText::Append(char c)
 	m_data[static_cast<size_t>(m_size)] = c;
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
+	
+	if (m_length_cache != -1)
+	{
+		// In UTF-8, bytes that do not start with 0b10xxxxxx are the start of a new code point.
+		// This includes ASCII (0xxxxxxx) and leading bytes (11xxxxxx).
+		if ((static_cast<unsigned char>(c) & 0xC0u) != 0x80u)
+		{
+			m_length_cache += 1;
+		}
+	}
 	return *this;
 }
 
 MidoriText& MidoriText::Append(const MidoriText& other)
 {
-	return Append(other.GetCString());
+	int other_len = other.m_length_cache;
+	bool cache_valid = (m_length_cache != -1) && (other_len != -1);
+
+	Append(other.GetCString());
+	
+	if (cache_valid)
+	{
+		m_length_cache = m_length_cache + other_len;
+	}
+	else
+	{
+		m_length_cache = -1;
+	}
+	return *this;
+}
+
+void MidoriText::Reserve(int capacity)
+{
+	if (capacity > m_capacity)
+	{
+		Expand(capacity);
+	}
 }
 
 MidoriText& MidoriText::Prepend(const char* str)
@@ -923,6 +972,7 @@ MidoriText& MidoriText::Prepend(const char* str)
 	std::memcpy(m_data, str, sizeof(char) * len); 	// Copy new data at the beginning
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
+	m_length_cache = -1;
 	return *this;
 }
 
@@ -940,12 +990,26 @@ MidoriText& MidoriText::Prepend(char c)
 	m_data[0] = c; 	// Put new character at the beginning
 	m_size = new_size;
 	m_data[static_cast<size_t>(m_size)] = '\0';
+	m_length_cache = -1;
 	return *this;
 }
 
 MidoriText& MidoriText::Prepend(const MidoriText& other)
 {
-	return Prepend(other.GetCString());
+	int other_len = other.m_length_cache;
+	bool cache_valid = (m_length_cache != -1) && (other_len != -1);
+
+	Prepend(other.GetCString());
+
+	if (cache_valid)
+	{
+		m_length_cache = m_length_cache + other_len;
+	}
+	else
+	{
+		m_length_cache = -1;
+	}
+	return *this;
 }
 
 char MidoriText::operator[](int index) const
@@ -1008,6 +1072,16 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 	std::memcpy(result.m_data + byte_len_a, b.GetCString(), sizeof(char) * byte_len_b);
 	result.m_data[total_byte_len] = '\0';
 	result.m_size = total_byte_len;
+
+	if (a.m_length_cache != -1 && b.m_length_cache != -1)
+	{
+		result.m_length_cache = a.m_length_cache + b.m_length_cache;
+	}
+	else
+	{
+		result.m_length_cache = -1;
+	}
+
 	return result;
 }
 

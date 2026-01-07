@@ -165,6 +165,7 @@ private:
 	char* m_data{ nullptr };
 	int m_size{ 0 };
 	int m_capacity{ 0 };
+	mutable int m_length_cache{ -1 };
 
 public:
 	MidoriText();
@@ -194,6 +195,8 @@ public:
 	MidoriText& Append(char c);
 
 	MidoriText& Append(const MidoriText& other);
+
+	void Reserve(int capacity);
 
 	MidoriText& Prepend(const char* str);
 
