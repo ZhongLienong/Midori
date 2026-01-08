@@ -148,7 +148,7 @@ private:
 		int m_size;
 		int m_capacity;
 		mutable int m_length_cache;
-		uint8_t m_padding[3];
+		uint8_t m_padding[sizeof(void*) == 8 ? 3 : 7];
 		uint8_t m_flag;
 	};
 
