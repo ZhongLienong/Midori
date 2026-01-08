@@ -35,7 +35,7 @@ private:
 	{
         ValueStackPointer return_bp;
         InstructionPointer return_ip;
-        MidoriArray* closure_ptr;
+        MidoriTuple* closure_ptr;
     };
     using CallStackPointer = CallFrame*;
 
@@ -44,7 +44,7 @@ private:
     std::vector<MidoriCellValue*> m_cells_to_promote;
     GarbageCollector m_garbage_collector;
 
-    MidoriArray* m_curr_environment = nullptr;
+    MidoriTuple* m_curr_environment = nullptr;
     InstructionPointer m_instruction_pointer = nullptr;
     ValueStackPointer m_value_stack_base_pointer = nullptr;
     ValueStackPointer m_value_stack_pointer = nullptr;
@@ -172,7 +172,7 @@ private:
 
 	int GetLineFromIP(InstructionPointer ip, int proc_index) noexcept;
 
-	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriArray* closure_ptr) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr) noexcept
 	{
 		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_ptr};
 		++m_call_stack_pointer;

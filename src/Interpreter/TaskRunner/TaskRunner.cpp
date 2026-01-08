@@ -55,7 +55,7 @@ void TaskRunner::SpawnTask(std::shared_ptr<const MidoriExecutable> executable, M
 {
 	std::function<void()> task = [executable, future, globals = std::move(globals)]()
 	{
-		VirtualMachine vm(executable, future->m_closure, globals);
+		VirtualMachine vm(executable, *future->m_closure, globals);
 		int exit_code = vm.Execute();
 
 		if (exit_code == EXIT_SUCCESS)

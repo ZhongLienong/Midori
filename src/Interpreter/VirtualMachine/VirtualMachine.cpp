@@ -187,10 +187,6 @@ int VirtualMachine::GetLine() noexcept
 	return TerminateExecution(GenerateRuntimeError("Invalid instruction pointer.", 0));
 }
 
-// Hot path functions moved to header for inlining:
-// ReadByte(), ReadShort(), ReadThreeBytes(), ReadIntegerConstant(),
-// ReadFloatConstant(), ReadByteConstant(), ReadWordConstant(), ReadGlobalVariable()
-
 std::string VirtualMachine::GenerateRuntimeError(std::string_view message, int line) noexcept
 {
 	m_garbage_collector.CleanUp();
@@ -684,7 +680,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue step = Pop();
 			MidoriValue start = Pop();
 
-			MidoriRange range(start, end, step, false);
+			MidoriIntRange range(start.GetInteger(), end.GetInteger(), step.GetInteger());
 
 			Push(m_garbage_collector.AllocateTraceable(std::move(range), PointerTag::RANGE));
 			break;
@@ -695,7 +691,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue step = Pop();
 			MidoriValue start = Pop();
 
-			MidoriRange range(start, end, step, true);
+			MidoriFloatRange range(start.GetFloat(), end.GetFloat(), step.GetFloat());
 
 			Push(m_garbage_collector.AllocateTraceable(std::move(range), PointerTag::RANGE));
 			break;
@@ -703,22 +699,43 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::GET_RANGE_START:
 		{
 			MidoriValue range_ptr = Pop();
-			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
-			Push(range.GetStart());
+			MidoriTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MidoriIntRange>())
+			{
+				Push(ptr->GetTraceable<MidoriIntRange>().GetStart());
+			}
+			else
+			{
+				Push(ptr->GetTraceable<MidoriFloatRange>().GetStart());
+			}
 			break;
 		}
 		case OpCode::GET_RANGE_END:
 		{
 			MidoriValue range_ptr = Pop();
-			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
-			Push(range.GetEnd());
+			MidoriTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MidoriIntRange>())
+			{
+				Push(ptr->GetTraceable<MidoriIntRange>().GetEnd());
+			}
+			else
+			{
+				Push(ptr->GetTraceable<MidoriFloatRange>().GetEnd());
+			}
 			break;
 		}
 		case OpCode::GET_RANGE_STEP:
 		{
 			MidoriValue range_ptr = Pop();
-			MidoriRange& range = range_ptr.GetPointer()->GetTraceable<MidoriRange>();
-			Push(range.GetStep());
+			MidoriTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MidoriIntRange>())
+			{
+				Push(ptr->GetTraceable<MidoriIntRange>().GetStep());
+			}
+			else
+			{
+				Push(ptr->GetTraceable<MidoriFloatRange>().GetStep());
+			}
 			break;
 		}
 		case OpCode::INT_TO_FLOAT:
@@ -2015,14 +2032,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MidoriTraceable* new_struct = m_garbage_collector.AllocateTraceable(MidoriStruct(), PointerTag::STRUCT);
 			int size = static_cast<int>(ReadByte());
-			MidoriArray args(size);
+			MidoriTuple args(size);
 
 			for (int i = size - 1; i >= 0; i -= 1)
 			{
 				args[i] = Pop();
 			}
 
-			MidoriArray& members = new_struct->GetTraceable<MidoriStruct>().m_values;
+			MidoriTuple& members = new_struct->GetTraceable<MidoriStruct>().m_values;
 			members = std::move(args);
 
 			Push(new_struct);
@@ -2033,14 +2050,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriTraceable* new_union = m_garbage_collector.AllocateTraceable(MidoriUnion(), PointerTag::UNION);
 
 			int size = static_cast<int>(ReadByte());
-			MidoriArray args(size);
+			MidoriTuple args(size);
 
 			for (int i = size - 1; i >= 0; i -= 1)
 			{
 				args[i] = Pop();
 			}
 
-			MidoriArray& members = new_union->GetTraceable<MidoriUnion>().m_values;
+			MidoriTuple& members = new_union->GetTraceable<MidoriUnion>().m_values;
 			members = std::move(args);
 
 			Push(new_union);
@@ -2049,51 +2066,46 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::ALLOCATE_CLOSURE:
 		{
 			int proc_index = static_cast<int>(ReadByte());
-			Push(m_garbage_collector.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriArray(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
+			Push(m_garbage_collector.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
 			break;
 		}
 		case OpCode::CONSTRUCT_CLOSURE:
 		{
-			int captured_count = static_cast<int>(ReadByte());
+			int total_count = static_cast<int>(ReadByte());
 
-			if (captured_count == 0)
+			if (total_count == 0)
 			{
 				break;
 			}
 
-			MidoriArray& captured_variables = (m_value_stack_pointer - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
+			MidoriTuple& closure_env = (m_value_stack_pointer - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
+			
+			int parent_count = m_curr_environment ? m_curr_environment->GetLength() : 0;
+			int local_capture_count = total_count - parent_count;
+			
+			MidoriTuple new_env(total_count);
 
-			captured_variables = *m_curr_environment;
-			captured_count -= captured_variables.GetLength();
+			// Copy parent environment
+			if (m_curr_environment)
+			{
+				for (int i = 0; i < parent_count; i += 1)
+				{
+					new_env[i] = (*m_curr_environment)[i];
+				}
+			}
 
-#ifdef __EMSCRIPTEN__
-			std::for_each_n
-			(
-				m_value_stack_base_pointer,
-				captured_count,
-				[&captured_variables, this](MidoriValue& value)
-				{
-					MidoriValue* stack_value_ref = &value;
-					MidoriValue cell_value = m_garbage_collector.AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
-					captured_variables.AddBack(cell_value);
-					m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
-				}
-			);
-#else
-			std::for_each_n
-			(
-				std::execution::seq,
-				m_value_stack_base_pointer,
-				captured_count,
-				[&captured_variables, this](MidoriValue& value)
-				{
-					MidoriValue* stack_value_ref = &value;
-					MidoriValue cell_value = m_garbage_collector.AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
-					captured_variables.AddBack(cell_value);
-					m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
-				}
-			);
-#endif
+			// Capture local variables
+			for (int i = 0; i < local_capture_count; i += 1)
+			{
+				MidoriValue& value = *(m_value_stack_base_pointer + i);
+				MidoriValue* stack_value_ref = &value;
+				MidoriValue cell_value = m_garbage_collector.AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
+				
+				new_env[parent_count + i] = cell_value;
+				m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
+			}
+
+			closure_env = std::move(new_env);
 
 			if (m_garbage_collector.ShouldCollect())
 			{

@@ -98,7 +98,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 	else if (ptr->IsTraceable<MidoriClosure>())
 	{
-		MidoriArray& cell_values = ptr->GetTraceable<MidoriClosure>().m_cell_values;
+		MidoriTuple& cell_values = ptr->GetTraceable<MidoriClosure>().m_cell_values;
 		for (int i = 0; i < cell_values.GetLength(); i += 1)
 		{
 			MidoriValue& value = cell_values[i];
@@ -115,7 +115,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 	else if (ptr->IsTraceable<MidoriStruct>())
 	{
-		MidoriArray& arr = ptr->GetTraceable<MidoriStruct>().m_values;
+		MidoriTuple& arr = ptr->GetTraceable<MidoriStruct>().m_values;
 		for (int idx : std::views::iota(0, arr.GetLength()))
 		{
 			MidoriValue& value = arr[idx];
@@ -127,7 +127,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 	else if (ptr->IsTraceable<MidoriUnion>())
 	{
-		MidoriArray& arr = ptr->GetTraceable<MidoriUnion>().m_values;
+		MidoriTuple& arr = ptr->GetTraceable<MidoriUnion>().m_values;
 
 		for (int idx : std::views::iota(0, arr.GetLength()))
 		{
@@ -140,7 +140,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 	else if (ptr->IsTraceable<MidoriFuture>())
 	{
-		MidoriArray& cell_values = ptr->GetTraceable<MidoriFuture>().m_closure.m_cell_values;
+		MidoriTuple& cell_values = ptr->GetTraceable<MidoriFuture>().m_closure->m_cell_values;
 		for (int i = 0; i < cell_values.GetLength(); i += 1)
 		{
 			MidoriValue& value = cell_values[i];
