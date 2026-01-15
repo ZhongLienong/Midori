@@ -1,5 +1,6 @@
 #include "GarbageCollector.h"
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <ranges>
 
@@ -112,7 +113,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 }
 
-void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_clean)
+void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAllocator& allocator, bool force_clean)
 {
 	if (m_total_bytes_allocated < GARBAGE_COLLECTION_THRESHOLD && !force_clean)
 	{
@@ -160,7 +161,8 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 			++sweep_count;
 			bytes_reclaimed += ptr->GetSize();
 			m_total_bytes_allocated -= ptr->GetSize();
-			delete ptr;
+			ptr->~MidoriTraceable();
+			allocator.Free(ptr);
 			it = m_traceables.erase(it);
 		}
 	}

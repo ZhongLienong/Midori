@@ -7,6 +7,8 @@
 #include <vector>
 #include <unordered_set>
 
+class MidoriAllocator;
+
 class GarbageCollector
 {
 public:
@@ -26,7 +28,7 @@ public:
 	GarbageCollector(const GarbageCollector&) = delete;
 	GarbageCollector& operator=(const GarbageCollector&) = delete;
 
-	void ReclaimMemory(GarbageCollectionRoots&& roots, bool force_clean = false);
+	void ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAllocator& allocator, bool force_clean = false);
 
 	bool ShouldCollect() const;
 

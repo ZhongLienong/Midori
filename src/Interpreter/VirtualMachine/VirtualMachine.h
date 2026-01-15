@@ -92,7 +92,7 @@ private:
 	{
 		if (m_gc.ShouldCollect())
 		{
-			m_gc.ReclaimMemory(GetGarbageCollectionRoots());
+			m_gc.ReclaimMemory(GetGarbageCollectionRoots(), m_allocator);
 		}
 	}
 

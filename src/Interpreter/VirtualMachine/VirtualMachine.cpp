@@ -107,7 +107,7 @@ MidoriValue VirtualMachine::GetAsyncResult() const noexcept
 VirtualMachine::~VirtualMachine()
 {
 	GarbageCollector::GarbageCollectionRoots roots;
-	m_gc.ReclaimMemory(std::move(roots), true);
+	m_gc.ReclaimMemory(std::move(roots), m_allocator, true);
 
 #ifdef _WIN32
 	if (m_value_stack_region)
