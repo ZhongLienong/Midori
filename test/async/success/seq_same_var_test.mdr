@@ -1,0 +1,32 @@
+// Two async capturing same variable after reassignment
+
+import { <IO> }
+
+def tasks : Array<Future<Int>> = [];
+
+def y_copy = 0;
+IO::Print("First y_copy: ");
+IO::PrintLine(y_copy as Text);
+tasks ++= (async {
+    IO::Print("Inside first async: ");
+    IO::PrintLine(y_copy as Text);
+    y_copy + 10
+});
+
+y_copy = 1;
+IO::Print("Second y_copy: ");
+IO::PrintLine(y_copy as Text);
+tasks ++= (async {
+    IO::Print("Inside second async: ");
+    IO::PrintLine(y_copy as Text);
+    y_copy + 10
+});
+
+IO::PrintLine("Awaiting");
+def v1 = await tasks[0];
+IO::Print("result 1: ");
+IO::PrintLine(v1 as Text);
+
+def v2 = await tasks[1];
+IO::Print("result 2: ");
+IO::PrintLine(v2 as Text);

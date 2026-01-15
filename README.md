@@ -230,16 +230,18 @@ import { <IO> }
 
 defun compute(x: Int) : Int => x * x;
 
-// Spawn concurrent tasks
+// Spawn concurrent tasks (run in separate VMs with their own heaps)
 def task1 : Future<Int> = async compute(10);
 def task2 : Future<Int> = async compute(20);
 
-// Await results (blocks until complete)
+// Await results (blocks until complete, deep-copies return values)
 def r1 : Int = await task1;
 def r2 : Int = await task2;
 
 IO::PrintLine("Results: " ++ (r1 as Text) ++ ", " ++ (r2 as Text));
 ```
+
+> **Warning**: Concurrent mutation of captured mutable references (e.g., arrays) is undefined behavior. See [Async/Await docs](docs/async-await.md) for details.
 
 ## Language Features
 
@@ -636,7 +638,9 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 - **Frontend**: Lexer → Parser → Type Checker
 - **Optimizer**: Constant folding, tail call optimization, strength reduction
 - **Backend**: Bytecode generator → Linker
-- **Runtime**: Stack-based VM with mark-and-sweep GC
+- **Runtime**: Stack-based VM with per-VM mark-and-sweep GC
+
+See [Runtime Architecture](docs/runtime-architecture.md) for details on the per-VM memory model.
 
 ## Documentation
 
@@ -644,3 +648,5 @@ See the [docs](docs/) folder for detailed technical documentation:
 
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
+- [Async/Await](docs/async-await.md) - Concurrent execution with per-VM isolation
+- [Runtime Architecture](docs/runtime-architecture.md) - Memory model, garbage collection, and concurrency

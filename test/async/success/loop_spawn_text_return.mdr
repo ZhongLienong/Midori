@@ -1,0 +1,32 @@
+import { <IO> }
+
+defun test_async() : Text =>
+{
+    def tasks : Array<Future<Text>> = [];
+    def i = 0;
+    loop
+    {
+        def i_copy = i;
+        tasks ++= (async
+        {
+            def x = "";
+            x ++= (i_copy as Text);
+            x
+        });
+        i = i + 1;
+        if i >= 3 then break () else ();
+    };
+
+    def result = "";
+    def j = 0;
+    loop
+    {
+        result ++= await tasks[j];
+        result ++= " ";
+        j = j + 1;
+        if j >= 3 then break () else ();
+    };
+    result
+};
+
+IO::PrintLine(test_async());

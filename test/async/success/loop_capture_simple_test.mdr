@@ -1,0 +1,25 @@
+// Async test with loop and capture but simpler computation
+
+import { <IO> }
+
+def tasks : Array<Future<Int>> = [];
+
+def y = 0;
+loop {
+    def y_copy = y;
+    tasks ++= (async {
+        // Simple computation, no structs
+        y_copy + 10
+    });
+
+    y = y + 1;
+    if y >= 5 then break () else ();
+};
+
+def i = 0;
+loop {
+    def value = await tasks[i];
+    IO::PrintLine(value as Text);
+    i = i + 1;
+    if i >= 5 then break () else ();
+};

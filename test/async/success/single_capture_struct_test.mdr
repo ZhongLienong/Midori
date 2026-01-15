@@ -1,0 +1,20 @@
+// Single async with capture and struct
+
+import { <IO> }
+
+struct Point {
+    X : Float,
+    Y : Float,
+};
+
+defun make_point(x : Float, y : Float) : Point => new Point(x, y);
+
+def y_copy = 5;
+
+def result = async {
+    def c = make_point(1.0, (y_copy as Float));
+    c.X + c.Y
+};
+
+def value = await result;
+IO::PrintLine(value as Text);

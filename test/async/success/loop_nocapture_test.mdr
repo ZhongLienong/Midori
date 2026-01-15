@@ -1,0 +1,41 @@
+// Async test with loop but no captures
+
+import { <IO> }
+
+struct Point {
+    X : Float,
+    Y : Float,
+};
+
+defun make_point(x : Float, y : Float) : Point => new Point(x, y);
+defun add_points(a : Point, b : Point) : Point => new Point(a.X + b.X, a.Y + b.Y);
+defun double_point(a : Point) : Point => add_points(a, a);
+
+def tasks : Array<Future<Float>> = [];
+
+def y = 0;
+loop {
+    // NO capture - use constant instead
+    tasks ++= (async {
+        def c = make_point(1.0, 5.0);
+        def z = make_point(0.0, 0.0);
+        def i = 0;
+        loop {
+            if i >= 3 then break () else ();
+            z = add_points(double_point(z), c);
+            i = i + 1;
+        };
+        z.X + z.Y
+    });
+
+    y = y + 1;
+    if y >= 5 then break () else ();
+};
+
+def i = 0;
+loop {
+    def value = await tasks[i];
+    IO::PrintLine(value as Text);
+    i = i + 1;
+    if i >= 5 then break () else ();
+};

@@ -1,0 +1,27 @@
+import { <IO> }
+
+struct Point {
+    X : Float,
+    Y : Float,
+};
+
+def tasks : Array<Future<Float>> = [];
+
+def y = 0;
+loop {
+    tasks ++= (async {
+        def c = new Point(1.0, 2.0);
+        c.X + c.Y
+    });
+
+    y = y + 1;
+    if y >= 3 then break () else ();
+};
+
+def i = 0;
+loop {
+    def value = await tasks[i];
+    IO::PrintLine(value as Text);
+    i = i + 1;
+    if i >= 3 then break () else ();
+};

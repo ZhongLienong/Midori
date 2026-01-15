@@ -115,6 +115,8 @@ def result : Int = await task;
 - Multiple futures can execute concurrently
 - Each async task runs in an isolated VM with its own stack and garbage collector
 
+See [Async/Await](async-await.md) for detailed documentation on concurrent execution.
+
 ## Algebraic Data Types
 
 ### Structs (Product Types)

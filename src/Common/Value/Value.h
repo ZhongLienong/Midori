@@ -520,9 +520,7 @@ public:
 	size_t GetSize() const;
 
 	void Mark();
-
 	void Unmark();
-
 	bool IsMarked() const;
 
 #if MIDORI_DEBUG_INFO
@@ -536,35 +534,25 @@ public:
 
 	static void* operator new(size_t size) noexcept;
 	static void* operator new(size_t size, std::align_val_t al) noexcept;
+	static void* operator new(size_t, void* ptr) noexcept;
+	static void* operator new(size_t, std::align_val_t, void* ptr) noexcept; 
+	static void operator delete(void*, void*) noexcept;
+	static void operator delete(void*, std::align_val_t, void*) noexcept;
+
+	MidoriTraceable(MidoriText&& str) noexcept;
+	MidoriTraceable(MidoriArray&& array) noexcept;
+	MidoriTraceable(MidoriIntRange&& range) noexcept;
+	MidoriTraceable(MidoriFloatRange&& range) noexcept;
+	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
+	MidoriTraceable(MidoriClosure&& closure) noexcept;
+	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
+	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
+	MidoriTraceable(MidoriFuture&& midori_future) noexcept;
 
 private:
 	MidoriTraceable() = delete;
-
 	MidoriTraceable(const MidoriTraceable& other) = delete;
-
 	MidoriTraceable(MidoriTraceable&& other) noexcept = delete;
-
 	MidoriTraceable& operator=(const MidoriTraceable& other) = delete;
-
 	MidoriTraceable& operator=(MidoriTraceable&& other) noexcept = delete;
-
-	MidoriTraceable(MidoriText&& str) noexcept;
-
-	MidoriTraceable(MidoriArray&& array) noexcept;
-
-	MidoriTraceable(MidoriIntRange&& range) noexcept;
-
-	MidoriTraceable(MidoriFloatRange&& range) noexcept;
-
-	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
-
-	MidoriTraceable(MidoriClosure&& closure) noexcept;
-
-	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
-
-	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
-
-	MidoriTraceable(MidoriFuture&& midori_future) noexcept;
-
-	friend class GarbageCollector;
 };

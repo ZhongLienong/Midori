@@ -56,6 +56,7 @@ private:
 	std::string m_file_name;
 	Scopes m_scopes{ Scope() };
 	std::stack<int> m_local_count_before_loop;
+	std::vector<int> m_function_base_variable_index{0};  // Base variable index per depth
 	std::vector<UseImport> m_current_use_imports;
 	std::vector<std::string> m_namespaces;
 	std::vector<MidoriType::ClassConstraint> m_active_constraints;  // Constraints active in current parsing context

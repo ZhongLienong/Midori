@@ -1,0 +1,36 @@
+import { <IO> }
+
+struct Point { x: Float, y: Float };
+
+defun heavy_compute(row: Int, width: Int) : Text => {
+    def result = "";
+    def x = 0;
+    loop {
+        def p = new Point((x as Float), (row as Float));
+        def val = p.x * p.x + p.y * p.y;
+        result ++= (val as Text) ++ " ";
+        x = x + 1;
+        if x >= width then break () else ();
+    };
+    result
+};
+
+def tasks : Array<Future<Text>> = [];
+def y = 0;
+loop {
+    def y_copy = y;
+    tasks ++= async heavy_compute(y_copy, 20);
+    y = y + 1;
+    if y >= 50 then break () else ();
+};
+
+IO::PrintLine("Spawned 50 heavy tasks");
+
+def j = 0;
+loop {
+    def result = await tasks[j];
+    j = j + 1;
+    if j >= 50 then break () else ();
+};
+
+IO::PrintLine("Done with 50 tasks");

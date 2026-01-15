@@ -120,7 +120,10 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		// Cell
 		else
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+			int var_depth = find_result->second.m_function_depth.value();
+			int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Cell(cell_index)));
 		}
 	}
 
@@ -666,7 +669,10 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										}
 										else
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+											int var_depth = find_result->second.m_function_depth.value();
+											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
+											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
 									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
@@ -711,7 +717,10 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										}
 										else
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+											int var_depth = find_result->second.m_function_depth.value();
+											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
+											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
 									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
@@ -746,7 +755,10 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										}
 										else
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+											int var_depth = find_result->second.m_function_depth.value();
+											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
+											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
 									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
@@ -781,7 +793,10 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										}
 										else
 										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(find_result->second.m_absolute_index.value())));
+											int var_depth = find_result->second.m_function_depth.value();
+											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
+											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
 									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
@@ -2015,6 +2030,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 									[&func_name, &generic_params, &generic_param_types, &local_index, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 									{
 										m_function_depth += 1;
+										m_function_base_variable_index.push_back(m_total_variables);
 										int prev_total_locals = m_total_locals_in_curr_scope;
 										m_total_locals_in_curr_scope = 0;
 										BeginScope();
@@ -2025,6 +2041,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 										{
 											EndScope();
 											m_total_locals_in_curr_scope = prev_total_locals;
+											m_function_base_variable_index.pop_back();
 											m_function_depth -= 1;
 
 											// Close the generic parameter scope if it was created
@@ -2141,6 +2158,13 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																								{
 																									EndScope();
 																									m_total_locals_in_curr_scope = prev_total_locals;
+
+																									// Calculate captured_count before popping function state
+																									int func_base = m_function_base_variable_index.back();
+																									int parent_base = (m_function_depth >= 2) ? m_function_base_variable_index[static_cast<size_t>(m_function_depth - 2)] : 0;
+																									int captured_count = func_base - parent_base;
+
+																									m_function_base_variable_index.pop_back();
 																									m_function_depth -= 1;
 
 																									if (has_generic_params)
@@ -2149,7 +2173,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																									}
 
 																									std::vector<MidoriType::ClassConstraint> constraints_copy = constraints;
-																									return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), m_total_variables, std::move(constraints_copy)));
+																									return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), captured_count, std::move(constraints_copy)));
 																								}
 																							);
 																					}
@@ -2706,6 +2730,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																					[&method_name, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 																					{
 																						m_function_depth += 1;
+																						m_function_base_variable_index.push_back(m_total_variables);
 																						int prev_total_locals = m_total_locals_in_curr_scope;
 																						m_total_locals_in_curr_scope = 0;
 																						BeginScope();
@@ -2716,6 +2741,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																						{
 																							EndScope();
 																							m_total_locals_in_curr_scope = prev_total_locals;
+																							m_function_base_variable_index.pop_back();
 																							m_function_depth -= 1;
 
 																							if (has_generic_params)
@@ -2760,6 +2786,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																																				{
 																																					EndScope();
 																																					m_total_locals_in_curr_scope = prev_total_locals;
+																																					m_function_base_variable_index.pop_back();
 																																					m_function_depth -= 1;
 
 																																					if (has_generic_params)
@@ -3119,6 +3146,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 			[&keyword, this](Token&&) -> MidoriResult::ExpressionResult
 			{
 				m_function_depth += 1;
+				m_function_base_variable_index.push_back(m_total_variables);
 				int prev_total_locals = m_total_locals_in_curr_scope;
 				m_total_locals_in_curr_scope = 0;
 				BeginScope();
@@ -3128,6 +3156,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 				{
 					EndScope();
 					m_total_locals_in_curr_scope = prev_total_locals;
+					m_function_base_variable_index.pop_back();
 					m_function_depth -= 1;
 					return std::unexpected<std::string>(params_parse_result.error());
 				}
@@ -3166,6 +3195,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 																	{
 																		EndScope();
 																		m_total_locals_in_curr_scope = prev_total_locals;
+																		m_function_base_variable_index.pop_back();
 																		m_function_depth -= 1;
 																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_total_variables));
 																	}
@@ -3180,6 +3210,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 																	{
 																		EndScope();
 																		m_total_locals_in_curr_scope = prev_total_locals;
+																		m_function_base_variable_index.pop_back();
 																		m_function_depth -= 1;
 																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_total_variables));
 																	}
@@ -3199,12 +3230,28 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 MidoriResult::ExpressionResult Parser::ParseAsyncExpression()
 {
 	Token& keyword = Previous();
+
+	m_function_depth += 1;
+	int async_base = m_total_variables;
+	m_function_base_variable_index.push_back(async_base);
+	int prev_total_locals = m_total_locals_in_curr_scope;
+	m_total_locals_in_curr_scope = 0;
+
+	int parent_base = (m_function_depth >= 2) ? m_function_base_variable_index[static_cast<size_t>(m_function_depth - 2)] : 0;
+	int captured_count = async_base - parent_base;
+
 	return ParseExpression()
 		.and_then
 		(
-			[&keyword](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
+			[&keyword, prev_total_locals, captured_count, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
 			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::Async(keyword, std::move(expr)));
+				m_total_locals_in_curr_scope = prev_total_locals;
+				m_function_base_variable_index.pop_back();
+				m_function_depth -= 1;
+
+				std::unique_ptr<MidoriExpression> async_expr = std::make_unique<MidoriExpression>(MidoriExpression::Async(keyword, std::move(expr)));
+				async_expr->GetExpression<MidoriExpression::Async>().m_captured_count = captured_count;
+				return async_expr;
 			}
 		);
 }

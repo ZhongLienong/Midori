@@ -1,0 +1,13 @@
+// Simple async test without struct operations
+
+import { <IO> }
+
+defun add(a : Int, b : Int) : Int => a + b;
+
+def result = async {
+    def x = add(1, 2);
+    x
+};
+
+def value = await result;
+IO::PrintLine(value as Text);

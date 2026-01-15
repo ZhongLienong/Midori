@@ -2,6 +2,7 @@
 
 #include "Common/Error/Error.h"
 #include "Common/Executable/Executable.h"
+#include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Library/MidoriFFIRegistry.h"
 
@@ -10,18 +11,32 @@
 #include <cstring>
 #include <memory>
 
+class MidoriRuntime;
+
 class VirtualMachine
 {
 public:
     using GlobalVariables = std::vector<MidoriValue>;
 
-    VirtualMachine(MidoriExecutable&& executable) noexcept;
+    VirtualMachine(MidoriRuntime& runtime) noexcept;
 
-    VirtualMachine(std::shared_ptr<const MidoriExecutable> executable, const MidoriClosure& entry_closure, const GlobalVariables& parent_globals) noexcept;
+    VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entry_closure) noexcept;
 
     ~VirtualMachine();
 
     MidoriValue GetAsyncResult() const noexcept;
+
+    GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
+
+    template<typename T>
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& arg, PointerTag tag)
+    {
+        void* mem = m_allocator.Allocate(sizeof(MidoriTraceable));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<T>(arg));
+        MidoriTaggedPointer tagged_pointer(traceable, tag);
+        m_gc.RegisterObject(traceable);
+        return static_cast<MidoriTraceable*>(tagged_pointer);
+    }
 
 private:
     static constexpr size_t s_value_stack_size = 10000u;
@@ -39,22 +54,26 @@ private:
     };
     using CallStackPointer = CallFrame*;
 
-    MidoriExecutable m_executable;
-    GlobalVariables m_global_vars;
-    std::vector<MidoriCellValue*> m_cells_to_promote;
-    GarbageCollector m_garbage_collector;
-
-    MidoriTuple* m_curr_environment = nullptr;
+    // Hot Pointers
     InstructionPointer m_instruction_pointer = nullptr;
-    ValueStackPointer m_value_stack_base_pointer = nullptr;
     ValueStackPointer m_value_stack_pointer = nullptr;
+    ValueStackPointer m_value_stack_base_pointer = nullptr;
     ValueStackPointer m_value_stack_begin = nullptr;
     CallStackPointer m_call_stack_pointer = nullptr;
     CallStackPointer m_call_stack_begin = nullptr;
+    MidoriTraceable* m_curr_closure_traceable = nullptr;
+    MidoriTuple* m_curr_environment = nullptr;
+
+    // Infrastructure & Cold Data
+    MidoriAllocator m_allocator;
+    GarbageCollector m_gc;
+
+    MidoriRuntime* m_runtime = nullptr;
+    const MidoriExecutable* m_executable = nullptr;
+    GlobalVariables* m_global_vars = nullptr;
+    std::vector<MidoriCellValue*> m_cells_to_promote;
 
     MidoriValue m_async_result;
-    bool m_is_worker_vm = false;
-
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
 
 #ifdef _WIN32
@@ -62,18 +81,27 @@ private:
     void* m_call_stack_region = nullptr;
 #endif
 
+
 public:
     int Execute() noexcept;
 
+    const GarbageCollector& GetGC() const noexcept { return m_gc; }
+
 private:
+	MIDORI_FORCE_INLINE void TryCollect() noexcept
+	{
+		if (m_gc.ShouldCollect())
+		{
+			m_gc.ReclaimMemory(GetGarbageCollectionRoots());
+		}
+	}
+
 	int ExecuteLoop() noexcept;
 
 	int TerminateExecution(std::string_view message) noexcept;
 
-	// only used for error reporting, efficiency is not a concern
 	int GetLine() noexcept;
 
-	// Hot path functions - inlined for performance
 	MIDORI_FORCE_INLINE OpCode ReadByte() noexcept
 	{
 		return *m_instruction_pointer++;
@@ -200,11 +228,11 @@ private:
 
     GarbageCollector::GarbageCollectionRoots GetGlobalTableGarbageCollectionRoots() const noexcept;
 
-    GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
+	void InitializeStacks() noexcept;
 
 	template<typename T>
         requires MidoriValueConstructible<T>
-    void Push(T val) noexcept
+	MIDORI_FORCE_INLINE void Push(T val) noexcept
     {
         *m_value_stack_pointer = val;
         ++m_value_stack_pointer;

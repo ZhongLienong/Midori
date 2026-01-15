@@ -251,7 +251,7 @@ bool MidoriValue::IsPointer() const noexcept
 	return m_tag == POINTER;
 }
 
-DebugTypeTag MidoriValue::GetTag() const noexcept
+MidoriValue::DebugTypeTag MidoriValue::GetTag() const noexcept
 {
 	return m_tag;
 }
@@ -431,6 +431,24 @@ void* MidoriTraceable::operator new(size_t size, std::align_val_t al) noexcept
 {
 	void* object = ::operator new(size, al);
 	return object;
+}
+
+void* MidoriTraceable::operator new(size_t, void* ptr) noexcept
+{
+	return ptr;
+}
+
+void* MidoriTraceable::operator new(size_t, std::align_val_t, void* ptr) noexcept
+{
+	return ptr;
+}
+
+void MidoriTraceable::operator delete(void*, void*) noexcept
+{
+}
+
+void MidoriTraceable::operator delete(void*, std::align_val_t, void*) noexcept
+{
 }
 
 void MidoriTraceable::operator delete(void* object, size_t size) noexcept

@@ -1,0 +1,15 @@
+import { <IO> }
+
+struct Point {
+    X : Float,
+    Y : Float,
+};
+
+def y_copy = 5;
+def result = async {
+    def c = new Point(1.0, (y_copy as Float));
+    c.X + c.Y
+};
+
+def value = await result;
+IO::PrintLine(value as Text);

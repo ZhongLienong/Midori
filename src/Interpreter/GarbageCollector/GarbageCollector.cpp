@@ -1,8 +1,6 @@
 #include "GarbageCollector.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
-#include <algorithm>
-#include <execution>
 #include <ranges>
 
 #if MIDORI_DEBUG_INFO
@@ -17,60 +15,10 @@ bool GarbageCollector::Contains(MidoriTraceable* ptr) const
 	return m_traceables.contains(ptr);
 }
 
-size_t GarbageCollector::GetTotalAllocatedBytes() const
+void GarbageCollector::RegisterObject(MidoriTraceable* traceable)
 {
-	return m_total_bytes_allocated;
-}
-
-void GarbageCollector::Mark(GarbageCollector::GarbageCollectionRoots&& roots)
-{
-#if MIDORI_DEBUG_INFO
-	std::ranges::for_each
-	(
-		m_traceables,
-		[this](MidoriTraceable* ptr){ Printer::Print<Printer::Color::CYAN>(std::format("Tracked traceable pointer: {:p}, value: {}\n", static_cast<void*>(ptr), ptr->ToText().GetCString())); }
-	);
-#endif
-
-	// Process each root concurrently.
-#ifdef __EMSCRIPTEN__
-	std::for_each
-	(
-		roots.begin(),
-		roots.end(),
-		[this](MidoriTraceable* ptr){ Trace(ptr); }
-	);
-#else
-	std::for_each
-	(
-		std::execution::unseq,
-		roots.begin(),
-		roots.end(),
-		[this](MidoriTraceable* ptr){ Trace(ptr); }
-	);
-#endif
-}
-
-void GarbageCollector::Sweep()
-{
-	for (std::unordered_set<MidoriTraceable*>::iterator it = m_traceables.begin(); it != m_traceables.end(); )
-	{
-		MidoriTraceable* ptr = *it;
-		if (ptr->IsMarked())
-		{
-			ptr->Unmark();
-			++it;
-		}
-		else
-		{
-#if MIDORI_DEBUG_INFO
-			Printer::Print<Printer::Color::RED>(std::format("Deleting traceable pointer: {:p}\n", static_cast<void*>(ptr)));
-#endif
-			m_total_bytes_allocated -= ptr->GetSize();
-			delete ptr;
-			it = m_traceables.erase(it);
-		}
-	}
+	m_total_bytes_allocated += traceable->GetSize();
+	m_traceables.emplace(traceable);
 }
 
 void GarbageCollector::Trace(MidoriTraceable* ptr)
@@ -80,7 +28,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		return;
 	}
 #if MIDORI_DEBUG_INFO
-	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}, value: {}\n", static_cast<void*>(ptr), ptr->ToText().GetCString()));
+	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(ptr)));
 #endif
 	ptr->Mark();
 
@@ -102,7 +50,10 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		for (int i = 0; i < cell_values.GetLength(); i += 1)
 		{
 			MidoriValue& value = cell_values[i];
-			Trace(value.GetPointer());
+			if (m_traceables.contains(value.GetPointer()))
+			{
+				Trace(value.GetPointer());
+			}
 		}
 	}
 	else if (ptr->IsTraceable<MidoriCellValue>())
@@ -140,13 +91,22 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 	else if (ptr->IsTraceable<MidoriFuture>())
 	{
-		MidoriTuple& cell_values = ptr->GetTraceable<MidoriFuture>().m_closure->m_cell_values;
-		for (int i = 0; i < cell_values.GetLength(); i += 1)
+		MidoriFuture& future = ptr->GetTraceable<MidoriFuture>();
+		if (m_traceables.contains(future.m_result.GetPointer()))
 		{
-			MidoriValue& value = cell_values[i];
-			if (m_traceables.contains(value.GetPointer()))
+			Trace(future.m_result.GetPointer());
+		}
+
+		if (future.m_closure)
+		{
+			MidoriTuple& cell_values = future.m_closure->m_cell_values;
+			for (int i = 0; i < cell_values.GetLength(); i += 1)
 			{
-				Trace(value.GetPointer());
+				MidoriValue& value = cell_values[i];
+				if (m_traceables.contains(value.GetPointer()))
+				{
+					Trace(value.GetPointer());
+				}
 			}
 		}
 	}
@@ -167,22 +127,25 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 	TimePoint t0 = Clock::now();
 #endif
 
-	// MARK
 	size_t mark_count = 0u;
 #if MIDORI_DEBUG_INFO
 	TimePoint t_mark_start = Clock::now();
 #endif
-	std::ranges::for_each(roots, [this](MidoriTraceable* root) { Trace(root); });
+	// Mark
+	for (MidoriTraceable* root : roots)
+	{
+		Trace(root);
+	}
 #if MIDORI_DEBUG_INFO
 	TimePoint t_mark_end = Clock::now();
 #endif
 
-	// SWEEP
 	size_t sweep_count = 0u;
 	size_t bytes_reclaimed = 0u;
 #if MIDORI_DEBUG_INFO
 	TimePoint t_sweep_start = Clock::now();
 #endif
+
 	for (std::unordered_set<MidoriTraceable*>::iterator it = m_traceables.begin(); it != m_traceables.end(); )
 	{
 		MidoriTraceable* ptr = *it;
@@ -201,6 +164,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, bool force_
 			it = m_traceables.erase(it);
 		}
 	}
+
 #if MIDORI_DEBUG_INFO
 	TimePoint t_sweep_end = Clock::now();
 	TimePoint t1 = Clock::now();
@@ -238,11 +202,6 @@ bool GarbageCollector::ShouldCollect() const
 	return m_total_bytes_allocated >= GARBAGE_COLLECTION_THRESHOLD;
 }
 
-void GarbageCollector::CleanUp()
-{
-	ReclaimMemory({}, true);
-}
-
 #if MIDORI_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {
@@ -250,13 +209,9 @@ void GarbageCollector::PrintMemoryTelemetry()
 		(
 			std::format
 			(
-				"\n\t------------------------------\n"
-				"\tMemory telemetry:\n"
-				"\tHeap pointers allocated: {}\n"
-				"\tTotal Bytes allocated: {}\n"
-				"\t------------------------------\n\n",
-				m_traceables.size(),
-				m_total_bytes_allocated
+				"Total allocated: {} bytes\nObject count:    {}\n",
+				m_total_bytes_allocated,
+				m_traceables.size()
 			)
 		);
 }

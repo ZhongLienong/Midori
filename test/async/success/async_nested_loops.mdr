@@ -1,0 +1,50 @@
+import { <IO>, <Math> }
+
+struct Complex {
+    Real : Float,
+    Imag : Float,
+};
+
+defun complex_abs(x : Complex) : Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
+
+defun test_func(height : Int, width : Int) : Text =>
+{
+    def tasks : Array<Future<Text>> = [];
+    def y = 0;
+    loop
+    {
+        def y_copy = y;
+        tasks ++= (async
+        {
+            def row = "";
+            def x = 0;
+            loop
+            {
+                def c = new Complex((x as Float), (y_copy as Float));
+                def val = complex_abs(c);
+                row ++= (val as Text);
+                row ++= " ";
+
+                x = x + 1;
+                if x >= width then break () else ();
+            };
+            row
+        });
+
+        y = y + 1;
+        if y >= height then break () else ();
+    };
+
+    def result = "";
+    def j = 0;
+    loop
+    {
+        result ++= await tasks[j];
+        result ++= "\n";
+        j = j + 1;
+        if j >= height then break () else ();
+    };
+    result
+};
+
+IO::PrintLine(test_func(100, 10));

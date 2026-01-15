@@ -1,0 +1,52 @@
+import { <IO>, <Math> }
+
+struct Complex { Real: Float, Imag: Float };
+
+defun complex_abs(x: Complex) : Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
+defun complex_add(a: Complex, b: Complex) : Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
+defun complex_mul(a: Complex, b: Complex) : Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+
+defun mandelbrot_row(y: Int, width: Int, height: Int, limit: Int) : Text => {
+    def row_data = "";
+    def x = 0;
+    loop {
+        def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float),
+                            -1.2 + (y as Float) * 2.4 / (height as Float));
+        def z = new Complex(0.0, 0.0);
+        def iterations = 0;
+        loop {
+            if iterations >= limit then break () else ();
+            z = complex_add(complex_mul(z, z), c);
+            if complex_abs(z) >= 2.0 then break () else ();
+            iterations = iterations + 1;
+        };
+        row_data ++= (iterations as Text) ++ " ";
+        x = x + 1;
+        if x >= width then break () else ();
+    };
+    row_data
+};
+
+def WIDTH = 50;
+def HEIGHT = 50;
+def LIMIT = 10;
+
+def tasks : Array<Future<Text>> = [];
+def y = 0;
+loop {
+    def y_copy = y;
+    tasks ++= async mandelbrot_row(y_copy, WIDTH, HEIGHT, LIMIT);
+    y = y + 1;
+    if y >= HEIGHT then break () else ();
+};
+
+IO::PrintLine("Spawned " ++ (HEIGHT as Text) ++ " tasks");
+
+def j = 0;
+loop {
+    def result = await tasks[j];
+    j = j + 1;
+    if j >= HEIGHT then break () else ();
+};
+
+IO::PrintLine("Done");

@@ -1,0 +1,23 @@
+import { <IO> }
+
+def tasks : Array<Future<Int>> = [];
+
+def y = 0;
+loop {
+    def y_copy = y;
+    tasks ++= (async {
+        def local_var = 42;
+        y_copy + local_var
+    });
+
+    y = y + 1;
+    if y >= 3 then break () else ();
+};
+
+def i = 0;
+loop {
+    def value = await tasks[i];
+    IO::PrintLine(value as Text);
+    i = i + 1;
+    if i >= 3 then break () else ();
+};

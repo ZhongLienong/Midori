@@ -4,6 +4,7 @@
 
 #include "Common/Printer/Printer.h"
 #include "Compiler/Compiler.h"
+#include "Interpreter/Runtime/MidoriRuntime.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
 using namespace std::string_literals;
@@ -45,8 +46,9 @@ int main(int argc, char* argv[])
         (
             [](MidoriExecutable&& executable) -> std::expected<int, std::string>
             {
-                return VirtualMachine(std::move(executable))
-                    .Execute();
+                MidoriRuntime runtime(std::move(executable));
+                VirtualMachine vm(runtime);
+                return vm.Execute();
             }
         )
         .or_else

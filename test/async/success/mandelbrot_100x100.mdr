@@ -1,0 +1,85 @@
+import
+{
+    <IO>,
+    <Math>
+}
+
+struct Complex
+{
+    Real : Float,
+    Imag : Float,
+};
+
+defun abs(x : Float) : Float => if x < 0.0 then -x else x;
+defun complex_abs(x : Complex) : Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
+defun complex_add(a : Complex, b : Complex) : Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
+defun complex_mul(a : Complex, b : Complex) : Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+defun complex_square(a : Complex) : Complex => complex_mul(a, a);
+
+defun map_color(iterations : Int, max_iterations: Int) : Text =>
+{
+    if iterations == max_iterations
+    then "0 0 0\n"
+    else
+    {
+        def r = (iterations * 5) % 256;
+        def g = (iterations * 10) % 256;
+        def b = (iterations * 15) % 256;
+        (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n"
+    }
+};
+
+defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def ppm_data = "";
+
+    def row_tasks : Array<Future<Text>> = [];
+
+    def y = 0;
+    loop
+    {
+        def y_copy = y;
+        row_tasks ++= (async
+        {
+            def row_data = "";
+            def x = 0;
+            loop
+            {
+                def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float),
+                                    -1.2  + (y_copy as Float) * 2.4 / (height as Float));
+                def z = new Complex(0.0, 0.0);
+                def iterations = 0;
+                loop
+                {
+                    if iterations >= limit then break () else ();
+                    z = complex_add(complex_square(z), c);
+                    if complex_abs(z) >= 2.0 then break () else ();
+                    iterations = iterations + 1;
+                };
+                row_data ++= map_color(iterations, limit);
+
+                x = x + 1;
+                if x >= width then break () else ();
+            };
+            row_data
+        });
+
+        y = y + 1;
+        if y >= height then break () else ();
+    };
+
+    def i = 0;
+    loop
+    {
+        ppm_data ++= await row_tasks[i];
+        i = i + 1;
+        if i >= height then break () else ();
+    };
+
+    ppm_header ++= ppm_data
+};
+
+def limit = 10;
+def output = mandelbrot_ppm(100, 100, limit);
+IO::PrintLine("Done");

@@ -26,7 +26,9 @@ defun map_color(iterations : Int, max_iterations: Int) : Text =>
         def r = (iterations * 5) % 256;
         def g = (iterations * 10) % 256;
         def b = (iterations * 15) % 256;
-        (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n"
+        def ret = r as Text;
+        ret ++= " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n";
+        return ret;
     }
 };
 
@@ -50,7 +52,7 @@ defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
                 if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
             };
-            ppm_data = ppm_data ++ map_color(iterations, limit);
+            ppm_data ++= map_color(iterations, limit);
             x = x + 1;
             if x >= width then break () else ();
         };
@@ -58,7 +60,7 @@ defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
         if y >= height then break () else ();
     };
 
-    ppm_header ++ ppm_data
+    ppm_header ++= ppm_data
 };
 
 def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =>
@@ -89,7 +91,7 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =
                 if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
             };
-            ppm_data = ppm_data ++ map_color(iterations, limit);
+            ppm_data ++= map_color(iterations, limit);
             x = x + 1;
             if x >= width then break () else ();
         };
@@ -97,14 +99,14 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =
         if y >= height then break () else ();
     };
 
-    ppm_header ++ ppm_data
+    ppm_header ++= ppm_data
 };
 
 def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
 def limit = 20;
 
-def mandelbrot_output = mandelbrot_ppm(400, 300, limit);
-IO::OverwriteToFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
+def mandelbrot_output = mandelbrot_ppm(1920, 1080, limit);
+IO::WriteFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
 
-def julia_output = julia_ppm(400, 300, julia_constant, limit);
-IO::OverwriteToFile("D:/Xuexi/julia.ppm", julia_output);
+def julia_output = julia_ppm(1920, 1080, julia_constant, limit);
+IO::WriteFile("D:/Xuexi/julia.ppm", julia_output);

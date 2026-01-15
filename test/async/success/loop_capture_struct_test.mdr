@@ -1,0 +1,33 @@
+// Async test with loop, capture AND struct, but no inner loop
+
+import { <IO> }
+
+struct Point {
+    X : Float,
+    Y : Float,
+};
+
+defun make_point(x : Float, y : Float) : Point => new Point(x, y);
+
+def tasks : Array<Future<Float>> = [];
+
+def y = 0;
+loop {
+    def y_copy = y;
+    tasks ++= (async {
+        // Capture + struct, but no inner loop
+        def c = make_point(1.0, (y_copy as Float));
+        c.X + c.Y
+    });
+
+    y = y + 1;
+    if y >= 5 then break () else ();
+};
+
+def i = 0;
+loop {
+    def value = await tasks[i];
+    IO::PrintLine(value as Text);
+    i = i + 1;
+    if i >= 5 then break () else ();
+};
