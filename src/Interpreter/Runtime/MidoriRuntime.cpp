@@ -6,6 +6,7 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 {
 	m_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
 
+#ifndef __EMSCRIPTEN__
 	unsigned int thread_count = std::thread::hardware_concurrency();
 	if (thread_count == 0u)
 	{
@@ -17,11 +18,14 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 	{
 		m_workers.emplace_back([this]() { WorkerLoop(); });
 	}
+#endif
 }
 
 MidoriRuntime::~MidoriRuntime()
 {
+#ifndef __EMSCRIPTEN__
 	Shutdown();
+#endif
 
 	for (MidoriTraceable* ptr : m_cross_vm_objects)
 	{
@@ -68,11 +72,16 @@ void MidoriRuntime::SpawnTask(MidoriFuture* future, const MidoriClosure& closure
 		}
 	};
 
+#ifdef __EMSCRIPTEN__
+	// WASM: Run synchronously (no thread support)
+	task();
+#else
 	{
 		std::lock_guard<std::mutex> lock(m_task_mutex);
 		m_task_queue.emplace(std::move(task));
 	}
 	m_task_condition.notify_one();
+#endif
 }
 
 const MidoriExecutable& MidoriRuntime::GetExecutable() const
@@ -219,6 +228,7 @@ void MidoriRuntime::WorkerLoop()
 
 void MidoriRuntime::Shutdown()
 {
+#ifndef __EMSCRIPTEN__
 	m_shutdown.store(true, std::memory_order_release);
 	m_task_condition.notify_all();
 
@@ -231,4 +241,5 @@ void MidoriRuntime::Shutdown()
 	}
 
 	m_workers.clear();
+#endif
 }

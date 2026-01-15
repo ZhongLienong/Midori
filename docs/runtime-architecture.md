@@ -144,8 +144,8 @@ When multiple async tasks capture the same mutable reference (e.g., an array), c
 
 ```midori
 let arr = [1, 2, 3];
-spawn { arr.push(4); }  // Race!
-spawn { arr.push(5); }  // Race!
+spawn { arr ++= 4; }  // Race!
+spawn { arr ++= 5; }  // Race!
 ```
 
 The runtime does **not** prevent this. Users must:

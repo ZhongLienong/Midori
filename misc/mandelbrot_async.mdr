@@ -145,7 +145,7 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =
 };
 
 def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
-def limit = 100;
+def limit = 20;
 
 def mandelbrot_output = mandelbrot_ppm(1920, 1080, limit);
 IO::WriteFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);

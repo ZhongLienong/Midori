@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <exception>
+#include <typeinfo>
 
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
@@ -100,13 +102,39 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 		return result;
 	}
 
-	MidoriRuntime runtime(std::move(compile_result.value()));
-	int exit_code = VirtualMachine(runtime).Execute();
+	try
+	{
+		MidoriRuntime runtime(std::move(compile_result.value()));
+		int exit_code = VirtualMachine(runtime).Execute();
 
-	result.success = (exit_code == EXIT_SUCCESS);
-	result.exit_code = exit_code;
+		result.success = (exit_code == EXIT_SUCCESS);
+		result.exit_code = exit_code;
+	}
+	catch (const std::exception& e)
+	{
+		result.success = false;
+		result.exit_code = EXIT_FAILURE;
+		result.error = std::string("Runtime error (") + typeid(e).name() + "): " + e.what();
+	}
+	catch (...)
+	{
+		result.success = false;
+		result.exit_code = EXIT_FAILURE;
+		result.error = "Unknown runtime error";
+	}
 	result.output = StripAnsiCodes(g_output_stream.str());
-	result.error = StripAnsiCodes(g_error_stream.str());
+	// Capture output first
+	result.output = StripAnsiCodes(g_output_stream.str());
+	std::string captured_error = StripAnsiCodes(g_error_stream.str());
+
+	// If we have an exception message, append captured error to it
+	if (!result.error.empty()) {
+		if (!captured_error.empty()) {
+			result.error += "\n" + captured_error;
+		}
+	} else {
+		result.error = captured_error;
+	}
 
 	StopCapture();
 	return result;

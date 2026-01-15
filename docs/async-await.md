@@ -84,8 +84,8 @@ defun make_tasks(values: Array<Int>) : Array<Future<Int>> => {
 ```midori
 // UNSAFE - Race condition!
 let arr = [1, 2, 3];
-spawn { arr.push(4); }
-spawn { arr.push(5); }  // Both tasks mutate same array concurrently
+spawn { arr ++= 4; }
+spawn { arr ++= 5; }  // Both tasks mutate same array concurrently
 ```
 
 **Important**: When capturing loop variables, create a copy inside the loop:
