@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 class MidoriAllocator
 {
 public:

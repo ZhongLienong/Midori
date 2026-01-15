@@ -9,6 +9,7 @@
 
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
+#include "Interpreter/Runtime/MidoriRuntime.h"
 
 using namespace std::string_literals;
 
@@ -99,7 +100,8 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 		return result;
 	}
 
-	int exit_code = VirtualMachine(std::move(compile_result.value())).Execute();
+	MidoriRuntime runtime(std::move(compile_result.value()));
+	int exit_code = VirtualMachine(runtime).Execute();
 
 	result.success = (exit_code == EXIT_SUCCESS);
 	result.exit_code = exit_code;
