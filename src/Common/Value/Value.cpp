@@ -403,7 +403,34 @@ MidoriText MidoriTraceable::ToText()
 
 size_t MidoriTraceable::GetSize() const
 {
-	return sizeof(MidoriTraceable);
+	size_t dynamic_size = 0uz;
+	switch (m_type)
+	{
+	case TraceableType::Text:
+		dynamic_size = m_text.GetCapacity();
+		break;
+	case TraceableType::Array:
+		dynamic_size = m_array.GetCapacity();
+		break;
+	case TraceableType::Closure:
+		dynamic_size = m_closure.m_cell_values.GetCapacity();
+		break;
+	case TraceableType::Struct:
+		dynamic_size = m_struct.m_values.GetCapacity();
+		break;
+	case TraceableType::Union:
+		dynamic_size = m_union.m_values.GetCapacity();
+		break;
+	case TraceableType::Future:
+		if (m_future.m_closure)
+		{
+			dynamic_size = sizeof(MidoriClosure) + m_future.m_closure->m_cell_values.GetCapacity();
+		}
+		break;
+	default:
+		break;
+	}
+	return sizeof(MidoriTraceable) + dynamic_size;
 }
 
 void MidoriTraceable::Mark()
@@ -569,6 +596,15 @@ MidoriValue& MidoriArray::operator[](int index)
 	return m_data[(m_start + index) % m_capacity];
 }
 
+const MidoriValue& MidoriArray::operator[](int index) const
+{
+	if (m_start == 0)
+	{
+		return m_data[index];
+	}
+	return m_data[(m_start + index) % m_capacity];
+}
+
 void MidoriArray::Expand()
 {
 	size_t new_capacity = m_capacity == 0
@@ -690,25 +726,52 @@ int MidoriArray::GetLength() const
 	return m_length;
 }
 
+size_t MidoriArray::GetCapacity() const
+{
+	return static_cast<size_t>(m_capacity) * sizeof(MidoriValue);
+}
+
 MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
 {
-	MidoriArray result(a.GetLength() + b.GetLength());
-
-	// Copy a
 	int a_len = a.GetLength();
-	for (int i = 0; i < a_len; i += 1)
-	{
-		result.m_data[i] = a.m_data[(a.m_start + i) % a.m_capacity];
-	}
-
-	// Copy b
 	int b_len = b.GetLength();
-	for (int i = 0; i < b_len; i += 1)
+	int total_len = a_len + b_len;
+	int new_capacity = total_len + (total_len >> 1);
+
+	MidoriArray result;
+	result.m_capacity = new_capacity;
+	result.m_length = total_len;
+	result.m_start = 0;
+	result.m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(new_capacity) * sizeof(MidoriValue)));
+	if (!result.m_data)
 	{
-		result.m_data[a_len + i] = b.m_data[(b.m_start + i) % b.m_capacity];
+		std::exit(EXIT_FAILURE);
 	}
 
-	result.m_length = a_len + b_len;
+	if (a.m_start == 0)
+	{
+		std::memcpy(result.m_data, a.m_data, static_cast<size_t>(a_len) * sizeof(MidoriValue));
+	}
+	else
+	{
+		for (int i = 0; i < a_len; i += 1)
+		{
+			result.m_data[i] = a.m_data[(a.m_start + i) % a.m_capacity];
+		}
+	}
+
+	if (b.m_start == 0)
+	{
+		std::memcpy(result.m_data + a_len, b.m_data, static_cast<size_t>(b_len) * sizeof(MidoriValue));
+	}
+	else
+	{
+		for (int i = 0; i < b_len; i += 1)
+		{
+			result.m_data[a_len + i] = b.m_data[(b.m_start + i) % b.m_capacity];
+		}
+	}
+
 	return result;
 }
 
@@ -826,6 +889,11 @@ const MidoriValue& MidoriTuple::operator[](int index) const
 int MidoriTuple::GetLength() const
 {
 	return m_size;
+}
+
+size_t MidoriTuple::GetCapacity() const
+{
+	return static_cast<size_t>(m_size) * sizeof(MidoriValue);
 }
 
 MidoriIntRange::MidoriIntRange(MidoriInteger start, MidoriInteger end, MidoriInteger step)
@@ -1157,19 +1225,58 @@ MidoriText& MidoriText::Append(char c)
 MidoriText& MidoriText::Append(const MidoriText& other)
 {
 	int other_byte_len = other.GetByteLength();
-	if (other_byte_len == 0) return *this;
-
-	// Optimization: If both are long and have cache, we can preserve it
-	bool cache_preservable = !IsShort() && !other.IsShort() && (m_long.m_length_cache != -1) && (other.m_long.m_length_cache != -1);
-	int other_len_cache = !other.IsShort() ? other.m_long.m_length_cache : -1;
-
-	Append(other.GetCString());
-	
-	if (cache_preservable)
+	if (other_byte_len == 0)
 	{
-		m_long.m_length_cache += other_len_cache;
+		return *this;
 	}
-	// Note: If we transitioned from Short to Long, cache is -1 (from Append c-string), which is correct.
+
+	int current_size = GetByteLength();
+	int new_size = current_size + other_byte_len;
+	const char* other_str = other.GetCString();
+
+	if (IsShort())
+	{
+		if (new_size <= SSO_CAPACITY)
+		{
+			std::memcpy(m_short.m_buffer + current_size, other_str, other_byte_len);
+			m_short.m_buffer[new_size] = '\0';
+			SetShortSize(new_size);
+		}
+		else
+		{
+			Expand(new_size);
+			std::memcpy(m_long.m_ptr + current_size, other_str, other_byte_len);
+			m_long.m_ptr[new_size] = '\0';
+			m_long.m_size = new_size;
+			m_long.m_length_cache = -1;
+		}
+	}
+	else
+	{
+		if (new_size > m_long.m_capacity)
+		{
+			int new_capacity = std::max(new_size, m_long.m_capacity * 2);
+			char* new_data = static_cast<char*>(std::realloc(m_long.m_ptr, new_capacity + 1));
+			if (!new_data)
+			{
+				std::exit(EXIT_FAILURE);
+			}
+			m_long.m_ptr = new_data;
+			m_long.m_capacity = new_capacity;
+		}
+		std::memcpy(m_long.m_ptr + current_size, other_str, other_byte_len);
+		m_long.m_ptr[new_size] = '\0';
+		m_long.m_size = new_size;
+
+		if (m_long.m_length_cache != -1 && !other.IsShort() && other.m_long.m_length_cache != -1)
+		{
+			m_long.m_length_cache += other.m_long.m_length_cache;
+		}
+		else
+		{
+			m_long.m_length_cache = -1;
+		}
+	}
 	return *this;
 }
 
@@ -1364,16 +1471,16 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 	}
 	else
 	{
-		result.m_long.m_ptr = static_cast<char*>(std::malloc(total_byte_len + 1));
+		int new_capacity = total_byte_len + (total_byte_len >> 1);
+		result.m_long.m_ptr = static_cast<char*>(std::malloc(new_capacity + 1));
 		result.m_long.m_size = total_byte_len;
-		result.m_long.m_capacity = total_byte_len;
+		result.m_long.m_capacity = new_capacity;
 		std::memcpy(result.m_long.m_ptr, a.GetCString(), byte_len_a);
 		std::memcpy(result.m_long.m_ptr + byte_len_a, b.GetCString(), byte_len_b);
 		result.m_long.m_ptr[total_byte_len] = '\0';
 		result.m_long.m_length_cache = -1;
 		result.m_long.m_flag = 0;
 
-		// Optimize length cache if possible
 		if (!a.IsShort() && !b.IsShort() && a.m_long.m_length_cache != -1 && b.m_long.m_length_cache != -1)
 		{
 			result.m_long.m_length_cache = a.m_long.m_length_cache + b.m_long.m_length_cache;
@@ -1409,6 +1516,15 @@ MidoriText MidoriText::FromFFI(char* ffi_allocated_string)
 
 		return result;
 	}
+}
+
+size_t MidoriText::GetCapacity() const
+{
+	if (IsShort())
+	{
+		return 0uz;
+	}
+	return m_long.m_capacity;
 }
 
 void MidoriText::Expand(int new_size)

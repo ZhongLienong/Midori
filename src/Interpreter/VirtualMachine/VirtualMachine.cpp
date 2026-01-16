@@ -12,9 +12,7 @@
 #include <windows.h>
 #endif
 
-#ifdef __EMSCRIPTEN__
-#include "Library/MidoriStdLib.h"
-#endif
+
 
 #include <algorithm>
 #include <bit>
@@ -335,13 +333,52 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoo
 	GarbageCollector::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
 
 	stack_roots.insert(stack_roots.end(), global_roots.cbegin(), global_roots.cend());
-	
+
 	if (m_curr_closure_traceable != nullptr)
 	{
 		stack_roots.emplace_back(m_curr_closure_traceable);
 	}
-	
+
+	for (MidoriTraceable* cached_string : m_string_literal_cache)
+	{
+		if (cached_string)
+		{
+			stack_roots.emplace_back(cached_string);
+		}
+	}
+
+	for (const auto& [key, value] : m_small_string_pool)
+	{
+		if (value)
+		{
+			stack_roots.emplace_back(value);
+		}
+	}
+
 	return stack_roots;
+}
+
+MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexcept
+{
+	constexpr int SMALL_STRING_THRESHOLD = 4;
+
+	int byte_length = text.GetByteLength();
+	if (byte_length > SMALL_STRING_THRESHOLD)
+	{
+		return nullptr;
+	}
+
+	std::string_view key(text.GetCString(), static_cast<size_t>(byte_length));
+	std::unordered_map<std::string_view, MidoriTraceable*>::iterator it = m_small_string_pool.find(key);
+	if (it != m_small_string_pool.end())
+	{
+		return it->second;
+	}
+
+	MidoriText text_copy(text);
+	MidoriTraceable* interned = AllocateTraceable(std::move(text_copy), PointerTag::TEXT);
+	m_small_string_pool[std::string_view(interned->GetTraceable<MidoriText>().GetCString(), static_cast<size_t>(byte_length))] = interned;
+	return interned;
 }
 
 int VirtualMachine::ExecuteLoop() noexcept
@@ -419,7 +456,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::LOAD_STRING:
 		{
 			size_t index = static_cast<size_t>(ReadByte());
-			Push(AllocateTraceable(m_executable->GetStringPool()[index].data(), PointerTag::TEXT));
+			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
+			{
+				if (index >= m_string_literal_cache.size())
+				{
+					m_string_literal_cache.resize(index + 1, nullptr);
+				}
+				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data(), PointerTag::TEXT);
+			}
+			Push(m_string_literal_cache[index]);
 			break;
 		}
 		case OpCode::INTEGER_CONSTANT:
@@ -1724,12 +1769,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
-#ifdef __EMSCRIPTEN__
-			void* proc = reinterpret_cast<void*>(MidoriStdLib::GetFunction(foreign_function_name_ref.GetCString()));
-#else
 			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.GetCString());
 			FFIFunction proc = ffi_idx.has_value() ? m_ffi_table[ffi_idx.value()] : nullptr;
-#endif
 			if (proc == nullptr)
 			{
 				return TerminateExecution(GenerateRuntimeError(std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
@@ -1772,12 +1813,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 
 			MidoriValue return_val;
-#ifdef __EMSCRIPTEN__
-			void(*ffi)(void**, void*) = reinterpret_cast<void(*)(void**, void*)>(proc);
-			ffi(args, reinterpret_cast<void*>(&return_val));
-#else
 			proc(args, reinterpret_cast<void*>(&return_val));
-#endif
 
 			if (return_type == 1)
 			{

@@ -296,7 +296,6 @@ The `MidoriPrelude` directory contains standard modules:
 
 - **IO.mdr** - Input/output operations (`IO::PrintLine`)
 - **Math.mdr** - Mathematical functions
-- **Array.mdr** - Array utilities
 - **DateTime.mdr** - Timing and date operations
 
 ## Foreign Function Interface (FFI)

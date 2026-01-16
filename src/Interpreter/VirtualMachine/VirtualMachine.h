@@ -10,6 +10,7 @@
 #include <bit>
 #include <cstring>
 #include <memory>
+#include <unordered_map>
 
 class MidoriRuntime;
 
@@ -75,6 +76,8 @@ private:
 
     MidoriValue m_async_result;
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
+    std::vector<MidoriTraceable*> m_string_literal_cache;
+    std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
 
 #ifdef _WIN32
     void* m_value_stack_region = nullptr;
@@ -86,6 +89,8 @@ public:
     int Execute() noexcept;
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
+
+    MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 
 private:
 	MIDORI_FORCE_INLINE void TryCollect() noexcept

@@ -2,6 +2,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
+#include <algorithm>
 #include <ranges>
 
 #if MIDORI_DEBUG_INFO
@@ -115,7 +116,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 
 void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAllocator& allocator, bool force_clean)
 {
-	if (m_total_bytes_allocated < GARBAGE_COLLECTION_THRESHOLD && !force_clean)
+	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
 	{
 		return;
 	}
@@ -197,11 +198,16 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 	Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
 	PrintMemoryTelemetry();
 #endif
+
+	size_t new_threshold = static_cast<size_t>(static_cast<double>(m_total_bytes_allocated) * GC_GROWTH_FACTOR);
+	new_threshold = std::max(new_threshold, MIN_GC_THRESHOLD);
+	new_threshold = std::min(new_threshold, MAX_GC_THRESHOLD);
+	m_gc_threshold = new_threshold;
 }
 
 bool GarbageCollector::ShouldCollect() const
 {
-	return m_total_bytes_allocated >= GARBAGE_COLLECTION_THRESHOLD;
+	return m_total_bytes_allocated >= m_gc_threshold;
 }
 
 #if MIDORI_DEBUG_INFO

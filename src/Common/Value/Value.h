@@ -219,6 +219,8 @@ public:
 
 	static MidoriText FromFFI(char* ffi_allocated_string);
 
+	size_t GetCapacity() const;
+
 private:
 	void Expand(int new_size);
 
@@ -255,6 +257,8 @@ public:
 
 	MidoriValue& operator[](int index);
 
+	const MidoriValue& operator[](int index) const;
+
 	void AddBack(const MidoriValue& value);
 
 	void AddFront(const MidoriValue& value);
@@ -262,6 +266,8 @@ public:
 	std::optional<MidoriValue> Pop();
 
 	int GetLength() const;
+
+	size_t GetCapacity() const;
 
 	static MidoriArray Concatenate(const MidoriArray& a, const MidoriArray& b);
 
@@ -299,6 +305,8 @@ public:
 	const MidoriValue& operator[](int index) const;
 
 	int GetLength() const;
+
+	size_t GetCapacity() const;
 };
 
 class MidoriIntRange
