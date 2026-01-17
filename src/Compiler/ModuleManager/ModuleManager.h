@@ -56,4 +56,6 @@ private:
 
 	void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
 
+	static bool IsKeyword(Token::Name token_name);
+
 };

@@ -1,5 +1,6 @@
 #include "ModuleManager.h"
 #include "Common/Error/Error.h"
+#include "Common/Printer/Printer.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
@@ -419,6 +420,17 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 	return current;
 }
 
+bool ModuleManager::IsKeyword(Token::Name token_name)
+{
+	return token_name != Token::Name::IDENTIFIER_LITERAL &&
+	       token_name != Token::Name::TEXT_LITERAL &&
+	       token_name != Token::Name::INTEGER_LITERAL &&
+	       token_name != Token::Name::FLOAT_LITERAL &&
+	       token_name != Token::Name::WHITESPACE &&
+	       token_name != Token::Name::END_OF_FILE &&
+	       static_cast<int>(token_name) >= static_cast<int>(Token::Name::ELSE);
+}
+
 std::tuple<std::string, std::vector<ModuleExport>> ModuleManager::ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::string module_name;
@@ -430,6 +442,13 @@ std::tuple<std::string, std::vector<ModuleExport>> ModuleManager::ExtractModuleD
 		{
 			int current = span.m_start + 1;
 			SkipWhiteSpace(tokens, current);
+
+			if (current < tokens.Size() && IsKeyword(tokens[current].m_token_name))
+			{
+				std::string error_message = MidoriError::GenerateModuleErrorWithContext("'" + tokens[current].m_lexeme + "' is a reserved keyword and cannot be used as a module name.", tokens[current].m_line, m_main_file_name);
+				Printer::Print<Printer::Color::RED>(error_message + "\n");
+				std::exit(EXIT_FAILURE);
+			}
 
 			while (current < span.m_end && (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL || tokens[current].m_token_name == Token::Name::SINGLE_DOT))
 			{

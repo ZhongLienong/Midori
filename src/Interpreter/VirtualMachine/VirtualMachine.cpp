@@ -446,7 +446,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 		}
 #if MIDORI_ENABLE_DISASSEMBLY
-		Disassembler::DisassembleInstruction(m_executable, dbg_proc_index, dbg_instruction_pointer);
+		Disassembler::DisassembleInstruction(*m_executable, dbg_proc_index, dbg_instruction_pointer);
 #endif
 #endif
 		OpCode instruction = ReadByte();
@@ -1131,6 +1131,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
 			array_ref.AddBack(value);
+			TryCollect();
 			break;
 		}
 		case OpCode::PREPEND_ARRAY:
@@ -1140,6 +1141,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
 			array_ref.AddFront(value);
+			TryCollect();
 			break;
 		}
 		case OpCode::APPEND_TEXT:
@@ -1150,6 +1152,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
 			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
 			text_ref.Append(value_text);
+			TryCollect();
 			break;
 		}
 		case OpCode::PREPEND_TEXT:
@@ -1160,6 +1163,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
 			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
 			text_ref.Prepend(value_text);
+			TryCollect();
 			break;
 		}
 		case OpCode::ADD_ASSIGN_INT:
