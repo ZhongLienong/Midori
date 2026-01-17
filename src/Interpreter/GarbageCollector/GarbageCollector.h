@@ -6,6 +6,7 @@
 #include <functional>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 class MidoriAllocator;
 
@@ -24,6 +25,7 @@ private:
 	size_t m_total_bytes_allocated = 0uz;
 	size_t m_gc_threshold = INITIAL_GC_THRESHOLD;
 	std::unordered_set<MidoriTraceable*> m_traceables;
+	std::unordered_map<MidoriTraceable*, size_t> m_object_sizes;
 
 public:
 	GarbageCollector() = default;

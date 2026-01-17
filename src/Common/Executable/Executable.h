@@ -201,6 +201,15 @@ enum class OpCode : uint8_t
 	GET_CELL,
 	SET_CELL,
 
+	// Wide variable operations (for indices > 255)
+	DEFINE_GLOBAL_WIDE,
+	GET_GLOBAL_WIDE,
+	SET_GLOBAL_WIDE,
+	GET_LOCAL_WIDE,
+	SET_LOCAL_WIDE,
+	GET_CELL_WIDE,
+	SET_CELL_WIDE,
+
 	// Struct Operations
 	GET_MEMBER,
 	SET_MEMBER,

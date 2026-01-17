@@ -158,7 +158,43 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 		return;
 	}
 
-	AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many variables (max {})", MAX_LOCAL_VARIABLES + 1), line, m_file_name, m_source_lines));
+	if (variable_index > MAX_VARIABLES)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
+		return;
+	}
+
+	OpCode wide_op = op;
+	switch (op)
+	{
+	case OpCode::DEFINE_GLOBAL:
+		wide_op = OpCode::DEFINE_GLOBAL_WIDE;
+		break;
+	case OpCode::GET_GLOBAL:
+		wide_op = OpCode::GET_GLOBAL_WIDE;
+		break;
+	case OpCode::SET_GLOBAL:
+		wide_op = OpCode::SET_GLOBAL_WIDE;
+		break;
+	case OpCode::GET_LOCAL:
+		wide_op = OpCode::GET_LOCAL_WIDE;
+		break;
+	case OpCode::SET_LOCAL:
+		wide_op = OpCode::SET_LOCAL_WIDE;
+		break;
+	case OpCode::GET_CELL:
+		wide_op = OpCode::GET_CELL_WIDE;
+		break;
+	case OpCode::SET_CELL:
+		wide_op = OpCode::SET_CELL_WIDE;
+		break;
+	default:
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid opcode for wide variable operation", line, m_file_name, m_source_lines));
+		return;
+	}
+
+	EmitByte(wide_op, line);
+	EmitTwoBytes(variable_index >> 8, variable_index & 0xFF, line);
 }
 
 int CodeGenerator::EmitJump(OpCode op, int line)

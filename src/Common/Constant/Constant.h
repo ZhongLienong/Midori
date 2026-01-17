@@ -16,6 +16,8 @@ inline constexpr int MAX_SIZE_OP_CONSTANT_LONG_LONG{ ((UINT16_MAX << 8) | 0xffff
 
 inline constexpr int MAX_LOCAL_VARIABLES{ UINT8_MAX };
 
+inline constexpr int MAX_VARIABLES{ UINT16_MAX };
+
 inline constexpr int MAX_JUMP_SIZE{ UINT16_MAX };
 
 inline constexpr int MAX_FUNCTION_ARITY{ UINT8_MAX };

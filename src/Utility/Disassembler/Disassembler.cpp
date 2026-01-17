@@ -155,6 +155,36 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void GlobalVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		int operand = (high_byte << 8) | low_byte;
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::string(executable.GetGlobalVariable(operand).GetCString()));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
+	void LocalOrCellVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		int operand = (high_byte << 8) | low_byte;
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// offset " + std::to_string(operand));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void ArrayInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -854,6 +884,27 @@ namespace Disassembler
 			break;
 		case OpCode::SET_CELL:
 			LocalOrCellVariableInstruction("SET_CELL", executable, proc_index, offset);
+			break;
+		case OpCode::DEFINE_GLOBAL_WIDE:
+			GlobalVariableWideInstruction("DEFINE_GLOBAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_GLOBAL_WIDE:
+			GlobalVariableWideInstruction("GET_GLOBAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_GLOBAL_WIDE:
+			GlobalVariableWideInstruction("SET_GLOBAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_LOCAL_WIDE:
+			LocalOrCellVariableWideInstruction("GET_LOCAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_LOCAL_WIDE:
+			LocalOrCellVariableWideInstruction("SET_LOCAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("SET_CELL_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_MEMBER:
 			MemberInstruction("GET_MEMBER", executable, proc_index, offset);

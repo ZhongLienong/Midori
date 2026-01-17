@@ -91,8 +91,10 @@ bool GarbageCollector::Contains(MidoriTraceable* ptr) const
 
 void GarbageCollector::RegisterObject(MidoriTraceable* traceable)
 {
-	m_total_bytes_allocated += traceable->GetSize();
+	size_t object_size = traceable->GetSize();
+	m_total_bytes_allocated += object_size;
 	m_traceables.emplace(traceable);
+	m_object_sizes[traceable] = object_size;
 }
 
 void GarbageCollector::Trace(MidoriTraceable* ptr)
@@ -232,11 +234,11 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 		else
 		{
 			++sweep_count;
-			size_t obj_size = ptr->GetSize();
-			bytes_reclaimed += obj_size;
-			if (m_total_bytes_allocated >= obj_size)
+			size_t registered_size = m_object_sizes[ptr];
+			bytes_reclaimed += registered_size;
+			if (m_total_bytes_allocated >= registered_size)
 			{
-				m_total_bytes_allocated -= obj_size;
+				m_total_bytes_allocated -= registered_size;
 			}
 			else
 			{
@@ -244,6 +246,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 			}
 			ptr->~MidoriTraceable();
 			allocator.Free(ptr);
+			m_object_sizes.erase(ptr);
 			it = m_traceables.erase(it);
 		}
 	}

@@ -2139,6 +2139,69 @@ int VirtualMachine::ExecuteLoop() noexcept
 			cell_value = Peek();
 			break;
 		}
+		case OpCode::DEFINE_GLOBAL_WIDE:
+		{
+			MidoriValue value = Pop();
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int global_idx = (high_byte << 8) | low_byte;
+			MidoriValue& var = (*m_global_vars)[global_idx];
+			var = value;
+			break;
+		}
+		case OpCode::GET_GLOBAL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int global_idx = (high_byte << 8) | low_byte;
+			Push((*m_global_vars)[global_idx]);
+			break;
+		}
+		case OpCode::SET_GLOBAL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int global_idx = (high_byte << 8) | low_byte;
+			MidoriValue& var = (*m_global_vars)[global_idx];
+			var = Peek();
+			break;
+		}
+		case OpCode::GET_LOCAL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int offset = (high_byte << 8) | low_byte;
+			Push(*(m_value_stack_base_pointer + offset));
+			break;
+		}
+		case OpCode::SET_LOCAL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int offset = (high_byte << 8) | low_byte;
+			MidoriValue& var = *(m_value_stack_base_pointer + offset);
+			MidoriValue& value = Peek();
+			var = value;
+			break;
+		}
+		case OpCode::GET_CELL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int offset = (high_byte << 8) | low_byte;
+			MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			Push(cell_value);
+			break;
+		}
+		case OpCode::SET_CELL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte());
+			int low_byte = static_cast<int>(ReadByte());
+			int offset = (high_byte << 8) | low_byte;
+			MidoriValue& cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			cell_value = Peek();
+			break;
+		}
 		case OpCode::GET_MEMBER:
 		{
 			int index = static_cast<int>(ReadByte());
