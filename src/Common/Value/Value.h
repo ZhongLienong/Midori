@@ -66,7 +66,7 @@ private:
 		MidoriBool m_bool;
 		MidoriTraceable* m_pointer;
 	} m_data;
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	enum DebugTypeTag : int64_t
 	{
 		FLOAT = 0,
@@ -119,7 +119,7 @@ public:
 
 	MidoriTraceable* GetPointer() const noexcept;
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	MidoriText ToText() const;
 
 	bool IsPointer() const noexcept;
@@ -282,11 +282,30 @@ private:
 class MidoriTuple
 {
 private:
-	MidoriValue* m_data{ nullptr };
-	int m_size{ 0 };
+	static constexpr int SOO_CAPACITY = 2;
+
+	struct LongLayout
+	{
+		MidoriValue* m_ptr;
+		int m_size;
+		int m_capacity;
+		uint8_t m_flag;
+	};
+
+	struct ShortLayout
+	{
+		MidoriValue m_buffer[SOO_CAPACITY];
+		uint8_t m_size_flag;
+	};
+
+	union
+	{
+		LongLayout m_long;
+		ShortLayout m_short;
+	};
 
 public:
-	MidoriTuple() = default;
+	MidoriTuple();
 
 	MidoriTuple(int size);
 
@@ -307,6 +326,13 @@ public:
 	int GetLength() const;
 
 	size_t GetCapacity() const;
+
+private:
+	bool IsShort() const noexcept;
+
+	void SetShortSize(int size);
+
+	int GetShortSize() const;
 };
 
 class MidoriIntRange
@@ -531,7 +557,7 @@ public:
 	void Unmark();
 	bool IsMarked() const;
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	MidoriText ToText();
 #endif
 

@@ -10,6 +10,78 @@
 
 #include <chrono>
 #include <format>
+
+namespace
+{
+	std::string FormatTime(int64_t nanoseconds)
+	{
+		constexpr int64_t NS_PER_US = 1'000;
+		constexpr int64_t NS_PER_MS = 1'000'000;
+		constexpr int64_t NS_PER_S = 1'000'000'000;
+
+		if (nanoseconds < NS_PER_US)
+		{
+			return std::format("{} ns", nanoseconds);
+		}
+		else if (nanoseconds < NS_PER_MS)
+		{
+			int64_t us = nanoseconds / NS_PER_US;
+			int64_t ns = nanoseconds % NS_PER_US;
+			if (ns == 0)
+			{
+				return std::format("{} us", us);
+			}
+			return std::format("{} us {} ns", us, ns);
+		}
+		else if (nanoseconds < NS_PER_S)
+		{
+			int64_t ms = nanoseconds / NS_PER_MS;
+			int64_t us = (nanoseconds % NS_PER_MS) / NS_PER_US;
+			if (us == 0)
+			{
+				return std::format("{} ms", ms);
+			}
+			return std::format("{} ms {} us", ms, us);
+		}
+		else
+		{
+			int64_t s = nanoseconds / NS_PER_S;
+			int64_t ms = (nanoseconds % NS_PER_S) / NS_PER_MS;
+			if (ms == 0)
+			{
+				return std::format("{} s", s);
+			}
+			return std::format("{} s {} ms", s, ms);
+		}
+	}
+
+	std::string FormatBytes(size_t bytes)
+	{
+		constexpr double KB = 1024.0;
+		constexpr double MB = 1024.0 * KB;
+		constexpr double GB = 1024.0 * MB;
+
+		if (bytes < 1024)
+		{
+			return std::format("{} bytes", bytes);
+		}
+		else if (bytes < 1024 * 1024)
+		{
+			double kb = static_cast<double>(bytes) / KB;
+			return std::format("{:.2f} KB", kb);
+		}
+		else if (bytes < 1024 * 1024 * 1024)
+		{
+			double mb = static_cast<double>(bytes) / MB;
+			return std::format("{:.2f} MB", mb);
+		}
+		else
+		{
+			double gb = static_cast<double>(bytes) / GB;
+			return std::format("{:.2f} GB", gb);
+		}
+	}
+}
 #endif
 
 bool GarbageCollector::Contains(MidoriTraceable* ptr) const
@@ -29,7 +101,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	{
 		return;
 	}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(ptr)));
 #endif
 	ptr->Mark();
@@ -122,7 +194,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 	}
 
 #if MIDORI_DEBUG_INFO
-	Printer::Print<Printer::Color::BLUE>("\nBefore garbage collection:");
+	Printer::Print<Printer::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
 	PrintMemoryTelemetry();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
@@ -160,8 +232,16 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 		else
 		{
 			++sweep_count;
-			bytes_reclaimed += ptr->GetSize();
-			m_total_bytes_allocated -= ptr->GetSize();
+			size_t obj_size = ptr->GetSize();
+			bytes_reclaimed += obj_size;
+			if (m_total_bytes_allocated >= obj_size)
+			{
+				m_total_bytes_allocated -= obj_size;
+			}
+			else
+			{
+				m_total_bytes_allocated = 0uz;
+			}
 			ptr->~MidoriTraceable();
 			allocator.Free(ptr);
 			it = m_traceables.erase(it);
@@ -172,27 +252,27 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 	TimePoint t_sweep_end = Clock::now();
 	TimePoint t1 = Clock::now();
 
-	int64_t ms_mark = std::chrono::duration_cast<std::chrono::milliseconds>(t_mark_end - t_mark_start).count();
-	int64_t ms_sweep = std::chrono::duration_cast<std::chrono::milliseconds>(t_sweep_end - t_sweep_start).count();
-	int64_t ms_total = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+	int64_t ns_mark = std::chrono::duration_cast<std::chrono::nanoseconds>(t_mark_end - t_mark_start).count();
+	int64_t ns_sweep = std::chrono::duration_cast<std::chrono::nanoseconds>(t_sweep_end - t_sweep_start).count();
+	int64_t ns_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
 
 	Printer::Print<Printer::Color::BLUE>
 		(
 			std::format
 			(
-				"\n[GC] Mark time:    {} ms\n"
-				"[GC] Sweep time:   {} ms\n"
-				"[GC] Total time:   {} ms\n"
+				"\n[GC] Mark time:    {}\n"
+				"[GC] Sweep time:   {}\n"
+				"[GC] Total time:   {}\n"
 				"[GC] Roots traced: {}\n"
 				"[GC] Survivors:    {}\n"
-				"[GC] Collected:    {} ({} bytes)\n",
-				ms_mark,
-				ms_sweep,
-				ms_total,
+				"[GC] Collected:    {} ({})\n",
+				FormatTime(ns_mark),
+				FormatTime(ns_sweep),
+				FormatTime(ns_total),
 				roots.size(),
 				mark_count,
 				sweep_count,
-				bytes_reclaimed
+				FormatBytes(bytes_reclaimed)
 			)
 		);
 	Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
@@ -217,8 +297,8 @@ void GarbageCollector::PrintMemoryTelemetry()
 		(
 			std::format
 			(
-				"Total allocated: {} bytes\nObject count:    {}\n",
-				m_total_bytes_allocated,
+				"Total allocated: {}\nObject count:    {}\n----------------------------------------------\n",
+				FormatBytes(m_total_bytes_allocated),
 				m_traceables.size()
 			)
 		);

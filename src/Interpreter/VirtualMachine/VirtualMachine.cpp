@@ -464,7 +464,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data(), PointerTag::TEXT);
 			}
-			Push(m_string_literal_cache[index]);
+			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
+			MidoriText text_copy(cached_text);
+			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy), PointerTag::TEXT);
+			Push(new_string);
 			break;
 		}
 		case OpCode::INTEGER_CONSTANT:
@@ -1764,7 +1767,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int arity = static_cast<int>(ReadByte());
 			uint8_t return_type = static_cast<uint8_t>(ReadByte());
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 			if (!foreign_function_name.IsPointer())
 			{
 				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
@@ -1963,7 +1966,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
@@ -1986,7 +1989,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));

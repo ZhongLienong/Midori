@@ -132,7 +132,7 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 
 MidoriValue::MidoriValue() noexcept
 	: m_data{.m_integer = 0}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(UNIT)
 #endif
 {
@@ -140,7 +140,7 @@ MidoriValue::MidoriValue() noexcept
 
 MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 	: m_data{.m_float = midori_float}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(FLOAT)
 #endif
 {
@@ -148,7 +148,7 @@ MidoriValue::MidoriValue(MidoriFloat midori_float) noexcept
 
 MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 	: m_data{.m_integer = integer}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(INT)
 #endif
 {
@@ -156,7 +156,7 @@ MidoriValue::MidoriValue(MidoriInteger integer) noexcept
 
 MidoriValue::MidoriValue(MidoriByte byte) noexcept
 	: m_data{.m_integer = static_cast<MidoriInteger>(byte)}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(BYTE)
 #endif
 {
@@ -164,7 +164,7 @@ MidoriValue::MidoriValue(MidoriByte byte) noexcept
 
 MidoriValue::MidoriValue(MidoriWord word) noexcept
 	: m_data{.m_integer = static_cast<MidoriInteger>(word)}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(WORD)
 #endif
 {
@@ -172,7 +172,7 @@ MidoriValue::MidoriValue(MidoriWord word) noexcept
 
 MidoriValue::MidoriValue(MidoriBool b) noexcept
 	: m_data{.m_bool = b}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(BOOL)
 #endif
 {
@@ -180,7 +180,7 @@ MidoriValue::MidoriValue(MidoriBool b) noexcept
 
 MidoriValue::MidoriValue(MidoriTraceable* tagged_pointer) noexcept
 	: m_data{.m_pointer = tagged_pointer}
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 	, m_tag(POINTER)
 #endif
 {
@@ -222,7 +222,7 @@ MidoriTraceable* MidoriValue::GetPointer() const noexcept
 	return reinterpret_cast<MidoriTraceable*>(raw & TAG_MASK);
 }
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 MidoriText MidoriValue::ToText() const
 {
 	switch (m_tag)
@@ -327,7 +327,7 @@ MidoriTraceable::~MidoriTraceable()
 	}
 }
 
-#if MIDORI_DEBUG_INFO
+#if MIDORI_DEBUG_FULL
 MidoriText MidoriTraceable::ToText()
 {
 	switch (m_type)
@@ -795,105 +795,157 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 	return result;
 }
 
+MidoriTuple::MidoriTuple()
+{
+	std::memset(this, 0, sizeof(MidoriTuple));
+	SetShortSize(0);
+}
+
 MidoriTuple::MidoriTuple(int size)
 {
-	m_size = size;
-	if (size > 0)
+	if (size <= SOO_CAPACITY)
 	{
-		m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(size) * sizeof(MidoriValue)));
-		if (!m_data)
+		std::memset(this, 0, sizeof(MidoriTuple));
+		SetShortSize(size);
+		for (int i = 0; i < size; i += 1)
+		{
+			new (&m_short.m_buffer[i]) MidoriValue();
+		}
+	}
+	else
+	{
+		m_long.m_ptr = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(size) * sizeof(MidoriValue)));
+		if (!m_long.m_ptr)
 		{
 			std::exit(EXIT_FAILURE);
 		}
+		m_long.m_size = size;
+		m_long.m_capacity = size;
+		m_long.m_flag = 0;
 	}
 }
 
-MidoriTuple::MidoriTuple(const MidoriTuple& other) : m_size(other.m_size)
+MidoriTuple::MidoriTuple(const MidoriTuple& other)
 {
-	if (m_size > 0)
+	if (other.IsShort())
 	{
-		m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(m_size) * sizeof(MidoriValue)));
-		if (!m_data)
+		std::memcpy(this, &other, sizeof(MidoriTuple));
+	}
+	else
+	{
+		m_long.m_ptr = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue)));
+		if (!m_long.m_ptr)
 		{
 			std::exit(EXIT_FAILURE);
 		}
-		std::memcpy(m_data, other.m_data, static_cast<size_t>(m_size) * sizeof(MidoriValue));
+		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
+		m_long.m_size = other.m_long.m_size;
+		m_long.m_capacity = other.m_long.m_size;
+		m_long.m_flag = 0;
 	}
 }
 
-MidoriTuple::MidoriTuple(MidoriTuple&& other) noexcept : m_data(other.m_data), m_size(other.m_size)
+MidoriTuple::MidoriTuple(MidoriTuple&& other) noexcept
 {
-	other.m_data = nullptr;
-	other.m_size = 0;
+	std::memcpy(this, &other, sizeof(MidoriTuple));
+	std::memset(&other, 0, sizeof(MidoriTuple));
+	other.SetShortSize(0);
 }
 
 MidoriTuple& MidoriTuple::operator=(const MidoriTuple& other)
 {
-	if (this != &other)
+	if (this == &other)
 	{
-		if (m_size != other.m_size)
+		return *this;
+	}
+
+	if (!IsShort())
+	{
+		std::free(m_long.m_ptr);
+	}
+
+	if (other.IsShort())
+	{
+		std::memcpy(this, &other, sizeof(MidoriTuple));
+	}
+	else
+	{
+		m_long.m_ptr = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue)));
+		if (!m_long.m_ptr)
 		{
-			std::free(m_data);
-			m_size = other.m_size;
-			if (m_size > 0)
-			{
-				m_data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(m_size) * sizeof(MidoriValue)));
-				if (!m_data)
-				{
-					std::exit(EXIT_FAILURE);
-				}
-			}
-			else
-			{
-				m_data = nullptr;
-			}
+			std::exit(EXIT_FAILURE);
 		}
-		
-		if (m_size > 0)
-		{
-			std::memcpy(m_data, other.m_data, static_cast<size_t>(m_size) * sizeof(MidoriValue));
-		}
+		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
+		m_long.m_size = other.m_long.m_size;
+		m_long.m_capacity = other.m_long.m_size;
+		m_long.m_flag = 0;
 	}
 	return *this;
 }
 
 MidoriTuple& MidoriTuple::operator=(MidoriTuple&& other) noexcept
 {
-	if (this != &other)
+	if (this == &other)
 	{
-		std::free(m_data);
-		m_data = other.m_data;
-		m_size = other.m_size;
-
-		other.m_data = nullptr;
-		other.m_size = 0;
+		return *this;
 	}
+
+	if (!IsShort())
+	{
+		std::free(m_long.m_ptr);
+	}
+
+	std::memcpy(this, &other, sizeof(MidoriTuple));
+	std::memset(&other, 0, sizeof(MidoriTuple));
+	other.SetShortSize(0);
 	return *this;
 }
 
 MidoriTuple::~MidoriTuple()
 {
-	std::free(m_data);
+	if (!IsShort())
+	{
+		std::free(m_long.m_ptr);
+	}
 }
 
 MidoriValue& MidoriTuple::operator[](int index)
 {
-	return m_data[index];
+	return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
 }
 
 const MidoriValue& MidoriTuple::operator[](int index) const
 {
-	return m_data[index];
+	return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
 }
 
 int MidoriTuple::GetLength() const
 {
-	return m_size;
+	return IsShort() ? GetShortSize() : m_long.m_size;
 }
 
 size_t MidoriTuple::GetCapacity() const
 {
-	return static_cast<size_t>(m_size) * sizeof(MidoriValue);
+	if (IsShort())
+	{
+		return 0uz;
+	}
+	return static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue);
+}
+
+bool MidoriTuple::IsShort() const noexcept
+{
+	return (m_short.m_size_flag & 1) != 0;
+}
+
+void MidoriTuple::SetShortSize(int size)
+{
+	m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
+}
+
+int MidoriTuple::GetShortSize() const
+{
+	return m_short.m_size_flag >> 1;
 }
 
 MidoriIntRange::MidoriIntRange(MidoriInteger start, MidoriInteger end, MidoriInteger step)
@@ -1471,10 +1523,9 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 	}
 	else
 	{
-		int new_capacity = total_byte_len + (total_byte_len >> 1);
-		result.m_long.m_ptr = static_cast<char*>(std::malloc(new_capacity + 1));
+		result.m_long.m_ptr = static_cast<char*>(std::malloc(total_byte_len + 1));
 		result.m_long.m_size = total_byte_len;
-		result.m_long.m_capacity = new_capacity;
+		result.m_long.m_capacity = total_byte_len;
 		std::memcpy(result.m_long.m_ptr, a.GetCString(), byte_len_a);
 		std::memcpy(result.m_long.m_ptr + byte_len_a, b.GetCString(), byte_len_b);
 		result.m_long.m_ptr[total_byte_len] = '\0';
@@ -1524,7 +1575,7 @@ size_t MidoriText::GetCapacity() const
 	{
 		return 0uz;
 	}
-	return m_long.m_capacity;
+	return static_cast<size_t>(m_long.m_capacity) + 1uz;
 }
 
 void MidoriText::Expand(int new_size)
