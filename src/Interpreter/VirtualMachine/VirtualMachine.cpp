@@ -3,6 +3,7 @@
 #include "Common/Printer/Printer.h"
 #include "Utility/Disassembler/Disassembler.h"
 #include "Interpreter/Runtime/MidoriRuntime.h"
+#include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 #include "VirtualMachine.h"
 
 #ifdef _WIN32
@@ -1776,8 +1777,22 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
+			FFIFunction proc = nullptr;
 			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.GetCString());
-			FFIFunction proc = ffi_idx.has_value() ? m_ffi_table[ffi_idx.value()] : nullptr;
+			if (ffi_idx.has_value())
+			{
+				proc = m_ffi_table[ffi_idx.value()];
+			}
+			else
+			{
+				DynamicFFIRegistry& dynamic_registry = DynamicFFIRegistry::GetInstance();
+				std::optional<FFIFunction> dynamic_func = dynamic_registry.FindFunction(foreign_function_name_ref.GetCString());
+				if (dynamic_func.has_value())
+				{
+					proc = dynamic_func.value();
+				}
+			}
+
 			if (proc == nullptr)
 			{
 				return TerminateExecution(GenerateRuntimeError(std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));

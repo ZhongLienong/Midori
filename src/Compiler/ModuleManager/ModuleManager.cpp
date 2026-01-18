@@ -4,6 +4,8 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
+#include "Compiler/PackageManager/PackageManifest.h"
+#include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <filesystem>
 #include <fstream>
@@ -79,6 +81,34 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			std::string include_absolute_path_str = resolved_opt->m_absolute_path;
 
 			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
+
+			std::filesystem::path import_path(include_absolute_path_str);
+			std::filesystem::path package_dir = import_path.parent_path();
+			std::filesystem::path package_manifest_path = package_dir / "package.midori";
+
+			if (std::filesystem::exists(package_manifest_path))
+			{
+				std::optional<PackageManifest> manifest_opt = PackageManifest::Load(package_dir);
+				if (manifest_opt.has_value())
+				{
+					const PackageManifest& manifest = manifest_opt.value();
+					const PackageFFI& ffi = manifest.GetFFI();
+
+					if (ffi.m_enabled)
+					{
+						std::filesystem::path library_path = manifest.GetFFILibraryPath();
+
+						if (std::filesystem::exists(library_path))
+						{
+							DynamicFFIRegistry& registry = DynamicFFIRegistry::GetInstance();
+							if (!registry.IsLibraryLoaded(manifest.GetInfo().m_name))
+							{
+								registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions);
+							}
+						}
+					}
+				}
+			}
 
 			if (build_graph.m_nodes.contains(include_absolute_path_str))
 			{

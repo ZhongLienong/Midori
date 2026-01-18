@@ -8,7 +8,7 @@
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
-#include "Library/MidoriFFIRegistry.h"
+#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
 
 class CodeGenerator
 {

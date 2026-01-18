@@ -10,6 +10,7 @@ A statically-typed functional programming language featuring algebraic data type
 - **Type Aliases** - Create readable names for complex types
 - **Typeclasses** - Haskell-style constrained generics for polymorphism
 - **Module System** - Explicit imports/exports with privacy enforcement
+- **Package System** - Third-party packages with native FFI bindings
 - **Pipe Operator** - Functional composition with `|>` operator
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
@@ -197,6 +198,33 @@ import { "./MyModule.mdr" }
 
 def result = MyModule::add(5, 3);
 ```
+
+### Package System
+
+Midori supports third-party packages with native FFI bindings. Packages can provide native libraries (DLL/SO/DYLIB) that are loaded dynamically at runtime.
+
+**Package structure:**
+```
+PackageName/
+├── package.midori       # TOML manifest
+├── PackageName.mdr      # Module file
+└── lib/                 # Native libraries
+    └── windows/x64/packagename.dll
+```
+
+**Using a package:**
+```bash
+# Set MIDORI_PATH to include package directory
+export MIDORI_PATH="/path/to/packages/PackageName:/path/to/MidoriPrelude"
+```
+
+```midori
+import { <PackageName> }
+
+def result = PackageName::NativeFunction(arg1, arg2);
+```
+
+See [Package System](docs/package-system.md) for complete documentation on creating and using packages.
 
 ### Pipe Operator
 ```midori
@@ -647,5 +675,6 @@ See the [docs](docs/) folder for detailed technical documentation:
 
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
+- [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Async/Await](docs/async-await.md) - Concurrent execution with per-VM isolation
 - [Runtime Architecture](docs/runtime-architecture.md) - Memory model, garbage collection, and concurrency

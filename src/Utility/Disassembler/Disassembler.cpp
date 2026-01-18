@@ -4,7 +4,7 @@
 
 #include "Common/Executable/Executable.h"
 #include "Common/Printer/Printer.h"
-#include "Library/MidoriFFIRegistry.h"
+#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
 #include "Disassembler.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY

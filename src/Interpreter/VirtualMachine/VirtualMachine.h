@@ -4,7 +4,7 @@
 #include "Common/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
-#include "Library/MidoriFFIRegistry.h"
+#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
 
 #include <array>
 #include <bit>

@@ -1,4 +1,4 @@
-#include "Library/MidoriFFIRegistry.h"
+#include "MidoriFFIRegistry.h"
 #include "Library/MidoriStdLibExports.h"
 
 const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT> MidoriFFIRegistry::s_entries = {{
@@ -105,6 +105,11 @@ std::optional<size_t> MidoriFFIRegistry::FindIndex(std::string_view name)
 		}
 	}
 	return std::nullopt;
+}
+
+constexpr size_t MidoriFFIRegistry::GetTableSize()
+{
+	return BUILTIN_COUNT;
 }
 
 const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& MidoriFFIRegistry::GetTable()

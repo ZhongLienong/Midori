@@ -26,6 +26,18 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out)
 
 # ============================================================================
+# External Dependencies
+# ============================================================================
+include(FetchContent)
+
+FetchContent_Declare(
+    toml11
+    GIT_REPOSITORY https://github.com/ToruNiina/toml11.git
+    GIT_TAG v4.2.0
+)
+FetchContent_MakeAvailable(toml11)
+
+# ============================================================================
 # Platform Detection
 # ============================================================================
 # Test system endianness
@@ -91,6 +103,9 @@ if(EMSCRIPTEN)
         ${CMAKE_SOURCE_DIR}/src
     )
 
+    # Link external libraries
+    target_link_libraries(Midori PRIVATE toml11::toml11)
+
     # Emscripten linker options
     target_link_options(Midori PRIVATE
         --bind
@@ -139,6 +154,16 @@ else()
     target_include_directories(Midori PRIVATE
         ${CMAKE_SOURCE_DIR}/src
     )
+
+    # Link external libraries
+    target_link_libraries(Midori PRIVATE toml11::toml11)
+
+    # Link platform-specific dynamic loading libraries
+    if(WIN32)
+        # Windows uses kernel32.lib for LoadLibrary/GetProcAddress (linked by default)
+    elseif(UNIX)
+        target_link_libraries(Midori PRIVATE ${CMAKE_DL_LIBS})
+    endif()
 
     # Target-specific compile definitions
     target_compile_definitions(Midori PRIVATE
