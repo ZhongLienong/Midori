@@ -864,6 +864,9 @@ namespace Disassembler
 		case OpCode::CONSTRUCT_CLOSURE:
 			ClosureCreateInstruction("CONSTRUCT_CLOSURE", executable, proc_index, offset);
 			break;
+		case OpCode::ALLOCATE_STATIC_CLOSURE:
+			AllocateClosureInstruction("ALLOCATE_STATIC_CLOSURE", executable, proc_index, offset);
+			break;
 		case OpCode::DEFINE_GLOBAL:
 			GlobalVariableInstruction("DEFINE_GLOBAL", executable, proc_index, offset);
 			break;

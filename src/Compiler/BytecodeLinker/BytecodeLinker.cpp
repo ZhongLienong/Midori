@@ -294,7 +294,7 @@ void BytecodeLinker::ConcatenateBytecode()
 						OpCode opcode = procedure.ReadByteCode(offset);
 						int advance = CalculateInstructionSize(opcode, procedure, offset);
 
-						if (opcode == OpCode::ALLOCATE_CLOSURE)
+						if (opcode == OpCode::ALLOCATE_CLOSURE || opcode == OpCode::ALLOCATE_STATIC_CLOSURE)
 						{
 							int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 							int new_proc_index = old_proc_index + static_cast<int>(module_proc_base_offset);
@@ -357,7 +357,7 @@ void BytecodeLinker::PatchBootstrapOffsets()
 				OpCode opcode = procedure.ReadByteCode(offset);
 				int advance = CalculateInstructionSize(opcode, procedure, offset);
 
-				if (opcode == OpCode::ALLOCATE_CLOSURE)
+				if (opcode == OpCode::ALLOCATE_CLOSURE || opcode == OpCode::ALLOCATE_STATIC_CLOSURE)
 				{
 					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 					int new_proc_index = old_proc_index + 1;
@@ -536,6 +536,7 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 	else if
 	(
 		opcode == OpCode::ALLOCATE_CLOSURE ||
+		opcode == OpCode::ALLOCATE_STATIC_CLOSURE ||
 		opcode == OpCode::LOAD_STRING ||
 		opcode == OpCode::DEFINE_GLOBAL ||
 		opcode == OpCode::GET_GLOBAL ||

@@ -3143,11 +3143,19 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 		return;
 	}
 
-	EmitByte(OpCode::ALLOCATE_CLOSURE, line);
-	EmitByte(static_cast<OpCode>(closure_proc_index), line);
+	if (captured_count == 0)
+	{
+		EmitByte(OpCode::ALLOCATE_STATIC_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(closure_proc_index), line);
+	}
+	else
+	{
+		EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(closure_proc_index), line);
 
-	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
-	EmitByte(static_cast<OpCode>(captured_count), line);
+		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(captured_count), line);
+	}
 }
 
 std::size_t CodeGenerator::FunctionSignatureHash::operator()(const FunctionSignature& sig) const

@@ -2065,14 +2065,27 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
 			break;
 		}
+		case OpCode::ALLOCATE_STATIC_CLOSURE:
+		{
+			int proc_index = static_cast<int>(ReadByte());
+
+			std::unordered_map<int, MidoriTraceable*>::iterator it = m_static_closure_cache.find(proc_index);
+			if (m_static_closure_cache.contains(proc_index))
+			{
+				Push(it->second);
+			}
+			else
+			{
+				MidoriTraceable* closure = AllocateTraceable(MidoriClosure{.m_cell_values = MidoriTuple(), .m_proc_index = proc_index}, PointerTag::FUNCTION);
+				m_static_closure_cache[proc_index] = closure;
+				Push(closure);
+			}
+
+			break;
+		}
 		case OpCode::CONSTRUCT_CLOSURE:
 		{
 			int total_count = static_cast<int>(ReadByte());
-
-			if (total_count == 0)
-			{
-				break;
-			}
 
 			MidoriTuple& closure_env = (m_value_stack_pointer - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
 			

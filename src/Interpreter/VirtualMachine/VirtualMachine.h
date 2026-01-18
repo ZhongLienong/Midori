@@ -78,6 +78,7 @@ private:
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::vector<MidoriTraceable*> m_string_literal_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
+    std::unordered_map<int, MidoriTraceable*> m_static_closure_cache;
 
 #ifdef _WIN32
     void* m_value_stack_region = nullptr;
