@@ -19,6 +19,8 @@ protected:
 
 	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 
+	void operator()(MidoriExpression::Block& block) override;
+
 private:
 
 	static bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);

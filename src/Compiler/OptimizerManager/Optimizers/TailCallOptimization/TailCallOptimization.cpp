@@ -37,6 +37,25 @@ void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun
 	}
 
 	m_current_function.clear();
+
+	VisitAndReplace(defun.m_body);
+}
+
+void TailCallOptimization::operator()(MidoriExpression::Block& block)
+{
+	for (std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
+	{
+		if (stmt->IsStatement<MidoriStatement::FunctionDefinition>())
+		{
+			MidoriStatement::FunctionDefinition& nested_defun = stmt->GetStatement<MidoriStatement::FunctionDefinition>();
+			(*this)(nested_defun);
+		}
+	}
+
+	if (block.m_final_expr.has_value())
+	{
+		VisitAndReplace(block.m_final_expr.value());
+	}
 }
 
 bool TailCallOptimization::IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name)
