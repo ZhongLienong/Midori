@@ -18,7 +18,7 @@ public:
 	MidoriAllocator& operator=(const MidoriAllocator&) = delete;
 
 	void* Allocate(size_t size);
-	void Free(void* ptr);
+	void Free(void* ptr, size_t size);
 
 private:
 #ifndef __EMSCRIPTEN__

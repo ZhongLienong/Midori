@@ -88,27 +88,14 @@ void* MidoriAllocator::Allocate(size_t size)
 	return static_cast<void*>(node);
 }
 
-void MidoriAllocator::Free(void* ptr)
+void MidoriAllocator::Free(void* ptr, size_t size)
 {
-	if (ptr == nullptr)
+	if (ptr == nullptr || size == 0uz)
 	{
 		return;
 	}
 
-	bool in_pool = false;
-	for (void* block : m_blocks)
-	{
-		uintptr_t block_start = reinterpret_cast<uintptr_t>(block);
-		uintptr_t block_end = block_start + BLOCK_SIZE;
-		uintptr_t ptr_addr = reinterpret_cast<uintptr_t>(ptr);
-		if (ptr_addr >= block_start && ptr_addr < block_end)
-		{
-			in_pool = true;
-			break;
-		}
-	}
-
-	if (in_pool)
+	if (size <= SLOT_SIZE)
 	{
 		FreeNode* node = static_cast<FreeNode*>(ptr);
 		node->m_next = m_free_list;

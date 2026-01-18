@@ -245,7 +245,7 @@ void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAlloc
 				m_total_bytes_allocated = 0uz;
 			}
 			ptr->~MidoriTraceable();
-			allocator.Free(ptr);
+			allocator.Free(ptr, sizeof(MidoriTraceable));
 			m_object_sizes.erase(ptr);
 			it = m_traceables.erase(it);
 		}
