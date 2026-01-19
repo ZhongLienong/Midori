@@ -1976,7 +1976,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case OpCode::CALL_DEFINED:
+		case OpCode::CALL:
 		{
 			MidoriValue callable = Pop();
 			int arity = static_cast<int>(ReadByte());
@@ -1995,6 +1995,20 @@ int VirtualMachine::ExecuteLoop() noexcept
 			m_curr_environment = &closure.m_cell_values;
 
 			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_PROC:
+		{
+			int proc_index = static_cast<int>(ReadByte());
+			int arity = static_cast<int>(ReadByte());
+
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
+
+			// Static functions have no captures, so no environment needed
+			m_curr_environment = nullptr;
+			m_instruction_pointer = m_executable->GetBytecodeStream(proc_index)[0u];
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2059,13 +2073,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(new_union);
 			break;
 		}
-		case OpCode::ALLOCATE_CLOSURE:
+		case OpCode::MAKE_CLOSURE:
 		{
 			int proc_index = static_cast<int>(ReadByte());
 			Push(AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
 			break;
 		}
-		case OpCode::ALLOCATE_STATIC_CLOSURE:
+		case OpCode::MAKE_FUNCTION:
 		{
 			int proc_index = static_cast<int>(ReadByte());
 
@@ -2083,7 +2097,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case OpCode::CONSTRUCT_CLOSURE:
+		case OpCode::BIND_CAPTURES:
 		{
 			int total_count = static_cast<int>(ReadByte());
 
@@ -2156,6 +2170,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::GET_CELL:
 		{
 			int offset = static_cast<int>(ReadByte());
+#if MIDORI_DEBUG_FULL
+			if (!m_curr_environment)
+			{
+				return TerminateExecution(GenerateRuntimeError("GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
+			}
+#endif
 			MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
 			Push(cell_value);
 			break;

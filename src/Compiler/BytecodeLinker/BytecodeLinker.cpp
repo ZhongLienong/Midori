@@ -294,7 +294,13 @@ void BytecodeLinker::ConcatenateBytecode()
 						OpCode opcode = procedure.ReadByteCode(offset);
 						int advance = CalculateInstructionSize(opcode, procedure, offset);
 
-						if (opcode == OpCode::ALLOCATE_CLOSURE || opcode == OpCode::ALLOCATE_STATIC_CLOSURE)
+						if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
+						{
+							int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+							int new_proc_index = old_proc_index + static_cast<int>(module_proc_base_offset);
+							procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
+						}
+						else if (opcode == OpCode::CALL_PROC)
 						{
 							int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 							int new_proc_index = old_proc_index + static_cast<int>(module_proc_base_offset);
@@ -357,7 +363,13 @@ void BytecodeLinker::PatchBootstrapOffsets()
 				OpCode opcode = procedure.ReadByteCode(offset);
 				int advance = CalculateInstructionSize(opcode, procedure, offset);
 
-				if (opcode == OpCode::ALLOCATE_CLOSURE || opcode == OpCode::ALLOCATE_STATIC_CLOSURE)
+				if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
+				{
+					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+					int new_proc_index = old_proc_index + 1;
+					procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
+				}
+				else if (opcode == OpCode::CALL_PROC)
 				{
 					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 					int new_proc_index = old_proc_index + 1;
@@ -381,11 +393,11 @@ BytecodeStream BytecodeLinker::BuildBootstrapProcedure()
 			size_t module_base_index = base_it->second;
 			size_t module_global_index = module_base_index + 1u;
 
-			bootstrap.AddByteCode(OpCode::ALLOCATE_CLOSURE, 0);
+			bootstrap.AddByteCode(OpCode::MAKE_CLOSURE, 0);
 			bootstrap.AddByteCode(static_cast<OpCode>(module_global_index), 0);
-			bootstrap.AddByteCode(OpCode::CONSTRUCT_CLOSURE, 0);
+			bootstrap.AddByteCode(OpCode::BIND_CAPTURES, 0);
 			bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
-			bootstrap.AddByteCode(OpCode::CALL_DEFINED, 0);
+			bootstrap.AddByteCode(OpCode::CALL, 0);
 			bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
 			bootstrap.AddByteCode(OpCode::POP, 0);
 		};
@@ -533,10 +545,14 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 	{
 		return 4;  // opcode + ffi_index + arity + return_type
 	}
+	else if (opcode == OpCode::CALL_PROC)
+	{
+		return 3;  // opcode + proc_index + arity
+	}
 	else if
 	(
-		opcode == OpCode::ALLOCATE_CLOSURE ||
-		opcode == OpCode::ALLOCATE_STATIC_CLOSURE ||
+		opcode == OpCode::MAKE_CLOSURE ||
+		opcode == OpCode::MAKE_FUNCTION ||
 		opcode == OpCode::LOAD_STRING ||
 		opcode == OpCode::DEFINE_GLOBAL ||
 		opcode == OpCode::GET_GLOBAL ||
@@ -545,8 +561,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		opcode == OpCode::SET_LOCAL ||
 		opcode == OpCode::GET_CELL ||
 		opcode == OpCode::SET_CELL ||
-		opcode == OpCode::CALL_DEFINED ||
-		opcode == OpCode::CONSTRUCT_CLOSURE ||
+		opcode == OpCode::CALL ||
+		opcode == OpCode::BIND_CAPTURES ||
 		opcode == OpCode::GET_MEMBER ||
 		opcode == OpCode::SET_MEMBER ||
 		opcode == OpCode::POP_VALUES ||

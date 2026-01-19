@@ -2,7 +2,7 @@
 
 #include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
 
-class LambdaLifting : public MidoriOptimizer
+class ClosureLifting : public MidoriOptimizer
 {
 public:
 	int Optimize(MidoriProgramTree& program_tree) override;

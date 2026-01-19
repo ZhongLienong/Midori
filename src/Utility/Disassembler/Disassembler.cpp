@@ -252,6 +252,21 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void CallDirectInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int target_proc = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(target_proc));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// proc: " + std::to_string(target_proc) + ", params: " + std::to_string(arity));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void CallForeignInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -846,8 +861,11 @@ namespace Disassembler
 		case OpCode::CALL_FOREIGN_INDEXED:
 			CallForeignIndexedInstruction("CALL_FOREIGN_INDEXED", executable, proc_index, offset);
 			break;
-		case OpCode::CALL_DEFINED:
-			CallInstruction("CALL_DEFINED", executable, proc_index, offset);
+		case OpCode::CALL:
+			CallInstruction("CALL", executable, proc_index, offset);
+			break;
+		case OpCode::CALL_PROC:
+			CallDirectInstruction("CALL_PROC", executable, proc_index, offset);
 			break;
 		case OpCode::TAIL_CALL:
 			CallInstruction("TAIL_CALL", executable, proc_index, offset);
@@ -858,14 +876,14 @@ namespace Disassembler
 		case OpCode::CONSTRUCT_UNION:
 			DataInstruction("CONSTRUCT_UNION", executable, proc_index, offset);
 			break;
-		case OpCode::ALLOCATE_CLOSURE:
-			AllocateClosureInstruction("ALLOCATE_CLOSURE", executable, proc_index, offset);
+		case OpCode::MAKE_CLOSURE:
+			AllocateClosureInstruction("MAKE_CLOSURE", executable, proc_index, offset);
 			break;
-		case OpCode::CONSTRUCT_CLOSURE:
-			ClosureCreateInstruction("CONSTRUCT_CLOSURE", executable, proc_index, offset);
+		case OpCode::BIND_CAPTURES:
+			ClosureCreateInstruction("BIND_CAPTURES", executable, proc_index, offset);
 			break;
-		case OpCode::ALLOCATE_STATIC_CLOSURE:
-			AllocateClosureInstruction("ALLOCATE_STATIC_CLOSURE", executable, proc_index, offset);
+		case OpCode::MAKE_FUNCTION:
+			AllocateClosureInstruction("MAKE_FUNCTION", executable, proc_index, offset);
 			break;
 		case OpCode::DEFINE_GLOBAL:
 			GlobalVariableInstruction("DEFINE_GLOBAL", executable, proc_index, offset);

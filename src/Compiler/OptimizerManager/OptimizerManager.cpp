@@ -2,7 +2,7 @@
 #include "Optimizers/BaseOptimizer/BaseOptimizer.h"
 #include "Compiler/OptimizerManager/Optimizers/ConstantFolding/ConstantFolding.h"
 #include "Compiler/OptimizerManager/Optimizers/StrengthReduction/StrengthReduction.h"
-#include "Compiler/OptimizerManager/Optimizers/LambdaLifting/LambdaLifting.h"
+#include "Compiler/OptimizerManager/Optimizers/ClosureLifting/ClosureLifting.h"
 #include "Compiler/OptimizerManager/Optimizers/TailCallOptimization/TailCallOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
@@ -16,7 +16,7 @@ OptimizerManager::OptimizerManager(MidoriProgramTree&& program_tree)
 {
 	AddOptimizer(std::make_unique<ConstantFolding>());
 	AddOptimizer(std::make_unique<StrengthReduction>());
-	AddOptimizer(std::make_unique<LambdaLifting>());
+	AddOptimizer(std::make_unique<ClosureLifting>());
 	AddOptimizer(std::make_unique<TailCallOptimization>());
 }
 

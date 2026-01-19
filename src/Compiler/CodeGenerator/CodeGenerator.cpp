@@ -240,7 +240,7 @@ void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& opera
 	if (it != m_global_variables.end())
 	{
 		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitByte(OpCode::CALL_DEFINED, line);
+		EmitByte(OpCode::CALL, line);
 		EmitByte(static_cast<OpCode>(2), line);
 	}
 	else
@@ -256,7 +256,7 @@ void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& oper
 	if (it != m_global_variables.end())
 	{
 		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitByte(OpCode::CALL_DEFINED, line);
+		EmitByte(OpCode::CALL, line);
 		EmitByte(static_cast<OpCode>(2), line);
 	}
 	else
@@ -710,7 +710,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 			{
 				if (EmitResolvedNameGetGlobal(resolved_method, line))
 				{
-					EmitByte(OpCode::CALL_DEFINED, line);
+					EmitByte(OpCode::CALL, line);
 					EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
 					return;
 				}
@@ -725,7 +725,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 			if (it != m_global_variables.end())
 			{
 				EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-				EmitByte(OpCode::CALL_DEFINED, line);
+				EmitByte(OpCode::CALL, line);
 				EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
 				return;
 			}
@@ -1193,27 +1193,50 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			call.m_arguments,
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
-				std::visit([this](auto&& arg){ (*this)(arg); }, **param);
+				std::visit([this](auto&& arg) { (*this)(arg); }, **param);
 			}
 		);
 
-		// Push the specialized closure
-		EmitByte(OpCode::ALLOCATE_CLOSURE, line);
-		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
 
 		GenericFunctionInfo& generic_info = m_generic_functions[function_name];
-		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
-		EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
-
-		if (call.m_is_tail_call)
+		if (generic_info.m_captured_count == 0)
 		{
-			EmitByte(OpCode::TAIL_CALL, line);
+			if (call.m_is_tail_call)
+			{
+				// Fallback to closure call for tail calls
+				EmitByte(OpCode::MAKE_CLOSURE, line);
+				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+				EmitByte(OpCode::BIND_CAPTURES, line);
+				EmitByte(static_cast<OpCode>(0), line);
+				EmitByte(OpCode::TAIL_CALL, line);
+				EmitByte(static_cast<OpCode>(arity), line);
+			}
+			else
+			{
+				EmitByte(OpCode::CALL_PROC, line);
+				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+				EmitByte(static_cast<OpCode>(arity), line);
+			}
 		}
 		else
 		{
-			EmitByte(OpCode::CALL_DEFINED, line);
+			// Push the specialized closure
+			EmitByte(OpCode::MAKE_CLOSURE, line);
+			EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+
+			EmitByte(OpCode::BIND_CAPTURES, line);
+			EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
+
+			if (call.m_is_tail_call)
+			{
+				EmitByte(OpCode::TAIL_CALL, line);
+			}
+			else
+			{
+				EmitByte(OpCode::CALL, line);
+			}
+			EmitByte(static_cast<OpCode>(arity), line);
 		}
-		EmitByte(static_cast<OpCode>(arity), line);
 	}
 	else
 	{
@@ -1222,9 +1245,11 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			call.m_arguments,
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
-				std::visit([this](auto&& arg){ (*this)(arg); }, **param);
+				std::visit([this](auto&& arg) { (*this)(arg); }, **param);
 			}
 		);
+
+		bool is_optimized_call = false;
 
 		std::optional<size_t> ffi_index_opt = std::nullopt;
 		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::NameAccess>())
@@ -1236,7 +1261,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		}
 
-		if (!ffi_index_opt.has_value())
+		if (!ffi_index_opt.has_value() && !is_optimized_call)
 		{
 			if (resolved_method_name.has_value())
 			{
@@ -1247,11 +1272,15 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 			else
 			{
-				std::visit([this](auto&& arg){ (*this)(arg); }, **call.m_callee);
+				std::visit([this](auto&& arg) { (*this)(arg); }, **call.m_callee);
 			}
 		}
 
-		if (call.m_is_foreign)
+		if (is_optimized_call)
+		{
+			// Already emitted CALL_PROC
+		}
+		else if (call.m_is_foreign)
 		{
 			uint8_t return_type_tag = 0;
 			if (call.m_type_data->IsType<MidoriType::TextType>())
@@ -1284,7 +1313,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		}
 		else
 		{
-			EmitByte(OpCode::CALL_DEFINED, line);
+			EmitByte(OpCode::CALL, line);
 			EmitByte(static_cast<OpCode>(arity), line);
 		}
 	}
@@ -2566,10 +2595,10 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 		return;
 	}
 
-	EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+	EmitByte(OpCode::MAKE_CLOSURE, line);
 	EmitByte(static_cast<OpCode>(async_proc_index), line);
 
-	EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+	EmitByte(OpCode::BIND_CAPTURES, line);
 	EmitByte(static_cast<OpCode>(captured_count), line);
 
 	EmitByte(OpCode::SPAWN_ASYNC, line);
@@ -3145,15 +3174,15 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 
 	if (captured_count == 0)
 	{
-		EmitByte(OpCode::ALLOCATE_STATIC_CLOSURE, line);
+		EmitByte(OpCode::MAKE_FUNCTION, line);
 		EmitByte(static_cast<OpCode>(closure_proc_index), line);
 	}
 	else
 	{
-		EmitByte(OpCode::ALLOCATE_CLOSURE, line);
+		EmitByte(OpCode::MAKE_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(closure_proc_index), line);
 
-		EmitByte(OpCode::CONSTRUCT_CLOSURE, line);
+		EmitByte(OpCode::BIND_CAPTURES, line);
 		EmitByte(static_cast<OpCode>(captured_count), line);
 	}
 }
