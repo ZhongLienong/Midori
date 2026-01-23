@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <set>
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
@@ -281,14 +282,15 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
 	m_module_name(std::move(module_name)),
 	m_export_symbols(std::move(export_symbols)),
 	m_class_methods(imported_class_methods),
-	m_class_instances(imported_class_instances)
+	m_class_instances(imported_class_instances),
+	m_generic_functions(imported_generic_functions)
 {
 	std::string main_proc_name = std::string(MAIN_PROCEDURE_PREFIX) + "@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
 	m_procedure_names.emplace_back(main_proc_name.c_str());
@@ -301,7 +303,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 		m_program_tree,
 		[this](std::unique_ptr<MidoriStatement>& statement)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **statement);
+			std::visit([this](auto&& arg) { (*this)(arg); }, **statement);
 
 			// Track exports: after processing DefineFunction, check if it's exported
 			std::visit
@@ -317,7 +319,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							// After DefineFunction processing, m_current_procedure_index points AFTER the new procedure
 							// So the procedure we just added is at index m_procedures.size() - 1
 							const size_t procedure_index = m_procedures.size() - 1u;
-							const size_t global_index = m_global_variables[function_name];
+							const size_t global_index = static_cast<size_t>(m_global_variables[function_name]);
 
 							m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION);
 						}
@@ -330,8 +332,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							m_tracked_exports.emplace_back
 							(
 								struct_name,
-								0,  // Structs don't have procedure index
-								0,  // Structs don't have global index
+								0uz,  // Structs don't have procedure index
+								0uz,  // Structs don't have global index
 								BytecodeModule::SymbolType::STRUCT_TYPE
 							);
 						}
@@ -344,8 +346,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 							m_tracked_exports.emplace_back
 							(
 								union_name,
-								0,  // Unions don't have procedure index
-								0,  // Unions don't have global index
+								0uz,  // Unions don't have procedure index
+								0uz,  // Unions don't have global index
 								BytecodeModule::SymbolType::UNION_TYPE
 							);
 						}
@@ -356,11 +358,11 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 						if (m_export_symbols.contains(foreign_name))
 						{
 							// Foreign functions are stored as global variables containing the function name string
-							const size_t global_index = m_global_variables[foreign_name];
+							const size_t global_index = static_cast<size_t>(m_global_variables[foreign_name]);
 							m_tracked_exports.emplace_back
 							(
 								foreign_name,
-								0,  // Foreign functions don't have procedure index
+								0uz,  // Foreign functions don't have procedure index
 								global_index,
 								BytecodeModule::SymbolType::FOREIGN_FUNCTION
 							);
@@ -371,11 +373,11 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 						const std::string& var_name = stmt.m_name.m_lexeme;
 						if (m_export_symbols.contains(var_name))
 						{
-							const size_t global_index = m_global_variables[var_name];
+							const size_t global_index = static_cast<size_t>(m_global_variables[var_name]);
 							m_tracked_exports.emplace_back
 							(
 								var_name,
-								0,  // Global variables don't have procedure index
+								0uz,  // Global variables don't have procedure index
 								global_index,
 								BytecodeModule::SymbolType::GLOBAL_VARIABLE
 							);
@@ -404,6 +406,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 	module.m_string_pool = std::move(m_string_pool);
 	module.m_exports = std::move(m_tracked_exports);
 	module.m_imports = std::move(m_tracked_imports);
+	module.m_generic_functions = std::move(m_generic_functions);
 
 	std::vector<std::pair<std::string, int>> sorted_globals(m_global_variables.begin(), m_global_variables.end());
 	std::ranges::sort(sorted_globals, [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) { return a.second < b.second; });
@@ -417,21 +420,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 	return module;
 }
 
-CodeGenerator::GenericFunctionInfo::GenericFunctionInfo(std::string name, std::vector<Token> params, std::vector<std::shared_ptr<MidoriType>> param_types, const std::vector<Token>& generic_params, std::vector<MidoriType::ClassConstraint> constraints, std::shared_ptr<MidoriType> return_type, std::unique_ptr<MidoriExpression>* body, int captured_count)
-	: m_name(std::move(name))
-	, m_params(std::move(params))
-	, m_param_types(std::move(param_types))
-	, m_constraints(std::move(constraints))
-	, m_generic_return_type(std::move(return_type))
-	, m_body(body)
-	, m_captured_count(captured_count)
-{
-	m_generic_param_types.reserve(generic_params.size());
-	for (const Token& generic_param : generic_params)
-	{
-		m_generic_param_types.emplace_back(std::make_shared<MidoriType>(MidoriType::GenericParam(generic_param.m_lexeme)));
-	}
-}
+
 
 void CodeGenerator::operator()(MidoriStatement::ExpressionStatement& simple)
 {
@@ -541,7 +530,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 
 	if (is_generic && is_global)
 	{
-		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, &defun.m_body, defun.m_captured_count));
+		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, std::shared_ptr<MidoriExpression>(std::move(defun.m_body)), defun.m_captured_count));
 		return;
 	}
 
@@ -917,54 +906,155 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		switch (binary.m_op.m_token_name)
 		{
 		case Token::Name::SINGLE_PLUS:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::ADD_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::ADD_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::ADD_WORD, line)
-				: EmitByte(OpCode::ADD_INTEGER, line);
+		{
+			if (operand_type->IsType<MidoriType::FloatType>())
+			{
+				EmitByte(OpCode::ADD_FLOAT, line);
+			}
+			else if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::ADD_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::ADD_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::ADD_INTEGER, line);
+			}
 			break;
+		}
 		case Token::Name::DOUBLE_PLUS:
-			operand_type->IsType<MidoriType::TextType>() ? EmitByte(OpCode::CONCAT_TEXT, line) : EmitByte(OpCode::CONCAT_ARRAY, line);
+		{
+			if (operand_type->IsType<MidoriType::TextType>())
+			{
+				EmitByte(OpCode::CONCAT_TEXT, line);
+			}
+			else
+			{
+				EmitByte(OpCode::CONCAT_ARRAY, line);
+			}
 			break;
+		}
 		case Token::Name::SINGLE_MINUS:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::SUBTRACT_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::SUBTRACT_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::SUBTRACT_WORD, line)
-				: EmitByte(OpCode::SUBTRACT_INTEGER, line);
+		{
+			if (operand_type->IsType<MidoriType::FloatType>())
+			{
+				EmitByte(OpCode::SUBTRACT_FLOAT, line);
+			}
+			else if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::SUBTRACT_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::SUBTRACT_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::SUBTRACT_INTEGER, line);
+			}
 			break;
+		}
 		case Token::Name::STAR:
-			operand_type->IsType<MidoriType::FloatType>()
-				? EmitByte(OpCode::MULTIPLY_FLOAT, line)
-				: operand_type->IsType<MidoriType::IntegerType>()
-				? EmitByte(OpCode::MULTIPLY_INTEGER, line)
-				: operand_type->IsType<MidoriType::ByteType>()
-				? EmitByte(OpCode::MULTIPLY_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>()
-				? EmitByte(OpCode::MULTIPLY_WORD, line)
-				: EmitByte(OpCode::DUP_ARRAY, line);
+		{
+			if (operand_type->IsType<MidoriType::FloatType>())
+			{
+				EmitByte(OpCode::MULTIPLY_FLOAT, line);
+			}
+			else if (operand_type->IsType<MidoriType::IntegerType>())
+			{
+				EmitByte(OpCode::MULTIPLY_INTEGER, line);
+			}
+			else if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::MULTIPLY_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::MULTIPLY_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::DUP_ARRAY, line);
+			}
 			break;
+		}
 		case Token::Name::SLASH:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::DIVIDE_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::DIVIDE_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::DIVIDE_WORD, line)
-				: EmitByte(OpCode::DIVIDE_INTEGER, line);
+		{
+			if (operand_type->IsType<MidoriType::FloatType>())
+			{
+				EmitByte(OpCode::DIVIDE_FLOAT, line);
+			}
+			else if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::DIVIDE_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::DIVIDE_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::DIVIDE_INTEGER, line);
+			}
 			break;
+		}
 		case Token::Name::PERCENT:
-			operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::MODULO_FLOAT, line)
-				: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::MODULO_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::MODULO_WORD, line)
-				: EmitByte(OpCode::MODULO_INTEGER, line);
+		{
+			if (operand_type->IsType<MidoriType::FloatType>())
+			{
+				EmitByte(OpCode::MODULO_FLOAT, line);
+			}
+			else if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::MODULO_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::MODULO_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::MODULO_INTEGER, line);
+			}
 			break;
+		}
 		case Token::Name::LEFT_SHIFT:
-			operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LEFT_SHIFT_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LEFT_SHIFT_WORD, line)
-				: EmitByte(OpCode::LEFT_SHIFT, line);
+		{
+			if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::LEFT_SHIFT_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::LEFT_SHIFT_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::LEFT_SHIFT, line);
+			}
 			break;
+		}
 		case Token::Name::RIGHT_SHIFT:
-			operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::RIGHT_SHIFT_BYTE, line)
-				: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::RIGHT_SHIFT_WORD, line)
-				: EmitByte(OpCode::RIGHT_SHIFT, line);
+		{
+			if (operand_type->IsType<MidoriType::ByteType>())
+			{
+				EmitByte(OpCode::RIGHT_SHIFT_BYTE, line);
+			}
+			else if (operand_type->IsType<MidoriType::WordType>())
+			{
+				EmitByte(OpCode::RIGHT_SHIFT_WORD, line);
+			}
+			else
+			{
+				EmitByte(OpCode::RIGHT_SHIFT, line);
+			}
 			break;
+		}
 		case Token::Name::LEFT_ANGLE:
+		{
 			if (binary.m_uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
@@ -973,13 +1063,27 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_FLOAT, line)
-					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_WORD, line)
-					: EmitByte(OpCode::LESS_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::LESS_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::LESS_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::LESS_WORD, line);
+				}
+				else
+				{
+					EmitByte(OpCode::LESS_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::LESS_EQUAL:
+		{
 			if (binary.m_uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
@@ -988,13 +1092,27 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::LESS_EQUAL_FLOAT, line)
-					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::LESS_EQUAL_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::LESS_EQUAL_WORD, line)
-					: EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::LESS_EQUAL_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::LESS_EQUAL_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::LESS_EQUAL_WORD, line);
+				}
+				else
+				{
+					EmitByte(OpCode::LESS_EQUAL_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::RIGHT_ANGLE:
+		{
 			if (binary.m_uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
@@ -1003,13 +1121,27 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_FLOAT, line)
-					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_WORD, line)
-					: EmitByte(OpCode::GREATER_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::GREATER_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::GREATER_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::GREATER_WORD, line);
+				}
+				else
+				{
+					EmitByte(OpCode::GREATER_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::GREATER_EQUAL:
+		{
 			if (binary.m_uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
@@ -1018,13 +1150,27 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::GREATER_EQUAL_FLOAT, line)
-					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::GREATER_EQUAL_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::GREATER_EQUAL_WORD, line)
-					: EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::GREATER_EQUAL_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::GREATER_EQUAL_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::GREATER_EQUAL_WORD, line);
+				}
+				else
+				{
+					EmitByte(OpCode::GREATER_EQUAL_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::BANG_EQUAL:
+		{
 			if (binary.m_uses_equatable)
 			{
 				EmitEquatableEquals(operand_type, line);
@@ -1032,47 +1178,83 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NOT_EQUAL_FLOAT, line)
-					: operand_type->IsType<MidoriType::ByteType>() ? EmitByte(OpCode::NOT_EQUAL_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>() ? EmitByte(OpCode::NOT_EQUAL_WORD, line)
-					: EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::NOT_EQUAL_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::NOT_EQUAL_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::NOT_EQUAL_WORD, line);
+				}
+				else
+				{
+					EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::DOUBLE_EQUAL:
+		{
 			if (binary.m_uses_equatable)
 			{
 				EmitEquatableEquals(operand_type, line);
 			}
 			else
 			{
-				operand_type->IsType<MidoriType::FloatType>()
-					? EmitByte(OpCode::EQUAL_FLOAT, line)
-					: operand_type->IsType<MidoriType::IntegerType>()
-					? EmitByte(OpCode::EQUAL_INTEGER, line)
-					: operand_type->IsType<MidoriType::ByteType>()
-					? EmitByte(OpCode::EQUAL_BYTE, line)
-					: operand_type->IsType<MidoriType::WordType>()
-					? EmitByte(OpCode::EQUAL_WORD, line)
-					: operand_type->IsType<MidoriType::TextType>()
-					? EmitByte(OpCode::EQUAL_TEXT, line)
-					: EmitByte(OpCode::EQUAL_INTEGER, line);
+				if (operand_type->IsType<MidoriType::FloatType>())
+				{
+					EmitByte(OpCode::EQUAL_FLOAT, line);
+				}
+				else if (operand_type->IsType<MidoriType::IntegerType>())
+				{
+					EmitByte(OpCode::EQUAL_INTEGER, line);
+				}
+				else if (operand_type->IsType<MidoriType::ByteType>())
+				{
+					EmitByte(OpCode::EQUAL_BYTE, line);
+				}
+				else if (operand_type->IsType<MidoriType::WordType>())
+				{
+					EmitByte(OpCode::EQUAL_WORD, line);
+				}
+				else if (operand_type->IsType<MidoriType::TextType>())
+				{
+					EmitByte(OpCode::EQUAL_TEXT, line);
+				}
+				else
+				{
+					EmitByte(OpCode::EQUAL_INTEGER, line);
+				}
 			}
 			break;
+		}
 		case Token::Name::SINGLE_AMPERSAND:
+		{
 			EmitByte(OpCode::BITWISE_AND, line);
 			break;
+		}
 		case Token::Name::SINGLE_BAR:
+		{
 			EmitByte(OpCode::BITWISE_OR, line);
 			break;
+		}
 		case Token::Name::CARET:
+		{
 			EmitByte(OpCode::BITWISE_XOR, line);
 			break;
+		}
 		default:
+		{
 #ifdef _MSC_VER
 			__assume(0);
 #else
 			__builtin_unreachable();
 #endif
+		}
 		}
 	}
 }
@@ -1091,7 +1273,7 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 	std::ranges::for_each
 	(
 		tuple.m_elements,
-		[this](std::unique_ptr<MidoriExpression>& elem)
+		[this](const std::unique_ptr<MidoriExpression>& elem)
 		{
 			std::visit([this](auto&& arg){ (*this)(arg); }, **elem);
 		}
@@ -1110,21 +1292,40 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	switch (unary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_MINUS:
-		GetConcreteTypeForExpression(unary.m_expr)->IsType<MidoriType::FloatType>() ? EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line) : EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
+	{
+		if (GetConcreteTypeForExpression(unary.m_expr)->IsType<MidoriType::FloatType>())
+		{
+			EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line);
+		}
+		else
+		{
+			EmitByte(OpCode::NEGATE_INTEGER, unary.m_op.m_line);
+		}
 		break;
+	}
 	case Token::Name::SINGLE_PLUS:
+	{
 		break;
+	}
 	case Token::Name::BANG:
+	{
 		EmitByte(OpCode::NOT, unary.m_op.m_line);
 		break;
+	}
 	case Token::Name::TILDE:
+	{
 		EmitByte(OpCode::BITWISE_NOT, unary.m_op.m_line);
 		break;
+	}
 	case Token::Name::HASH:
+	{
 		EmitByte(OpCode::GET_ARRAY_LENGTH, unary.m_op.m_line);
 		break;
+	}
 	default:
+	{
 		return;
+	}
 	}
 
 	return;
@@ -1170,6 +1371,16 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		if (generic_it != m_generic_functions.end())
 		{
 			is_generic_call = true;
+		}
+		else if (function_name.find("::") != std::string::npos)
+		{
+			// Try suffix lookup for qualified names
+			std::string suffix = function_name.substr(function_name.rfind("::") + 2);
+			if (m_generic_functions.contains(suffix))
+			{
+				is_generic_call = true;
+				function_name = suffix;
+			}
 		}
 	}
 
@@ -2751,6 +2962,113 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 	);
 }
 
+// Helper for type deduction
+void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType>& param_type, const std::shared_ptr<MidoriType>& concrete_type, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& map, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
+{
+	if (!param_type || !concrete_type)
+	{
+		return;
+	}
+	if (param_type.get() == concrete_type.get())
+	{
+		return;
+	}
+	if (visited.contains({param_type.get(), concrete_type.get()}))
+	{
+		return;
+	}
+	visited.insert({ param_type.get(), concrete_type.get() });
+
+	std::visit
+	(
+		[&param_type, &concrete_type, &map, &visited, this](auto&& p_var)
+		{
+			using T = std::decay_t<decltype(p_var)>;
+
+			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+			{
+				map[p_var.m_name] = concrete_type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+			{
+				map[param_type->ToString()] = concrete_type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+			{
+				if (concrete_type->IsType<MidoriType::ArrayType>())
+				{
+					DeduceGenericTypesRecursive(p_var.m_element_type, concrete_type->GetType<MidoriType::ArrayType>().m_element_type, map, visited);
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
+			{
+				if (concrete_type->IsType<MidoriType::StructType>())
+				{
+					const MidoriType::StructType& c_struct = concrete_type->GetType<MidoriType::StructType>();
+					if (p_var.m_member_types.size() == c_struct.m_member_types.size())
+					{
+						for (size_t i = 0uz; i < p_var.m_member_types.size(); i += 1uz)
+						{
+							DeduceGenericTypesRecursive(p_var.m_member_types[i], c_struct.m_member_types[i], map, visited);
+						}
+					}
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+			{
+				if (concrete_type->IsType<MidoriType::FunctionType>())
+				{
+					const MidoriType::FunctionType& c_func = concrete_type->GetType<MidoriType::FunctionType>();
+					DeduceGenericTypesRecursive(p_var.m_return_type, c_func.m_return_type, map, visited);
+					if (p_var.m_param_types.size() == c_func.m_param_types.size())
+					{
+						for (size_t i = 0uz; i < p_var.m_param_types.size(); i += 1uz)
+						{
+							DeduceGenericTypesRecursive(p_var.m_param_types[i], c_func.m_param_types[i], map, visited);
+						}
+					}
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
+			{
+				if (concrete_type->IsType<MidoriType::TupleType>())
+				{
+					const MidoriType::TupleType& c_tuple = concrete_type->GetType<MidoriType::TupleType>();
+					if (p_var.m_element_types.size() == c_tuple.m_element_types.size())
+					{
+						for (size_t i = 0uz; i < p_var.m_element_types.size(); i += 1uz)
+						{
+							DeduceGenericTypesRecursive(p_var.m_element_types[i], c_tuple.m_element_types[i], map, visited);
+						}
+					}
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
+			{
+				if (concrete_type->IsType<MidoriType::UnionType>())
+				{
+					const MidoriType::UnionType& c_union = concrete_type->GetType<MidoriType::UnionType>();
+					for (const auto& [name, ctx] : p_var.m_member_info)
+					{
+						if (c_union.m_member_info.contains(name))
+						{
+							const MidoriType::UnionType::UnionMemberContext& c_ctx = c_union.m_member_info.at(name);
+							if (ctx.m_member_types.size() == c_ctx.m_member_types.size())
+							{
+								for (size_t i = 0uz; i < ctx.m_member_types.size(); i += 1uz)
+								{
+									DeduceGenericTypesRecursive(ctx.m_member_types[i], c_ctx.m_member_types[i], map, visited);
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		param_type->m_type
+	);
+}
+
 int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line)
 {
 	std::vector<std::string> concrete_type_names;
@@ -2795,31 +3113,17 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 
 	// Build generic type parameter -> concrete type map
-	// Match generic parameters to concrete types by position
-	// For each parameter that has a generic/type variable type, assign it the next generic parameter in order
-	TypeEnvironment generic_type_map;
+	// Use deep deduction to match generic parameters and TypeVariables nested in arguments
+	TypeEnvironment prev_generic_type_map = m_generic_type_substitution;
+	m_generic_type_substitution.clear();
+	TypeEnvironment& generic_type_map = m_generic_type_substitution;
 
-	size_t generic_param_index = 0;
+	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+
 	for (size_t i = 0u; i < generic_info.m_param_types.size() && i < concrete_arg_types.size(); i += 1u)
 	{
-		const std::shared_ptr<MidoriType>& param_type = generic_info.m_param_types[i];
-		const std::shared_ptr<MidoriType>& concrete_type = concrete_arg_types[i];
-
-		if (param_type->IsType<MidoriType::GenericParam>() || param_type->IsType<MidoriType::TypeVariable>())
-		{
-			if (generic_param_index < generic_info.m_generic_param_types.size())
-			{
-				const std::shared_ptr<MidoriType>& orig_gen_param = generic_info.m_generic_param_types[generic_param_index];
-				if (orig_gen_param->IsType<MidoriType::GenericParam>())
-				{
-					const MidoriType::GenericParam& gen_param = orig_gen_param->GetType<MidoriType::GenericParam>();
-					generic_type_map[gen_param.m_name] = concrete_type;
-					generic_param_index += 1u;
-				}
-			}
-		}
+		DeduceGenericTypesRecursive(generic_info.m_param_types[i], concrete_arg_types[i], generic_type_map, visited);
 	}
-
 
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> prev_resolution_map = m_method_resolution_map;
 	m_method_resolution_map.clear();
@@ -2886,7 +3190,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
 	m_procedures.emplace_back();
 
-	std::visit([this](auto&& arg) { (*this)(arg); }, **(*generic_info.m_body));
+	std::visit([this](auto&& arg) { (*this)(arg); }, **generic_info.m_body);
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
@@ -2896,6 +3200,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 	m_param_type_map = std::move(prev_param_map);
 	m_method_resolution_map = std::move(prev_resolution_map);
+	m_generic_type_substitution = std::move(prev_generic_type_map);
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	return specialized_proc_index;
@@ -2926,6 +3231,17 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 		return std::nullopt;
 	}
 
+	if (call.m_arguments.empty())
+	{
+		if (candidates.size() == 1u && candidates[0u].m_has_instance)
+		{
+			return candidates[0u].m_resolved_name;
+		}
+
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
 	std::shared_ptr<MidoriType> first_arg_type = GetConcreteTypeForExpression(call.m_arguments[0u]);
 	std::string first_arg_type_name = first_arg_type->ToString();
 	std::string return_type_name = call.m_type_data->ToString();
@@ -2941,7 +3257,12 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 
 	if (matching.empty())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': no constraint matches argument type '{}'.", callee_name, first_arg_type_name), line, m_file_name, m_source_lines));
+		std::string candidates_info;
+		for (const ResolvedMethodCandidate& candidate : candidates)
+		{
+			candidates_info += std::format("\nCandidate: {} (First: '{}', Instance: {})", candidate.m_resolved_name, candidate.m_first_type_name, candidate.m_has_instance);
+		}
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': no constraint matches argument type '{}'. Candidates:{}", callee_name, first_arg_type_name, candidates_info), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -3045,7 +3366,12 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 		}
 	}
 
-	return expr->GetType();
+	std::shared_ptr<MidoriType> type = expr->GetType();
+	if (!m_generic_type_substitution.empty())
+	{
+		return SubstituteGenericTypes(type, m_generic_type_substitution);
+	}
+	return type;
 }
 
 std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map)
@@ -3066,6 +3392,16 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 					return it->second;
 				}
 				// If not found in map, return as-is
+				return type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+			{
+				// Substitute TypeVariable using its string representation
+				TypeEnvironment::const_iterator it = generic_type_map.find(type->ToString());
+				if (it != generic_type_map.end())
+				{
+					return it->second;
+				}
 				return type;
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
@@ -3203,4 +3539,10 @@ std::size_t CodeGenerator::FunctionSignatureHash::operator()(const FunctionSigna
 bool CodeGenerator::FunctionSignature::operator==(const FunctionSignature& other) const
 {
 	return m_base_name == other.m_base_name && m_concrete_types == other.m_concrete_types;
+}
+std::size_t CodeGenerator::TypePairHash::operator()(const std::pair<MidoriType*, MidoriType*>& pair) const
+{
+	std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
+	std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
+	return h1 ^ (h2 << 1);
 }

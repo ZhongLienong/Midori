@@ -4,7 +4,6 @@
 #include <unordered_map>
 #include <vector>
 
-// Forward declaration moved to include
 #include "Compiler/Module/Module.h"
 
 struct Token
@@ -124,11 +123,12 @@ struct Token
 		END_OF_FILE,
 	};
 
+	std::string m_file_name;
 	std::string m_lexeme;
 	Name m_token_name;
 	int m_line;
 
-	Token(std::string&& lexeme, Name token_name, int line) noexcept;
+	Token(std::string&& lexeme, Name token_name, int line, std::string_view file_name) noexcept;
 };
 
 class TokenStream

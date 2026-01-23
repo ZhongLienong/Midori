@@ -2,12 +2,68 @@
 #include <format>
 #include <iterator>
 #include <ranges>
+#include <unordered_set>
 
 #include "Common/Constant/Constant.h"
 #include "Common/Error/Error.h"
 #include "TypeChecker.h"
 
 using namespace std::string_literals;
+
+namespace
+{
+	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+	{
+		if (visited.contains(type.get()))
+		{
+			return false;
+		}
+		visited.insert(type.get());
+
+		if (type->IsType<MidoriType::TypeVariable>())
+		{
+			return true;
+		}
+		else if (type->IsType<MidoriType::ArrayType>())
+		{
+			return HasTypeVariables(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+		}
+		else if (type->IsType<MidoriType::FunctionType>())
+		{
+			MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
+			for (const std::shared_ptr<MidoriType>& param : func.m_param_types)
+			{
+				if (HasTypeVariables(param, visited)) return true;
+			}
+			return HasTypeVariables(func.m_return_type, visited);
+		}
+		else if (type->IsType<MidoriType::StructType>())
+		{
+			for (const std::shared_ptr<MidoriType>& member : type->GetType<MidoriType::StructType>().m_member_types)
+			{
+				if (HasTypeVariables(member, visited)) return true;
+			}
+		}
+		else if (type->IsType<MidoriType::UnionType>())
+		{
+			for (const auto& [name, ctx] : type->GetType<MidoriType::UnionType>().m_member_info)
+			{
+				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
+				{
+					if (HasTypeVariables(member, visited)) return true;
+				}
+			}
+		}
+		else if (type->IsType<MidoriType::TupleType>())
+		{
+			for (const std::shared_ptr<MidoriType>& elem : type->GetType<MidoriType::TupleType>().m_element_types)
+			{
+				if (HasTypeVariables(elem, visited)) return true;
+			}
+		}
+		return false;
+	}
+}
 
 class ExpectedTypeGuard
 {
@@ -37,7 +93,39 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	std::shared_ptr<MidoriType> left_subst = ApplySubstitution(left);
 	std::shared_ptr<MidoriType> right_subst = ApplySubstitution(right);
 
-	if (*left_subst == *right_subst)
+	// Recursion guard to prevent infinite loops when unifying recursive types
+	std::pair<MidoriType*, MidoriType*> ptr_pair{ left_subst.get(), right_subst.get() };
+	if (m_unify_visited.contains(ptr_pair))
+	{
+		return left_subst;
+	}
+
+	struct RecursionGuard
+	{
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& m_visited;
+		std::pair<MidoriType*, MidoriType*> m_pair;
+
+		RecursionGuard(std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited, std::pair<MidoriType*, MidoriType*> pair)
+			: m_visited(visited), m_pair(pair)
+		{
+			m_visited.emplace(m_pair);
+		}
+
+		~RecursionGuard()
+		{
+			m_visited.erase(m_pair);
+		}
+	};
+
+	RecursionGuard guard(m_unify_visited, ptr_pair);
+
+	bool is_complex_type = 
+		left_subst->IsType<MidoriType::StructType>() || 
+		left_subst->IsType<MidoriType::UnionType>() ||
+		left_subst->IsType<MidoriType::ArrayType>() ||
+		left_subst->IsType<MidoriType::FunctionType>();
+
+	if (!is_complex_type && *left_subst == *right_subst)
 	{
 		return left_subst;
 	}
@@ -84,7 +172,12 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 	else if (left_subst->IsType<MidoriType::ArrayType>() && right_subst->IsType<MidoriType::ArrayType>())
 	{
-		return Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type);
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
 	}
 	else if (left_subst->IsType<MidoriType::FunctionType>() && right_subst->IsType<MidoriType::FunctionType>())
 	{
@@ -108,7 +201,12 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			}
 		}
 
-		return Unify(token, left_func.m_return_type, right_func.m_return_type);
+		result = Unify(token, left_func.m_return_type, right_func.m_return_type);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
 	}
 	else if (left_subst->IsType<MidoriType::StructType>() && right_subst->IsType<MidoriType::StructType>())
 	{
@@ -144,7 +242,6 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
-		// Unify each member's types
 		for (const auto& [member_name, left_ctx] : left_union.m_member_info)
 		{
 			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
@@ -332,7 +429,6 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
 
-		// Now freshen member types
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
 			std::vector<std::shared_ptr<MidoriType>> fresh_member_types;
@@ -374,6 +470,23 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 
 std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache)
 {
+	if (
+			type->IsType<MidoriType::IntegerType>() || 
+			type->IsType<MidoriType::FloatType>() || 
+			type->IsType<MidoriType::BoolType>() || 
+			type->IsType<MidoriType::UnitType>() || 
+			type->IsType<MidoriType::TextType>()
+		)
+	{
+		return type;
+	}
+
+	std::unordered_set<const MidoriType*> visited;
+	if (!HasTypeVariables(type, visited))
+	{
+		return type;
+	}
+
 	// Check cache first to handle recursive types
 	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(type.get());
 	if (cache_it != cache.end())
@@ -494,6 +607,11 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 
 		if (changed)
 		{
+			// Mark this as a generic instantiation if the original had generic params
+			if (!union_type.m_generic_params.empty() || union_type.m_is_generic_instantiation)
+			{
+				new_union->GetType<MidoriType::UnionType>().m_is_generic_instantiation = true;
+			}
 			return new_union;
 		}
 		cache[type.get()] = type;
@@ -701,8 +819,20 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
 				{
-					// Union already has its complete type in m_self_type
+					// Union exported as the UnionType itself
 					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+
+					// and its constructors
+					if (stmt.m_self_type->template IsType<MidoriType::UnionType>())
+					{
+						const MidoriType::UnionType& union_type = stmt.m_self_type->template GetType<MidoriType::UnionType>();
+						for (const auto& [member_name, member_ctx] : union_type.m_member_info)
+						{
+							std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
+							std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MidoriType>(stmt.m_self_type));
+							signatures[member_name] = union_constructor_type;
+						}
+					}
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
 				{
@@ -965,13 +1095,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 	size_t prev_constraints_size = m_active_constraints.size();
 
-	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
+	for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
 	{
 		MidoriType::ClassConstraint freshened_constraint;
 		freshened_constraint.m_class_name = constraint.m_class_name;
-		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 		{
-			freshened_constraint.m_type_args.push_back(Freshen(type_arg, freshening_context));
+			type_arg = Freshen(type_arg, freshening_context);
+			freshened_constraint.m_type_args.push_back(type_arg);
 		}
 		m_active_constraints.push_back(std::move(freshened_constraint));
 	}
@@ -2151,15 +2282,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignm
 
 				set.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
 
-				const std::shared_ptr<MidoriType>& member_type = struct_type.m_member_types[static_cast<size_t>(set.m_index)];
+				std::shared_ptr<MidoriType> member_type = struct_type.m_member_types[static_cast<size_t>(set.m_index)];
 
-				if (*actual_type != *member_type)
-				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Set expression type error: type mismatch", set.m_member_name, m_file_name, m_source_lines, actual_type, member_type));
-				}
-
-				set.m_type_data = std::move(actual_type);
-				return set.m_type_data;
+				return std::visit([this](auto&& arg) { return (*this)(arg); }, **set.m_value)
+					.and_then
+					(
+						[&set, &member_type, this](std::shared_ptr<MidoriType>&& value_type) -> MidoriResult::TypeResult
+						{
+							return Unify(set.m_member_name, member_type, value_type)
+								.and_then
+								(
+									[&set](std::shared_ptr<MidoriType>&& result_type) -> MidoriResult::TypeResult
+									{
+										set.m_type_data = result_type;
+										return set.m_type_data; 
+									}
+								);
+						}
+					);
 			}
 		);
 }
@@ -2200,7 +2340,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		TypeEnvironment::const_iterator var = it->find(variable.m_name.m_lexeme);
 		if (var != it->end())
 		{
-			if (m_generic_functions.contains(variable.m_name.m_lexeme))
+			if (m_generic_functions.contains(variable.m_name.m_lexeme) || variable.m_name.m_lexeme.find("::") != std::string::npos)
 			{
 				variable.m_type_data = Freshen(var->second);
 			}
@@ -2750,13 +2890,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 								array_var_type = array_var_type->GetType<MidoriType::ArrayType>().m_element_type;
 							}
 
-							if (*array_var_type != *value_type)
-							{
-								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array set expression type error: value type mismatch", array_set.m_op, m_file_name, m_source_lines, value_type, array_var_type));
-							}
-
-							array_set.m_type_data = std::move(value_type);
-							return array_set.m_type_data;
+							return Unify(array_set.m_op, array_var_type, value_type)
+								.and_then
+								(
+									[&array_set](std::shared_ptr<MidoriType>&& result_type) -> MidoriResult::TypeResult
+									{
+										array_set.m_type_data = result_type;
+										return array_set.m_type_data;
+									}
+								);
 						}
 					);
 			}

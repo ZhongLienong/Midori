@@ -2,11 +2,22 @@
 
 #include <array>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 
 class ExpectedTypeGuard;
+
+struct TypePairHash
+{
+	std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const noexcept
+	{
+		std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
+		std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
+		return h1 ^ (h2 << 1);
+	}
+};
 
 class TypeChecker
 {
@@ -84,6 +95,8 @@ private:
 	const std::array<Token::Name, 2u> m_binary_equality_operators{ Token::Name::DOUBLE_EQUAL, Token::Name::BANG_EQUAL };
 	const std::array<Token::Name, 2u> m_binary_logical_operators{ Token::Name::DOUBLE_AMPERSAND, Token::Name::DOUBLE_BAR };
 	const std::array<Token::Name, 5u> m_binary_bitwise_operators{ Token::Name::CARET, Token::Name::SINGLE_AMPERSAND, Token::Name::SINGLE_BAR, Token::Name::RIGHT_SHIFT, Token::Name::LEFT_SHIFT };
+
+	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> m_unify_visited;
 
 public:
 

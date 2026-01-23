@@ -153,7 +153,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 				}
 			}
 
-			// Merge module declarations
 			for (const auto& [nested_file_path, nested_module_decl] : module_manager.m_module_declarations)
 			{
 				if (!m_module_declarations.contains(nested_file_path))
@@ -186,7 +185,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 	build_graph.m_module_declarations = m_module_declarations;
 
-	// Populate use imports map from build nodes
 	for (const auto& [file_name, node] : build_graph.m_nodes)
 	{
 		if (!node.m_use_imports.empty())
@@ -201,43 +199,51 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 bool ModuleManager::HasCircularDependency() const
 {
 	std::unordered_set<std::string> visited;
-	std::unordered_set<std::string> in_progress;
-	std::queue<std::string> queue;
+	std::unordered_set<std::string> recursion_stack;
 
-	queue.emplace(m_main_file_name);
-	in_progress.emplace(m_main_file_name);
-
-	while (!queue.empty())
+	for (const auto& [node, _] : m_dependency_graph)
 	{
-		std::string current = queue.front();
-		queue.pop();
-		in_progress.erase(current);
-		visited.emplace(current);
-
-		if (m_dependency_graph.contains(current))
+		if (CheckCycle(node, visited, recursion_stack))
 		{
-			for (const std::string& dependency : m_dependency_graph.at(current))
-			{
-				if (visited.contains(dependency))
-				{
-					continue;
-				}
-				if (in_progress.contains(dependency))
-				{
-					return true; // Cycle detected
-				}
-				queue.emplace(dependency);
-				in_progress.insert(dependency);
-			}
+			return true;
 		}
 	}
 
 	return false;
 }
 
+bool ModuleManager::CheckCycle(const std::string& node, std::unordered_set<std::string>& visited, std::unordered_set<std::string>& recursion_stack) const
+{
+	if (recursion_stack.contains(node))
+	{
+		return true;
+	}
+
+	if (visited.contains(node))
+	{
+		return false;
+	}
+
+	visited.emplace(node);
+	recursion_stack.emplace(node);
+
+	if (m_dependency_graph.contains(node))
+	{
+		for (const std::string& dependency : m_dependency_graph.at(node))
+		{
+			if (CheckCycle(dependency, visited, recursion_stack))
+			{
+				return true;
+			}
+		}
+	}
+
+	recursion_stack.erase(node);
+	return false;
+}
+
 void ModuleManager::BuildDependencyGraph(BuildGraph& build_graph)
 {
-	// For each file in the dependency graph, update the BuildNode dependencies
 	for (const auto& [src, dependencies] : m_dependency_graph)
 	{
 		if (build_graph.m_nodes.contains(src))
@@ -444,6 +450,12 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 				SkipWhiteSpace(tokens, current);
 			}
 		}
+
+		if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::SINGLE_SEMICOLON)
+		{
+			current += 1;
+		}
+
 		return current;
 	}
 

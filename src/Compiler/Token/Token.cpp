@@ -3,9 +3,8 @@
 
 #include <queue>
 #include <map>
-#include <ranges>
 
-Token::Token(std::string&& lexeme, Name token_name, int line) noexcept : m_lexeme(std::move(lexeme)), m_token_name(token_name), m_line(line)
+Token::Token(std::string&& lexeme, Name token_name, int line, std::string_view file_name) noexcept : m_lexeme(std::move(lexeme)), m_token_name(token_name), m_line(line), m_file_name(file_name)
 {
 }
 
@@ -153,14 +152,12 @@ std::vector<std::vector<std::string>> BuildGraph::GetCompilationStreams() const
 		}
 	}
 
-	// Convert levels to streams (group by level)
 	std::map<int, std::vector<std::string>> groups;
 	for (const auto& [path, level] : levels)
 	{
 		groups[level].emplace_back(path);
 	}
 
-	// Sort each stream alphabetically for deterministic ordering
 	for (auto& [_, stream] : groups)
 	{
 		std::sort(stream.begin(), stream.end());

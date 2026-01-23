@@ -143,19 +143,19 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 
 				if (bool_result)
 				{
-					Token result_token("true", Token::Name::TRUE, op.m_line);
+					Token result_token("true", Token::Name::TRUE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				else
 				{
-					Token result_token("false", Token::Name::FALSE, op.m_line);
+					Token result_token("false", Token::Name::FALSE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				return;
 			}
 		}
 
-		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(result_token));
 	}
 	else if (binary.m_left->IsExpression<MidoriExpression::FloatLiteral>() && binary.m_right->IsExpression<MidoriExpression::FloatLiteral>())
@@ -186,13 +186,13 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 			return;
 		}
 
-		Token result_token(std::to_string(result), Token::Name::FLOAT_LITERAL, op.m_line);
+		Token result_token(std::to_string(result), Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(result_token));
 	}
 	else if (binary.m_left->IsExpression<MidoriExpression::TextLiteral>() && binary.m_right->IsExpression<MidoriExpression::TextLiteral>())
 	{
 		std::string result = binary.m_left->GetExpression<MidoriExpression::TextLiteral>().m_token.m_lexeme + binary.m_right->GetExpression<MidoriExpression::TextLiteral>().m_token.m_lexeme;
-		Token result_token(std::move(result), Token::Name::TEXT_LITERAL, op.m_line);
+		Token result_token(std::move(result), Token::Name::TEXT_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(result_token));
 	}
 	else if (binary.m_left->IsExpression<MidoriExpression::ByteLiteral>() && binary.m_right->IsExpression<MidoriExpression::ByteLiteral>())
@@ -271,19 +271,19 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 
 				if (bool_result)
 				{
-					Token result_token("true", Token::Name::TRUE, op.m_line);
+					Token result_token("true", Token::Name::TRUE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				else
 				{
-					Token result_token("false", Token::Name::FALSE, op.m_line);
+					Token result_token("false", Token::Name::FALSE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				return;
 			}
 		}
 
-		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(result_token));
 	}
 	else if (binary.m_left->IsExpression<MidoriExpression::WordLiteral>() && binary.m_right->IsExpression<MidoriExpression::WordLiteral>())
@@ -362,19 +362,19 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 
 				if (bool_result)
 				{
-					Token result_token("true", Token::Name::TRUE, op.m_line);
+					Token result_token("true", Token::Name::TRUE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				else
 				{
-					Token result_token("false", Token::Name::FALSE, op.m_line);
+					Token result_token("false", Token::Name::FALSE, op.m_line, op.m_file_name);
 					m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 				}
 				return;
 			}
 		}
 
-		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+		Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(result_token));
 	}
 	else if (binary.m_left->IsExpression<MidoriExpression::BoolLiteral>() && binary.m_right->IsExpression<MidoriExpression::BoolLiteral>())
@@ -403,12 +403,12 @@ void ConstantFolding::operator()(MidoriExpression::Binary& binary)
 
 		if (result)
 		{
-			Token result_token("true", Token::Name::TRUE, op.m_line);
+			Token result_token("true", Token::Name::TRUE, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
 		else
 		{
-			Token result_token("false", Token::Name::FALSE, op.m_line);
+			Token result_token("false", Token::Name::FALSE, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
 	}
@@ -440,13 +440,13 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 		if (op.m_token_name == Token::Name::SINGLE_MINUS)
 		{
 			MidoriInteger result = -val;
-			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(result_token));
 		}
 		else if (op.m_token_name == Token::Name::TILDE)
 		{
 			MidoriInteger result = ~val;
-			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(result_token));
 		}
 	}
@@ -454,7 +454,7 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 	{
 		MidoriFloat val = std::stod(unary.m_expr->GetExpression<MidoriExpression::FloatLiteral>().m_token.m_lexeme);
 		MidoriFloat result = -val;
-		Token result_token(std::to_string(result), Token::Name::FLOAT_LITERAL, op.m_line);
+		Token result_token(std::to_string(result), Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
 		m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(result_token));
 	}
 	else if (unary.m_expr->IsExpression<MidoriExpression::ByteLiteral>())
@@ -463,7 +463,7 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 		if (op.m_token_name == Token::Name::TILDE)
 		{
 			MidoriByte result = ~val;
-			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(result_token));
 		}
 	}
@@ -473,7 +473,7 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 		if (op.m_token_name == Token::Name::TILDE)
 		{
 			MidoriWord result = ~val;
-			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line);
+			Token result_token(std::to_string(result), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(result_token));
 		}
 	}
@@ -483,12 +483,12 @@ void ConstantFolding::operator()(MidoriExpression::UnaryPrefix& unary)
 		MidoriBool result = !val;
 		if (result)
 		{
-			Token result_token("true", Token::Name::TRUE, op.m_line);
+			Token result_token("true", Token::Name::TRUE, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
 		else
 		{
-			Token result_token("false", Token::Name::FALSE, op.m_line);
+			Token result_token("false", Token::Name::FALSE, op.m_line, op.m_file_name);
 			m_pending_replacement = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(result_token));
 		}
 	}

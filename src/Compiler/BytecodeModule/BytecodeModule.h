@@ -4,6 +4,7 @@
 
 #include "Common/Executable/Executable.h"
 #include "Common/Value/Value.h"
+#include "Compiler/CodeGenerator/GenericFunctionInfo.h"
 
 struct BytecodeModule
 {
@@ -44,6 +45,7 @@ struct BytecodeModule
 	std::vector<std::string> m_string_pool;
 	std::vector<MidoriText> m_procedure_names;
 	std::vector<MidoriText> m_global_variables;
+	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 
 	BytecodeModule() = default;
 	BytecodeModule(std::string module_name, std::filesystem::path source_path);

@@ -115,12 +115,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		{
 			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
 			{
-				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line);
+				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
 			}
 			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
-				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line);
+				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
 			}
 		}
@@ -174,7 +174,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		{
 			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
-				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
+				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_right)));
 			}
 		}
@@ -184,12 +184,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		{
 			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, -1ll))
 			{
-				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
+				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_left)));
 			}
 			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, -1ll))
 			{
-				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line);
+				Token minus_token("-", Token::Name::SINGLE_MINUS, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(minus_token, std::move(binary.m_right)));
 			}
 		}
@@ -206,8 +206,8 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{
-				Token shift_token("<<", Token::Name::LEFT_SHIFT, op.m_line);
-				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line);
+				Token shift_token("<<", Token::Name::LEFT_SHIFT, op.m_line, op.m_file_name);
+				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(exp_token))));
 			}
 		}
@@ -224,8 +224,8 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{
-				Token shift_token(">>", Token::Name::RIGHT_SHIFT, op.m_line);
-				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line);
+				Token shift_token(">>", Token::Name::RIGHT_SHIFT, op.m_line, op.m_file_name);
+				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(exp_token))));
 			}
 		}
@@ -242,9 +242,9 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			int64_t exponent = IsPowerOfTwo(right_val);
 			if (exponent >= 0ll)
 			{
-				Token and_token("&", Token::Name::SINGLE_AMPERSAND, op.m_line);
+				Token and_token("&", Token::Name::SINGLE_AMPERSAND, op.m_line, op.m_file_name);
 				MidoriInteger mask = right_val - 1;
-				Token mask_token(std::to_string(mask), Token::Name::INTEGER_LITERAL, op.m_line);
+				Token mask_token(std::to_string(mask), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(and_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(mask_token))));
 			}
 		}
@@ -258,12 +258,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		{
 			if (right_float && GetFloatValue(right_float) == 0.0)
 			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line);
+				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(zero_token));
 			}
 			if (left_float && GetFloatValue(left_float) == 0.0)
 			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line);
+				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(zero_token));
 			}
 		}

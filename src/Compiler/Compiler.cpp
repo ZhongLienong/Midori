@@ -14,6 +14,7 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <mutex>
 #include <numeric>
@@ -160,8 +161,29 @@ MidoriResult::CompilerResult Compiler::Compile()
 												}
 
 												const ModuleDeclaration* module_decl = build_graph.m_module_declarations.contains(file_path) ? &build_graph.m_module_declarations.at(file_path) : nullptr;
+												std::vector<std::string> module_source_lines;
+#ifndef __EMSCRIPTEN__
+												if (std::filesystem::equivalent(file_path, m_file_name))
+#else
+												if (file_path == m_file_name)
+#endif
+												{
+													module_source_lines = m_source_lines;
+												}
+												else
+												{
+													std::ifstream file(file_path);
+													if (file.is_open())
+													{
+														std::string line;
+														while (std::getline(file, line))
+														{
+															module_source_lines.push_back(line);
+														}
+													}
+												}
 
-												Parser parser(std::move(node.m_tokens), file_path, m_source_lines, imports, imported_type_sigs, node.m_use_imports, module_decl, imported_typeclass_metadata);
+												Parser parser(std::move(node.m_tokens), file_path, module_source_lines, imports, imported_type_sigs, node.m_use_imports, module_decl, imported_typeclass_metadata);
 												std::expected<MidoriProgramTree, std::string> ast = parser.Parse();
 												if (!ast.has_value())
 												{
@@ -184,7 +206,6 @@ MidoriResult::CompilerResult Compiler::Compile()
 													// Merge dependency's type signatures with module-qualified names
 													for (const auto& [name, type] : dep.m_type_signatures)
 													{
-														// Add both unqualified and qualified names for compatibility
 														imported_types[name] = type;
 														imported_types[dep.m_module_name + NameSeparator.data() + name] = type;
 													}
@@ -194,13 +215,12 @@ MidoriResult::CompilerResult Compiler::Compile()
 												std::unordered_map<std::string, TypeChecker::ClassInfo> imported_typeclass_infos;
 												for (const auto& [typeclass_name, metadata] : imported_typeclass_metadata)
 												{
-													// Create ClassInfo for imported typeclasses with method types
 													TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::ClassConstraint>{}, TypeChecker::TypeEnvironment(metadata.m_method_types), std::unordered_set<std::string>{});
 													imported_typeclass_infos[typeclass_name] = std::move(info);
 												}
 
 												// Type check with imported types
-												MidoriResult::TypeCheckerResult type_checked_ast = TypeChecker(std::move(ast.value()), file_path, m_source_lines, imported_types, imported_typeclass_infos).TypeCheck();
+												MidoriResult::TypeCheckerResult type_checked_ast = TypeChecker(std::move(ast.value()), file_path, module_source_lines, imported_types, imported_typeclass_infos).TypeCheck();
 												if (!type_checked_ast.has_value())
 												{
 													return std::unexpected(type_checked_ast.error());
@@ -248,7 +268,24 @@ MidoriResult::CompilerResult Compiler::Compile()
 													imported_typeclass_methods[tc_name] = metadata.m_method_names;
 													imported_typeclass_instances[tc_name] = metadata.m_instance_methods;
 												}
-												MidoriResult::CodeGeneratorResult module_bytecode =CodeGenerator(std::move(optimized_ast.value()), file_path, m_source_lines, module_name, export_set, imported_typeclass_methods, imported_typeclass_instances).GenerateModuleBytecode();
+
+												// Collect imported generic functions
+												std::unordered_map<std::string, GenericFunctionInfo> imported_generic_functions;
+												for (const std::string& dep_path : node.m_dependencies)
+												{
+													std::lock_guard<std::mutex> lock(modules_mutex);
+													const CompiledModule& dep = compiled_modules.at(dep_path);
+													if (dep.m_bytecode.has_value())
+													{
+														for (const auto& [name, info] : dep.m_bytecode.value().m_generic_functions)
+														{
+															imported_generic_functions[name] = info;
+															imported_generic_functions[dep.m_module_name + "::" + name] = info;
+														}
+													}
+												}
+
+												MidoriResult::CodeGeneratorResult module_bytecode = CodeGenerator(std::move(optimized_ast.value()), file_path, module_source_lines, module_name, export_set, imported_typeclass_methods, imported_typeclass_instances, imported_generic_functions).GenerateModuleBytecode();
 												if (!module_bytecode.has_value())
 												{
 													return std::unexpected(module_bytecode.error());

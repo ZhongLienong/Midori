@@ -1,8 +1,5 @@
 #include "BytecodeModule.h"
 
-#include <algorithm>
-#include <ranges>
-
 BytecodeModule::ExportedSymbol::ExportedSymbol(std::string name, size_t proc_index, size_t global_index, SymbolType type)
 	: m_name(std::move(name)), 
 	m_procedure_index(proc_index), 

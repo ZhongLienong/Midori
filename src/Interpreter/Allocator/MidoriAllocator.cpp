@@ -20,7 +20,7 @@ void* MidoriAllocator::Allocate(size_t size)
 	}
 }
 
-void MidoriAllocator::Free(void* ptr)
+void MidoriAllocator::Free(void* ptr, size_t)
 {
 	std::free(ptr);
 }

@@ -218,7 +218,7 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 				{
 					static int s_global_lift_id = 0;
 					std::string lifted_name = std::format("__lifted_{}_{}", defun.m_name.m_lexeme, s_global_lift_id++);
-					Token lifted_token(std::move(lifted_name), Token::Name::IDENTIFIER_LITERAL, defun.m_name.m_line);
+					Token lifted_token(std::move(lifted_name), Token::Name::IDENTIFIER_LITERAL, defun.m_name.m_line, defun.m_name.m_file_name);
 
 					SelfReferencePatcher patcher(defun.m_name.m_lexeme, lifted_token.m_lexeme);
 					patcher.Patch(defun.m_body);
@@ -268,7 +268,7 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 					Token callee_token = lifted_token;
 					std::unique_ptr<MidoriExpression> callee_expr = std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(callee_token, std::move(context)));
 
-					Token paren_token(std::string("("), Token::Name::LEFT_PAREN, defun.m_name.m_line);
+					Token paren_token(std::string("("), Token::Name::LEFT_PAREN, defun.m_name.m_line, defun.m_name.m_file_name);
 					std::unique_ptr<MidoriExpression> call_expr = std::make_unique<MidoriExpression>
 						(
 							MidoriExpression::Call

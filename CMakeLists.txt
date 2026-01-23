@@ -90,6 +90,7 @@ if(EMSCRIPTEN)
     target_compile_options(Midori PRIVATE
         -fexceptions
         -O3
+        -Wno-deprecated-literal-operator
     )
 
     # Target-specific compile definitions
@@ -160,7 +161,6 @@ else()
 
     # Link platform-specific dynamic loading libraries
     if(WIN32)
-        # Windows uses kernel32.lib for LoadLibrary/GetProcAddress (linked by default)
     elseif(UNIX)
         target_link_libraries(Midori PRIVATE ${CMAKE_DL_LIBS})
     endif()
@@ -195,6 +195,7 @@ else()
             /W4             # Warning level 4
             /EHsc           # Enable exception handling
             /bigobj         # Allow large object files
+            /wd5311         # Suppress deprecated string-literal operator warning (from toml11)
 
             # Debug configuration - best debuggability, no optimization
             $<$<CONFIG:Debug>:/Od>      # No optimization

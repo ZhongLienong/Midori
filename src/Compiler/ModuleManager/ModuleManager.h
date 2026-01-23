@@ -40,6 +40,8 @@ private:
 
 	bool HasCircularDependency() const;
 
+	bool CheckCycle(const std::string& node, std::unordered_set<std::string>& visited, std::unordered_set<std::string>& recursion_stack) const;
+
 	void BuildDependencyGraph(BuildGraph& build_graph);
 
 	void CalculateInDegrees(BuildGraph& build_graph);

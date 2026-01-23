@@ -7,7 +7,9 @@ to the website's public folder along with the MidoriPrelude files.
 """
 
 import multiprocessing
+import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -58,10 +60,15 @@ def check_emscripten() -> bool:
 	return True
 
 
+def remove_readonly(func, path, _):
+	os.chmod(path, stat.S_IWRITE)
+	func(path)
+
+
 def clean_build() -> None:
 	if BUILD_DIR.exists():
 		print(f"Cleaning {BUILD_DIR}...")
-		shutil.rmtree(BUILD_DIR)
+		shutil.rmtree(BUILD_DIR, onexc=remove_readonly)
 	BUILD_DIR.mkdir(exist_ok=True)
 
 

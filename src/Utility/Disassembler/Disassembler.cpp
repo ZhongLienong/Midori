@@ -937,10 +937,10 @@ namespace Disassembler
 			SimpleInstruction("POP", offset);
 			break;
 		case OpCode::DUP:
-			Printer::Print<Printer::Color::WHITE>("DUP\n");
+			SimpleInstruction("DUP", offset);
 			break;
 		case OpCode::SWAP:
-			Printer::Print<Printer::Color::WHITE>("SWAP\n");
+			SimpleInstruction("SWAP", offset);
 			break;
 		case OpCode::POP_LOCAL_SCOPE:
 			PopMultipleInstruction("POP_LOCAL_SCOPE", executable, proc_index, offset);

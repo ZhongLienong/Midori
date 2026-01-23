@@ -16,7 +16,7 @@ struct FFIEntry
 class MidoriFFIRegistry
 {
 public:
-	static constexpr size_t BUILTIN_COUNT = 74u;
+	static constexpr size_t BUILTIN_COUNT = 76u;
 
 	static const FFIEntry& GetEntry(size_t index);
 	static std::optional<size_t> FindIndex(std::string_view name);

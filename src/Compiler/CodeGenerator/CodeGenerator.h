@@ -4,11 +4,13 @@
 #include <stack>
 #include <unordered_set>
 #include <optional>
+#include <set>
 
 #include "Common/Error/Error.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include "GenericFunctionInfo.h"
 
 class CodeGenerator
 {
@@ -29,21 +31,7 @@ private:
 		int m_continue_target = 0;
 	};
 
-	struct GenericFunctionInfo
-	{
-		std::string m_name;
-		std::vector<Token> m_params;
-		std::vector<std::shared_ptr<MidoriType>> m_param_types;
-		std::vector<MidoriType::ClassConstraint> m_constraints;
-		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
-		std::shared_ptr<MidoriType> m_generic_return_type;
-		std::unique_ptr<MidoriExpression>* m_body;
-		int m_captured_count;
 
-		GenericFunctionInfo() = default;
-
-		GenericFunctionInfo(std::string name, std::vector<Token> params, std::vector<std::shared_ptr<MidoriType>> param_types, const std::vector<Token>& generic_params, std::vector<MidoriType::ClassConstraint> constraints, std::shared_ptr<MidoriType> return_type, std::unique_ptr<MidoriExpression>* body, int captured_count);
-	};
 
 	struct FunctionSignature
 	{
@@ -56,6 +44,11 @@ private:
 	struct FunctionSignatureHash
 	{
 		std::size_t operator()(const FunctionSignature& sig) const;
+	};
+
+	struct TypePairHash
+	{
+		std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const;
 	};
 
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
@@ -74,6 +67,7 @@ private:
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	TypeEnvironment m_param_type_map;
+	TypeEnvironment m_generic_type_substitution;
 	TypeclassMethodMap m_class_methods;
 	TypeclassInstanceMap m_class_instances;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
@@ -94,7 +88,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
@@ -245,6 +239,8 @@ private:
 	void EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0);
 
 	bool IsGenericType(const std::shared_ptr<MidoriType>& type);
+
+	void DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType>& param_type, const std::shared_ptr<MidoriType>& concrete_type, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& map, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited);
 
 	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
 

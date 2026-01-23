@@ -29,7 +29,7 @@ defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>
 				if val < pivot
 				then
 				{
-					less = less ++ [val];
+					less ++= val;
 					less_len = less_len + 1;
 				}
 				else
@@ -37,12 +37,12 @@ defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>
 					if val == pivot
 					then
 					{
-						equal = equal ++ [val];
+						equal ++= val;
 						equal_len = equal_len + 1;
 					}
 					else
 					{
-						greater = greater ++ [val];
+						greater ++= val;
 						greater_len = greater_len + 1;
 					}
 				};

@@ -154,12 +154,21 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 					{
 						std::vector<std::shared_ptr<MidoriType>> new_member_types;
 						std::ranges::transform(type_variant.m_member_types, std::back_inserter(new_member_types), substitute);
-						return MakeStructType(type_variant.m_name, std::move(new_member_types), std::vector<std::string>(type_variant.m_member_names), {});
+						std::shared_ptr<MidoriType> new_struct = MakeStructType(type_variant.m_name, std::move(new_member_types), std::vector<std::string>(type_variant.m_member_names), {});
+						if (!type_variant.m_generic_params.empty())
+						{
+							new_struct->GetType<StructType>().m_is_generic_instantiation = true;
+						}
+						return new_struct;
 					}
 					else if constexpr (std::is_same_v<T, UnionType>)
 					{
 						std::shared_ptr<MidoriType> new_union_type = MakeUnionType(type_variant.m_name, {});
 						UnionType& new_union_ref = new_union_type->GetType<UnionType>();
+						if (!type_variant.m_generic_params.empty())
+						{
+							new_union_ref.m_is_generic_instantiation = true;
+						}
 
 						std::ranges::for_each
 						(
@@ -305,7 +314,51 @@ std::string MidoriType::ToString() const
 			}
 			else if constexpr (std::is_same_v<Type, UnionType>)
 			{
-				return type_variant.m_name;
+				if (!type_variant.m_generic_params.empty())
+				{
+					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+				}
+				else if (type_variant.m_is_generic_instantiation)
+				{
+					// Instantiated union: use members to create a unique signature
+					// Must sort members by name to ensure determinism (m_member_info is unordered)
+					std::vector<std::string> member_keys;
+					member_keys.reserve(type_variant.m_member_info.size());
+					for(const auto& [name, _] : type_variant.m_member_info)
+					{
+						member_keys.emplace_back(name);
+					}
+					std::sort(member_keys.begin(), member_keys.end());
+					
+					std::string sig = type_variant.m_name + "<"s;
+					bool first = true;
+					for(const std::string& key : member_keys)
+					{
+						if (!first)
+						{
+							sig += ", ";
+						}
+						first = false;
+						
+						const UnionType::UnionMemberContext& ctx = type_variant.m_member_info.at(key);
+						
+						sig += key;
+						if (!ctx.m_member_types.empty())
+						{
+							sig += "(";
+							std::vector<std::string> type_strs;
+							std::ranges::transform(ctx.m_member_types, std::back_inserter(type_strs), [](const std::shared_ptr<MidoriType>& t) { return t->ToString(); });
+							sig += std::accumulate(std::next(type_strs.begin()), type_strs.end(), type_strs.front(), join_with_comma);
+							sig += ")";
+						}
+					}
+					sig += ">"s;
+					return sig;
+				}
+				else
+				{
+					return type_variant.m_name;
+				}
 			}
 			else
 			{

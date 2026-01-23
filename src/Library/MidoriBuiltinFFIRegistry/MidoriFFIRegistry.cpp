@@ -88,6 +88,9 @@ const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT> MidoriFFIRegistry::
 	{"MIDORI_FFI_Execute", &MIDORI_FFI_Execute},
 	{"MIDORI_FFI_GetPlatform", &MIDORI_FFI_GetPlatform},
 	{"MIDORI_FFI_GetProcessId", &MIDORI_FFI_GetProcessId},
+	// Hashing
+	{"MIDORI_HASH_TEXT", &MIDORI_FFI_HashText},
+	{"MIDORI_HASH_FLOAT", &MIDORI_FFI_HashFloat},
 }};
 
 const FFIEntry& MidoriFFIRegistry::GetEntry(size_t index)
@@ -97,7 +100,7 @@ const FFIEntry& MidoriFFIRegistry::GetEntry(size_t index)
 
 std::optional<size_t> MidoriFFIRegistry::FindIndex(std::string_view name)
 {
-	for (size_t i = 0u; i < s_entries.size(); ++i)
+	for (size_t i = 0uz; i < s_entries.size(); i += 1uz)
 	{
 		if (s_entries[i].m_name == name)
 		{

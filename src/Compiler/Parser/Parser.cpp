@@ -326,7 +326,24 @@ bool Parser::IsAtGlobalScope() const
 std::string Parser::GenerateParserError(std::string&& message, const Token& token)
 {
 	Synchronize();
-	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, m_file_name, m_source_lines);
+	
+	// If the token is from a different file, read that file's source lines
+	if (token.m_file_name != m_file_name && !token.m_file_name.empty())
+	{
+		std::ifstream file(token.m_file_name);
+		if (file.is_open())
+		{
+			std::vector<std::string> token_source_lines;
+			std::string line;
+			while (std::getline(file, line))
+			{
+				token_source_lines.emplace_back(std::move(line));
+			}
+			return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, token_source_lines);
+		}
+	}
+	
+	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, m_source_lines);
 }
 
 bool Parser::IsAtEnd()
@@ -979,6 +996,17 @@ MidoriResult::ExpressionResult Parser::ParseCall()
 						}
 					);
 			}
+			else if (Check(Token::Name::LEFT_BRACKET, 0))
+			{
+				return ParseArrayAccessHelper(std::move(expr))
+					.and_then
+					(
+						[&parse_call_aux_fun](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
+						{
+							return parse_call_aux_fun(std::move(expr));
+						}
+					);
+			}
 			else
 			{
 				return expr;
@@ -1045,6 +1073,96 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 					is_struct = true;
 					defined_type.emplace(scope.m_struct_constructors.at(data_name_token_value.m_lexeme));
 					break;
+				}
+			}
+
+			if (defined_type == std::nullopt)
+			{
+				std::string raw_name = data_name_token_value.m_lexeme;
+				std::string lookup_base = raw_name;
+				std::string member_part;
+
+				size_t separator_pos = raw_name.find(NameSeparator);
+				if (separator_pos != std::string::npos)
+				{
+					lookup_base = raw_name.substr(0, separator_pos);
+					member_part = raw_name.substr(separator_pos);
+				}
+
+				bool is_imported = false;
+				std::string module_name;
+
+				for (const UseImport& use_import : m_current_use_imports)
+				{
+					if (use_import.m_symbol_name == lookup_base)
+					{
+						is_imported = true;
+						module_name = use_import.m_module_name;
+						break;
+					}
+				}
+
+				if (is_imported)
+				{
+					if (m_imported_type_signatures.contains(module_name))
+					{
+						std::string type_name = lookup_base;
+						const TypeEnvironment& env = m_imported_type_signatures.at(module_name);
+						
+						if (env.contains(type_name))
+						{
+							std::shared_ptr<MidoriType> type = env.at(type_name);
+							if (type->IsType<MidoriType::UnionType>())
+							{
+								std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
+								const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+								std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
+								
+								if (union_type.m_member_info.contains(member_key))
+								{
+									defined_type = type;
+									data_name_token_value.m_lexeme = member_key; // Use fully qualified constructor name
+								}
+							}
+							else if (type->IsType<MidoriType::StructType>())
+							{
+								if (type_name == raw_name)
+								{
+									is_struct = true;
+									defined_type = type;
+								}
+							}
+						}
+					}
+				}
+				
+				// Try bare imports (without use alias)
+				if (defined_type == std::nullopt)
+				{
+					for (const auto& [mod_name, env] : m_imported_type_signatures)
+					{
+						std::string type_name = lookup_base;
+						if (env.contains(type_name))
+						{
+							std::shared_ptr<MidoriType> type = env.at(type_name);
+							if (type->IsType<MidoriType::UnionType>())
+							{
+								if (separator_pos != std::string::npos)
+								{
+									std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
+									const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+									std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
+
+									if (union_type.m_member_info.contains(member_key))
+									{
+										defined_type = type;
+										data_name_token_value.m_lexeme = member_key;
+										break;
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -3636,6 +3754,19 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									{
 										base_type = type_it->second;
 									}
+								}
+							}
+						}
+
+						// Check bare imports (unqualified access to exported types from imported modules)
+						if (base_type == nullptr)
+						{
+							for (const auto& [mod_name, env] : m_imported_type_signatures)
+							{
+								if (env.contains(type_name.m_lexeme))
+								{
+									base_type = env.at(type_name.m_lexeme);
+									break;
 								}
 							}
 						}
