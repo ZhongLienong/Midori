@@ -203,14 +203,31 @@ private:
 class MidoriArray
 {
 private:
-	inline static constexpr int s_initial_capacity = 8;
-	MidoriValue* m_data{ nullptr };
-	int m_capacity{ 0 };
-	int m_start{ 0 };
-	int m_length{ 0 };
+	static constexpr int s_initial_capacity = 8;
+	static constexpr int SOO_CAPACITY = 2;
+
+	struct LongLayout
+	{
+		MidoriValue* m_ptr;
+		int m_size;
+		int m_capacity;
+		uint8_t m_flag;
+	};
+
+	struct ShortLayout
+	{
+		MidoriValue m_buffer[SOO_CAPACITY];
+		uint8_t m_size_flag;
+	};
+
+	union
+	{
+		LongLayout m_long;
+		ShortLayout m_short;
+	};
 
 public:
-	MidoriArray() = default;
+	MidoriArray();
 
 	MidoriArray(int size);
 
@@ -243,9 +260,13 @@ public:
 	static MidoriArray FromFFI(MidoriValue* ffi_allocated_data, int length);
 
 private:
-	void Expand();
+	void Expand(int new_capacity);
 
-	void Shrink();
+	bool IsShort() const noexcept;
+
+	void SetShortSize(int size);
+
+	int GetShortSize() const;
 };
 
 class MidoriTuple
