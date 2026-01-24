@@ -11,22 +11,6 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 
-// Alignment must be power of 2 (8 bytes = 3 tag bits)
-constexpr uintptr_t ALIGNMENT = 0b1000;
-constexpr uintptr_t ALIGNMENT_MASK = ALIGNMENT - 1;
-constexpr uintptr_t TAG_MASK = ~ALIGNMENT_MASK;
-enum PointerTag : uint8_t
-{
-	TEXT = 0b000,
-	ARRAY = 0b001,
-	STRUCT = 0b010,
-	UNION = 0b100,
-	CELL = 0b011,
-	FUNCTION = 0b110,
-	RANGE = 0b101,
-	FUTURE = 0b111,
-};
-
 class MidoriTraceable;
 class MidoriText;
 
@@ -36,23 +20,6 @@ using MidoriByte = uint8_t;
 using MidoriWord = uint64_t;
 using MidoriUnit = std::monostate;
 using MidoriBool = bool;
-
-class MidoriTaggedPointer 
-{
-private:
-	uintptr_t m_raw_pointer;
-
-	static uintptr_t Encode(MidoriTraceable* ptr, PointerTag tag);
-
-	static MidoriTraceable* Decode(uintptr_t value);
-
-public:
-	MidoriTaggedPointer(MidoriTraceable* ptr, PointerTag tag); 
-
-	MidoriTraceable* operator->() const;
-
-	explicit operator MidoriTraceable* () const;
-};
 
 class MidoriValue
 {

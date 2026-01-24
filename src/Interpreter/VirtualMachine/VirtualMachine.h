@@ -30,13 +30,12 @@ public:
     GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
 
     template<typename T>
-    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& arg, PointerTag tag)
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& arg)
     {
         void* mem = m_allocator.Allocate(sizeof(MidoriTraceable));
         MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<T>(arg));
-        MidoriTaggedPointer tagged_pointer(traceable, tag);
         m_gc.RegisterObject(traceable);
-        return static_cast<MidoriTraceable*>(tagged_pointer);
+        return traceable;
     }
 
 private:

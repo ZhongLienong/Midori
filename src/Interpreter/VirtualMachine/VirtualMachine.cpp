@@ -46,7 +46,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 
 	InitializeStacks();
 
-	MidoriTraceable* closure_traceable = AllocateTraceable(MidoriClosure{.m_cell_values = entry_closure.m_cell_values, .m_proc_index = entry_closure.m_proc_index}, PointerTag::FUNCTION);
+	MidoriTraceable* closure_traceable = AllocateTraceable(MidoriClosure{.m_cell_values = entry_closure.m_cell_values, .m_proc_index = entry_closure.m_proc_index});
 	m_curr_closure_traceable = closure_traceable;
 	m_curr_environment = &closure_traceable->GetTraceable<MidoriClosure>().m_cell_values;
 
@@ -377,7 +377,7 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 	}
 
 	MidoriText text_copy(text);
-	MidoriTraceable* interned = AllocateTraceable(std::move(text_copy), PointerTag::TEXT);
+	MidoriTraceable* interned = AllocateTraceable(std::move(text_copy));
 	m_small_string_pool[std::string_view(interned->GetTraceable<MidoriText>().GetCString(), static_cast<size_t>(byte_length))] = interned;
 	return interned;
 }
@@ -463,11 +463,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 				{
 					m_string_literal_cache.resize(index + 1, nullptr);
 				}
-				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data(), PointerTag::TEXT);
+				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data());
 			}
 			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
 			MidoriText text_copy(cached_text);
-			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy), PointerTag::TEXT);
+			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
 			Push(new_string);
 			break;
 		}
@@ -556,7 +556,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				arr[i] = Pop();
 			}
 
-			Push(AllocateTraceable(std::move(arr), PointerTag::ARRAY));
+			Push(AllocateTraceable(std::move(arr)));
 			break;
 		}
 		case OpCode::GET_ARRAY:
@@ -656,7 +656,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				new_arr[i] = arr_ref[i % original_size];
 			}
 
-			Push(AllocateTraceable(std::move(new_arr), PointerTag::ARRAY));
+			Push(AllocateTraceable(std::move(new_arr)));
 			break;
 		}
 		case OpCode::ADD_BACK_ARRAY:
@@ -697,7 +697,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriIntRange range(start.GetInteger(), end.GetInteger(), step.GetInteger());
 
-			Push(AllocateTraceable(std::move(range), PointerTag::RANGE));
+			Push(AllocateTraceable(std::move(range)));
 			break;
 		}
 		case OpCode::CREATE_FLOAT_RANGE:
@@ -708,7 +708,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriFloatRange range(start.GetFloat(), end.GetFloat(), step.GetFloat());
 
-			Push(AllocateTraceable(std::move(range), PointerTag::RANGE));
+			Push(AllocateTraceable(std::move(range)));
 			break;
 		}
 		case OpCode::GET_RANGE_START:
@@ -775,12 +775,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::FLOAT_TO_TEXT:
 		{
-			Peek() = AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()), PointerTag::TEXT);
+			Peek() = AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()));
 			break;
 		}
 		case OpCode::INT_TO_TEXT:
 		{
-			Peek() = AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()), PointerTag::TEXT);
+			Peek() = AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()));
 			break;
 		}
 		case OpCode::BYTE_TO_INT:
@@ -1110,7 +1110,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
-			left = AllocateTraceable(std::move(result), PointerTag::ARRAY);
+			left = AllocateTraceable(std::move(result));
 			TryCollect();
 			break;
 		}
@@ -1124,7 +1124,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
-			left = AllocateTraceable(std::move(result), PointerTag::TEXT);
+			left = AllocateTraceable(std::move(result));
 			TryCollect();
 			break;
 		}
@@ -1843,12 +1843,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable("", PointerTag::TEXT));
+					Push(AllocateTraceable(""));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(AllocateTraceable(ffi_string, PointerTag::TEXT));
+					Push(AllocateTraceable(ffi_string));
 					std::free(ffi_string);
 				}
 			}
@@ -1863,7 +1863,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(MidoriArray(), PointerTag::ARRAY));
+					Push(AllocateTraceable(MidoriArray()));
 				}
 				else
 				{
@@ -1872,7 +1872,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					int length = ffi_array->length;
 
 					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(AllocateTraceable(std::move(wrapped_array), PointerTag::ARRAY));
+					Push(AllocateTraceable(std::move(wrapped_array)));
 
 					std::free(ffi_array);
 				}
@@ -1937,12 +1937,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable("", PointerTag::TEXT));
+					Push(AllocateTraceable(""));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(AllocateTraceable(ffi_string, PointerTag::TEXT));
+					Push(AllocateTraceable(ffi_string));
 					std::free(ffi_string);
 				}
 			}
@@ -1957,7 +1957,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(MidoriArray(), PointerTag::ARRAY));
+					Push(AllocateTraceable(MidoriArray()));
 				}
 				else
 				{
@@ -1966,7 +1966,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					int length = ffi_array->length;
 
 					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(AllocateTraceable(std::move(wrapped_array), PointerTag::ARRAY));
+					Push(AllocateTraceable(std::move(wrapped_array)));
 
 					std::free(ffi_array);
 				}
@@ -2042,7 +2042,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::CONSTRUCT_STRUCT:
 		{
-			MidoriTraceable* new_struct = AllocateTraceable(MidoriStruct(), PointerTag::STRUCT);
+			MidoriTraceable* new_struct = AllocateTraceable(MidoriStruct());
 			int size = static_cast<int>(ReadByte());
 			MidoriTuple args(size);
 
@@ -2059,7 +2059,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::CONSTRUCT_UNION:
 		{
-			MidoriTraceable* new_union = AllocateTraceable(MidoriUnion(), PointerTag::UNION);
+			MidoriTraceable* new_union = AllocateTraceable(MidoriUnion());
 
 			int size = static_cast<int>(ReadByte());
 			MidoriTuple args(size);
@@ -2078,7 +2078,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::MAKE_CLOSURE:
 		{
 			int proc_index = static_cast<int>(ReadByte());
-			Push(AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }, PointerTag::FUNCTION));
+			Push(AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }));
 			break;
 		}
 		case OpCode::MAKE_FUNCTION:
@@ -2092,7 +2092,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				MidoriTraceable* closure = AllocateTraceable(MidoriClosure{.m_cell_values = MidoriTuple(), .m_proc_index = proc_index}, PointerTag::FUNCTION);
+				MidoriTraceable* closure = AllocateTraceable(MidoriClosure{.m_cell_values = MidoriTuple(), .m_proc_index = proc_index});
 				m_static_closure_cache[proc_index] = closure;
 				Push(closure);
 			}
@@ -2124,7 +2124,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				MidoriValue& value = *(m_value_stack_base_pointer + i);
 				MidoriValue* stack_value_ref = &value;
-				MidoriValue cell_value = AllocateTraceable(MidoriCellValue(stack_value_ref), PointerTag::CELL);
+				MidoriValue cell_value = AllocateTraceable(MidoriCellValue(stack_value_ref));
 				
 				new_env[parent_count + i] = cell_value;
 				m_cells_to_promote.emplace_back(&cell_value.GetPointer()->GetTraceable<MidoriCellValue>());
@@ -2358,7 +2358,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 
 			MidoriFuture future_val(MidoriClosure{.m_cell_values = closure.m_cell_values, .m_proc_index = closure.m_proc_index});
-			MidoriTraceable* future_ptr = AllocateTraceable(std::move(future_val), PointerTag::FUTURE);
+			MidoriTraceable* future_ptr = AllocateTraceable(std::move(future_val));
 			MidoriFuture* future = &future_ptr->GetTraceable<MidoriFuture>();
 
 			if (m_runtime)

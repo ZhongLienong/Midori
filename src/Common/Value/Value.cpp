@@ -218,8 +218,7 @@ MidoriBool MidoriValue::GetBool() const noexcept
 
 MidoriTraceable* MidoriValue::GetPointer() const noexcept
 {
-	uintptr_t raw = reinterpret_cast<uintptr_t>(m_data.m_pointer);
-	return reinterpret_cast<MidoriTraceable*>(raw & TAG_MASK);
+	return m_data.m_pointer;
 }
 
 const void* MidoriValue::GetRawDataPtr() const noexcept
@@ -1719,30 +1718,4 @@ MidoriValue MidoriFuture::Get()
 bool MidoriFuture::IsReady() const
 {
 	return m_completed.load(std::memory_order_acquire);
-}
-
-uintptr_t MidoriTaggedPointer::Encode(MidoriTraceable* ptr, PointerTag tag)
-{
-	assert((reinterpret_cast<uintptr_t>(ptr) & ALIGNMENT_MASK) == 0 && "Pointer not properly aligned");
-	return reinterpret_cast<uintptr_t>(ptr) | static_cast<uintptr_t>(tag);
-}
-
-MidoriTraceable* MidoriTaggedPointer::Decode(uintptr_t value)
-{
-	return reinterpret_cast<MidoriTraceable*>(value & TAG_MASK);
-}
-
-MidoriTaggedPointer::MidoriTaggedPointer(MidoriTraceable* ptr, PointerTag tag)
-	: m_raw_pointer(Encode(ptr, tag))
-{
-}
-
-MidoriTraceable* MidoriTaggedPointer::operator->() const
-{
-	return Decode(m_raw_pointer);
-}
-
-MidoriTaggedPointer::operator MidoriTraceable* () const
-{
-	return Decode(m_raw_pointer);
 }
