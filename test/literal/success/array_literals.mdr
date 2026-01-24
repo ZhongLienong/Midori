@@ -1,3 +1,5 @@
+module ArrayLiterals
+
 import
 {
     <IO>

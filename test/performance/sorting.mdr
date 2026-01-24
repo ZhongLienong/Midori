@@ -1,3 +1,5 @@
+module Sorting
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

@@ -1,3 +1,5 @@
+module AsyncCaptureLocal
+
 import { <IO> }
 
 def tasks : Array<Future<Int>> = [];

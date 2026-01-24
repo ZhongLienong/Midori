@@ -1,3 +1,5 @@
+module FlexiblePlacement
+
 defun greet(name: Text): Text => {
     "Hello, " ++ name
 };

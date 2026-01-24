@@ -1,3 +1,5 @@
+module AsyncNestedLoops
+
 import { <IO>, <Math> }
 
 struct Complex {

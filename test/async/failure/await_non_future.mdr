@@ -1,3 +1,5 @@
+module AwaitNonFuture
+
 // ERROR: await requires Future<T> type
 def x : Int = 42;
 def result : Int = await x;

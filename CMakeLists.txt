@@ -186,6 +186,7 @@ else()
             string(REPLACE "/GR" "" ${flag_var} "${${flag_var}}")
             string(REPLACE "/W3" "" ${flag_var} "${${flag_var}}")
             string(REPLACE "/EHsc" "" ${flag_var} "${${flag_var}}")
+            string(REPLACE "/RTC1" "" ${flag_var} "${${flag_var}}")
         endforeach()
 
         # Common MSVC flags for Midori executable
@@ -200,7 +201,6 @@ else()
             # Debug configuration - best debuggability, no optimization
             $<$<CONFIG:Debug>:/Od>      # No optimization
             $<$<CONFIG:Debug>:/Zi>      # Full debug info
-            $<$<CONFIG:Debug>:/RTC1>    # Runtime checks
 
             # Development configuration - optimized with debug symbols
             $<$<CONFIG:Development>:/O2>    # Maximize speed

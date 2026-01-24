@@ -1,3 +1,5 @@
+module TypeMismatchAwait
+
 // ERROR: Type mismatch - await Future<Int> assigned to Text
 def task : Future<Int> = async 42;
 def result : Text = await task;

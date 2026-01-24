@@ -1,3 +1,5 @@
+module TwoAsyncTest
+
 // Async test with just 2 tasks
 
 import { <IO> }

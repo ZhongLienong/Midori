@@ -1,3 +1,5 @@
+module ByteShifts
+
 // Byte Shift Operations Test
 import { "../../MidoriPrelude/IO.mdr" }
 

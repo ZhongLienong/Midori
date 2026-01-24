@@ -1,3 +1,5 @@
+module PropositionalLogic
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

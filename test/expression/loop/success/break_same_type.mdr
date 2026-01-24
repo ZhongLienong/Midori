@@ -1,3 +1,5 @@
+module BreakSameType
+
 loop 
 {
     if true 

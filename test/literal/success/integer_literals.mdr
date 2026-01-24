@@ -1,3 +1,5 @@
+module IntegerLiterals
+
 import
 {
     <IO>

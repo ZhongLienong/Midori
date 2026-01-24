@@ -1,3 +1,5 @@
+module BinarySearch
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

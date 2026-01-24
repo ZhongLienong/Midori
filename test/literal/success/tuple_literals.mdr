@@ -1,3 +1,5 @@
+module TupleLiterals
+
 import
 {
     <IO>

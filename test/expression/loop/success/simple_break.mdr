@@ -1,3 +1,5 @@
+module SimpleBreak
+
 loop 
 {
     break 42;

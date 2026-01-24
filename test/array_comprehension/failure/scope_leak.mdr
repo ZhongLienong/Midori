@@ -1,3 +1,5 @@
+module ScopeLeak
+
 import { "../../../MidoriPrelude/IO.mdr" }
 
 def x = [i for i in 0..1..5];

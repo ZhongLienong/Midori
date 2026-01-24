@@ -1,3 +1,5 @@
+module LoopCaptureSimpleTest
+
 // Async test with loop and capture but simpler computation
 
 import { <IO> }

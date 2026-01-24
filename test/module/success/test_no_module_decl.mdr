@@ -1,5 +1,6 @@
-// Test: File without module declaration should still work
-// No module declaration - file name becomes module name
+// Test: Module declaration is now required
+module TestNoModuleDecl
+public export { simple_add, main }
 
 defun simple_add(a: Int, b: Int) : Int => a + b;
 

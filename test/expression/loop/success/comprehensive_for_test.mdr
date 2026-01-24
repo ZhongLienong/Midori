@@ -1,3 +1,5 @@
+module ComprehensiveForTest
+
 import
 {
     "../../../../MidoriPrelude/IO.mdr",

@@ -1805,7 +1805,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			};
 
 			std::vector<ArrayArgument> array_arg_storage;
-			void* args[UINT8_MAX];
+			array_arg_storage.reserve(arity);
+			void* args[UINT8_MAX] = {};
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
@@ -1830,7 +1831,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 				else
 				{
-					std::memcpy(&args[idx], &arg, MidoriValue::DATA_BUFFER_SIZE);
+					std::memcpy(&args[idx], arg.GetRawDataPtr(), sizeof(double));
 				}
 			}
 
@@ -1898,7 +1899,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			};
 
 			std::vector<ArrayArgument> array_arg_storage;
-			void* args[UINT8_MAX];
+			array_arg_storage.reserve(arity);
+			void* args[UINT8_MAX] = {};
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
@@ -1923,7 +1925,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 				else
 				{
-					std::memcpy(&args[idx], &arg, MidoriValue::DATA_BUFFER_SIZE);
+					std::memcpy(&args[idx], arg.GetRawDataPtr(), sizeof(double));
 				}
 			}
 

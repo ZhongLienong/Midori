@@ -1,3 +1,5 @@
+module ImportNonexistentFile
+
 // Test: importing a file that doesn't exist (should fail)
 
 import { "nonexistent_module.mdr" }

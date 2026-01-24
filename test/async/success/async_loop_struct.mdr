@@ -1,3 +1,5 @@
+module AsyncLoopStruct
+
 import { <IO> }
 
 struct Point {

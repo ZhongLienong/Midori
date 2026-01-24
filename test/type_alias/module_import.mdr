@@ -1,3 +1,5 @@
+module ModuleImport
+
 // Test importing type aliases from another module
 
 import

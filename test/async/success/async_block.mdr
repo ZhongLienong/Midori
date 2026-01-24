@@ -1,3 +1,5 @@
+module AsyncBlock
+
 import { <IO> }
 
 def task : Future<Int> = async {

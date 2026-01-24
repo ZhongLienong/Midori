@@ -1,3 +1,5 @@
+module MandelbrotSimple
+
 import { <IO> }
 
 struct Point {

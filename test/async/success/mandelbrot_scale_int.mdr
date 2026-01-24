@@ -1,3 +1,5 @@
+module MandelbrotScaleInt
+
 import { <IO>, <Math> }
 
 struct Complex { Real: Float, Imag: Float };

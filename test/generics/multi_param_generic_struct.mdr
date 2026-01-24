@@ -1,3 +1,5 @@
+module MultiParamGenericStruct
+
 // Test: Generic struct with multiple type parameters
 // Expected: Should compile and allow different combinations
 

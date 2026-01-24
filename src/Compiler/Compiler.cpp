@@ -190,8 +190,19 @@ MidoriResult::CompilerResult Compiler::Compile()
 													return std::unexpected(ast.error());
 												}
 
+												// Build export set for filtering type signatures
+												std::unordered_set<std::string> export_set_for_types;
+												if (module_decl)
+												{
+													for (const ModuleExport& exp : module_decl->m_exports)
+													{
+														export_set_for_types.insert(exp.m_symbol_name);
+													}
+												}
+
 												// Extract type signatures from parsed AST (for dependent modules)
-												TypeChecker::TypeEnvironment type_signatures = TypeChecker::ExtractTypeSignatures(ast.value());
+												// Only include exported types to prevent internal type leakage
+												TypeChecker::TypeEnvironment type_signatures = TypeChecker::ExtractTypeSignatures(ast.value(), module_decl ? &export_set_for_types : nullptr);
 
 												// Extract typeclass metadata from parser (for dependent modules)
 												CompiledModule::TypeclassMetadataMap typeclass_metadata = parser.GetTypeclassMetadata();

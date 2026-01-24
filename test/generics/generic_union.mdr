@@ -1,3 +1,5 @@
+module GenericUnion
+
 // Test: Generic union types
 // Expected: Should compile and allow pattern matching on generic unions
 

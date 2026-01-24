@@ -1,0 +1,184 @@
+module HashMap
+public export
+{
+    MapNew, MapInsert, MapGet, MapGetOr, MapUpdate,
+    MapRemove, MapContains, MapSize, MapIsEmpty, MapClear,
+    MapData, Entry
+}
+import { "Hashable.mdr", "Equatable.mdr", "Prelude.mdr" }
+
+union Entry<K, V> = Empty | Deleted | Occupied(K, V);
+
+struct MapData<K, V> 
+{
+    buckets: Array<Entry<K, V>>,
+    count: Int,
+    capacity: Int
+};
+
+defun MapNew<K, V>() : MapData<K, V> => 
+{
+    def initial_cap = 16;
+    def buckets : Array<Entry<K, V>> = [];
+    def i = 0;
+    loop 
+    {
+        if i >= initial_cap
+        then break ()
+        else 
+        {
+            buckets ++= new Entry::Empty();
+            i = i + 1;
+        }
+    };
+    new MapData(buckets, 0, initial_cap)
+};
+
+defun find_slot<K, V>(map: MapData<K, V>, key: K, hash: Int) : Int
+    where Equatable<K> => 
+{
+        def idx = hash % map.capacity;
+        if idx < 0 then idx = 0 - idx else 0;
+        def i = 0;
+        loop 
+        {
+            if i >= map.capacity
+            then break -1
+            else 
+            {
+                def probe_idx = (idx + i) % map.capacity;
+                def entry = map.buckets[probe_idx];
+                match entry with
+                    case Entry::Empty() => break -1
+                    case Entry::Deleted() => { i = i + 1; }
+                    case Entry::Occupied(k, v) => 
+                    {
+                        if Equatable::Equals(k, key)
+                        then break probe_idx
+                        else { i = i + 1; }
+                    }
+
+            }
+       }
+};
+
+defun find_insert_slot<K, V>(map: MapData<K, V>, key: K, hash: Int) : Int
+    where Equatable<K> => {
+    def idx = hash % map.capacity;
+    if idx < 0 then idx = 0 - idx else 0;
+    def i = 0;
+    loop {
+        if i >= map.capacity
+        then break -1
+        else {
+            def probe_idx = (idx + i) % map.capacity;
+            def entry = map.buckets[probe_idx];
+            match entry with
+                case Entry::Empty() => break probe_idx
+                case Entry::Deleted() => break probe_idx
+                case Entry::Occupied(k, v) => {
+                    if Equatable::Equals(k, key)
+                    then break probe_idx
+                    else { i = i + 1; }
+                }
+
+        }
+    }
+};
+
+defun MapInsert<K, V>(map: MapData<K, V>, key: K, value: V) : Bool
+    where Hashable<K>, Equatable<K> => {
+    def h = Hashable::Hash(key);
+    def slot = find_insert_slot(map, key, h);
+    if slot < 0
+    then false
+    else {
+        def existing = map.buckets[slot];
+        def was_new = match existing with
+            case Entry::Occupied(k, v) => false
+            default => true
+        ;
+        map.buckets[slot] = new Entry::Occupied(key, value);
+        if was_new then map.count = map.count + 1 else 0;
+        was_new
+    }
+};
+
+defun MapGet<K, V>(map: MapData<K, V>, key: K) : Option<V>
+    where Hashable<K>, Equatable<K> => {
+    def h = Hashable::Hash(key);
+    def slot = find_slot(map, key, h);
+    if slot < 0
+    then new Option::None<V>()
+    else {
+        def entry = map.buckets[slot];
+        match entry with
+            case Entry::Occupied(k, v) => new Option::Some<V>(v)
+            default => new Option::None<V>()
+
+    }
+};
+
+defun MapGetOr<K, V>(map: MapData<K, V>, key: K, default_value: V) : V
+    where Hashable<K>, Equatable<K> => {
+    def result = MapGet(map, key);
+    match result with
+        case Option::Some(v) => v
+        case Option::None() => default_value
+
+};
+
+defun MapUpdate<K, V>(map: MapData<K, V>, key: K, value: V) : Option<V>
+    where Hashable<K>, Equatable<K> => {
+    def h = Hashable::Hash(key);
+    def slot = find_slot(map, key, h);
+    if slot < 0
+    then new Option::None<V>()
+    else {
+        def entry = map.buckets[slot];
+        def old_value = match entry with
+            case Entry::Occupied(k, v) => new Option::Some<V>(v)
+            default => new Option::None<V>()
+        ;
+        map.buckets[slot] = new Entry::Occupied(key, value);
+        old_value
+    }
+};
+
+defun MapRemove<K, V>(map: MapData<K, V>, key: K) : Bool
+    where Hashable<K>, Equatable<K> => {
+    def h = Hashable::Hash(key);
+    def slot = find_slot(map, key, h);
+    if slot < 0
+    then false
+    else {
+        map.buckets[slot] = new Entry::Deleted();
+        map.count = map.count - 1;
+        true
+    }
+};
+
+defun MapContains<K, V>(map: MapData<K, V>, key: K) : Bool
+    where Hashable<K>, Equatable<K> => {
+    def h = Hashable::Hash(key);
+    def slot = find_slot(map, key, h);
+    slot >= 0
+};
+
+defun MapSize<K, V>(map: MapData<K, V>) : Int => map.count;
+
+defun MapIsEmpty<K, V>(map: MapData<K, V>) : Bool => map.count == 0;
+
+defun MapClear<K, V>(map: MapData<K, V>) : Unit => {
+    def i = 0;
+    loop {
+        if i >= map.capacity
+        then break ()
+        else {
+            map.buckets[i] = new Entry::Empty();
+            i = i + 1;
+        }
+    };
+    map.count = 0;
+    ()
+};

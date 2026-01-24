@@ -1,3 +1,5 @@
+module SameTypeConstraint
+
 // Test: Same type parameter used multiple times should unify
 // Expected: SHOULD FAIL - passing different types for same generic parameter
 

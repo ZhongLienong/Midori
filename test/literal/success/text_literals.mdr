@@ -1,3 +1,5 @@
+module TextLiterals
+
 import
 {
     <IO>

@@ -1,3 +1,5 @@
+module InstanceSignatureMismatch
+
 // Purpose: Reject instance method whose signature does not match the typeclass declaration.
 
 class Show<T> {

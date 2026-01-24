@@ -1,3 +1,5 @@
+module TypeMismatchArray
+
 // Test: Different generic instantiations should not be compatible
 // Expected: SHOULD FAIL - cannot put different generic instances in same array
 

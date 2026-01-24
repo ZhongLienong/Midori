@@ -1,3 +1,5 @@
+module Test
+
 import
 {
     "../MidoriPrelude/IO.mdr",

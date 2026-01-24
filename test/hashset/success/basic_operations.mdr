@@ -1,0 +1,59 @@
+module BasicOperations
+
+// Test HashSet basic operations
+import 
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/HashSet.mdr"
+}
+
+// Create a new HashSet using factory
+def numbers = HashSet::SetNew();
+
+// Test insert - should return true for new elements
+def inserted1 = HashSet::SetInsert(numbers, 10);
+def inserted2 = HashSet::SetInsert(numbers, 20);
+def inserted3 = HashSet::SetInsert(numbers, 30);
+
+IO::PrintLine(if inserted1 then "Insert 10: true" else "Insert 10: false");
+IO::PrintLine(if inserted2 then "Insert 20: true" else "Insert 20: false");
+IO::PrintLine(if inserted3 then "Insert 30: true" else "Insert 30: false");
+
+// Test size
+def size1 = HashSet::SetSize(numbers);
+IO::PrintLine("Size after 3 inserts: " ++ (size1 as Text));
+
+// Test contains
+def has10 = HashSet::SetContains(numbers, 10);
+def has20 = HashSet::SetContains(numbers, 20);
+def has99 = HashSet::SetContains(numbers, 99);
+
+IO::PrintLine(if has10 then "Contains 10: true" else "Contains 10: false");
+IO::PrintLine(if has20 then "Contains 20: true" else "Contains 20: false");
+IO::PrintLine(if has99 then "Contains 99: true" else "Contains 99: false");
+
+// Test duplicate insert - should return false
+def dup_inserted = HashSet::SetInsert(numbers, 10);
+IO::PrintLine(if dup_inserted then "Duplicate insert 10: true" else "Duplicate insert 10: false");
+
+// Size should still be 3
+def size2 = HashSet::SetSize(numbers);
+IO::PrintLine("Size after duplicate: " ++ (size2 as Text));
+
+// Test remove
+def removed = HashSet::SetRemove(numbers, 20);
+IO::PrintLine(if removed then "Remove 20: true" else "Remove 20: false");
+
+// Verify 20 is gone
+def has20_after = HashSet::SetContains(numbers, 20);
+IO::PrintLine(if has20_after then "Contains 20 after remove: true" else "Contains 20 after remove: false");
+
+// Size should be 2
+def size3 = HashSet::SetSize(numbers);
+IO::PrintLine("Size after remove: " ++ (size3 as Text));
+
+// Test remove non-existent
+def removed_99 = HashSet::SetRemove(numbers, 99);
+IO::PrintLine(if removed_99 then "Remove 99: true" else "Remove 99: false");
+
+IO::PrintLine("hashset_basic: PASS");

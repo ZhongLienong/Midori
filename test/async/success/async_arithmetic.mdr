@@ -1,3 +1,5 @@
+module AsyncArithmetic
+
 import { <IO> }
 
 def task : Future<Int> = async (5 + 3) * 2;

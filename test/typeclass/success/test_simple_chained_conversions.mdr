@@ -1,3 +1,5 @@
+module TestSimpleChainedConversions
+
 // Test: Simple chained conversions that don't require converting TO a type variable
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 

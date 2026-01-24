@@ -1,3 +1,5 @@
+module SimpleDataAbstraction
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

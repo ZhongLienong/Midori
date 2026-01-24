@@ -1,3 +1,5 @@
+module Async100Tasks
+
 import { <IO> }
 
 struct Point { x: Float, y: Float };

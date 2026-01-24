@@ -1,3 +1,5 @@
+module NestedGenerics
+
 // Test: Nested generic types
 // Expected: Should compile - generics can be nested
 

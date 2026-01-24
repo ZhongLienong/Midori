@@ -1,3 +1,5 @@
+module StructAsyncTest
+
 // Async test with struct operations
 
 import { <IO> }

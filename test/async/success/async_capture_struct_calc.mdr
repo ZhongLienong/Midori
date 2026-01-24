@@ -1,3 +1,5 @@
+module AsyncCaptureStructCalc
+
 import { <IO> }
 
 struct Point {

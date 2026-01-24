@@ -1,3 +1,5 @@
+module SingleCaptureStructTest
+
 // Single async with capture and struct
 
 import { <IO> }

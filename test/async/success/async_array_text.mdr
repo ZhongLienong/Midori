@@ -1,3 +1,5 @@
+module AsyncArrayText
+
 import { <IO> }
 
 defun compute(x: Int) : Text => "Result: " ++ (x * x as Text);

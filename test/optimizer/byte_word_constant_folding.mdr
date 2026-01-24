@@ -1,3 +1,5 @@
+module ByteWordConstantFolding
+
 // Test constant folding for Byte and Word types
 import { "../../MidoriPrelude/IO.mdr" }
 

@@ -1,3 +1,5 @@
+module GenerateParen
+
 import 
 {
 	"../../MidoriPrelude/IO.mdr",

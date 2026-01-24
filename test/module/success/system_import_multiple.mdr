@@ -1,3 +1,5 @@
+module SystemImportMultiple
+
 // Test: multiple system imports
 
 import { <IO>, <Math> }

@@ -1,3 +1,5 @@
+module ImportAtEnd
+
 // Test: import statement at the very end
 
 defun helper(x: Float): Float => { x * 2.0 };

@@ -1,3 +1,5 @@
+module Loop2CaptureStructTest
+
 // Async test with loop (2 iterations), capture AND struct
 
 import { <IO> }

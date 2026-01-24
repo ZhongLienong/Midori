@@ -1,0 +1,33 @@
+module TextKeys
+
+// Test HashSet with Text keys
+import 
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/HashSet.mdr"
+}
+
+def names = HashSet::SetNew();
+
+// Insert strings
+HashSet::SetInsert(names, "Alice");
+HashSet::SetInsert(names, "Bob");
+HashSet::SetInsert(names, "Charlie");
+
+IO::PrintLine("Size: " ++ (HashSet::SetSize(names) as Text));
+
+// Test contains
+def has_alice = HashSet::SetContains(names, "Alice");
+def has_dave = HashSet::SetContains(names, "Dave");
+
+IO::PrintLine(if has_alice then "Has Alice: true" else "Has Alice: false");
+IO::PrintLine(if has_dave then "Has Dave: true" else "Has Dave: false");
+
+// Remove and check
+HashSet::SetRemove(names, "Bob");
+def has_bob = HashSet::SetContains(names, "Bob");
+IO::PrintLine(if has_bob then "Has Bob after remove: true" else "Has Bob after remove: false");
+
+IO::PrintLine("Final size: " ++ (HashSet::SetSize(names) as Text));
+
+IO::PrintLine("hashset_text: PASS");

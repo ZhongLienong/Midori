@@ -1,3 +1,5 @@
+module FloatComprehension
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 

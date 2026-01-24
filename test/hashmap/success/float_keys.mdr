@@ -1,0 +1,41 @@
+module FloatKeys
+
+// Test HashMap with Float keys
+import 
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/HashMap.mdr",
+    "../../../MidoriPrelude/Prelude.mdr"
+}
+use Prelude.Option;
+
+def measurements : HashMap::MapData<Float, Text> = HashMap::MapNew();
+
+// Insert with Float keys
+HashMap::MapInsert(measurements, 3.14, "Pi");
+HashMap::MapInsert(measurements, 2.71, "Euler");
+HashMap::MapInsert(measurements, 1.41, "Sqrt2");
+
+IO::PrintLine("Size: " ++ (HashMap::MapSize(measurements) as Text));
+
+// Get values
+def pi_node = HashMap::MapGet(measurements, 3.14);
+match pi_node with
+    case Option::Some(val) => IO::PrintLine("3.14 = " ++ val)
+    case Option::None() => IO::PrintLine("3.14 not found")
+;
+
+def euler_node = HashMap::MapGet(measurements, 2.71);
+match euler_node with
+    case Option::Some(val) => IO::PrintLine("2.71 = " ++ val)
+    case Option::None() => IO::PrintLine("2.71 not found")
+;
+
+def unknown_node = HashMap::MapGet(measurements, 9.99);
+match unknown_node with
+    case Option::Some(val) => IO::PrintLine("9.99 = " ++ val)
+    case Option::None() => IO::PrintLine("9.99 not found")
+;
+
+IO::PrintLine("hashmap_float: PASS");

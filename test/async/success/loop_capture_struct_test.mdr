@@ -1,3 +1,5 @@
+module LoopCaptureStructTest
+
 // Async test with loop, capture AND struct, but no inner loop
 
 import { <IO> }

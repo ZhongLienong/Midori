@@ -1,3 +1,5 @@
+module MixedLocalSystemImport
+
 // Test: mixing local and system imports
 
 import {

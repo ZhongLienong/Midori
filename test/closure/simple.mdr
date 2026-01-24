@@ -1,3 +1,5 @@
+module Simple
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

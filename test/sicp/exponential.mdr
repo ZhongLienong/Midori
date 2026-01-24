@@ -1,3 +1,5 @@
+module Exponential
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

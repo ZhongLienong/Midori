@@ -1,3 +1,5 @@
+module AsyncStructReturn
+
 import { <IO> }
 
 struct Point {

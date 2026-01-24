@@ -1,3 +1,5 @@
+module NestedAsyncTest
+
 // Async test with nested calls and captures like mandelbrot
 
 import { <IO> }

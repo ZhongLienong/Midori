@@ -1,3 +1,5 @@
+module Prime100000
+
 import 
 {
 	"../../MidoriPrelude/IO.mdr",

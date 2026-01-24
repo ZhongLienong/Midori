@@ -1,3 +1,5 @@
+module MultipleImportBlocks
+
 // Test: multiple separate import blocks
 
 import { <IO> }

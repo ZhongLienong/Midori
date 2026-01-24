@@ -1,3 +1,5 @@
+module TestConvertableSimple
+
 // Test Convertable class defined inline (same file)
 import { "../../../MidoriPrelude/IO.mdr" }
 

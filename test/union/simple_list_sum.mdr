@@ -1,3 +1,5 @@
+module SimpleListSum
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

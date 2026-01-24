@@ -1,3 +1,5 @@
+module LoopSpawnTextReturn
+
 import { <IO> }
 
 defun test_async() : Text =>

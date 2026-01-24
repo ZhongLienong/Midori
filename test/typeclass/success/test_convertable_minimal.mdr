@@ -1,3 +1,5 @@
+module TestConvertableMinimal
+
 // Minimal test of Convertable class - just verify it compiles and runs
 import { "../../../MidoriPrelude/IO.mdr" }
 

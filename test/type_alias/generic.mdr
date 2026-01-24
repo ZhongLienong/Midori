@@ -1,3 +1,5 @@
+module Generic
+
 // Test: Generic type aliases
 // Expected: Type aliases with generic parameters should work
 

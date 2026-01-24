@@ -1,3 +1,5 @@
+module ClosureInsideConditional
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

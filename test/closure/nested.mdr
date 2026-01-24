@@ -1,3 +1,5 @@
+module Nested
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

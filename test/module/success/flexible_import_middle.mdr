@@ -1,3 +1,5 @@
+module FlexibleImportMiddle
+
 // Test: import statement in the middle of code
 
 defun double(x: Float): Float => { x * 2.0 };

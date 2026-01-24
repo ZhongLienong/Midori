@@ -1,3 +1,5 @@
+module MixedImports
+
 import
 {
 	<IO>,

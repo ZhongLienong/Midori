@@ -1,1 +1,3 @@
+module BreakOutsideLoop
+
 break 1;

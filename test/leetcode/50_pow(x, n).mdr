@@ -1,3 +1,5 @@
+module Leetcode50Pow
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

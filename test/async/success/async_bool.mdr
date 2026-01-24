@@ -1,3 +1,5 @@
+module AsyncBool
+
 import { <IO> }
 
 defun isEven(n: Int) : Bool => n % 2 == 0;

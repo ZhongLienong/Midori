@@ -3754,6 +3754,14 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									{
 										base_type = type_it->second;
 									}
+									else
+									{
+										std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator symbols_it = m_imported_symbols.find(qualifier);
+										if (symbols_it != m_imported_symbols.cend())
+										{
+											return std::unexpected<std::string>(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
+										}
+									}
 								}
 							}
 						}

@@ -1,3 +1,5 @@
+module FuncMember
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

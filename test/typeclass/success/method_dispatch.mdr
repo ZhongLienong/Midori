@@ -1,3 +1,5 @@
+module MethodDispatch
+
 // Method dispatch test
 // Tests: constrained generic functions, instance method resolution
 

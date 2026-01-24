@@ -1,3 +1,5 @@
+module PipeTest
+
 // Comprehensive pipe operator test
 
 import

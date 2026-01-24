@@ -1,3 +1,5 @@
+module HigherOrderFunction
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

@@ -1,3 +1,5 @@
+module Mutable
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

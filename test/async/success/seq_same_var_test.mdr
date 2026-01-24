@@ -1,3 +1,5 @@
+module SeqSameVarTest
+
 // Two async capturing same variable after reassignment
 
 import { <IO> }

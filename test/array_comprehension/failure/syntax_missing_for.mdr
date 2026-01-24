@@ -1,2 +1,4 @@
+module SyntaxMissingFor
+
 // Missing 'for' keyword
 def x = [i i in 0..1..10];

@@ -1,3 +1,5 @@
+module LoopAsyncTest
+
 // Async test with loop like mandelbrot
 
 import { <IO> }

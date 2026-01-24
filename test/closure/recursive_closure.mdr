@@ -1,3 +1,5 @@
+module RecursiveClosure
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

@@ -1,3 +1,5 @@
+module All
+
 import 
 {
 	"../../MidoriPrelude/IO.mdr",

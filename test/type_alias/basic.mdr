@@ -1,3 +1,5 @@
+module Basic
+
 // Test: Basic type alias functionality
 // Expected: Type aliases should work as synonyms for existing types
 

@@ -1,3 +1,5 @@
+module TestAsComplex
+
 // Complex test cases for Convertable class with as operator
 import { "../../MidoriPrelude/IO.mdr" }
 

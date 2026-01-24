@@ -1,3 +1,5 @@
+module AsyncParams
+
 import { <IO>, <Math> }
 
 struct Complex {

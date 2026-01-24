@@ -1,3 +1,5 @@
+module MultiAsyncTest
+
 // Async test with multiple tasks like mandelbrot
 
 import { <IO> }

@@ -1,3 +1,5 @@
+module LengthOperator
+
 // Test the # length operator
 
 import

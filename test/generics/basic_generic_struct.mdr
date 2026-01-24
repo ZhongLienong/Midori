@@ -1,3 +1,5 @@
+module BasicGenericStruct
+
 // Test: Basic generic struct with single type parameter
 // Expected: Should compile and allow different instantiations
 

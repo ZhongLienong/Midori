@@ -1,3 +1,5 @@
+module NestedCase
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

@@ -1,0 +1,53 @@
+module StressTest
+
+// Test HashMap with many elements to trigger rehashing
+import 
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/HashMap.mdr",
+    "../../../MidoriPrelude/Prelude.mdr"
+}
+use Prelude.Option;
+
+def numbers : HashMap::MapData<Int, Int> = HashMap::MapNew();
+
+// Insert 100 key-value pairs (key -> key * 2)
+for i in 0..1..100 {
+    HashMap::MapInsert(numbers, i, i * 2);
+};
+
+IO::PrintLine("Size after 100 inserts: " ++ (HashMap::MapSize(numbers) as Text));
+
+// Verify all values are correct
+def all_correct = {
+    def count = 0;
+    for i in 0..1..100 {
+        match HashMap::MapGet(numbers, i) with
+            case Option::Some(value) => {
+                if value == i * 2 then {
+                    count <- count + 1;
+                } else {
+                    ()
+                }
+            }
+            case Option::None() => ()
+        ;
+    };
+    count
+};
+
+IO::PrintLine("Correct values: " ++ (all_correct as Text));
+
+// Check non-existent keys
+match HashMap::MapGet(numbers, 200) with
+    case Option::Some(_) => IO::PrintLine("Found 200: true")
+    case Option::None() => IO::PrintLine("Found 200: false")
+;
+
+match HashMap::MapGet(numbers, -1) with
+    case Option::Some(_) => IO::PrintLine("Found -1: true")
+    case Option::None() => IO::PrintLine("Found -1: false")
+;
+
+IO::PrintLine("hashmap_stress: PASS");

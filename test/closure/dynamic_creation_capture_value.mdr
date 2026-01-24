@@ -1,3 +1,5 @@
+module DynamicCreationCaptureValue
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

@@ -1,3 +1,5 @@
+module RangeIteration
+
 // Test that range iteration still works after array iteration changes
 
 import

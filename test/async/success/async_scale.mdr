@@ -1,3 +1,5 @@
+module AsyncScale
+
 import { <IO>, <Math> }
 
 struct Complex {

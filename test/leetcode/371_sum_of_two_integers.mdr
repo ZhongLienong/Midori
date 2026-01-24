@@ -1,3 +1,5 @@
+module Leetcode371SumOfTwoIntegers
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

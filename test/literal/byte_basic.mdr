@@ -1,3 +1,5 @@
+module ByteBasic
+
 // Basic Byte Type Tests
 import { "../../MidoriPrelude/IO.mdr" }
 

@@ -111,7 +111,7 @@ public:
 	MidoriResult::TypeCheckerResult TypeCheck();
 
 	// Extract type signatures from parsed AST (for parallel type checking)
-	static TypeEnvironment ExtractTypeSignatures(const MidoriProgramTree& ast);
+	static TypeEnvironment ExtractTypeSignatures(const MidoriProgramTree& ast, const std::unordered_set<std::string>* exported_symbols = nullptr);
 
 private:
 

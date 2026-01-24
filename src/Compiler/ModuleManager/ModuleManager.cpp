@@ -8,6 +8,7 @@
 #include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <queue>
 #include <sstream>
@@ -40,7 +41,38 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 		if (module_name.empty())
 		{
-			module_name = std::filesystem::path(m_main_file_name).stem().string();
+			return std::unexpected
+			(
+				MidoriError::GenerateModuleErrorWithContext
+				(
+					"Module declaration required. All .mdr files must begin with an explicit 'module ModuleName' declaration.",
+					1,
+					m_main_file_name
+				)
+			);
+		}
+
+		if (build_graph.m_module_name_to_file.contains(module_name))
+		{
+			const std::string& existing_file = build_graph.m_module_name_to_file.at(module_name);
+			if (existing_file != m_main_file_name)
+			{
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+					std::format
+					(
+						"Duplicate module declaration: '{}' is declared in multiple files:\n  First:  {}\n  Second: {}",
+						module_name,
+						existing_file,
+						m_main_file_name
+					),
+					1,
+					m_main_file_name
+				));
+			}
+		}
+		else
+		{
+			build_graph.m_module_name_to_file[module_name] = m_main_file_name;
 		}
 
 		bool has_module_decl = std::ranges::any_of(spans, [](const StatementSpan& span) { return span.m_type == StatementType::MODULE; });

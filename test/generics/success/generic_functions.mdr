@@ -1,3 +1,5 @@
+module GenericFunctions
+
 // Test: Generic functions
 // Expected: Should compile and allow type inference at call sites
 

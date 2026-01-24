@@ -1,3 +1,5 @@
+module BasicRange
+
 // Test ternary range with step (start..step..end)
 def range_with_step = 0..2..10;
 

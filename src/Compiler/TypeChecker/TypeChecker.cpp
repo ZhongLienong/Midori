@@ -794,55 +794,65 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 // Extract type signatures from parsed AST without full type checking
 // This allows parallel type checking of dependent modules
-TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProgramTree& ast)
+TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProgramTree& ast, const std::unordered_set<std::string>* exported_symbols)
 {
 	TypeEnvironment signatures;
 
 	for (const std::unique_ptr<MidoriStatement>& statement : ast)
 	{
 		std::visit(
-			[&signatures](const auto& stmt) {
+			[&signatures, exported_symbols](const auto& stmt) {
 				using T = std::decay_t<decltype(stmt)>;
 
 				if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
 				{
-					// Extract function signature
-					signatures[stmt.m_name.m_lexeme] = MidoriType::MakeFunctionType(
-						stmt.m_param_types,
-						std::shared_ptr<MidoriType>(stmt.m_return_type)
-					);
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
+					{
+						signatures[stmt.m_name.m_lexeme] = MidoriType::MakeFunctionType(
+							stmt.m_param_types,
+							std::shared_ptr<MidoriType>(stmt.m_return_type)
+						);
+					}
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::Struct>)
 				{
-					// Struct already has its complete type in m_self_type
-					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
+					{
+						signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+					}
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
 				{
-					// Union exported as the UnionType itself
-					signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
-
-					// and its constructors
-					if (stmt.m_self_type->template IsType<MidoriType::UnionType>())
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
-						const MidoriType::UnionType& union_type = stmt.m_self_type->template GetType<MidoriType::UnionType>();
-						for (const auto& [member_name, member_ctx] : union_type.m_member_info)
+						signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
+
+						if (stmt.m_self_type->template IsType<MidoriType::UnionType>())
 						{
-							std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
-							std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MidoriType>(stmt.m_self_type));
-							signatures[member_name] = union_constructor_type;
+							const MidoriType::UnionType& union_type = stmt.m_self_type->template GetType<MidoriType::UnionType>();
+							for (const auto& [member_name, member_ctx] : union_type.m_member_info)
+							{
+								std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
+								std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MidoriType>(stmt.m_self_type));
+								signatures[member_name] = union_constructor_type;
+							}
 						}
 					}
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
 				{
-					signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_function_name.m_lexeme))
+					{
+						signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
+					}
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::TypeAlias>)
 				{
-					signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
+					{
+						signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
+					}
 				}
-				// Other statement types (Simple, Define, etc.) don't export types
 			},
 			**statement
 		);

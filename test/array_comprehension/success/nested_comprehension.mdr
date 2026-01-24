@@ -1,3 +1,5 @@
+module NestedComprehension
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 

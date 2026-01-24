@@ -1,3 +1,5 @@
+module StrConcat
+
 import 
 {
 	"../../MidoriPrelude/IO.mdr",

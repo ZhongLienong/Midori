@@ -1,3 +1,5 @@
+module AsyncText
+
 import { <IO> }
 
 defun greet(name: Text) : Text => "Hello, " ++ name ++ "!";

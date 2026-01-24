@@ -1,3 +1,5 @@
+module CrossModuleUse
+
 // Test: Import class from another module and use it
 
 import { "../../../MidoriPrelude/IO.mdr", "./show_typeclass.mdr" }

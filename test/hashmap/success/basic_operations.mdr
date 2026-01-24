@@ -1,0 +1,80 @@
+module BasicOperations
+
+// Test HashMap basic operations
+import 
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/HashMap.mdr",
+    "../../../MidoriPrelude/Prelude.mdr"
+}
+
+// Create a new HashMap using literal syntax
+// Explicit type annotation to ensure inference works for MapGet
+def ages : HashMap::MapData<Text, Int> = HashMap::MapNew();
+
+// Test insert
+def inserted1 = HashMap::MapInsert(ages, "Alice", 25);
+def inserted2 = HashMap::MapInsert(ages, "Bob", 30);
+def inserted3 = HashMap::MapInsert(ages, "Charlie", 35);
+
+IO::PrintLine(if inserted1 then "Insert Alice: true" else "Insert Alice: false");
+IO::PrintLine(if inserted2 then "Insert Bob: true" else "Insert Bob: false");
+IO::PrintLine(if inserted3 then "Insert Charlie: true" else "Insert Charlie: false");
+
+// Test size
+def size1 = HashMap::MapSize(ages);
+IO::PrintLine("Size after 3 inserts: " ++ (size1 as Text));
+
+// Test get - returns Option<Int>
+def alice_res = HashMap::MapGet(ages, "Alice");
+match alice_res with
+    case Option::Some(age) => IO::PrintLine("Alice age: " ++ (age as Text))
+    case Option::None() => IO::PrintLine("Alice not found")
+;
+
+def bob_res = HashMap::MapGet(ages, "Bob");
+match bob_res with
+    case Option::Some(age) => IO::PrintLine("Bob age: " ++ (age as Text))
+    case Option::None() => IO::PrintLine("Bob not found")
+;
+
+def dave_res = HashMap::MapGet(ages, "Dave");
+match dave_res with
+    case Option::Some(age) => IO::PrintLine("Dave age: " ++ (age as Text))
+    case Option::None() => IO::PrintLine("Dave not found")
+;
+
+// Test contains
+def has_alice = HashMap::MapContains(ages, "Alice");
+def has_dave = HashMap::MapContains(ages, "Dave");
+
+IO::PrintLine(if has_alice then "Contains Alice: true" else "Contains Alice: false");
+IO::PrintLine(if has_dave then "Contains Dave: true" else "Contains Dave: false");
+
+// Test duplicate insert - should return false (key exists)
+def dup_inserted = HashMap::MapInsert(ages, "Alice", 26);
+IO::PrintLine(if dup_inserted then "Duplicate insert Alice: true" else "Duplicate insert Alice: false");
+
+// Value should remain unchanged (25, not 26)
+def alice_res2 = HashMap::MapGet(ages, "Alice");
+match alice_res2 with
+    case Option::Some(age) => IO::PrintLine("Alice age after dup insert: " ++ (age as Text))
+    case Option::None() => IO::PrintLine("Alice not found after dup insert")
+;
+
+// Test remove
+def removed = HashMap::MapRemove(ages, "Bob");
+IO::PrintLine(if removed then "Remove Bob: true" else "Remove Bob: false");
+
+// Verify Bob is gone
+def bob_res2 = HashMap::MapGet(ages, "Bob");
+match bob_res2 with
+    case Option::Some(age) => IO::PrintLine("Bob found after remove: true")
+    case Option::None() => IO::PrintLine("Bob found after remove: false")
+;
+
+// Size should be 2
+def size2 = HashMap::MapSize(ages);
+IO::PrintLine("Size after remove: " ++ (size2 as Text));
+
+IO::PrintLine("hashmap_basic: PASS");

@@ -222,6 +222,11 @@ MidoriTraceable* MidoriValue::GetPointer() const noexcept
 	return reinterpret_cast<MidoriTraceable*>(raw & TAG_MASK);
 }
 
+const void* MidoriValue::GetRawDataPtr() const noexcept
+{
+	return &m_data;
+}
+
 #if MIDORI_DEBUG_FULL
 MidoriText MidoriValue::ToText() const
 {

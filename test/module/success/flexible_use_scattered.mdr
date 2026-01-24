@@ -1,3 +1,5 @@
+module FlexibleUseScattered
+
 // Test: use statements scattered throughout the code
 
 import { <IO> }

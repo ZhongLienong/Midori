@@ -1,3 +1,5 @@
+module Mandelbrot100x100
+
 import
 {
     <IO>,

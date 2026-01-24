@@ -1,3 +1,5 @@
+module UnsatisfiableConstraint
+
 // Test: Call to generic function with type that doesn't have required instance
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 

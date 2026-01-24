@@ -1,3 +1,5 @@
+module SimpleAsyncTest
+
 // Simple async test without struct operations
 
 import { <IO> }

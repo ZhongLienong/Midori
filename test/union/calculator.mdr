@@ -1,3 +1,5 @@
+module Calculator
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

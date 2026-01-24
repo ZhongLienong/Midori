@@ -1,3 +1,5 @@
+module AsyncUnusedCapture
+
 import { <IO> }
 
 struct Point {

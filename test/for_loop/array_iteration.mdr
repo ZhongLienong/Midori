@@ -1,3 +1,5 @@
+module ArrayIteration
+
 // Test array iteration in for-loops
 
 import

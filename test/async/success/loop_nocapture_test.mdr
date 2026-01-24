@@ -1,3 +1,5 @@
+module LoopNocaptureTest
+
 // Async test with loop but no captures
 
 import { <IO> }

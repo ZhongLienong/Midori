@@ -119,6 +119,8 @@ public:
 
 	MidoriTraceable* GetPointer() const noexcept;
 
+	const void* GetRawDataPtr() const noexcept;
+
 #if MIDORI_DEBUG_FULL
 	MidoriText ToText() const;
 

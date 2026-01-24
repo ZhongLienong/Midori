@@ -1,3 +1,5 @@
+module LexicalScoping
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

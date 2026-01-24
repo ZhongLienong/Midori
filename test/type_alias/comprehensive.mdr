@@ -1,3 +1,5 @@
+module Comprehensive
+
 // Test: Comprehensive type alias functionality
 // Expected: Type aliases work with primitives, structs, and generic types
 

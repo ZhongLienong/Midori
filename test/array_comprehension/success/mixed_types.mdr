@@ -1,3 +1,5 @@
+module MixedTypes
+
 import { "../../../MidoriPrelude/IO.mdr" }
 
 // Iterating over an existing array of strings

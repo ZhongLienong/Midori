@@ -1,3 +1,5 @@
+module WordBasic
+
 // Basic Word Type Tests
 import { "../../MidoriPrelude/IO.mdr" }
 

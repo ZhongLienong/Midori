@@ -1,3 +1,5 @@
+module TestEquatableOrderable
+
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Equatable.mdr", "../../../MidoriPrelude/Orderable.mdr" }
 
 struct Point {

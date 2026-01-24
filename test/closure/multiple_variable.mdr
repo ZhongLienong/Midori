@@ -1,3 +1,5 @@
+module MultipleVariable
+
 import
 {
 	"../../MidoriPrelude/IO.mdr",

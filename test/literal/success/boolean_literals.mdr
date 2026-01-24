@@ -1,3 +1,5 @@
+module BooleanLiterals
+
 import
 {
     <IO>

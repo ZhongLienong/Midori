@@ -1,3 +1,5 @@
+module FlexibleModuleImport
+
 // Test: importing a module with flexible statement placement
 
 import { "flexible_module_lib.mdr", <IO> }

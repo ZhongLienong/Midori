@@ -1,3 +1,5 @@
+module AsyncHeavyCompute
+
 import { <IO> }
 
 struct Point { x: Float, y: Float };

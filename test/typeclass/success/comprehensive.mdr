@@ -1,3 +1,5 @@
+module Comprehensive
+
 import { "../../../MidoriPrelude/IO.mdr", }
 
 // Define multiple typeclasses
