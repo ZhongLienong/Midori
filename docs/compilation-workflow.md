@@ -112,18 +112,18 @@ The module manager handles imports and builds a dependency graph for parallel co
    - Search path imports: `import { <ModuleName> }` (uses `MIDORI_PATH`)
 3. **Dependency graph construction** - Build directed graph of module dependencies
 4. **Cycle detection** - Check for circular imports (error if found)
-5. **Compilation stream calculation** - Topological sort for parallel compilation
+5. **Compilation tier calculation** - Topological sort for parallel compilation
    - Modules with no dependencies compile first
    - Dependent modules wait for their dependencies
 
 ### Parallel Compilation
 
-Modules are organized into "streams" for parallel execution:
+Modules are organized into "tiers" for parallel execution:
 
 ```
-Stream 1: [A, B, C]     (no dependencies, compile in parallel)
-Stream 2: [D, E]        (depend on stream 1, wait then compile in parallel)
-Stream 3: [F]           (depends on stream 2)
+Tier 1: [A, B, C]     (no dependencies, compile in parallel)
+Tier 2: [D, E]        (depend on tier 1, wait then compile in parallel)
+Tier 3: [F]           (depends on tier 2)
 ```
 
 ## Phase 3: Syntax Analysis (Parser)

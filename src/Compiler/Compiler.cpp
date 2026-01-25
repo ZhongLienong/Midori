@@ -2,6 +2,7 @@
 #include "Common/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
 #include "Compiler.h"
+#include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/CodeGenerator/CodeGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -66,14 +67,14 @@ MidoriResult::CompilerResult Compiler::Compile()
 						[this](BuildGraph&& build_graph) -> MidoriResult::CompilerResult
 						{
 							std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
-							std::vector<std::vector<std::string>> streams = build_graph.GetCompilationStreams();
+							std::vector<std::vector<std::string>> tiers = build_graph.GetCompilationTiers();
 							std::unordered_map<std::string, CompiledModule> compiled_modules;
 							std::mutex modules_mutex;
 							std::mutex print_mutex;
-							const size_t total_modules = std::accumulate(streams.begin(), streams.end(), 0uz, [](const size_t sum, const std::vector<std::string>& stream) { return sum + stream.size(); });
+							const size_t total_modules = std::accumulate(tiers.begin(), tiers.end(), 0uz, [](const size_t sum, const std::vector<std::string>& tier) { return sum + tier.size(); });
 							std::atomic<size_t> completed_modules{ 0u };
 
-							if (streams.size() > 1u || (streams.size() == 1u && streams[0u].size() > 1u))
+							if (tiers.size() > 1u || (tiers.size() == 1u && tiers[0u].size() > 1u))
 							{
 								std::lock_guard<std::mutex> lock(print_mutex);
 								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
@@ -82,39 +83,39 @@ MidoriResult::CompilerResult Compiler::Compile()
 									"COMPILING",
 									std::format
 									(
-										"{} module{} in {} stream{}\n",
+										"{} module{} in {} tier{}\n",
 										total_modules,
 										total_modules == 1 ? "" : "s",
-										streams.size(),
-										streams.size() == 1u ? "" : "s"
+										tiers.size(),
+										tiers.size() == 1u ? "" : "s"
 									)
 								);
 								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
 							}
 
-							for (size_t stream_idx = 0u; stream_idx < streams.size(); stream_idx += 1u)
+							for (size_t tier_idx = 0u; tier_idx < tiers.size(); tier_idx += 1u)
 							{
-								const std::vector<std::string>& stream = streams[stream_idx];
+								const std::vector<std::string>& tier = tiers[tier_idx];
 
 #ifndef __EMSCRIPTEN__
 								// Native: Use async compilation for parallel builds
 								std::vector<MidoriResult::FutureModuleResult> futures;
-								futures.reserve(stream.size());
+								futures.reserve(tier.size());
 
-								for (const std::string& file_path : stream)
+								for (const std::string& file_path : tier)
 								{
 									futures.emplace_back
 									(
 										std::async
 										(
 											std::launch::async,
-											[&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, file_path]() -> std::expected<CompiledModule, std::string>
+											[&print_mutex, &completed_modules, &tiers, &tier_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, file_path]() -> std::expected<CompiledModule, std::string>
 											{
 #else
 								// WASM: Use synchronous compilation (no thread support)
-								for (const std::string& file_path : stream)
+								for (const std::string& file_path : tier)
 								{
-									std::function<MidoriResult::CompiledModuleResult()> compile_module = [&print_mutex, &completed_modules, &streams, &stream_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, &file_path]() -> std::expected<CompiledModule, std::string>
+									std::function<MidoriResult::CompiledModuleResult()> compile_module = [&print_mutex, &completed_modules, &tiers, &tier_idx, &total_modules, &build_graph, &modules_mutex, &compiled_modules, this, &file_path]() -> std::expected<CompiledModule, std::string>
 									{
 #endif
 												size_t current_module;
@@ -123,13 +124,13 @@ MidoriResult::CompilerResult Compiler::Compile()
 													current_module = ++completed_modules;
 													std::string short_path = std::filesystem::path(file_path).filename().string();
 
-													// Show stream info for multi-stream builds, just progress for single stream
-													if (streams.size() > 1u)
+													// Show tier info for multi-tier builds, just progress for single tier
+													if (tiers.size() > 1u)
 													{
 														Printer::PrintLabeled<Printer::Color::BLUE, Printer::Color::WHITE>
 														(
 															std::format("[{}/{}]", current_module, total_modules),
-															std::format("Stream {} -> {}\n", stream_idx + 1, short_path)
+															std::format("Tier {} -> {}\n", tier_idx + 1, short_path)
 														);
 													}
 													else
@@ -341,7 +342,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 									));
 								}
 
-								// Wait for all modules in this stream to complete
+								// Wait for all modules in this tier to complete
 								for (size_t i = 0u; i < futures.size(); i += 1u)
 								{
 									MidoriResult::CompiledModuleResult result = futures[i].get();
@@ -351,7 +352,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 									}
 
 									// Insert compiled module
-									const std::string& file_path = stream[i];
+									const std::string& file_path = tier[i];
 									std::lock_guard<std::mutex> lock(modules_mutex);
 									compiled_modules.emplace(file_path, std::move(result).value());
 								}
@@ -373,10 +374,10 @@ MidoriResult::CompilerResult Compiler::Compile()
 
 							// Collect all bytecode modules in dependency order
 							std::vector<BytecodeModule> all_bytecode_modules;
-							all_bytecode_modules.reserve(streams.size());
-							for (const std::vector<std::string>& stream : streams)
+							all_bytecode_modules.reserve(tiers.size());
+							for (const std::vector<std::string>& tier : tiers)
 							{
-								for (const std::string& file_path : stream)
+								for (const std::string& file_path : tier)
 								{
 									std::unordered_map<std::string, CompiledModule>::iterator it = compiled_modules.find(file_path);
 									all_bytecode_modules.emplace_back(std::move(it->second.m_bytecode.value()));
@@ -386,7 +387,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 							std::chrono::high_resolution_clock::time_point compile_end = std::chrono::high_resolution_clock::now();
 							std::chrono::milliseconds compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(compile_end - compile_start);
 
-							if (streams.size() > 1u || (streams.size() == 1u && streams[0u].size() > 1u))
+							if (tiers.size() > 1u || (tiers.size() == 1u && tiers[0u].size() > 1u))
 							{
 								std::lock_guard<std::mutex> lock(print_mutex);
 								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);

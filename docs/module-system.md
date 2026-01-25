@@ -53,7 +53,7 @@ Orchestrates module compilation:
 - Extracts module declarations and imports
 - Builds dependency graph
 - Detects circular dependencies
-- Creates compilation streams for parallel processing
+- Creates compilation tiers for parallel processing
 
 #### 4. ImportResolver
 **Location**: `src/Compiler/ImportResolver/ImportResolver.h/cpp`
@@ -65,7 +65,7 @@ Resolves import paths:
 - Platform-aware path handling
 
 #### 5. BuildGraph
-**Location**: `src/Compiler/Token/Token.h`
+**Location**: `src/Compiler/BuildGraph/BuildGraph.h`
 
 Tracks module dependencies and compilation order:
 ```cpp
@@ -400,7 +400,7 @@ Check Circular Dependencies
 Calculate In-Degrees
        │
        ▼
-Create Compilation Streams
+Create Compilation Tiers
 ```
 
 Steps:
@@ -410,7 +410,7 @@ Steps:
 4. **Dependency Graph**: Build `ModuleDependencyGraph` (module → dependencies)
 5. **Cycle Detection**: Use DFS to detect circular dependencies
 6. **Topological Sort**: Calculate in-degrees for compilation ordering
-7. **Parallel Streams**: Group independent modules for parallel compilation
+7. **Parallel Tiers**: Group independent modules for parallel compilation
 
 ### Phase 2: Statement Extraction
 
@@ -493,24 +493,24 @@ Duplicate module declaration: 'SharedModule' is declared in multiple files:
   Second: /path/to/file_b.mdr
 ```
 
-### Phase 4: Compilation Streams
+### Phase 4: Compilation Tiers
 
-**Location**: `src/Compiler/Token/Token.h:126-148`
+**Location**: `src/Compiler/BuildGraph/BuildGraph.h`
 
 Parallel compilation strategy:
 
 ```cpp
-std::vector<std::vector<std::string>> GetCompilationStreams() const
+std::vector<std::vector<std::string>> GetCompilationTiers() const
 ```
 
-Returns streams for parallel processing:
+Returns tiers for parallel processing:
 ```
-Stream 1: [ModuleA, ModuleB, ModuleC]  // No dependencies between them
-Stream 2: [ModuleD]                     // Depends on Stream 1
-Stream 3: [ModuleE, ModuleF]            // Depends on Stream 2
+Tier 1: [ModuleA, ModuleB, ModuleC]  // No dependencies between them
+Tier 2: [ModuleD]                     // Depends on Tier 1
+Tier 3: [ModuleE, ModuleF]            // Depends on Tier 2
 ```
 
-Modules within a stream compile in parallel. Streams are processed sequentially based on dependencies.
+Modules within a tier compile in parallel. Tiers are processed sequentially based on dependencies.
 
 ### Phase 5: Per-Module Compilation
 

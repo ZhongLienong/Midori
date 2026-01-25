@@ -10,6 +10,7 @@
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/CompiledModule.h"
+#include "Compiler/BuildGraph/BuildGraph.h"
 
 namespace MidoriResult
 {
