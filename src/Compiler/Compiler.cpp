@@ -129,7 +129,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 													{
 														Printer::PrintLabeled<Printer::Color::BLUE, Printer::Color::WHITE>
 														(
-															std::format("[{}/{}]", current_module, total_modules),
+															std::format("{}/{}", current_module, total_modules),
 															std::format("Tier {} -> {}\n", tier_idx + 1, short_path)
 														);
 													}
@@ -137,7 +137,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 													{
 														Printer::PrintLabeled<Printer::Color::BLUE, Printer::Color::WHITE>
 														(
-															std::format("[{}/{}]", current_module, total_modules),
+															std::format("{}/{}", current_module, total_modules),
 															std::format("{}\n", short_path)
 														);
 													}
