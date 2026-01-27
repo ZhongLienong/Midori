@@ -2432,7 +2432,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		}
 	}
 
-	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("BoundedName expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
+	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& bind)

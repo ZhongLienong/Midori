@@ -1642,7 +1642,7 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad BoundedName expression", variable.m_name, m_file_name, m_source_lines));
+				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad name access expression", variable.m_name, m_file_name, m_source_lines));
 				return;
 			}
 		}, 
