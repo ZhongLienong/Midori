@@ -21,9 +21,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release" CACHE STRING "" FORCE)
 
 # Output directories for build artifacts
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out)
+set(MIDORI_OUTPUT_DIR "${CMAKE_BINARY_DIR}/out")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
 
 # ============================================================================
 # External Dependencies
@@ -44,25 +45,38 @@ FetchContent_MakeAvailable(toml11)
 include(TestBigEndian)
 test_big_endian(IS_BIG_ENDIAN)
 
+set(MIDORI_ENDIAN_DEFINES
+    $<$<BOOL:${IS_BIG_ENDIAN}>:MIDORI_BIG_ENDIAN>
+    $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
+)
+
+function(midori_configure_target target_name)
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_link_libraries(${target_name} PRIVATE toml11::toml11)
+    target_compile_definitions(${target_name} PRIVATE ${MIDORI_ENDIAN_DEFINES})
+endfunction()
+
 # ============================================================================
 # Source File Collection
 # ============================================================================
 # Collect common source files
-file(GLOB_RECURSE COMMON_HEADERS
+file(GLOB_RECURSE COMMON_HEADERS CONFIGURE_DEPENDS
     "src/Common/*.h"
     "src/Compiler/*.h"
     "src/Interpreter/*.h"
     "src/Utility/*.h"
 )
 
-file(GLOB_RECURSE COMMON_SOURCES
+file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
     "src/Common/*.cpp"
     "src/Compiler/*.cpp"
     "src/Interpreter/*.cpp"
     "src/Utility/*.cpp"
 )
 
-file(GLOB_RECURSE LIBRARY_SOURCES
+file(GLOB_RECURSE LIBRARY_SOURCES CONFIGURE_DEPENDS
     "src/Library/*.cpp"
 )
 
@@ -73,7 +87,7 @@ if(EMSCRIPTEN)
     message(STATUS "Configuring for WebAssembly build with Emscripten")
 
     # Collect WASM-specific files
-    file(GLOB_RECURSE WASM_FILES
+    file(GLOB_RECURSE WASM_FILES CONFIGURE_DEPENDS
         "src/WASM/*.h"
         "src/WASM/*.cpp"
     )
@@ -86,26 +100,14 @@ if(EMSCRIPTEN)
         ${WASM_FILES}
     )
 
+    midori_configure_target(Midori)
+
     # Target-specific compile options
     target_compile_options(Midori PRIVATE
         -fexceptions
         -O3
         -Wno-deprecated-literal-operator
     )
-
-    # Target-specific compile definitions
-    target_compile_definitions(Midori PRIVATE
-        $<$<BOOL:${IS_BIG_ENDIAN}>:MIDORI_BIG_ENDIAN>
-        $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
-    )
-
-    # Target include directories
-    target_include_directories(Midori PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-    )
-
-    # Link external libraries
-    target_link_libraries(Midori PRIVATE toml11::toml11)
 
     # Emscripten linker options
     target_link_options(Midori PRIVATE
@@ -138,7 +140,7 @@ else()
     message(STATUS "Configuring for native build")
 
     # Collect library headers for static linking
-    file(GLOB_RECURSE LIBRARY_HEADERS
+    file(GLOB_RECURSE LIBRARY_HEADERS CONFIGURE_DEPENDS
         "src/Library/*.h"
     )
 
@@ -151,13 +153,7 @@ else()
         "src/Midori.cpp"
     )
 
-    # Target include directories
-    target_include_directories(Midori PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-    )
-
-    # Link external libraries
-    target_link_libraries(Midori PRIVATE toml11::toml11)
+    midori_configure_target(Midori)
 
     # Link platform-specific dynamic loading libraries
     if(WIN32)
@@ -167,8 +163,6 @@ else()
 
     # Target-specific compile definitions
     target_compile_definitions(Midori PRIVATE
-        $<$<BOOL:${IS_BIG_ENDIAN}>:MIDORI_BIG_ENDIAN>
-        $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
         $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
         $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
         $<$<CONFIG:Release>:NDEBUG>

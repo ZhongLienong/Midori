@@ -948,48 +948,30 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 {
 	Token& op = Previous();
 
-	// If Previous() is RIGHT_LEFT_BRACKET (from array literal ending like [1,2,3][0]),
-	// we already have the '[' part consumed, so skip the Consume
-	if (op.m_token_name == Token::Name::RIGHT_LEFT_BRACKET)
-	{
-		return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-			(
-				[this]() { return ParseBind(); },
-				[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
-				[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
-			)
-			.and_then
-			(
-				[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
-				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
-				}
-			);
-	}
-	else
-	{
-		// Normal case: consume LEFT_BRACKET
-		return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
-			.and_then
-			(
-				[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
-				{
-					return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-						(
-							[this]() { return ParseBind(); },
-							[this]() { return Consume(Token::Name::RIGHT_LEFT_BRACKET, "Expected '][' after index."); },
-							[this]() { return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index."); }
-						)
-						.and_then
-						(
-							[&op, &arr_var](std::vector<std::unique_ptr<MidoriExpression>>&& indices) ->MidoriResult::ExpressionResult
-							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
-							}
-						);
-				}
-			);
-	}
+	return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
+		.and_then
+		(
+			[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
+			{
+				return ParseBind()
+					.and_then
+					(
+						[&op, &arr_var, this](std::unique_ptr<MidoriExpression>&& index) ->MidoriResult::ExpressionResult
+						{
+							return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index.")
+								.and_then
+								(
+									[&op, &arr_var, index = std::move(index)](Token&&) mutable ->MidoriResult::ExpressionResult
+									{
+										std::vector<std::unique_ptr<MidoriExpression>> indices;
+										indices.emplace_back(std::move(index));
+										return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
+									}
+								);
+						}
+					);
+			}
+		);
 }
 
 MidoriResult::ExpressionResult Parser::ParseArrayAccess()
@@ -999,9 +981,8 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccess()
 		(
 			[this](std::unique_ptr<MidoriExpression>&& arr_var) -> MidoriResult::ExpressionResult
 			{
-				// Check if we can do array access:
-				// Either next token is '[' OR previous token was '][' (from array literal ending)
-				bool has_bracket_for_access = Check(Token::Name::LEFT_BRACKET, 0) || Previous().m_token_name == Token::Name::RIGHT_LEFT_BRACKET;
+				// Check if we can do array access: next token is '['.
+				bool has_bracket_for_access = Check(Token::Name::LEFT_BRACKET, 0);
 
 				return has_bracket_for_access
 					? ParseArrayAccessHelper(std::move(arr_var))
@@ -1531,7 +1512,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		Token& op = Previous();
 
 		// Check for empty array first
-		if (Match(Token::Name::RIGHT_BRACKET) || Match(Token::Name::RIGHT_LEFT_BRACKET))
+		if (Match(Token::Name::RIGHT_BRACKET))
 		{
 			return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, {}));
 		}
@@ -1563,10 +1544,6 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 									{
 										return Previous();
 									}
-									else if (Match(Token::Name::RIGHT_LEFT_BRACKET))
-									{
-										return Previous();
-									}
 									else
 									{
 										return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
@@ -1582,7 +1559,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								}
 							);
 					}
-					else if (Match(Token::Name::RIGHT_BRACKET) || Match(Token::Name::RIGHT_LEFT_BRACKET))
+					else if (Match(Token::Name::RIGHT_BRACKET))
 					{
 						// Single element array
 						std::vector<std::unique_ptr<MidoriExpression>> expressions;
@@ -1880,7 +1857,7 @@ std::optional<int> Parser::DetectArrayComprehension()
 		Token::Name current = Peek(offset).m_token_name;
 
 		// Track nesting
-		if (current == Token::Name::LEFT_BRACKET || current == Token::Name::RIGHT_LEFT_BRACKET)
+		if (current == Token::Name::LEFT_BRACKET)
 		{
 			bracket_depth += 1;
 		}
@@ -1999,11 +1976,11 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 					(
 						[&bracket, &actual_loop_var, &in_keyword, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
 						{
-							if (!Match(Token::Name::RIGHT_BRACKET) && !Match(Token::Name::RIGHT_LEFT_BRACKET))
-							{
-								EndScope();
-								return std::unexpected<std::string>(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
-							}
+						if (!Match(Token::Name::RIGHT_BRACKET))
+						{
+							EndScope();
+							return std::unexpected<std::string>(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
+						}
 
 							EndScope();
 

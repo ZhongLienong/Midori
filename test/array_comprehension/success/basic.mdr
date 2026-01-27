@@ -4,7 +4,7 @@ module Basic
 
 import
 {
-    "../../MidoriPrelude/IO.mdr"
+    "../../../MidoriPrelude/IO.mdr"
 }
 
 use IO.{PrintLine}

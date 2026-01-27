@@ -354,16 +354,7 @@ MidoriResult::TokenResult Lexer::LexOneToken()
 				case '[':
 					return MakeTokenResult(Token::Name::LEFT_BRACKET);
 				case ']':
-				{
-					if (MatchNext('['))
-					{
-						return MakeTokenResult(Token::Name::RIGHT_LEFT_BRACKET);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::RIGHT_BRACKET);
-					}
-				}
+					return MakeTokenResult(Token::Name::RIGHT_BRACKET);
 				case ',':
 					return MakeTokenResult(Token::Name::COMMA);
 				case '.':
