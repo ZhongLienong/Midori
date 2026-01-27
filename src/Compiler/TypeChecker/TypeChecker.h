@@ -133,6 +133,8 @@ private:
 
 	bool OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type);
 
+	bool OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited);
+
 	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::ExpressionStatement& simple);

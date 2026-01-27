@@ -3189,6 +3189,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_current_procedure_index = m_procedures.size();
 	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
 	m_procedures.emplace_back();
+	m_specialized_functions[signature] = specialized_proc_index;
 
 	std::visit([this](auto&& arg) { (*this)(arg); }, **generic_info.m_body);
 	EmitByte(OpCode::RETURN, line);
@@ -3201,8 +3202,6 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_param_type_map = std::move(prev_param_map);
 	m_method_resolution_map = std::move(prev_resolution_map);
 	m_generic_type_substitution = std::move(prev_generic_type_map);
-	m_specialized_functions[signature] = specialized_proc_index;
-
 	return specialized_proc_index;
 }
 
@@ -3378,100 +3377,159 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 {
 	using namespace std::string_literals;
 
-	return std::visit(
-		[&type, &generic_type_map, this](auto&& type_variant) -> std::shared_ptr<MidoriType>
-		{
-			using T = std::decay_t<decltype(type_variant)>;
+	using SubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
 
-			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
+	std::unordered_set<const MidoriType*> visiting;
+
+	SubstituteFn substitute = [&generic_type_map, &cache, &visiting, &substitute](const std::shared_ptr<MidoriType>& current) -> std::shared_ptr<MidoriType>
+		{
+			if (!current)
 			{
-				// This is a generic parameter - substitute it with the concrete type
-				TypeEnvironment::const_iterator it = generic_type_map.find(type_variant.m_name);
-				if (it != generic_type_map.end())
-				{
-					return it->second;
-				}
-				// If not found in map, return as-is
-				return type;
+				return current;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+
+			std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(current.get());
+			if (cache_it != cache.end())
 			{
-				// Substitute TypeVariable using its string representation
-				TypeEnvironment::const_iterator it = generic_type_map.find(type->ToString());
-				if (it != generic_type_map.end())
-				{
-					return it->second;
-				}
-				return type;
+				return cache_it->second;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+
+			if (visiting.contains(current.get()))
 			{
-				// Recursively substitute in array element type
-				std::shared_ptr<MidoriType> substituted_element = SubstituteGenericTypes(type_variant.m_element_type, generic_type_map);
-				if (substituted_element != type_variant.m_element_type)
-				{
-					return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
-				}
-				return type;
+				return current;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
-			{
-				// Recursively substitute in tuple element types
-				std::vector<std::shared_ptr<MidoriType>> substituted_elements;
-				bool changed = false;
-				for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
+
+			visiting.insert(current.get());
+
+			std::shared_ptr<MidoriType> result = std::visit
+			(
+				[&generic_type_map, &cache, &visiting, &substitute, &current](auto&& type_variant) -> std::shared_ptr<MidoriType>
 				{
-					std::shared_ptr<MidoriType> substituted = SubstituteGenericTypes(elem_type, generic_type_map);
-					substituted_elements.push_back(substituted);
-					if (substituted != elem_type)
+					using T = std::decay_t<decltype(type_variant)>;
+
+					if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
 					{
-						changed = true;
+						TypeEnvironment::const_iterator it = generic_type_map.find(type_variant.m_name);
+						if (it != generic_type_map.end())
+						{
+							return it->second;
+						}
+						return current;
 					}
-				}
-				if (changed)
-				{
-					return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
-				}
-				return type;
-			}
-			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
-			{
-				// Recursively substitute in parameter and return types
-				std::vector<std::shared_ptr<MidoriType>> substituted_params;
-				bool changed = false;
-				for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
-				{
-					std::shared_ptr<MidoriType> substituted = SubstituteGenericTypes(param_type, generic_type_map);
-					substituted_params.push_back(substituted);
-					if (substituted != param_type)
+					else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
 					{
-						changed = true;
+						TypeEnvironment::const_iterator it = generic_type_map.find(current->ToString());
+						if (it != generic_type_map.end())
+						{
+							return it->second;
+						}
+						return current;
 					}
-				}
-				std::shared_ptr<MidoriType> substituted_return = SubstituteGenericTypes(type_variant.m_return_type, generic_type_map);
-				if (substituted_return != type_variant.m_return_type)
-				{
-					changed = true;
-				}
-				if (changed)
-				{
-					return std::make_shared<MidoriType>(MidoriType::FunctionType{
-						std::move(substituted_params),
-						substituted_return,
-						type_variant.m_is_foreign,
-						type_variant.m_constraints
-					});
-				}
-				return type;
-			}
-			else
-			{
-				// For all other types, return as-is
-				return type;
-			}
-		},
-		type->m_type
-	);
+					else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+					{
+						std::shared_ptr<MidoriType> substituted_element = substitute(type_variant.m_element_type);
+						if (substituted_element != type_variant.m_element_type)
+						{
+							return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
+						}
+						return current;
+					}
+					else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
+					{
+						std::vector<std::shared_ptr<MidoriType>> substituted_elements;
+						bool changed = false;
+						for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
+						{
+							std::shared_ptr<MidoriType> substituted = substitute(elem_type);
+							substituted_elements.push_back(substituted);
+							if (substituted != elem_type)
+							{
+								changed = true;
+							}
+						}
+						if (changed)
+						{
+							return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
+						}
+						return current;
+					}
+					else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+					{
+						std::vector<std::shared_ptr<MidoriType>> substituted_params;
+						bool changed = false;
+						for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
+						{
+							std::shared_ptr<MidoriType> substituted = substitute(param_type);
+							substituted_params.push_back(substituted);
+							if (substituted != param_type)
+							{
+								changed = true;
+							}
+						}
+						std::shared_ptr<MidoriType> substituted_return = substitute(type_variant.m_return_type);
+						if (substituted_return != type_variant.m_return_type)
+						{
+							changed = true;
+						}
+						if (changed)
+						{
+							return std::make_shared<MidoriType>(MidoriType::FunctionType{
+								std::move(substituted_params),
+								substituted_return,
+								type_variant.m_is_foreign,
+								type_variant.m_constraints
+							});
+						}
+						return current;
+					}
+					else if constexpr (std::is_same_v<T, MidoriType::StructType>)
+					{
+						std::vector<std::shared_ptr<MidoriType>> empty_member_types;
+						std::vector<std::string> member_names_copy = type_variant.m_member_names;
+						std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
+						cache[current.get()] = new_struct;
+
+						std::vector<std::shared_ptr<MidoriType>> substituted_members;
+						std::ranges::transform(type_variant.m_member_types, std::back_inserter(substituted_members), substitute);
+						new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(substituted_members);
+						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+						{
+							new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+						}
+						return new_struct;
+					}
+					else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
+					{
+						std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, {});
+						cache[current.get()] = new_union;
+						MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
+						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+						{
+							new_union_ref.m_is_generic_instantiation = true;
+						}
+
+						for (const auto& [member_name, member_ctx] : type_variant.m_member_info)
+						{
+							std::vector<std::shared_ptr<MidoriType>> substituted_members;
+							std::ranges::transform(member_ctx.m_member_types, std::back_inserter(substituted_members), substitute);
+							new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ std::move(substituted_members), member_ctx.m_tag });
+						}
+						return new_union;
+					}
+					else
+					{
+						return current;
+					}
+				},
+				current->m_type
+			);
+
+			visiting.erase(current.get());
+			return result;
+		};
+
+	return substitute(type);
 }
 
 void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count)

@@ -2522,13 +2522,34 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							m_state.m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
 							m_state.m_namespaces.emplace_back(union_name_before_mangle);
 
-							return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
-								.and_then
-								(
-									[&union_type_ref, &union_type, &union_name, &tag, &generic_params, &generic_param_types, has_generic_params, this](Token&&) mutable -> MidoriResult::StatementResult
-									{
-										return ParseDelimitedZeroOrMoreUnlimited<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
-											(
+									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
+										.and_then
+										(
+											[&union_type_ref, &union_type, &union_name, &tag, &generic_params, &generic_param_types, has_generic_params, this](Token&&) mutable -> MidoriResult::StatementResult
+											{
+												struct ActiveUnionScope
+												{
+													std::vector<std::shared_ptr<MidoriType>>& m_stack;
+
+													ActiveUnionScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
+														: m_stack(stack)
+													{
+														m_stack.push_back(type);
+													}
+
+													~ActiveUnionScope()
+													{
+														m_stack.pop_back();
+													}
+
+													ActiveUnionScope(const ActiveUnionScope&) = delete;
+													ActiveUnionScope& operator=(const ActiveUnionScope&) = delete;
+												};
+
+												ActiveUnionScope scope(m_state.m_active_union_types, union_type);
+
+												return ParseDelimitedZeroOrMoreUnlimited<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
+													(
 												[&tag, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
 												{
 													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.")
@@ -3934,6 +3955,44 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										return std::unexpected<std::string>(GenerateParserError(
 											"Type argument count mismatch: expected " + std::to_string(generic_params.size()) +
 											", got " + std::to_string(type_args.size()), type_name));
+									}
+
+									if (base_type->IsType<MidoriType::UnionType>())
+									{
+										bool is_active_union = false;
+										for (const std::shared_ptr<MidoriType>& active_union : m_state.m_active_union_types)
+										{
+											if (active_union.get() == base_type.get())
+											{
+												is_active_union = true;
+												break;
+											}
+										}
+
+										if (is_active_union)
+										{
+											bool type_args_match = true;
+											for (size_t i = 0u; i < type_args.size(); i += 1u)
+											{
+												if (!type_args[i]->IsType<MidoriType::GenericParam>())
+												{
+													type_args_match = false;
+													break;
+												}
+
+												const std::string& param_name = type_args[i]->GetType<MidoriType::GenericParam>().m_name;
+												if (param_name != generic_params[i])
+												{
+													type_args_match = false;
+													break;
+												}
+											}
+
+											if (type_args_match)
+											{
+												return base_type;
+											}
+										}
 									}
 
 									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;

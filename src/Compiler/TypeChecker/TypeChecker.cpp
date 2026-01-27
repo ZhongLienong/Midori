@@ -94,8 +94,9 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	std::shared_ptr<MidoriType> right_subst = ApplySubstitution(right);
 
 	// Recursion guard to prevent infinite loops when unifying recursive types
-	std::pair<MidoriType*, MidoriType*> ptr_pair{ left_subst.get(), right_subst.get() };
-	if (m_unify_visited.contains(ptr_pair))
+	std::pair<MidoriType*, MidoriType*> orig_pair{ left.get(), right.get() };
+	std::pair<MidoriType*, MidoriType*> subst_pair{ left_subst.get(), right_subst.get() };
+	if (m_unify_visited.contains(orig_pair) || m_unify_visited.contains(subst_pair))
 	{
 		return left_subst;
 	}
@@ -103,21 +104,33 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	struct RecursionGuard
 	{
 		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& m_visited;
-		std::pair<MidoriType*, MidoriType*> m_pair;
+		std::vector<std::pair<MidoriType*, MidoriType*>> m_pairs;
 
-		RecursionGuard(std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited, std::pair<MidoriType*, MidoriType*> pair)
-			: m_visited(visited), m_pair(pair)
+		RecursionGuard(std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited, std::pair<MidoriType*, MidoriType*> first, std::pair<MidoriType*, MidoriType*> second)
+			: m_visited(visited)
 		{
-			m_visited.emplace(m_pair);
+			m_pairs.push_back(first);
+			if (second != first)
+			{
+				m_pairs.push_back(second);
+			}
+
+			for (const std::pair<MidoriType*, MidoriType*>& pair : m_pairs)
+			{
+				m_visited.emplace(pair);
+			}
 		}
 
 		~RecursionGuard()
 		{
-			m_visited.erase(m_pair);
+			for (const std::pair<MidoriType*, MidoriType*>& pair : m_pairs)
+			{
+				m_visited.erase(pair);
+			}
 		}
 	};
 
-	RecursionGuard guard(m_unify_visited, ptr_pair);
+	RecursionGuard guard(m_unify_visited, orig_pair, subst_pair);
 
 	bool is_complex_type = 
 		left_subst->IsType<MidoriType::StructType>() || 
@@ -645,7 +658,19 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 
 bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type)
 {
+	std::unordered_set<const MidoriType*> visited;
+	return OccursCheck(var_id, type, visited);
+}
+
+bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+{
 	std::shared_ptr<MidoriType> subst_type = ApplySubstitution(type);
+
+	if (visited.contains(subst_type.get()))
+	{
+		return false;
+	}
+	visited.insert(subst_type.get());
 
 	if (subst_type->IsType<MidoriType::TypeVariable>())
 	{
@@ -653,26 +678,26 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	}
 	else if (subst_type->IsType<MidoriType::ArrayType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::ArrayType>().m_element_type);
+		return OccursCheck(var_id, subst_type->GetType<MidoriType::ArrayType>().m_element_type, visited);
 	}
 	else if (subst_type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = subst_type->GetType<MidoriType::FunctionType>();
 		for (const std::shared_ptr<MidoriType>& param_type : func_type.m_param_types)
 		{
-			if (OccursCheck(var_id, param_type))
+			if (OccursCheck(var_id, param_type, visited))
 			{
 				return true;
 			}
 		}
-		return OccursCheck(var_id, func_type.m_return_type);
+		return OccursCheck(var_id, func_type.m_return_type, visited);
 	}
 	else if (subst_type->IsType<MidoriType::StructType>())
 	{
 		MidoriType::StructType& struct_type = subst_type->GetType<MidoriType::StructType>();
 		for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
 		{
-			if (OccursCheck(var_id, member_type))
+			if (OccursCheck(var_id, member_type, visited))
 			{
 				return true;
 			}
@@ -686,7 +711,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		{
 			for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
 			{
-				if (OccursCheck(var_id, member_type))
+				if (OccursCheck(var_id, member_type, visited))
 				{
 					return true;
 				}
@@ -699,7 +724,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		MidoriType::TupleType& tuple_type = subst_type->GetType<MidoriType::TupleType>();
 		for (const std::shared_ptr<MidoriType>& element_type : tuple_type.m_element_types)
 		{
-			if (OccursCheck(var_id, element_type))
+			if (OccursCheck(var_id, element_type, visited))
 			{
 				return true;
 			}
@@ -894,7 +919,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		}
 		function.m_return_type = Freshen(function.m_return_type);
 
-		std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(function.m_return_type));
+		std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
+		std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 		function.m_type_data = function_type;
 		def.m_value->GetType() = function.m_type_data;
 
@@ -2236,7 +2262,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				}
 
 				call.m_is_foreign = function_type.m_is_foreign;
-				call.m_type_data = function_type.m_return_type;
+				call.m_type_data = ApplySubstitution(function_type.m_return_type);
 
 				return call.m_type_data;
 			}
@@ -2358,7 +2384,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 			{
 				// Apply substitution to get the most up-to-date type
 				// This handles cases where the type contains type variables that have been unified
-				variable.m_type_data = var->second;  // Just use the type from environment directly for now
+				variable.m_type_data = ApplySubstitution(var->second);
 			}
 			return variable.m_type_data;
 		}

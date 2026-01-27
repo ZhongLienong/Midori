@@ -75,6 +75,7 @@ private:
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;
 		std::vector<MidoriType::ClassConstraint> m_active_constraints;
+		std::vector<std::shared_ptr<MidoriType>> m_active_union_types;
 		int m_function_depth = 0;
 		int m_current_token_index = 0;
 		int m_total_locals_in_curr_scope = 0;

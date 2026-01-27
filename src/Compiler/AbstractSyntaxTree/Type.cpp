@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <numeric>
+#include <unordered_set>
 
 #include "Common/Constant/Constant.h"
 
@@ -112,12 +113,19 @@ std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, s
 std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)
 {
 	using SubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
+	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
 
-	SubstituteFn substitute = [&substitutions, &substitute](const std::shared_ptr<MidoriType>& t) -> std::shared_ptr<MidoriType>
+	SubstituteFn substitute = [&substitutions, &substitute, &cache](const std::shared_ptr<MidoriType>& t) -> std::shared_ptr<MidoriType>
 		{
+			std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(t.get());
+			if (cache_it != cache.end())
+			{
+				return cache_it->second;
+			}
+
 			return std::visit
 			(
-				[&substitutions, &substitute](const auto& type_variant) -> std::shared_ptr<MidoriType>
+				[&substitutions, &substitute, &cache, &t](const auto& type_variant) -> std::shared_ptr<MidoriType>
 				{
 					using T = std::decay_t<decltype(type_variant)>;
 
@@ -152,10 +160,15 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 					}
 					else if constexpr (std::is_same_v<T, StructType>)
 					{
+						std::vector<std::shared_ptr<MidoriType>> empty_member_types;
+						std::vector<std::string> member_names_copy = type_variant.m_member_names;
+						std::shared_ptr<MidoriType> new_struct = MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
+						cache[t.get()] = new_struct;
+
 						std::vector<std::shared_ptr<MidoriType>> new_member_types;
 						std::ranges::transform(type_variant.m_member_types, std::back_inserter(new_member_types), substitute);
-						std::shared_ptr<MidoriType> new_struct = MakeStructType(type_variant.m_name, std::move(new_member_types), std::vector<std::string>(type_variant.m_member_names), {});
-						if (!type_variant.m_generic_params.empty())
+						new_struct->GetType<StructType>().m_member_types = std::move(new_member_types);
+						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 						{
 							new_struct->GetType<StructType>().m_is_generic_instantiation = true;
 						}
@@ -165,10 +178,11 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 					{
 						std::shared_ptr<MidoriType> new_union_type = MakeUnionType(type_variant.m_name, {});
 						UnionType& new_union_ref = new_union_type->GetType<UnionType>();
-						if (!type_variant.m_generic_params.empty())
+						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 						{
 							new_union_ref.m_is_generic_instantiation = true;
 						}
+						cache[t.get()] = new_union_type;
 
 						std::ranges::for_each
 						(
@@ -202,171 +216,215 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 std::string MidoriType::ToString() const
 {
 	using StringJoinFn = std::function<std::string(const std::string&, const std::string&)>;
+	using ToStringFn = std::function<std::string(const MidoriType&)>;
 
 	StringJoinFn join_with_comma = [](const std::string& acc, const std::string& elem)
 		{
 			return acc.empty() ? elem : acc + ", "s + elem;
 		};
 
-	return std::visit
-	(
-		[&join_with_comma](const auto& type_variant) -> std::string
+	std::unordered_set<const MidoriType*> visited;
+
+	ToStringFn stringify = [&visited, &join_with_comma, &stringify](const MidoriType& type) -> std::string
 		{
-			using Type = std::decay_t<decltype(type_variant)>;
-
-			if constexpr (std::is_same_v<Type, UndecidedType>)
+			if (visited.contains(&type))
 			{
-				return "Undecided"s;
-			}
-			else if constexpr (std::is_same_v<Type, GenericParam>)
-			{
-				return type_variant.m_name;
-			}
-			else if constexpr (std::is_same_v<Type, TypeVariable>)
-			{
-				return "T"s + std::to_string(type_variant.m_id);
-			}
-			else if constexpr (std::is_same_v<Type, FloatType>)
-			{
-				return "Float"s;
-			}
-			else if constexpr (std::is_same_v<Type, IntegerType>)
-			{
-				return "Int"s;
-			}
-			else if constexpr (std::is_same_v<Type, ByteType>)
-			{
-				return "Byte"s;
-			}
-			else if constexpr (std::is_same_v<Type, WordType>)
-			{
-				return "Word"s;
-			}
-			else if constexpr (std::is_same_v<Type, TextType>)
-			{
-				return "Text"s;
-			}
-			else if constexpr (std::is_same_v<Type, BoolType>)
-			{
-				return "Bool"s;
-			}
-			else if constexpr (std::is_same_v<Type, UnitType>)
-			{
-				return "Unit"s;
-			}
-			else if constexpr (std::is_same_v<Type, NeverType>)
-			{
-				return "Never"s;
-			}
-			else if constexpr (std::is_same_v<Type, ArrayType>)
-			{
-				return "Array<"s + type_variant.m_element_type->ToString() + ">"s;
-			}
-			else if constexpr (std::is_same_v<Type, RangeType>)
-			{
-				return "Range<"s + type_variant.m_element_type->ToString() + ">"s;
-			}
-			else if constexpr (std::is_same_v<Type, FutureType>)
-			{
-				return "Future<"s + type_variant.m_element_type->ToString() + ">"s;
-			}
-			else if constexpr (std::is_same_v<Type, TupleType>)
-			{
-				if (type_variant.m_element_types.empty())
+				if (type.IsType<StructType>())
 				{
-					return "Unit"s;
+					return type.GetType<StructType>().m_name;
 				}
-
-				std::vector<std::string> type_strings;
-				std::ranges::transform(type_variant.m_element_types, std::back_inserter(type_strings), [](const std::shared_ptr<MidoriType>& elem_type) { return elem_type->ToString(); });
-
-				return "("s + std::accumulate(std::next(type_strings.begin()), type_strings.end(), type_strings.front(), join_with_comma) + ")"s;
+				else if (type.IsType<UnionType>())
+				{
+					return type.GetType<UnionType>().m_name;
+				}
+				return "Recursive"s;
 			}
-			else if constexpr (std::is_same_v<Type, FunctionType>)
-			{
-				if (type_variant.m_param_types.empty())
-				{
-					return "fn() -> "s + type_variant.m_return_type->ToString();
-				}
 
-				std::vector<std::string> param_strings;
-				std::ranges::transform(type_variant.m_param_types, std::back_inserter(param_strings), [](const std::shared_ptr<MidoriType>& param_type) { return param_type->ToString(); });
+			visited.insert(&type);
 
-				return "fn("s + std::accumulate(std::next(param_strings.begin()), param_strings.end(), param_strings.front(), join_with_comma) + ") -> "s + type_variant.m_return_type->ToString();
-			}
-			else if constexpr (std::is_same_v<Type, StructType>)
-			{
-				if (!type_variant.m_generic_params.empty())
+			std::string result = std::visit
+			(
+				[&join_with_comma, &stringify](const auto& type_variant) -> std::string
 				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
-				}
-				else if (type_variant.m_is_generic_instantiation)
-				{
-					std::vector<std::string> member_type_strings;
-					std::ranges::transform(type_variant.m_member_types, std::back_inserter(member_type_strings), [](const std::shared_ptr<MidoriType>& member_type) { return member_type->ToString(); });
+					using Type = std::decay_t<decltype(type_variant)>;
 
-					return type_variant.m_name + "<"s + std::accumulate(std::next(member_type_strings.begin()), member_type_strings.end(), member_type_strings.front(), join_with_comma) + ">"s;
-				}
-				else
-				{
-					return type_variant.m_name;
-				}
-			}
-			else if constexpr (std::is_same_v<Type, UnionType>)
-			{
-				if (!type_variant.m_generic_params.empty())
-				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
-				}
-				else if (type_variant.m_is_generic_instantiation)
-				{
-					// Instantiated union: use members to create a unique signature
-					// Must sort members by name to ensure determinism (m_member_info is unordered)
-					std::vector<std::string> member_keys;
-					member_keys.reserve(type_variant.m_member_info.size());
-					for(const auto& [name, _] : type_variant.m_member_info)
+					if constexpr (std::is_same_v<Type, UndecidedType>)
 					{
-						member_keys.emplace_back(name);
+						return "Undecided"s;
 					}
-					std::sort(member_keys.begin(), member_keys.end());
-					
-					std::string sig = type_variant.m_name + "<"s;
-					bool first = true;
-					for(const std::string& key : member_keys)
+					else if constexpr (std::is_same_v<Type, GenericParam>)
 					{
-						if (!first)
+						return type_variant.m_name;
+					}
+					else if constexpr (std::is_same_v<Type, TypeVariable>)
+					{
+						return "T"s + std::to_string(type_variant.m_id);
+					}
+					else if constexpr (std::is_same_v<Type, FloatType>)
+					{
+						return "Float"s;
+					}
+					else if constexpr (std::is_same_v<Type, IntegerType>)
+					{
+						return "Int"s;
+					}
+					else if constexpr (std::is_same_v<Type, ByteType>)
+					{
+						return "Byte"s;
+					}
+					else if constexpr (std::is_same_v<Type, WordType>)
+					{
+						return "Word"s;
+					}
+					else if constexpr (std::is_same_v<Type, TextType>)
+					{
+						return "Text"s;
+					}
+					else if constexpr (std::is_same_v<Type, BoolType>)
+					{
+						return "Bool"s;
+					}
+					else if constexpr (std::is_same_v<Type, UnitType>)
+					{
+						return "Unit"s;
+					}
+					else if constexpr (std::is_same_v<Type, NeverType>)
+					{
+						return "Never"s;
+					}
+					else if constexpr (std::is_same_v<Type, ArrayType>)
+					{
+						return "Array<"s + stringify(*type_variant.m_element_type) + ">"s;
+					}
+					else if constexpr (std::is_same_v<Type, RangeType>)
+					{
+						return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
+					}
+					else if constexpr (std::is_same_v<Type, FutureType>)
+					{
+						return "Future<"s + stringify(*type_variant.m_element_type) + ">"s;
+					}
+					else if constexpr (std::is_same_v<Type, TupleType>)
+					{
+						if (type_variant.m_element_types.empty())
 						{
-							sig += ", ";
+							return "Unit"s;
 						}
-						first = false;
-						
-						const UnionType::UnionMemberContext& ctx = type_variant.m_member_info.at(key);
-						
-						sig += key;
-						if (!ctx.m_member_types.empty())
+
+						std::vector<std::string> type_strings;
+						std::ranges::transform
+						(
+							type_variant.m_element_types,
+							std::back_inserter(type_strings),
+							[&stringify](const std::shared_ptr<MidoriType>& elem_type) { return stringify(*elem_type); }
+						);
+
+						return "("s + std::accumulate(std::next(type_strings.begin()), type_strings.end(), type_strings.front(), join_with_comma) + ")"s;
+					}
+					else if constexpr (std::is_same_v<Type, FunctionType>)
+					{
+						if (type_variant.m_param_types.empty())
 						{
-							sig += "(";
-							std::vector<std::string> type_strs;
-							std::ranges::transform(ctx.m_member_types, std::back_inserter(type_strs), [](const std::shared_ptr<MidoriType>& t) { return t->ToString(); });
-							sig += std::accumulate(std::next(type_strs.begin()), type_strs.end(), type_strs.front(), join_with_comma);
-							sig += ")";
+							return "fn() -> "s + stringify(*type_variant.m_return_type);
+						}
+
+						std::vector<std::string> param_strings;
+						std::ranges::transform
+						(
+							type_variant.m_param_types,
+							std::back_inserter(param_strings),
+							[&stringify](const std::shared_ptr<MidoriType>& param_type) { return stringify(*param_type); }
+						);
+
+						return "fn("s + std::accumulate(std::next(param_strings.begin()), param_strings.end(), param_strings.front(), join_with_comma) + ") -> "s + stringify(*type_variant.m_return_type);
+					}
+					else if constexpr (std::is_same_v<Type, StructType>)
+					{
+						if (!type_variant.m_generic_params.empty())
+						{
+							return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+						}
+						else if (type_variant.m_is_generic_instantiation)
+						{
+							std::vector<std::string> member_type_strings;
+							std::ranges::transform
+							(
+								type_variant.m_member_types,
+								std::back_inserter(member_type_strings),
+								[&stringify](const std::shared_ptr<MidoriType>& member_type) { return stringify(*member_type); }
+							);
+
+							return type_variant.m_name + "<"s + std::accumulate(std::next(member_type_strings.begin()), member_type_strings.end(), member_type_strings.front(), join_with_comma) + ">"s;
+						}
+						else
+						{
+							return type_variant.m_name;
 						}
 					}
-					sig += ">"s;
-					return sig;
-				}
-				else
-				{
-					return type_variant.m_name;
-				}
-			}
-			else
-			{
-				return ""s;
-			}
-		},
-		m_type
-	);
+					else if constexpr (std::is_same_v<Type, UnionType>)
+					{
+						if (!type_variant.m_generic_params.empty())
+						{
+							return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+						}
+						else if (type_variant.m_is_generic_instantiation)
+						{
+							std::vector<std::string> member_keys;
+							member_keys.reserve(type_variant.m_member_info.size());
+							for (const auto& member_pair : type_variant.m_member_info)
+							{
+								member_keys.emplace_back(member_pair.first);
+							}
+							std::sort(member_keys.begin(), member_keys.end());
+							
+							std::string sig = type_variant.m_name + "<"s;
+							bool first = true;
+							for (const std::string& key : member_keys)
+							{
+								if (!first)
+								{
+									sig += ", ";
+								}
+								first = false;
+								
+								const UnionType::UnionMemberContext& ctx = type_variant.m_member_info.at(key);
+								
+								sig += key;
+								if (!ctx.m_member_types.empty())
+								{
+									sig += "(";
+									std::vector<std::string> type_strs;
+									std::ranges::transform
+									(
+										ctx.m_member_types,
+										std::back_inserter(type_strs),
+										[&stringify](const std::shared_ptr<MidoriType>& member_type) { return stringify(*member_type); }
+									);
+									sig += std::accumulate(std::next(type_strs.begin()), type_strs.end(), type_strs.front(), join_with_comma);
+									sig += ")";
+								}
+							}
+							sig += ">"s;
+							return sig;
+						}
+						else
+						{
+							return type_variant.m_name;
+						}
+					}
+					else
+					{
+						return ""s;
+					}
+				},
+				type.m_type
+			);
+
+			visited.erase(&type);
+			return result;
+		};
+
+	return stringify(*this);
 }
 
 std::string MidoriType::MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
