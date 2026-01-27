@@ -132,6 +132,12 @@ private:
 
 	void EndLoop(int line);
 
+	void Visit(const std::unique_ptr<MidoriStatement>& statement);
+
+	void Visit(const std::unique_ptr<MidoriExpression>& expression);
+
+	void Visit(const std::shared_ptr<MidoriExpression>& expression);
+
 	void operator()(MidoriStatement::ExpressionStatement& simple);
 
 	void operator()(MidoriStatement::VariableDefinition& def);

@@ -40,10 +40,20 @@ void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MidoriExpre
 	);
 }
 
+void PrintAbstractSyntaxTree::Visit(const std::unique_ptr<MidoriStatement>& statement, int depth) const
+{
+	VisitNode([this, depth](auto&& arg) { (*this)(arg, depth); }, statement);
+}
+
+void PrintAbstractSyntaxTree::Visit(const std::unique_ptr<MidoriExpression>& expression, int depth) const
+{
+	VisitNode([this, depth](auto&& arg) { (*this)(arg, depth); }, expression);
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriStatement::ExpressionStatement& simple, int depth) const
 {
 	PrintWithIndentation(depth, "Simple {");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 1); }, **simple.m_expr);
+	Visit(simple.m_expr, depth + 1);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -52,7 +62,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::VariableDefiniti
 	PrintWithIndentation(depth, "Define {");
 	PrintWithIndentation(depth + 1, "Name: " + def.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **def.m_value);
+	Visit(def.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -69,7 +79,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::TupleDefinition&
 		}
 	);
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **def_tuple.m_value);
+	Visit(def_tuple.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -89,7 +99,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::FunctionDefiniti
 	);
 	PrintWithIndentation(depth + 1, "ReturnType: " + defun.m_return_type->ToString());
 	PrintWithIndentation(depth + 1, "Body: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **defun.m_body);
+	Visit(defun.m_body, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -155,7 +165,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::As& as, int dep
 {
 	PrintWithIndentation(depth, "As {");
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **as.m_expr);
+	Visit(as.m_expr, depth + 2);
 	PrintWithIndentation(depth + 1, "ToType: ");
 	PrintWithIndentation(depth + 2, as.m_to_type->ToString());
 	PrintWithIndentation(depth, "}");
@@ -166,16 +176,16 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Binary& binary,
 	PrintWithIndentation(depth, "Binary {");
 	PrintWithIndentation(depth + 1, "Operator: " + binary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Left: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **binary.m_left);
+	Visit(binary.m_left, depth + 2);
 	PrintWithIndentation(depth + 1, "Right: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **binary.m_right);
+	Visit(binary.m_right, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Group& group, int depth) const
 {
 	PrintWithIndentation(depth, "Group {");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 1); }, **group.m_expr_in);
+	Visit(group.m_expr_in, depth + 1);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -188,7 +198,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Tuple& tuple, i
 		tuple.m_elements,
 		[depth, this](const std::unique_ptr<MidoriExpression>& elem)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **elem);
+			Visit(elem, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -199,7 +209,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnaryPrefix& un
 	PrintWithIndentation(depth, "UnaryPrefix {");
 	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Operand: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **unary.m_expr);
+	Visit(unary.m_expr, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -208,14 +218,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnarySuffix& un
 	PrintWithIndentation(depth, "UnarySuffix {");
 	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Operand: ");
-	std::visit
-	(
-		[depth, this](auto&& arg)
-		{
-			(*this)(arg, depth + 2);
-		},
-		**unary.m_expr
-	);
+	Visit(unary.m_expr, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -223,14 +226,14 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Call& call, int
 {
 	PrintWithIndentation(depth, "Call {");
 	PrintWithIndentation(depth + 1, "Callee: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **call.m_callee);
+	Visit(call.m_callee, depth + 2);
 	PrintWithIndentation(depth + 1, "Args: ");
 	std::ranges::for_each
 	(
 		call.m_arguments,
 		[depth, this](const std::unique_ptr<MidoriExpression>& arg)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **arg);
+			Visit(arg, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -240,7 +243,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAccess& g
 {
 	PrintWithIndentation(depth, "Get {");
 	PrintWithIndentation(depth + 1, "MidoriStruct: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **get.m_struct);
+	Visit(get.m_struct, depth + 2);
 	PrintWithIndentation(depth + 1, "Name: " + get.m_member_name.m_lexeme);
 	PrintWithIndentation(depth, "}");
 }
@@ -249,10 +252,10 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAssignmen
 {
 	PrintWithIndentation(depth, "Set {");
 	PrintWithIndentation(depth + 1, "MidoriStruct: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **set.m_struct);
+	Visit(set.m_struct, depth + 2);
 	PrintWithIndentation(depth + 1, "Name: " + set.m_member_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **set.m_value);
+	Visit(set.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -271,7 +274,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Assignment& bin
 	PrintWithIndentation(depth, "Bind {");
 	PrintWithIndentation(depth + 1, "Name: " + bind.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **bind.m_value);
+	Visit(bind.m_value, depth + 2);
 	PrintWithIndentation(depth + 1, "NameContext: {");
 	PrintVariableSemantic(depth + 2, bind.m_name_ctx);
 	PrintWithIndentation(depth + 1, "}");
@@ -340,7 +343,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Function& closu
 	);
 	PrintWithIndentation(depth + 1, "ReturnType: " + closure.m_return_type->ToString());
 	PrintWithIndentation(depth + 1, "Body: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **closure.m_body);
+	Visit(closure.m_body, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -354,7 +357,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Construct& cons
 		construct.m_params,
 		[depth, this](const std::unique_ptr<MidoriExpression>& expr)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **expr);
+			Visit(expr, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -369,7 +372,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Array& array, i
 		array.m_elems,
 		[depth, this](const std::unique_ptr<MidoriExpression>& element)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **element);
+			Visit(element, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -379,14 +382,14 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAccess& ar
 {
 	PrintWithIndentation(depth, "ArrayGet {");
 	PrintWithIndentation(depth + 1, "Array: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **array_get.m_arr_var);
+	Visit(array_get.m_arr_var, depth + 2);
 	PrintWithIndentation(depth + 1, "Index: ");
 	std::ranges::for_each
 	(
 		array_get.m_indices,
 		[depth, this](const std::unique_ptr<MidoriExpression>& index)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **index);
+			Visit(index, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -396,18 +399,18 @@ void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriEx
 {
 	PrintWithIndentation(depth, "ArraySet {");
 	PrintWithIndentation(depth + 1, "Array: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **array_set.m_arr_var);
+	Visit(array_set.m_arr_var, depth + 2);
 	PrintWithIndentation(depth + 1, "Index: ");
 	std::ranges::for_each
 	(
 		array_set.m_indices,
 		[depth, this](const std::unique_ptr<MidoriExpression>& index)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **index);
+			Visit(index, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **array_set.m_value);
+	Visit(array_set.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -415,9 +418,9 @@ void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriEx
 {
 	PrintWithIndentation(depth, "RangeBinary {");
 	PrintWithIndentation(depth + 1, "Start: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **range_binary.m_start);
+	Visit(range_binary.m_start, depth + 2);
 	PrintWithIndentation(depth + 1, "End: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **range_binary.m_end);
+	Visit(range_binary.m_end, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -425,11 +428,11 @@ void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriEx
 {
 	PrintWithIndentation(depth, "RangeTernary {");
 	PrintWithIndentation(depth + 1, "Start: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **range_ternary.m_start);
+	Visit(range_ternary.m_start, depth + 2);
 	PrintWithIndentation(depth + 1, "Step: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **range_ternary.m_step);
+	Visit(range_ternary.m_step, depth + 2);
 	PrintWithIndentation(depth + 1, "End: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **range_ternary.m_end);
+	Visit(range_ternary.m_end, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -437,11 +440,11 @@ void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriEx
 {
 	PrintWithIndentation(depth, "IfElse {");
 	PrintWithIndentation(depth + 1, "Condition: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **if_else.m_condition);
+	Visit(if_else.m_condition, depth + 2);
 	PrintWithIndentation(depth + 1, "Then: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **if_else.m_true_branch);
+	Visit(if_else.m_true_branch, depth + 2);
 	PrintWithIndentation(depth + 1, "Else: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **if_else.m_else_branch);
+	Visit(if_else.m_else_branch, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -453,13 +456,13 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Block& block, i
 	(
 		block.m_stmts, [depth, this](const std::unique_ptr<MidoriStatement>& stmt)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **stmt);
+			Visit(stmt, depth + 2);
 		}
 	);
 	if (block.m_final_expr.has_value())
 	{
 		PrintWithIndentation(depth + 1, "Expression: ");
-		std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, ***block.m_final_expr);
+		Visit(*block.m_final_expr, depth + 2);
 	}
 	PrintWithIndentation(depth, "}");
 }
@@ -468,14 +471,14 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Match& match, i
 {
 	PrintWithIndentation(depth, "Match {");
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **match.m_arg_expr);
+	Visit(match.m_arg_expr, depth + 2);
 	PrintWithIndentation(depth + 1, "Cases: ");
 	std::ranges::for_each
 	(
 		match.m_cases,
 		[depth, this](auto&& case_expr)
 		{
-			std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **case_expr);
+			Visit(case_expr, depth + 2);
 		}
 	);
 	PrintWithIndentation(depth, "}");
@@ -497,7 +500,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Case& case_expr
 	);
 	PrintWithIndentation(depth + 1, "}");
 	PrintWithIndentation(depth + 1, "Value {");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **case_expr.m_expr);
+	Visit(case_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth + 1, "}");
 	PrintWithIndentation(depth, "}");
 }
@@ -506,7 +509,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Default& defaul
 {
 	PrintWithIndentation(depth, "Default {");
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **default_expr.m_expr);
+	Visit(default_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -514,7 +517,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Loop& loop, int
 {
 	PrintWithIndentation(depth, "Loop {");
 	PrintWithIndentation(depth + 1, "Body: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **loop.m_body);
+	Visit(loop.m_body, depth + 2);
 	PrintWithIndentation(depth + 1, "}");
 }
 
@@ -523,9 +526,9 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::For& for_expr, 
 	PrintWithIndentation(depth, "For {");
 	PrintWithIndentation(depth + 1, "Variable: " + std::string(for_expr.m_loop_variable.m_lexeme));
 	PrintWithIndentation(depth + 1, "Range: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **for_expr.m_range);
+	Visit(for_expr.m_range, depth + 2);
 	PrintWithIndentation(depth + 1, "Body: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **for_expr.m_body);
+	Visit(for_expr.m_body, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -533,7 +536,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Return& return_
 {
 	PrintWithIndentation(depth, "Return {");
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **return_expr.m_value);
+	Visit(return_expr.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -541,7 +544,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Break& break_ex
 {
 	PrintWithIndentation(depth, "Break");
 	PrintWithIndentation(depth + 1, "Value: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **break_expr.m_value);
+	Visit(break_expr.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -549,7 +552,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Async& async_ex
 {
 	PrintWithIndentation(depth, "Async {");
 	PrintWithIndentation(depth + 1, "Expression: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **async_expr.m_expr);
+	Visit(async_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 
@@ -557,7 +560,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Await& await_ex
 {
 	PrintWithIndentation(depth, "Await {");
 	PrintWithIndentation(depth + 1, "Future: ");
-	std::visit([depth, this](auto&& arg) { (*this)(arg, depth + 2); }, **await_expr.m_expr);
+	Visit(await_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

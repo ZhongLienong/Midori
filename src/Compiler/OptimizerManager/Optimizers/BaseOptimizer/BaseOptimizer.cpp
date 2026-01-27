@@ -1,9 +1,14 @@
 #include "BaseOptimizer.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
+void MidoriOptimizer::VisitStatement(std::unique_ptr<MidoriStatement>& statement)
+{
+	VisitNode([this](auto&& arg) { (*this)(arg); }, statement);
+}
+
 void MidoriOptimizer::VisitAndReplace(std::unique_ptr<MidoriExpression>& expr)
 {
-	std::visit([this](auto&& arg) { (*this)(arg); }, **expr);
+	VisitNode([this](auto&& arg) { (*this)(arg); }, expr);
 
 	if (m_pending_replacement)
 	{
@@ -270,7 +275,7 @@ void MidoriOptimizer::operator()(MidoriExpression::Block& block)
 		block.m_stmts,
 		[this](std::unique_ptr<MidoriStatement>& stmt)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **stmt);
+			VisitStatement(stmt);
 		}
 	);
 

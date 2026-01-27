@@ -282,6 +282,21 @@ void CodeGenerator::EndLoop(int line)
 	);
 }
 
+void CodeGenerator::Visit(const std::unique_ptr<MidoriStatement>& statement)
+{
+	VisitNode([this](auto&& arg) { (*this)(arg); }, statement);
+}
+
+void CodeGenerator::Visit(const std::unique_ptr<MidoriExpression>& expression)
+{
+	VisitNode([this](auto&& arg) { (*this)(arg); }, expression);
+}
+
+void CodeGenerator::Visit(const std::shared_ptr<MidoriExpression>& expression)
+{
+	VisitNode([this](auto&& arg) { (*this)(arg); }, *expression);
+}
+
 CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
@@ -303,7 +318,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 		m_program_tree,
 		[this](std::unique_ptr<MidoriStatement>& statement)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **statement);
+			Visit(statement);
 
 			// Track exports: after processing DefineFunction, check if it's exported
 			std::visit
@@ -424,7 +439,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 
 void CodeGenerator::operator()(MidoriStatement::ExpressionStatement& simple)
 {
-	std::visit([this](auto&& arg){ (*this)(arg); }, **simple.m_expr);
+	Visit(simple.m_expr);
 	EmitByte(OpCode::POP, simple.m_semicolon.m_line);
 }
 
@@ -456,7 +471,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		EmitByte(OpCode::PUSH_PLACEHOLDER, line);
 	}
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **def.m_value);
+	Visit(def.m_value);
 
 	if (need_placeholder)
 	{
@@ -485,7 +500,7 @@ void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 		bool is_global = !def_tuple.m_local_indices[i].has_value();
 
 		// Generate the tuple expression (loads it onto stack)
-		std::visit([this](auto&& arg){ (*this)(arg); }, **def_tuple.m_value);
+		Visit(def_tuple.m_value);
 
 		// Push the index
 		EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
@@ -636,7 +651,7 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 	// The methods are already named with mangled names (e.g., "show_Show_Int") by the parser during instance declaration parsing
 	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
-		std::visit([this](auto&& arg) { (*this)(arg); }, **method);
+		Visit(method);
 
 		if (method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
@@ -663,7 +678,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 {
 	int line = as.m_as_keyword.m_line;
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **as.m_expr);
+	Visit(as.m_expr);
 
 	std::shared_ptr<MidoriType> from_type = as.m_from_type.lock();
 	const std::shared_ptr<MidoriType>& target_type = as.m_to_type;
@@ -882,25 +897,25 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 
 	if (binary.m_op.m_token_name == Token::Name::DOUBLE_BAR)
 	{
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
+		Visit(binary.m_left);
 		int jump_if_true = EmitJump(OpCode::JUMP_IF_TRUE, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
+		Visit(binary.m_right);
 		PatchJump(jump_if_true, line);
 		return;
 	}
 	else if (binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND)
 	{
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
+		Visit(binary.m_left);
 		int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
+		Visit(binary.m_right);
 		PatchJump(jump_if_false, line);
 	}
 	else
 	{
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_left);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **binary.m_right);
+		Visit(binary.m_left);
+		Visit(binary.m_right);
 		const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
 
 		switch (binary.m_op.m_token_name)
@@ -1261,7 +1276,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 
 void CodeGenerator::operator()(MidoriExpression::Group& group)
 {
-	std::visit([this](auto&& arg){ (*this)(arg); }, **group.m_expr_in);
+	Visit(group.m_expr_in);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
@@ -1275,7 +1290,7 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 		tuple.m_elements,
 		[this](const std::unique_ptr<MidoriExpression>& elem)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **elem);
+			Visit(elem);
 		}
 	);
 
@@ -1287,7 +1302,7 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 
 void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 {
-	std::visit([this](auto&& arg){ (*this)(arg); }, **unary.m_expr);
+	Visit(unary.m_expr);
 
 	switch (unary.m_op.m_token_name)
 	{
@@ -1404,7 +1419,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			call.m_arguments,
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **param);
+				Visit(param);
 			}
 		);
 
@@ -1456,7 +1471,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			call.m_arguments,
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **param);
+				Visit(param);
 			}
 		);
 
@@ -1483,7 +1498,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 			else
 			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **call.m_callee);
+				Visit(call.m_callee);
 			}
 		}
 
@@ -1534,7 +1549,7 @@ void CodeGenerator::operator()(MidoriExpression::MemberAccess& get)
 {
 	int line = get.m_member_name.m_line;
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **get.m_struct);
+	Visit(get.m_struct);
 	EmitByte(OpCode::GET_MEMBER, line);
 	EmitByte(static_cast<OpCode>(get.m_index), line);
 }
@@ -1543,8 +1558,8 @@ void CodeGenerator::operator()(MidoriExpression::MemberAssignment& set)
 {
 	int line = set.m_member_name.m_line;
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **set.m_struct);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **set.m_value);
+	Visit(set.m_struct);
+	Visit(set.m_value);
 	EmitByte(OpCode::SET_MEMBER, line);
 	EmitByte(static_cast<OpCode>(set.m_index), line);
 }
@@ -1660,7 +1675,7 @@ void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
 		append_assign.m_name_ctx
 	);
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **append_assign.m_value);
+	Visit(append_assign.m_value);
 
 	if (append_assign.m_type_data->IsType<MidoriType::ArrayType>())
 	{
@@ -1697,7 +1712,7 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 		prepend_assign.m_name_ctx
 	);
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **prepend_assign.m_value);
+	Visit(prepend_assign.m_value);
 
 	if (prepend_assign.m_type_data->IsType<MidoriType::ArrayType>())
 	{
@@ -1734,7 +1749,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		compound_assign.m_name_ctx
 	);
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **compound_assign.m_value);
+	Visit(compound_assign.m_value);
 
 	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 	switch (compound_assign.m_op.m_token_name)
@@ -1775,7 +1790,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 {
 	int line = bind.m_name.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **bind.m_value);
+	Visit(bind.m_value);
 
 	std::visit([&bind, line, this](auto&& arg)
 		{
@@ -1962,7 +1977,7 @@ void CodeGenerator::operator()(MidoriExpression::Construct& construct)
 		construct.m_params,
 		[this](std::unique_ptr<MidoriExpression>& param)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **param);
+			Visit(param);
 		}
 	);
 
@@ -2007,7 +2022,7 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 		array.m_elems,
 		[this](std::unique_ptr<MidoriExpression>& elem)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **elem);
+			Visit(elem);
 		}
 	);
 	EmitByte(OpCode::CREATE_ARRAY, line);
@@ -2024,14 +2039,14 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 		return;
 	}
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **array_get.m_arr_var);
+	Visit(array_get.m_arr_var);
 
 	std::ranges::for_each
 	(
 		array_get.m_indices,
 		[this](std::unique_ptr<MidoriExpression>& index)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **index);
+			Visit(index);
 		}
 	);
 
@@ -2049,18 +2064,18 @@ void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
 		return;
 	}
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **array_set.m_arr_var);
+	Visit(array_set.m_arr_var);
 
 	std::ranges::for_each
 	(
 		array_set.m_indices,
 		[this](std::unique_ptr<MidoriExpression>& index)
 		{
-			std::visit([this](auto&& arg){ (*this)(arg); }, **index);
+			Visit(index);
 		}
 	);
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **array_set.m_value);
+	Visit(array_set.m_value);
 
 	EmitByte(OpCode::SET_ARRAY, line);
 	EmitByte(static_cast<OpCode>(array_set.m_indices.size()), line);
@@ -2070,7 +2085,7 @@ void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
 {
 	int line = range_binary.m_range_op.m_line;
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **range_binary.m_start);
+	Visit(range_binary.m_start);
 
 	// Generate code for default step (1 for Int, 1.0 for Float)
 	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
@@ -2082,7 +2097,7 @@ void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
 		EmitFloatConstant(1.0, line);
 	}
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **range_binary.m_end);
+	Visit(range_binary.m_end);
 
 	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
 	{
@@ -2098,9 +2113,9 @@ void CodeGenerator::operator()(MidoriExpression::RangeTernary& range_ternary)
 {
 	int line = range_ternary.m_first_range_op.m_line;
 
-	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_start);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_step);
-	std::visit([this](auto&& arg){ (*this)(arg); }, **range_ternary.m_end);
+	Visit(range_ternary.m_start);
+	Visit(range_ternary.m_step);
+	Visit(range_ternary.m_end);
 
 	if (range_ternary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
 	{
@@ -2115,7 +2130,7 @@ void CodeGenerator::operator()(MidoriExpression::RangeTernary& range_ternary)
 void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 {
 	int line = if_else.m_if_token.m_line;
-	std::visit([this](auto&& arg){ (*this)(arg); }, **if_else.m_condition);
+	Visit(if_else.m_condition);
 
 	if (if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)
 	{
@@ -2125,11 +2140,11 @@ void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 	{
 		int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg){ (*this)(arg); }, **if_else.m_true_branch);
+		Visit(if_else.m_true_branch);
 		int jump = EmitJump(OpCode::JUMP, line);
 		PatchJump(jump_if_false, line);
 		EmitByte(OpCode::POP, line);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **if_else.m_else_branch);
+		Visit(if_else.m_else_branch);
 		PatchJump(jump, line);
 	}
 }
@@ -2141,7 +2156,7 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 		block.m_stmts,
 		[this](std::unique_ptr<MidoriStatement>& statement)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **statement);
+			Visit(statement);
 		}
 	);
 
@@ -2154,7 +2169,7 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 	{
 		if (block.m_final_expr.has_value())
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, ***block.m_final_expr);
+			Visit(*block.m_final_expr);
 		}
 		else
 		{
@@ -2183,7 +2198,7 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 void CodeGenerator::operator()(MidoriExpression::Match& match)
 {
 	int line = match.m_match_keyword.m_line;
-	std::visit([this](auto&& arg) { (*this)(arg); }, **match.m_arg_expr);
+	Visit(match.m_arg_expr);
 	EmitByte(OpCode::LOAD_TAG, line);
 
 	// Check if we can use jump table optimization
@@ -2252,7 +2267,7 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i] + 1, static_cast<OpCode>((offset_from_table >> SHIFT_8_BITS) & BYTE_MASK));
 
 			// Emit case body
-			std::visit([this](auto&& arg) { (*this)(arg); }, **member_case->m_expr);
+			Visit(member_case->m_expr);
 
 			// Pop match scope bindings
 			int num_to_pop = static_cast<int>(member_case->m_binding_names.size());
@@ -2299,7 +2314,7 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 				EmitByte(OpCode::POP, line); // pop tag
 				EmitByte(OpCode::POP, line); // pop comp result
 
-				std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+				Visit(case_expr);
 
 				int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
 				while (num_to_pop > 0)
@@ -2324,7 +2339,7 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 			}
 			else
 			{
-				std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr);
+				Visit(case_expr);
 
 				jumps.emplace_back(EmitJump(OpCode::JUMP, line));
 				break;
@@ -2344,12 +2359,12 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 
 void CodeGenerator::operator()(MidoriExpression::Case& case_expr)
 {
-	std::visit([this](auto&& arg) { (*this)(arg); }, **case_expr.m_expr);
+	Visit(case_expr.m_expr);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
 {
-	std::visit([this](auto&& arg) { (*this)(arg); }, **default_expr.m_expr);
+	Visit(default_expr.m_expr);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Loop& loop)
@@ -2359,7 +2374,7 @@ void CodeGenerator::operator()(MidoriExpression::Loop& loop)
 	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
 	BeginLoop(loop_start);
 
-	std::visit([this](auto&& arg) { (*this)(arg); }, **loop.m_body);
+	Visit(loop.m_body);
 	EmitByte(OpCode::POP, line);
 
 	EmitLoop(loop_start, line);
@@ -2391,7 +2406,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // array ref
 
 		// Evaluate array expression
-		std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_range);
+		Visit(for_expr.m_range);
 		// Stack: [0, 0, 0, 0, array]
 
 		// Store array reference
@@ -2443,7 +2458,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitByte(OpCode::POP, line);
 
 		// Execute body
-		std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_body);
+		Visit(for_expr.m_body);
 		EmitByte(OpCode::POP, line);
 
 		EmitLoop(continue_target, line);
@@ -2481,7 +2496,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitByte(OpCode::PUSH_PLACEHOLDER, line);
 		EmitByte(OpCode::PUSH_PLACEHOLDER, line);  // Extra placeholder for consistency
 
-		std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_range);
+		Visit(for_expr.m_range);
 		// Stack: [0, 0, 0, 0, range]
 
 		// Duplicate range for each extraction
@@ -2548,7 +2563,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		int backward_exit_jump = EmitJump(backward_comparison, line);
 
 		PatchJump(body_jump, line);
-		std::visit([this](auto&& arg) { (*this)(arg); }, **for_expr.m_body);
+		Visit(for_expr.m_body);
 		EmitByte(OpCode::POP, line);
 
 		EmitLoop(continue_target, line);
@@ -2593,7 +2608,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 
 	if (comp.m_is_array_iteration)
 	{
-		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_range);
+		Visit(comp.m_range);
 
 		// Store array reference
 		EmitByte(OpCode::DUP, line);
@@ -2637,7 +2652,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		EmitByte(OpCode::POP, line);
 
 		// Evaluate transform expression first, then get result array, swap and append
-		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		Visit(comp.m_transform_expr);
 		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::SWAP, line);
 		EmitByte(OpCode::ADD_BACK_ARRAY, line);
@@ -2651,7 +2666,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 	{
 		bool is_float = comp.m_range->GetType()->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::FloatType>();
 
-		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_range);
+		Visit(comp.m_range);
 
 		// Duplicate range for each extraction
 		EmitByte(OpCode::DUP, line);
@@ -2714,7 +2729,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		PatchJump(body_jump, line);
 
 		// Evaluate transform expression first, then get result array, swap and append
-		std::visit([this](auto&& arg) { (*this)(arg); }, **comp.m_transform_expr);
+		Visit(comp.m_transform_expr);
 		EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::SWAP, line);
 		EmitByte(OpCode::ADD_BACK_ARRAY, line);
@@ -2747,7 +2762,7 @@ void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
 {
 	int line = break_expr.m_keyword.m_line;
 
-	std::visit([this](auto&& arg) { (*this)(arg); }, **break_expr.m_value);
+	Visit(break_expr.m_value);
 
 	while (break_expr.m_number_to_pop > 0)
 	{
@@ -2770,7 +2785,7 @@ void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
 void CodeGenerator::operator()(MidoriExpression::Return& return_expr)
 {
 	int line = return_expr.m_keyword.m_line;
-	std::visit([this](auto&& arg) { (*this)(arg); }, **return_expr.m_value);
+	Visit(return_expr.m_value);
 	EmitByte(OpCode::RETURN, line);
 }
 
@@ -2789,7 +2804,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 	m_current_procedure_index = m_procedures.size();
 	m_procedures.emplace_back();
 
-	std::visit([this](auto&& arg) { (*this)(arg); }, **async_expr.m_expr);
+	Visit(async_expr.m_expr);
 
 	EmitByte(OpCode::ASYNC_RETURN, line);
 
@@ -2818,7 +2833,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 void CodeGenerator::operator()(MidoriExpression::Await& await_expr)
 {
 	int line = await_expr.m_keyword.m_line;
-	std::visit([this](auto&& arg) { (*this)(arg); }, **await_expr.m_expr);
+	Visit(await_expr.m_expr);
 	EmitByte(OpCode::AWAIT_FUTURE, line);
 }
 
@@ -2853,13 +2868,13 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 			return;
 		}
 
-		std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
+		Visit(true_branch);
 
 		int else_jump = EmitJump(OpCode::JUMP, line);
 		PatchJump(if_jump, line);
 		if (else_branch != nullptr)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
+			Visit(else_branch);
 		}
 		PatchJump(else_jump, line);
 	}
@@ -2891,13 +2906,13 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 			return;
 		}
 
-		std::visit([this](auto&& arg) { (*this)(arg); }, **true_branch);
+		Visit(true_branch);
 
 		int else_jump = EmitJump(OpCode::JUMP, line);
 		PatchJump(if_jump, line);
 		if (else_branch != nullptr)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **else_branch);
+			Visit(else_branch);
 		}
 		PatchJump(else_jump, line);
 	}
@@ -3191,7 +3206,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_procedures.emplace_back();
 	m_specialized_functions[signature] = specialized_proc_index;
 
-	std::visit([this](auto&& arg) { (*this)(arg); }, **generic_info.m_body);
+	Visit(generic_info.m_body);
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
@@ -3549,7 +3564,7 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	size_t prev_index = m_current_procedure_index;
 	m_current_procedure_index = m_procedures.size();
 	m_procedures.emplace_back();
-	std::visit([this](auto&& arg) { (*this)(arg); }, **body);
+	Visit(body);
 
 	EmitByte(OpCode::RETURN, line);
 

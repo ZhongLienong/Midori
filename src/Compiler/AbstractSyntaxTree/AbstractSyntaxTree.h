@@ -4,6 +4,7 @@
 #include <memory>
 #include <variant>
 #include <optional>
+#include <utility>
 
 #include "Compiler/Token/Token.h"
 #include "Type.h"
@@ -692,3 +693,39 @@ public:
 		);
 	}
 };
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, MidoriStatement& statement)
+{
+	return std::visit(std::forward<Visitor>(visitor), *statement);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriStatement>& statement)
+{
+	return std::visit(std::forward<Visitor>(visitor), **statement);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriStatement>& statement)
+{
+	return std::visit(std::forward<Visitor>(visitor), **statement);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, MidoriExpression& expression)
+{
+	return std::visit(std::forward<Visitor>(visitor), *expression);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriExpression>& expression)
+{
+	return std::visit(std::forward<Visitor>(visitor), **expression);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriExpression>& expression)
+{
+	return std::visit(std::forward<Visitor>(visitor), **expression);
+}

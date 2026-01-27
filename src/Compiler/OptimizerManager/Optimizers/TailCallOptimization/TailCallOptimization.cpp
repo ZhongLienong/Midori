@@ -11,7 +11,7 @@ int TailCallOptimization::Optimize(MidoriProgramTree& program_tree)
 		program_tree,
 		[this](std::unique_ptr<MidoriStatement>& stmt)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **stmt);
+			VisitStatement(stmt);
 		}
 	);
 #if MIDORI_ENABLE_OPTIMIZER_STATS

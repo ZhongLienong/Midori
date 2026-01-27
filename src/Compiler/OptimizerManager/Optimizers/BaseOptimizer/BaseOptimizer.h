@@ -37,6 +37,8 @@ protected:
 #endif
 
 protected:
+	void VisitStatement(std::unique_ptr<MidoriStatement>& statement);
+
 	void VisitAndReplace(std::unique_ptr<MidoriExpression>& expr);
 
 	virtual void Replace(std::unique_ptr<MidoriExpression>&& new_node, std::unique_ptr<MidoriExpression>& old_node);

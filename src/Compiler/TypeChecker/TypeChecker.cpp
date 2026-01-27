@@ -63,6 +63,7 @@ namespace
 		}
 		return false;
 	}
+
 }
 
 class ExpectedTypeGuard
@@ -320,6 +321,30 @@ void TypeChecker::BeginScope()
 void TypeChecker::EndScope()
 {
 	m_name_type_table.pop_back();
+}
+
+MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriStatement>& statement)
+{
+	return VisitNode
+	(
+		[this]<typename T>(T& stmt) -> MidoriResult::TypeResult
+		{
+			return (*this)(stmt);
+		},
+		statement
+	);
+}
+
+MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriExpression>& expression)
+{
+	return VisitNode
+	(
+		[this]<typename T>(T& expr) -> MidoriResult::TypeResult
+		{
+			return (*this)(expr);
+		},
+		expression
+	);
 }
 
 void TypeChecker::UpdateConditionOperandType(MidoriExpression::ConditionOperandType& op_type, const std::unique_ptr<MidoriExpression>& expr)
@@ -798,7 +823,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 		m_program_tree,
 		[&errors, this](std::unique_ptr<MidoriStatement>& statement)
 		{
-			MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **statement);
+			MidoriResult::TypeResult result = Evaluate(statement);
 			if (!result.has_value())
 			{
 				errors.append(result.error()).append("\n");
@@ -888,7 +913,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStatement& simple)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **simple.m_expr)
+	return Evaluate(simple.m_expr)
 		.and_then
 		(
 			[&simple, this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
@@ -942,7 +967,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			[&function, &function_type_ref, this](size_t idx) { m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function_type_ref.m_param_types[idx]); }
 		);
 
-		return std::visit([this](auto&& arg) { return (*this)(arg); }, **def.m_value)
+		return Evaluate(def.m_value)
 			.and_then
 			(
 				[this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -969,7 +994,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 	}
 
 	// General case
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **def.m_value)
+	return Evaluate(def.m_value)
 		.and_then
 		(
 			[&def, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -1022,7 +1047,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinition& def_tuple)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **def_tuple.m_value)
+	return Evaluate(def_tuple.m_value)
 		.and_then
 		(
 			[&def_tuple, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -1143,7 +1168,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		m_active_constraints.push_back(std::move(freshened_constraint));
 	}
 
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **defun.m_body)
+	return Evaluate(defun.m_body)
 		.and_then
 		(
 			[&defun, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
@@ -1410,7 +1435,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
-		MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **method);
+		MidoriResult::TypeResult result = Evaluate(method);
 		if (!result.has_value())
 		{
 			return result;
@@ -1443,7 +1468,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& typ
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **match.m_arg_expr)
+	return Evaluate(match.m_arg_expr)
 		.and_then
 		(
 			[&match, this](std::shared_ptr<MidoriType>&& arg_type) -> MidoriResult::TypeResult
@@ -1471,7 +1496,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					if (case_expr->IsExpression<MidoriExpression::Default>())
 					{
 						has_default_case = true;
-						case_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **case_expr);
+						case_result = Evaluate(case_expr);
 					}
 					else if (case_expr->IsExpression<MidoriExpression::Case>())
 					{
@@ -1501,7 +1526,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 										m_name_type_table.back()[binding_name] = union_type.m_member_info.at(branch_name).m_member_types[idx];
 									}
 								);
-								case_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **member_case.m_expr);
+								case_result = Evaluate(member_case.m_expr);
 							}
 						}
 					}
@@ -1543,7 +1568,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **case_expr.m_expr)
+	return Evaluate(case_expr.m_expr)
 		.and_then
 		(
 			[&case_expr, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
@@ -1555,7 +1580,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_ex
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Default& default_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **default_expr.m_expr)
+	return Evaluate(default_expr.m_expr)
 		.and_then
 		(
 			[&default_expr, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
@@ -1573,7 +1598,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Loop& loop)
 	// Set the expected break type for this loop (initially undecided)
 	m_expected_break_type = loop.m_type_data;
 
-	MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **loop.m_body)
+	MidoriResult::TypeResult result = Evaluate(loop.m_body)
 		.and_then
 		(
 			[&loop, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -1603,7 +1628,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Loop& loop)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **for_expr.m_range)
+	return Evaluate(for_expr.m_range)
 		.and_then
 		(
 			[&for_expr, this](std::shared_ptr<MidoriType>&& range_type)->MidoriResult::TypeResult
@@ -1636,7 +1661,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 
 				m_expected_break_type = for_expr.m_type_data;
 
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **for_expr.m_body)
+				return Evaluate(for_expr.m_body)
 					.and_then
 					(
 						[&for_expr, outer_break_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -1665,7 +1690,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehension& comp)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **comp.m_range)
+	return Evaluate(comp.m_range)
 		.and_then
 		(
 			[&comp, this](std::shared_ptr<MidoriType>&& range_type) -> MidoriResult::TypeResult
@@ -1716,7 +1741,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **as.m_expr)
+	return Evaluate(as.m_expr)
 		.and_then
 		(
 			[&as, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
@@ -1815,12 +1840,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binary)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **binary.m_left)
+	return Evaluate(binary.m_left)
 		.and_then
 		(
 			[&binary, this](std::shared_ptr<MidoriType>&& left_type) ->MidoriResult::TypeResult
 			{
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **binary.m_right)
+				return Evaluate(binary.m_right)
 					.and_then
 					(
 						[&left_type, &binary, this](std::shared_ptr<MidoriType>&& right_type) ->MidoriResult::TypeResult
@@ -1986,7 +2011,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Group& group)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **group.m_expr_in)
+	return Evaluate(group.m_expr_in)
 		.and_then
 		(
 			[&group](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -2011,7 +2036,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
 
 	for (std::unique_ptr<MidoriExpression>& element : tuple.m_elements)
 	{
-		MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **element);
+		MidoriResult::TypeResult result = Evaluate(element);
 		if (!result.has_value())
 		{
 			return result;
@@ -2026,7 +2051,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& unary)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **unary.m_expr)
+	return Evaluate(unary.m_expr)
 		.and_then
 		(
 			[this, &unary](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
@@ -2111,7 +2136,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					arg_results.reserve(call.m_arguments.size());
 					for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
 					{
-						MidoriResult::TypeResult arg_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **call_arg);
+						MidoriResult::TypeResult arg_result = Evaluate(call_arg);
 						if (!arg_result.has_value())
 						{
 							return arg_result;
@@ -2216,7 +2241,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 		}
 	}
 
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **call.m_callee)
+	return Evaluate(call.m_callee)
 		.and_then
 		(
 			[&call, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -2240,7 +2265,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					// Propagate expected type from parameter type
 					ExpectedTypeGuard guard(*this, function_type.m_param_types[idx]);
 
-					MidoriResult::TypeResult arg_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **call.m_arguments[idx]);
+					MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
 					if (!arg_result.has_value())
 					{
 						return arg_result;
@@ -2271,7 +2296,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess& get)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **get.m_struct)
+	return Evaluate(get.m_struct)
 		.and_then
 		(
 			[this, &get](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
@@ -2299,7 +2324,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess&
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignment& set)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **set.m_struct)
+	return Evaluate(set.m_struct)
 		.and_then
 		(
 			[&set, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -2320,7 +2345,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignm
 
 				std::shared_ptr<MidoriType> member_type = struct_type.m_member_types[static_cast<size_t>(set.m_index)];
 
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **set.m_value)
+				return Evaluate(set.m_value)
 					.and_then
 					(
 						[&set, &member_type, this](std::shared_ptr<MidoriType>&& value_type) -> MidoriResult::TypeResult
@@ -2412,7 +2437,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& bind)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **bind.m_value)
+	return Evaluate(bind.m_value)
 		.and_then
 		(
 			[&bind, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -2441,7 +2466,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& b
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign& append_assign)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **append_assign.m_value)
+	return Evaluate(append_assign.m_value)
 		.and_then
 		(
 			[&append_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
@@ -2502,7 +2527,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **prepend_assign.m_value)
+	return Evaluate(prepend_assign.m_value)
 		.and_then
 		(
 			[&prepend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
@@ -2563,7 +2588,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **compound_assign.m_value)
+	return Evaluate(compound_assign.m_value)
 		.and_then
 		(
 			[&compound_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
@@ -2690,7 +2715,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
 	);
 
-    return std::visit([this](auto&& arg) { return (*this)(arg); }, **function.m_body)
+	return Evaluate(function.m_body)
 		.and_then
 		(
 			[&function, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
@@ -2771,7 +2796,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))
 	{
 		std::unique_ptr<MidoriExpression>& param = construct.m_params[idx];
-		MidoriResult::TypeResult param_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **param);
+		MidoriResult::TypeResult param_result = Evaluate(param);
 		if (!param_result.has_value())
 		{
 			return param_result;
@@ -2823,7 +2848,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 
 	for (std::unique_ptr<MidoriExpression>& element : array.m_elems)
 	{
-		MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **element);
+		MidoriResult::TypeResult result = Evaluate(element);
 		if (!result.has_value())
 		{
 			return result;
@@ -2846,7 +2871,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& array_get)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **array_get.m_arr_var)
+	return Evaluate(array_get.m_arr_var)
 		.and_then
 		(
 			[&array_get, this](std::shared_ptr<MidoriType>&& array_var_type) ->MidoriResult::TypeResult
@@ -2855,7 +2880,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 				for (size_t idx : std::views::iota(0u, indices_size))
 				{
 					std::unique_ptr<MidoriExpression>& index_expr = array_get.m_indices[idx];
-					MidoriResult::TypeResult index_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **index_expr);
+					MidoriResult::TypeResult index_result = Evaluate(index_expr);
 					if (!index_result.has_value())
 					{
 						return index_result;
@@ -2889,12 +2914,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignment& array_set)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **array_set.m_arr_var)
+	return Evaluate(array_set.m_arr_var)
 		.and_then
 		(
 			[&array_set, this](std::shared_ptr<MidoriType>&& array_var_type) -> MidoriResult::TypeResult
 			{
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **array_set.m_value)
+				return Evaluate(array_set.m_value)
 					.and_then
 					(
 						[&array_set, &array_var_type, this](std::shared_ptr<MidoriType>&& value_type) -> MidoriResult::TypeResult
@@ -2903,7 +2928,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 							for (size_t idx : std::views::iota(0u, array_set.m_indices.size()))
 							{
 								std::unique_ptr<MidoriExpression>& index_expr = array_set.m_indices[idx];
-								MidoriResult::TypeResult index_result = std::visit([this](auto&& arg) { return (*this)(arg); }, **index_expr);
+								MidoriResult::TypeResult index_result = Evaluate(index_expr);
 								if (!index_result.has_value())
 								{
 									return index_result;
@@ -2943,12 +2968,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& range_binary)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_binary.m_start)
+	return Evaluate(range_binary.m_start)
 		.and_then
 		(
 			[&range_binary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
 			{
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_binary.m_end)
+				return Evaluate(range_binary.m_end)
 					.and_then
 					(
 						[&start_type, &range_binary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
@@ -2977,12 +3002,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& 
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary& range_ternary)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_start)
+	return Evaluate(range_ternary.m_start)
 		.and_then
 		(
 			[&range_ternary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
 			{
-				return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_step)
+				return Evaluate(range_ternary.m_step)
 					.and_then
 					(
 						[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& step_type) -> MidoriResult::TypeResult
@@ -2992,7 +3017,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 								(
 									[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 									{
-										return std::visit([this](auto&& arg) { return (*this)(arg); }, **range_ternary.m_end)
+										return Evaluate(range_ternary.m_end)
 											.and_then
 											(
 												[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
@@ -3025,7 +3050,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_else)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **if_else.m_condition)
+	return Evaluate(if_else.m_condition)
 		.and_then
 		(
 			[&if_else, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -3043,12 +3068,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 
 							UpdateConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
 
-							return std::visit([this](auto&& arg) { return (*this)(arg); }, **if_else.m_true_branch)
+							return Evaluate(if_else.m_true_branch)
 								.and_then
 								(
 									[&if_else, this](std::shared_ptr<MidoriType>&& true_branch_type) ->MidoriResult::TypeResult
 									{
-										return std::visit([this](auto&& arg) { return (*this)(arg); }, **if_else.m_else_branch)
+										return Evaluate(if_else.m_else_branch)
 											.and_then
 											(
 												[&true_branch_type, &if_else, this](std::shared_ptr<MidoriType>&& else_branch_type)->MidoriResult::TypeResult
@@ -3078,7 +3103,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 
 	for (const std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
 	{
-		MidoriResult::TypeResult result = std::visit([this](auto&& arg) { return (*this)(arg); }, **stmt);
+		MidoriResult::TypeResult result = Evaluate(stmt);
 		if (!result.has_value())
 		{
 			EndScope();
@@ -3090,7 +3115,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 
 	if (block.m_final_expr.has_value())
 	{
-		return std::visit([this](auto&& arg) { return (*this)(arg); }, ***block.m_final_expr)
+		return Evaluate(*block.m_final_expr)
 			.and_then
 			(
 				[&block, this](std::shared_ptr<MidoriType>&& final_value)->MidoriResult::TypeResult
@@ -3134,7 +3159,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **break_expr.m_value)
+	return Evaluate(break_expr.m_value)
 		.and_then
 		(
 			[&break_expr, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -3169,7 +3194,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 {
 	ExpectedTypeGuard guard(*this, m_expected_return_type);
 
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **return_expr.m_value)
+	return Evaluate(return_expr.m_value)
 		.and_then
 		(
 			[&return_expr, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -3196,7 +3221,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Async& async_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **async_expr.m_expr)
+	return Evaluate(async_expr.m_expr)
 		.and_then
 		(
 			[&async_expr](std::shared_ptr<MidoriType>&& inner_type) -> MidoriResult::TypeResult
@@ -3209,7 +3234,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Async& async_
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Await& await_expr)
 {
-	return std::visit([this](auto&& arg) { return (*this)(arg); }, **await_expr.m_expr)
+	return Evaluate(await_expr.m_expr)
 		.and_then
 		(
 			[&await_expr, this](std::shared_ptr<MidoriType>&& expr_type) -> MidoriResult::TypeResult

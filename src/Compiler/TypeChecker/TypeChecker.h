@@ -100,13 +100,7 @@ private:
 
 public:
 
-	TypeChecker(
-		MidoriProgramTree&& parser_result,
-		std::string_view file_name,
-		const std::vector<std::string>& source_lines,
-		TypeEnvironment imported_types = {},
-		const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}
-	);
+	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {});
 
 	MidoriResult::TypeCheckerResult TypeCheck();
 
@@ -114,6 +108,10 @@ public:
 	static TypeEnvironment ExtractTypeSignatures(const MidoriProgramTree& ast, const std::unordered_set<std::string>* exported_symbols = nullptr);
 
 private:
+
+	MidoriResult::TypeResult Evaluate(const std::unique_ptr<MidoriStatement>& statement);
+
+	MidoriResult::TypeResult Evaluate(const std::unique_ptr<MidoriExpression>& expression);
 
 	void BeginScope();
 

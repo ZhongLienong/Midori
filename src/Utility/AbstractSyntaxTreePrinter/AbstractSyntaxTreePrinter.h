@@ -97,5 +97,11 @@ struct PrintAbstractSyntaxTree
 	void operator()(const MidoriExpression::Async& async_expr, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Await& await_expr, int depth = 0) const;
+
+private:
+
+	void Visit(const std::unique_ptr<MidoriStatement>& statement, int depth) const;
+
+	void Visit(const std::unique_ptr<MidoriExpression>& expression, int depth) const;
 };
 #endif

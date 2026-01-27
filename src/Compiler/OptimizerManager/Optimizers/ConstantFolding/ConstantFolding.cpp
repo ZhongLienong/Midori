@@ -34,7 +34,7 @@ int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
 		program_tree,
 		[this](std::unique_ptr<MidoriStatement>& stmt)
 		{
-			std::visit([this](auto&& arg) { (*this)(arg); }, **stmt);
+			VisitStatement(stmt);
 		}
 	);
 
