@@ -9,23 +9,33 @@
 
 using namespace std::string_literals;
 
-Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata)
-	: m_tokens(std::move(tokens)),
+Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl)
+	: m_imported_symbols(imports),
+	m_imported_type_signatures(imported_type_signatures),
+	m_tokens(std::move(tokens)),
 	m_file_name(file_name),
-	m_source_lines(source_lines),
+	m_current_module(module_decl),
 	m_module_declarations(nullptr),
 	m_use_imports(nullptr),
-	m_current_module(module_decl),
-	m_current_use_imports(use_imports),
-	m_imported_symbols(imports),
-	m_imported_type_signatures(imported_type_signatures)
+	m_source_lines(&source_lines)
+{
+}
+
+Parser::ParseState::ParseState(const std::vector<UseImport>& use_imports)
+{
+	m_current_use_imports = use_imports;
+}
+
+Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata)
+	: m_context(std::move(tokens), file_name, source_lines, imports, imported_type_signatures, module_decl),
+	m_state(use_imports)
 {
 	for (const auto& [tc_name, metadata] : imported_typeclass_metadata)
 	{
-		m_class_methods[tc_name] = metadata.m_method_names;
-		m_typeclass_type_params[tc_name] = metadata.m_type_param_names;
-		m_class_instances[tc_name] = metadata.m_instance_methods;
-		m_typeclass_method_types[tc_name] = metadata.m_method_types;
+		m_state.m_class_methods[tc_name] = metadata.m_method_names;
+		m_state.m_typeclass_type_params[tc_name] = metadata.m_type_param_names;
+		m_state.m_class_instances[tc_name] = metadata.m_instance_methods;
+		m_state.m_typeclass_method_types[tc_name] = metadata.m_method_types;
 	}
 }
 
@@ -94,7 +104,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	std::string lookup_name = mangled_name;
 	std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(lookup_name);
 
-	if (found_scope_it != m_scopes.rend())
+	if (found_scope_it != m_state.m_scopes.rend())
 	{
 		Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(lookup_name);
 
@@ -121,7 +131,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		else
 		{
 			int var_depth = find_result->second.m_function_depth.value();
-			int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+			int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Cell(cell_index)));
 		}
@@ -129,7 +139,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 
 	// Not found in local scopes - check imported modules (for bare imports)
 	// Iterate through all imported modules to find if any exports this symbol
-	for (const auto& [imported_module_name, symbol_table] : m_imported_symbols)
+	for (const auto& [imported_module_name, symbol_table] : m_context.m_imported_symbols)
 	{
 		if (symbol_table.HasExport(lookup_name))
 		{
@@ -143,9 +153,9 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			else if (visibility == VisibilityLevel::Private)
 			{
 				// Private exports only accessible to modules in same namespace
-				if (m_current_module != nullptr && m_current_module->m_has_module_declaration)
+				if (m_context.m_current_module != nullptr && m_context.m_current_module->m_has_module_declaration)
 				{
-					if (SharesNamespace(m_current_module->m_module_name, imported_module_name))
+					if (SharesNamespace(m_context.m_current_module->m_module_name, imported_module_name))
 					{
 						can_access = true;
 					}
@@ -166,10 +176,10 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	}
 
 	std::vector<std::string> matching_typeclasses;
-	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	for (const MidoriType::ClassConstraint& constraint : m_state.m_active_constraints)
 	{
-		std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_class_methods.find(constraint.m_class_name);
-		if (tc_it != m_class_methods.cend() && tc_it->second.contains(lookup_name))
+		std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_state.m_class_methods.find(constraint.m_class_name);
+		if (tc_it != m_state.m_class_methods.cend() && tc_it->second.contains(lookup_name))
 		{
 			matching_typeclasses.emplace_back(constraint.m_class_name);
 		}
@@ -215,7 +225,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 {
 	// No module system enabled, allow all access
-	if (m_module_declarations == nullptr || m_current_module == nullptr)
+	if (m_context.m_module_declarations == nullptr || m_context.m_current_module == nullptr)
 	{
 		return true;
 	}
@@ -225,8 +235,8 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 	std::string mangled_name = symbol_name;  // For namespace-qualified names
 	std::vector<Scope>::const_reverse_iterator found_scope_it = std::ranges::find_if
 	(
-		m_scopes.rbegin(),
-		m_scopes.rend(),
+		m_state.m_scopes.rbegin(),
+		m_state.m_scopes.rend(),
 		[&mangled_name](const Scope& scope)
 		{
 			return scope.m_variables.contains(mangled_name) ||
@@ -237,7 +247,7 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 	);
 
 	// If symbol is defined in current scope, always allow access
-	if (found_scope_it != m_scopes.rend())
+	if (found_scope_it != m_state.m_scopes.rend())
 	{
 		return true;
 	}
@@ -245,7 +255,6 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 	// For unqualified symbol access to external symbols, the symbol must either be:
 	// 1. Explicitly imported via 'use' statement, OR
 	// 2. Not exported by any module (i.e., foreign function)
-
 	// Check if symbol was explicitly imported via 'use'
 	std::string module_name;
 	if (IsInUseImports(symbol_name, module_name))
@@ -256,7 +265,7 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 
 	// Check if symbol is exported by ANY module
 	bool found_in_any_export = false;
-	for (const auto& [file_path, module_decl] : *m_module_declarations)
+	for (const auto& [file_path, module_decl] : *m_context.m_module_declarations)
 	{
 		if (module_decl.HasExport(symbol_name))
 		{
@@ -279,7 +288,7 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 bool Parser::IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const
 {
 	// Check if the symbol was explicitly imported via 'use' statement
-	for (const UseImport& use_import : m_current_use_imports)
+	for (const UseImport& use_import : m_state.m_current_use_imports)
 	{
 		if (use_import.m_symbol_name == symbol_name)
 		{
@@ -292,13 +301,13 @@ bool Parser::IsInUseImports(const std::string& symbol_name, std::string& out_mod
 
 bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const
 {
-	const bool using_new_path = (m_module_declarations == nullptr);
+	const bool using_new_path = (m_context.m_module_declarations == nullptr);
 
 	if (using_new_path)
 	{
 		// New path: Check imported symbol tables (from per-module compilation)
-		std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_imported_symbols.find(module_name);
-		if (it != m_imported_symbols.cend())
+		std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_context.m_imported_symbols.find(module_name);
+		if (it != m_context.m_imported_symbols.cend())
 		{
 			// Check if the symbol is exported by this module
 			return it->second.HasExport(symbol_name);
@@ -310,17 +319,17 @@ bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::s
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
 {
-	return found_scope_it == std::prev(m_scopes.crend());
+	return found_scope_it == std::prev(m_state.m_scopes.crend());
 }
 
 bool Parser::IsLocalName(const Scope::VariableTable::const_iterator& found_tbl_it) const
 {
-	return m_function_depth == 0 || found_tbl_it->second.m_function_depth == m_function_depth;
+	return m_state.m_function_depth == 0 || found_tbl_it->second.m_function_depth == m_state.m_function_depth;
 }
 
 bool Parser::IsAtGlobalScope() const
 {
-	return m_scopes.size() == 1u;
+	return m_state.m_scopes.size() == 1u;
 }
 
 std::string Parser::GenerateParserError(std::string&& message, const Token& token)
@@ -328,7 +337,7 @@ std::string Parser::GenerateParserError(std::string&& message, const Token& toke
 	Synchronize();
 	
 	// If the token is from a different file, read that file's source lines
-	if (token.m_file_name != m_file_name && !token.m_file_name.empty())
+	if (token.m_file_name != m_context.m_file_name && !token.m_file_name.empty())
 	{
 		std::ifstream file(token.m_file_name);
 		if (file.is_open())
@@ -343,32 +352,68 @@ std::string Parser::GenerateParserError(std::string&& message, const Token& toke
 		}
 	}
 	
-	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, m_source_lines);
+	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, *m_context.m_source_lines);
+}
+
+bool Parser::IsNoMatchError(const std::string& error) const
+{
+	return error == s_no_match_error;
+}
+
+bool Parser::IsAtEnd(ParseState& state)
+{
+	return Peek(state, 0).m_token_name == Token::Name::END_OF_FILE;
+}
+
+bool Parser::Check(ParseState& state, Token::Name type, int offset)
+{
+	return !IsAtEnd(state) && Peek(state, offset).m_token_name == type;
+}
+
+Token& Parser::Peek(ParseState& state, int offset)
+{
+	return state.m_current_token_index + offset < m_context.m_tokens.Size()
+		? m_context.m_tokens[state.m_current_token_index + offset]
+		: m_context.m_tokens[m_context.m_tokens.Size() - 1];
+}
+
+Token& Parser::Previous(ParseState& state)
+{
+	return m_context.m_tokens[static_cast<size_t>(state.m_current_token_index - 1)];
+}
+
+Token& Parser::Advance(ParseState& state)
+{
+	if (!IsAtEnd(state))
+	{
+		state.m_current_token_index += 1;
+	}
+	return Previous(state);
 }
 
 bool Parser::IsAtEnd()
 {
-	return Peek(0).m_token_name == Token::Name::END_OF_FILE;
+	return IsAtEnd(m_state);
 }
 
 bool Parser::Check(Token::Name type, int offset)
 {
-	return !IsAtEnd() && Peek(offset).m_token_name == type;
+	return Check(m_state, type, offset);
 }
 
 Token& Parser::Peek(int offset)
 {
-	return m_current_token_index + offset < m_tokens.Size() ? m_tokens[m_current_token_index + offset] : m_tokens[m_tokens.Size() - 1];
+	return Peek(m_state, offset);
 }
 
 Token& Parser::Previous()
 {
-	return m_tokens[static_cast<size_t>(m_current_token_index - 1)];
+	return Previous(m_state);
 }
 
 std::vector<Parser::Scope>::const_reverse_iterator Parser::FindTypeScope(std::string& name)
 {
-	for (std::vector<Parser::Scope>::const_reverse_iterator it = m_scopes.crbegin(); it != m_scopes.crend(); ++it)
+	for (std::vector<Parser::Scope>::const_reverse_iterator it = m_state.m_scopes.crbegin(); it != m_state.m_scopes.crend(); ++it)
 	{
 		if (it->m_defined_types.find(name) != it->m_defined_types.end())
 		{
@@ -377,16 +422,16 @@ std::vector<Parser::Scope>::const_reverse_iterator Parser::FindTypeScope(std::st
 	}
 
 	std::string mangled_name;
-	for (size_t end_idx : std::views::iota(0u, m_namespaces.size()))
+	for (size_t end_idx : std::views::iota(0u, m_state.m_namespaces.size()))
 	{
 		std::string stacked_namespace;
 		for (size_t idx : std::views::iota(0u, end_idx + 1u))
 		{
-			stacked_namespace.append(m_namespaces[idx]).append(NameSeparator);
+			stacked_namespace.append(m_state.m_namespaces[idx]).append(NameSeparator);
 		}
 		mangled_name.append(stacked_namespace).append(name);
 
-		for (std::vector<Parser::Scope>::const_reverse_iterator it = m_scopes.crbegin(); it != m_scopes.crend(); ++it)
+		for (std::vector<Parser::Scope>::const_reverse_iterator it = m_state.m_scopes.crbegin(); it != m_state.m_scopes.crend(); ++it)
 		{
 			if (it->m_defined_types.find(mangled_name) != it->m_defined_types.end())
 			{
@@ -398,12 +443,12 @@ std::vector<Parser::Scope>::const_reverse_iterator Parser::FindTypeScope(std::st
 		mangled_name.clear();
 	}
 
-	return m_scopes.crend();
+	return m_state.m_scopes.crend();
 }
 
 std::vector<Parser::Scope>::const_reverse_iterator Parser::FindVariableScope(std::string& name)
 {
-	for (std::vector<Parser::Scope>::const_reverse_iterator it = m_scopes.crbegin(); it != m_scopes.crend(); ++it)
+	for (std::vector<Parser::Scope>::const_reverse_iterator it = m_state.m_scopes.crbegin(); it != m_state.m_scopes.crend(); ++it)
 	{
 		if (it->m_variables.find(name) != it->m_variables.end())
 		{
@@ -412,16 +457,16 @@ std::vector<Parser::Scope>::const_reverse_iterator Parser::FindVariableScope(std
 	}
 
 	std::string mangled_name;
-	for (size_t end_idx : std::views::iota(0u, m_namespaces.size()))
+	for (size_t end_idx : std::views::iota(0u, m_state.m_namespaces.size()))
 	{
 		std::string stacked_namespace;
 		for (size_t idx : std::views::iota(0u, end_idx + 1u))
 		{
-			stacked_namespace.append(m_namespaces[idx]).append(NameSeparator);
+			stacked_namespace.append(m_state.m_namespaces[idx]).append(NameSeparator);
 		}
 		mangled_name.append(stacked_namespace).append(name);
 
-		for (std::vector<Parser::Scope>::const_reverse_iterator it = m_scopes.crbegin(); it != m_scopes.crend(); ++it)
+		for (std::vector<Parser::Scope>::const_reverse_iterator it = m_state.m_scopes.crbegin(); it != m_state.m_scopes.crend(); ++it)
 		{
 			if (it->m_variables.find(mangled_name) != it->m_variables.end())
 			{
@@ -433,16 +478,12 @@ std::vector<Parser::Scope>::const_reverse_iterator Parser::FindVariableScope(std
 		mangled_name.clear();
 	}
 
-	return m_scopes.crend();
+	return m_state.m_scopes.crend();
 }
 
 Token& Parser::Advance()
 {
-	if (!IsAtEnd())
-	{
-		m_current_token_index += 1;
-	}
-	return Previous();
+	return Advance(m_state);
 }
 
 MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view message)
@@ -453,22 +494,22 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_file_name, m_source_lines));
+			return std::unexpected<std::string>(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
 	}
 }
 
 void Parser::BeginScope()
 {
-	m_scopes.emplace_back();
+	m_state.m_scopes.emplace_back();
 }
 
 int Parser::EndScope()
 {
-	const Scope& scope = m_scopes.back();
+	const Scope& scope = m_state.m_scopes.back();
 	int block_local_count = static_cast<int>(scope.m_variables.size());
-	m_total_locals_in_curr_scope -= block_local_count;
-	m_total_variables -= block_local_count;
-	m_scopes.pop_back();
+	m_state.m_total_locals_in_curr_scope -= block_local_count;
+	m_state.m_total_variables -= block_local_count;
+	m_state.m_scopes.pop_back();
 	return block_local_count;
 }
 
@@ -480,15 +521,15 @@ std::string Parser::Mangle(std::string_view name)
 	{
 		// Name already has a qualifier (e.g., "UnionName::Member")
 		std::string_view top_qualifier = name.substr(0u, sep_idx);
-		std::vector<std::string>::const_iterator find_result = std::find(m_namespaces.cbegin(), m_namespaces.cend(), top_qualifier);
+		std::vector<std::string>::const_iterator find_result = std::find(m_state.m_namespaces.cbegin(), m_state.m_namespaces.cend(), top_qualifier);
 
-		if (find_result != m_namespaces.cend())
+		if (find_result != m_state.m_namespaces.cend())
 		{
 			// Found the qualifier in our stack, resolve to absolute path
 			std::string mangled_name;
 
 			// Prepend qualifiers up to (but not including) the found one
-			for (std::vector<std::string>::const_iterator it = m_namespaces.cbegin(); it != find_result; ++it)
+			for (std::vector<std::string>::const_iterator it = m_state.m_namespaces.cbegin(); it != find_result; ++it)
 			{
 				mangled_name.append(*it).append(NameSeparator);
 			}
@@ -507,7 +548,7 @@ std::string Parser::Mangle(std::string_view name)
 	{
 		// No separator - prepend all current qualification contexts (e.g., union names)
 		std::string mangled_name;
-		for (const std::string& qualifier : m_namespaces)
+		for (const std::string& qualifier : m_state.m_namespaces)
 		{
 			mangled_name.append(qualifier).append(NameSeparator);
 		}
@@ -520,41 +561,41 @@ MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 {
 	name.m_lexeme = Mangle(name.m_lexeme);
 
-	if (m_scopes.back().m_defined_names.contains(name.m_lexeme))
+	if (m_state.m_scopes.back().m_defined_names.contains(name.m_lexeme))
 	{
 		return std::unexpected<std::string>(GenerateParserError("Name already exists in the current scope", name));
 	}
 
-	// m_scopes.size() - 2 because the last scope is the current scope
-	for (int i = static_cast<int>(m_scopes.size()) - 2; i >= 0; --i)
+	// m_state.m_scopes.size() - 2 because the last scope is the current scope
+	for (int i = static_cast<int>(m_state.m_scopes.size()) - 2; i >= 0; --i)
 	{
 		size_t index = static_cast<size_t>(i);
-		if (m_scopes[index].m_struct_constructors.contains(name.m_lexeme))
+		if (m_state.m_scopes[index].m_struct_constructors.contains(name.m_lexeme))
 		{
 			// TODO: Warning
 			// Overshadowing a struct
 		}
-		if (m_scopes[index].m_variables.contains(name.m_lexeme))
+		if (m_state.m_scopes[index].m_variables.contains(name.m_lexeme))
 		{
 			// TODO: Warning
 			// Overshadowing a variable
 		}
-		if (m_scopes[index].m_union_constructors.contains(name.m_lexeme))
+		if (m_state.m_scopes[index].m_union_constructors.contains(name.m_lexeme))
 		{
 			// TODO: Warning
 			// Overshadowing a union
 		}
-		if (m_scopes[index].m_defined_types.contains(name.m_lexeme))
+		if (m_state.m_scopes[index].m_defined_types.contains(name.m_lexeme))
 		{
 			// TODO: Warning
 			// Overshadowing a type
 		}
 	}
 
-	m_scopes.back().m_defined_names.emplace(name.m_lexeme);
+	m_state.m_scopes.back().m_defined_names.emplace(name.m_lexeme);
 	if (is_variable)
 	{
-		m_scopes.back().m_variables.emplace(name.m_lexeme, VariableContext());
+		m_state.m_scopes.back().m_variables.emplace(name.m_lexeme, VariableContext());
 	}
 
 	return name;
@@ -566,8 +607,8 @@ std::optional<int> Parser::RegisterOrUpdateLocalVariable(const std::string& name
 
 	if (!IsAtGlobalScope())
 	{
-		m_scopes.back().m_variables[name] = VariableContext(m_total_locals_in_curr_scope++, m_total_variables++, m_function_depth);
-		local_index.emplace(m_scopes.back().m_variables[name].m_relative_index.value());
+		m_state.m_scopes.back().m_variables[name] = VariableContext(m_state.m_total_locals_in_curr_scope++, m_state.m_total_variables++, m_state.m_function_depth);
+		local_index.emplace(m_state.m_scopes.back().m_variables[name].m_relative_index.value());
 	}
 
 	return local_index;
@@ -673,7 +714,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
-									if (found_scope_it != m_scopes.crend())
+									if (found_scope_it != m_state.m_scopes.crend())
 									{
 										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
@@ -687,7 +728,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										else
 										{
 											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
@@ -721,7 +762,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
-									if (found_scope_it != m_scopes.crend())
+									if (found_scope_it != m_state.m_scopes.crend())
 									{
 										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
@@ -735,7 +776,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										else
 										{
 											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
@@ -759,7 +800,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
-									if (found_scope_it != m_scopes.crend())
+									if (found_scope_it != m_state.m_scopes.crend())
 									{
 										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
@@ -773,7 +814,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										else
 										{
 											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
@@ -797,7 +838,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
 									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
 
-									if (found_scope_it != m_scopes.crend())
+									if (found_scope_it != m_state.m_scopes.crend())
 									{
 										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
 										if (IsGlobalName(found_scope_it))
@@ -811,7 +852,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 										else
 										{
 											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
+											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
@@ -1060,7 +1101,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 
 			std::optional<std::shared_ptr<MidoriType>> defined_type = std::nullopt;
 			bool is_struct = false;
-			for (Scopes::const_reverse_iterator scopes_iter = m_scopes.crbegin(); scopes_iter != m_scopes.crend(); ++scopes_iter)
+			for (Scopes::const_reverse_iterator scopes_iter = m_state.m_scopes.crbegin(); scopes_iter != m_state.m_scopes.crend(); ++scopes_iter)
 			{
 				const Scope& scope = *scopes_iter;
 				if (scope.m_union_constructors.contains(data_name_token_value.m_lexeme))
@@ -1092,7 +1133,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				bool is_imported = false;
 				std::string module_name;
 
-				for (const UseImport& use_import : m_current_use_imports)
+				for (const UseImport& use_import : m_state.m_current_use_imports)
 				{
 					if (use_import.m_symbol_name == lookup_base)
 					{
@@ -1104,10 +1145,10 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 
 				if (is_imported)
 				{
-					if (m_imported_type_signatures.contains(module_name))
+					if (m_context.m_imported_type_signatures.contains(module_name))
 					{
 						std::string type_name = lookup_base;
-						const TypeEnvironment& env = m_imported_type_signatures.at(module_name);
+						const TypeEnvironment& env = m_context.m_imported_type_signatures.at(module_name);
 						
 						if (env.contains(type_name))
 						{
@@ -1139,7 +1180,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				// Try bare imports (without use alias)
 				if (defined_type == std::nullopt)
 				{
-					for (const auto& [mod_name, env] : m_imported_type_signatures)
+					for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
 					{
 						std::string type_name = lookup_base;
 						if (env.contains(type_name))
@@ -1352,9 +1393,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					if (qualifier.empty() && !CanAccessSymbol(symbol_name))
 					{
 						std::string error_msg = "Symbol '"s + symbol_name + "' is not accessible"s;
-						if (m_module_declarations != nullptr)
+						if (m_context.m_module_declarations != nullptr)
 						{
-							for (const auto& [file_path, module_decl] : *m_module_declarations)
+							for (const auto& [file_path, module_decl] : *m_context.m_module_declarations)
 							{
 								if (module_decl.HasExport(symbol_name))
 								{
@@ -1374,7 +1415,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							}
 						}
 
-						error_msg += "\n  Hint: Use 'use "s + std::string(m_module_declarations != nullptr && std::ranges::any_of(*m_module_declarations, [&symbol_name](const auto& pair) { return pair.second.HasExport(symbol_name); }) ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
+						error_msg += "\n  Hint: Use 'use "s + std::string(m_context.m_module_declarations != nullptr && std::ranges::any_of(*m_context.m_module_declarations, [&symbol_name](const auto& pair) { return pair.second.HasExport(symbol_name); }) ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
 						return std::unexpected<std::string>(GenerateParserError(std::move(error_msg), variable));
 					}
 
@@ -1382,21 +1423,21 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					if (!qualifier.empty())
 					{
 						// Qualified class method call (e.g., Show::show)
-						for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+						for (const MidoriType::ClassConstraint& constraint : m_state.m_active_constraints)
 						{
 							if (constraint.m_class_name != qualifier)
 							{
 								continue;
 							}
 
-							std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_class_methods.find(constraint.m_class_name);
-							if (tc_it != m_class_methods.cend() && tc_it->second.contains(symbol_name))
+							std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_state.m_class_methods.find(constraint.m_class_name);
+							if (tc_it != m_state.m_class_methods.cend() && tc_it->second.contains(symbol_name))
 							{
 								return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 							}
 						}
 
-						const bool using_new_path = (m_module_declarations == nullptr);
+						const bool using_new_path = (m_context.m_module_declarations == nullptr);
 
 						if (using_new_path)
 						{
@@ -1411,8 +1452,8 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							else
 							{
 								// Check if module exists in imports
-								std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_imported_symbols.find(qualifier);
-								if (it == m_imported_symbols.cend())
+								std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_context.m_imported_symbols.find(qualifier);
+								if (it == m_context.m_imported_symbols.cend())
 								{
 									return std::unexpected<std::string>(GenerateParserError("Module '"s + qualifier + "' not found"s, variable));
 								}
@@ -1700,7 +1741,7 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 MidoriResult::ExpressionResult Parser::ParseBreakExpression()
 {
 	Token& keyword = Previous();
-	if (m_local_count_before_loop.empty())
+	if (m_state.m_local_count_before_loop.empty())
 	{
 		return std::unexpected<std::string>(GenerateParserError("'break' must be used inside a loop.", keyword));
 	}
@@ -1711,7 +1752,7 @@ MidoriResult::ExpressionResult Parser::ParseBreakExpression()
 			(
 				[&keyword, this](std::unique_ptr<MidoriExpression>&& expr)->MidoriResult::ExpressionResult
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Break(keyword, m_total_variables - m_local_count_before_loop.top(), std::move(expr)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Break(keyword, m_state.m_total_variables - m_state.m_local_count_before_loop.top(), std::move(expr)));
 				}
 			);
 	}
@@ -1720,7 +1761,7 @@ MidoriResult::ExpressionResult Parser::ParseBreakExpression()
 MidoriResult::ExpressionResult Parser::ParseReturnExpression()
 {
 	Token& keyword = Previous();
-	if (m_function_depth == 0)
+	if (m_state.m_function_depth == 0)
 	{
 		return std::unexpected<std::string>(GenerateParserError("'return' must be used inside a function.", keyword));
 	}
@@ -1740,14 +1781,14 @@ MidoriResult::ExpressionResult Parser::ParseReturnExpression()
 MidoriResult::ExpressionResult Parser::ParseLoopExpression()
 {
 	Token& keyword = Previous();
-	m_local_count_before_loop.emplace(m_total_variables);
+	m_state.m_local_count_before_loop.emplace(m_state.m_total_variables);
 
 	return ParseExpression()
 		.and_then
 		(
 			[&keyword, this](std::unique_ptr<MidoriExpression>&& body)->MidoriResult::ExpressionResult
 			{
-				m_local_count_before_loop.pop();
+				m_state.m_local_count_before_loop.pop();
 				return std::make_unique<MidoriExpression>(MidoriExpression::Loop(keyword, std::move(body)));
 			}
 		);
@@ -1780,7 +1821,7 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				// Add loop variable to scope
 				std::string var_name(loop_variable.m_lexeme);
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
-				int var_index = m_total_variables - 1; // The index that was just assigned
+				int var_index = m_state.m_total_variables - 1; // The index that was just assigned
 
 				// Reserve additional local variable slots for hidden loop state values
 				// These are not actual variables that can be referenced by name, but they need
@@ -1789,18 +1830,18 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				// For array iteration: current index, length, and array reference
 				// Names use '$' prefix which is not valid in user identifiers
 				RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_for_counter));
-				int hidden_step_index = m_total_variables - 1;
+				int hidden_step_index = m_state.m_total_variables - 1;
 
 				RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_for_counter));
-				int hidden_end_index = m_total_variables - 1;
+				int hidden_end_index = m_state.m_total_variables - 1;
 
 				RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter));
-				int hidden_array_index = m_total_variables - 1;
+				int hidden_array_index = m_state.m_total_variables - 1;
 				s_for_counter += 1;
 
 				// NOW set the loop local count, after the 4 for loop variables are registered
 				// This ensures continue/break don't try to pop these loop control variables
-				m_local_count_before_loop.emplace(m_total_variables);
+				m_state.m_local_count_before_loop.emplace(m_state.m_total_variables);
 
 				return ParseExpression()
 					.and_then
@@ -1809,7 +1850,7 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 						{
 							EndScope();
 
-							m_local_count_before_loop.pop();
+							m_state.m_local_count_before_loop.pop();
 							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
 							MidoriExpression::For& for_expr_ref = for_expr->GetExpression<MidoriExpression::For>();
 							for_expr_ref.m_loop_variable_index = var_index;
@@ -1911,20 +1952,20 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 	// Register loop variable FIRST so it's in scope for the transform expression
 	std::string var_name(loop_variable.m_lexeme);
 	RegisterOrUpdateLocalVariable(var_name);
-	int var_index = m_total_variables - 1;
+	int var_index = m_state.m_total_variables - 1;
 
 	// Reserve hidden variable slots (similar to For loop)
 	RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_step_index = m_total_variables - 1;
+	int hidden_step_index = m_state.m_total_variables - 1;
 
 	RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_end_index = m_total_variables - 1;
+	int hidden_end_index = m_state.m_total_variables - 1;
 
 	RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_array_index = m_total_variables - 1;
+	int hidden_array_index = m_state.m_total_variables - 1;
 
 	RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter));
-	int result_array_index = m_total_variables - 1;
+	int result_array_index = m_state.m_total_variables - 1;
 
 	s_comp_counter += 1;
 
@@ -2147,10 +2188,10 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 								(
 									[&func_name, &generic_params, &generic_param_types, &local_index, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 									{
-										m_function_depth += 1;
-										m_function_base_variable_index.push_back(m_total_variables);
-										int prev_total_locals = m_total_locals_in_curr_scope;
-										m_total_locals_in_curr_scope = 0;
+										m_state.m_function_depth += 1;
+										m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
+										int prev_total_locals = m_state.m_total_locals_in_curr_scope;
+										m_state.m_total_locals_in_curr_scope = 0;
 										BeginScope();
 
 										MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
@@ -2158,9 +2199,9 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 										if (!params_parse_result.has_value())
 										{
 											EndScope();
-											m_total_locals_in_curr_scope = prev_total_locals;
-											m_function_base_variable_index.pop_back();
-											m_function_depth -= 1;
+											m_state.m_total_locals_in_curr_scope = prev_total_locals;
+											m_state.m_function_base_variable_index.pop_back();
+											m_state.m_function_depth -= 1;
 
 											// Close the generic parameter scope if it was created
 											if (has_generic_params)
@@ -2189,7 +2230,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 															[&func_name, &generic_params, &generic_param_types, &params, &param_types, &local_index, has_generic_params, prev_total_locals, this](std::shared_ptr<MidoriType>&& return_type) -> MidoriResult::StatementResult
 															{
 																std::vector<MidoriType::ClassConstraint> constraints;
-																size_t prev_constraints_size = m_active_constraints.size();
+																size_t prev_constraints_size = m_state.m_active_constraints.size();
 																if (Match(Token::Name::WHERE))
 																{
 																	std::function<std::expected<MidoriType::ClassConstraint, std::string>()> parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, std::string>
@@ -2242,7 +2283,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																		return std::unexpected<std::string>(GenerateParserError("Expected at least one constraint after 'where' keyword.", func_name));
 																	}
 
-																	m_active_constraints.insert(m_active_constraints.end(), constraints.begin(), constraints.end());
+																	m_state.m_active_constraints.insert(m_state.m_active_constraints.end(), constraints.begin(), constraints.end());
 																}
 
 																struct ActiveConstraintGuard
@@ -2253,7 +2294,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																	{
 																		if (m_parser != nullptr)
 																		{
-																			m_parser->m_active_constraints.resize(m_prev_size);
+																			m_parser->m_state.m_active_constraints.resize(m_prev_size);
 																		}
 																	}
 																};
@@ -2275,15 +2316,15 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																								[&func_name, &generic_params, &generic_param_types, &params, &param_types, &return_type, &constraints, &body, &local_index, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
 																								{
 																									EndScope();
-																									m_total_locals_in_curr_scope = prev_total_locals;
+																									m_state.m_total_locals_in_curr_scope = prev_total_locals;
 
 																									// Calculate captured_count before popping function state
-																									int func_base = m_function_base_variable_index.back();
-																									int parent_base = (m_function_depth >= 2) ? m_function_base_variable_index[static_cast<size_t>(m_function_depth - 2)] : 0;
+																									int func_base = m_state.m_function_base_variable_index.back();
+																									int parent_base = (m_state.m_function_depth >= 2) ? m_state.m_function_base_variable_index[static_cast<size_t>(m_state.m_function_depth - 2)] : 0;
 																									int captured_count = func_base - parent_base;
 
-																									m_function_base_variable_index.pop_back();
-																									m_function_depth -= 1;
+																									m_state.m_function_base_variable_index.pop_back();
+																									m_state.m_function_depth -= 1;
 
 																									if (has_generic_params)
 																									{
@@ -2412,8 +2453,8 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 																	EndScope();
 																}
 
-																m_scopes.back().m_struct_constructors[struct_name.m_lexeme] = struct_type;
-																m_scopes.back().m_defined_types[struct_name.m_lexeme] = struct_type;
+																m_state.m_scopes.back().m_struct_constructors[struct_name.m_lexeme] = struct_type;
+																m_state.m_scopes.back().m_defined_types[struct_name.m_lexeme] = struct_type;
 
 																return std::make_unique<MidoriStatement>(MidoriStatement::Struct(std::move(struct_name), std::move(generic_params), std::move(struct_type)));
 															}
@@ -2477,9 +2518,9 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme, std::move(generic_param_names));
 							MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
 
-							size_t type_scope_idx = has_generic_params ? m_scopes.size() - 2uz : m_scopes.size() - 1uz;
-							m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
-							m_namespaces.emplace_back(union_name_before_mangle);
+							size_t type_scope_idx = has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
+							m_state.m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
+							m_state.m_namespaces.emplace_back(union_name_before_mangle);
 
 							return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
 								.and_then
@@ -2555,11 +2596,11 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 															// If we have generic params, we're one scope level deeper, so go back one
 															if (has_generic_params)
 															{
-																m_scopes[m_scopes.size() - 2].m_union_constructors[member_info_entry.first] = union_type;
+																m_state.m_scopes[m_state.m_scopes.size() - 2].m_union_constructors[member_info_entry.first] = union_type;
 															}
 															else
 															{
-																m_scopes.back().m_union_constructors[member_info_entry.first] = union_type;
+																m_state.m_scopes.back().m_union_constructors[member_info_entry.first] = union_type;
 															}
 														}
 													);
@@ -2569,7 +2610,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 														(
 															[&union_name, &union_type, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 															{
-																m_namespaces.pop_back();
+																m_state.m_namespaces.pop_back();
 
 																if (has_generic_params)
 																{
@@ -2634,7 +2675,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 
 							std::vector<std::string> type_param_names;
 							std::ranges::transform(type_params, std::back_inserter(type_param_names), [](const Token& tok) { return tok.m_lexeme; });
-							m_typeclass_type_params[typeclass_name.m_lexeme] = type_param_names;
+							m_state.m_typeclass_type_params[typeclass_name.m_lexeme] = type_param_names;
 
 							return Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.")
 								.and_then
@@ -2726,8 +2767,8 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 																																		std::shared_ptr<MidoriType> return_type_copy = return_type;
 																																		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(std::move(param_types_copy), std::move(return_type_copy));
 
-																																		m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
-																																		m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
+																																		m_state.m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
+																																		m_state.m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
 
 																																		return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>()));
 																																	}
@@ -2779,7 +2820,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		(
 			[this](Token&& typeclass_name) -> MidoriResult::StatementResult
 			{
-				if (!m_class_methods.contains(typeclass_name.m_lexeme))
+				if (!m_state.m_class_methods.contains(typeclass_name.m_lexeme))
 				{
 					return std::unexpected<std::string>(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
 				}
@@ -2847,10 +2888,10 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																				(
 																					[&method_name, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 																					{
-																						m_function_depth += 1;
-																						m_function_base_variable_index.push_back(m_total_variables);
-																						int prev_total_locals = m_total_locals_in_curr_scope;
-																						m_total_locals_in_curr_scope = 0;
+																						m_state.m_function_depth += 1;
+																						m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
+																						int prev_total_locals = m_state.m_total_locals_in_curr_scope;
+																						m_state.m_total_locals_in_curr_scope = 0;
 																						BeginScope();
 
 																						MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
@@ -2858,9 +2899,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																						if (!params_parse_result.has_value())
 																						{
 																							EndScope();
-																							m_total_locals_in_curr_scope = prev_total_locals;
-																							m_function_base_variable_index.pop_back();
-																							m_function_depth -= 1;
+																							m_state.m_total_locals_in_curr_scope = prev_total_locals;
+																							m_state.m_function_base_variable_index.pop_back();
+																							m_state.m_function_depth -= 1;
 
 																							if (has_generic_params)
 																							{
@@ -2903,9 +2944,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 																																				[&method_name, &generic_params, &params, &param_types, &return_type, &body, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
 																																				{
 																																					EndScope();
-																																					m_total_locals_in_curr_scope = prev_total_locals;
-																																					m_function_base_variable_index.pop_back();
-																																					m_function_depth -= 1;
+																																					m_state.m_total_locals_in_curr_scope = prev_total_locals;
+																																					m_state.m_function_base_variable_index.pop_back();
+																																					m_state.m_function_depth -= 1;
 
 																																					if (has_generic_params)
 																																					{
@@ -2966,11 +3007,11 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 
 																					// Track the mangled instance method WITH module suffix for cross-module resolution
 																					std::string mangled_name_with_module = mangled_name;
-																					if (m_current_module && m_current_module->m_has_module_declaration)
+																					if (m_context.m_current_module && m_context.m_current_module->m_has_module_declaration)
 																					{
-																						mangled_name_with_module += ModuleSeparator + m_current_module->m_module_name;
+																						mangled_name_with_module += ModuleSeparator + m_context.m_current_module->m_module_name;
 																					}
-																					m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
+																					m_state.m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
 
 																					// Update the method's name to the mangled version (without module suffix - CodeGenerator adds it)
 																					defun.m_name.m_lexeme = mangled_name;
@@ -3050,7 +3091,7 @@ MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
 																	EndScope();
 																}
 
-																m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
+																m_state.m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
 
 																return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(alias_name), std::move(generic_params), std::move(aliased_type)));
 															}
@@ -3069,7 +3110,7 @@ MidoriResult::StatementResult Parser::ParseContinueStatement()
 {
 	Token& keyword = Previous();
 
-	if (m_local_count_before_loop.empty())
+	if (m_state.m_local_count_before_loop.empty())
 	{
 		return std::unexpected<std::string>(GenerateParserError("'continue' must be used inside a loop.", keyword));
 	}
@@ -3079,7 +3120,7 @@ MidoriResult::StatementResult Parser::ParseContinueStatement()
 		(
 			[&keyword, this](Token&&) ->MidoriResult::StatementResult
 			{
-				return std::make_unique<MidoriStatement>(MidoriStatement::Continue(keyword, m_total_variables - m_local_count_before_loop.top() - 1));
+				return std::make_unique<MidoriStatement>(MidoriStatement::Continue(keyword, m_state.m_total_variables - m_state.m_local_count_before_loop.top() - 1));
 			}
 		);
 }
@@ -3263,19 +3304,19 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		(
 			[&keyword, this](Token&&) -> MidoriResult::ExpressionResult
 			{
-				m_function_depth += 1;
-				m_function_base_variable_index.push_back(m_total_variables);
-				int prev_total_locals = m_total_locals_in_curr_scope;
-				m_total_locals_in_curr_scope = 0;
+				m_state.m_function_depth += 1;
+				m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
+				int prev_total_locals = m_state.m_total_locals_in_curr_scope;
+				m_state.m_total_locals_in_curr_scope = 0;
 				BeginScope();
 
 				MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
 				if (!params_parse_result.has_value())
 				{
 					EndScope();
-					m_total_locals_in_curr_scope = prev_total_locals;
-					m_function_base_variable_index.pop_back();
-					m_function_depth -= 1;
+					m_state.m_total_locals_in_curr_scope = prev_total_locals;
+					m_state.m_function_base_variable_index.pop_back();
+					m_state.m_function_depth -= 1;
 					return std::unexpected<std::string>(params_parse_result.error());
 				}
 				else
@@ -3312,10 +3353,10 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 																	[&params, &param_types, &return_type, &keyword, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& return_value) ->MidoriResult::ExpressionResult
 																	{
 																		EndScope();
-																		m_total_locals_in_curr_scope = prev_total_locals;
-																		m_function_base_variable_index.pop_back();
-																		m_function_depth -= 1;
-																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_total_variables));
+																		m_state.m_total_locals_in_curr_scope = prev_total_locals;
+																		m_state.m_function_base_variable_index.pop_back();
+																		m_state.m_function_depth -= 1;
+																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_state.m_total_variables));
 																	}
 																);
 														}
@@ -3327,10 +3368,10 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 																	[&params, &param_types, &return_type, &keyword, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& return_value) ->MidoriResult::ExpressionResult
 																	{
 																		EndScope();
-																		m_total_locals_in_curr_scope = prev_total_locals;
-																		m_function_base_variable_index.pop_back();
-																		m_function_depth -= 1;
-																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_total_variables));
+																		m_state.m_total_locals_in_curr_scope = prev_total_locals;
+																		m_state.m_function_base_variable_index.pop_back();
+																		m_state.m_function_depth -= 1;
+																		return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::vector<Token>(), std::move(params), std::move(param_types), std::move(return_type), std::move(return_value), m_state.m_total_variables));
 																	}
 																);
 														}
@@ -3349,13 +3390,13 @@ MidoriResult::ExpressionResult Parser::ParseAsyncExpression()
 {
 	Token& keyword = Previous();
 
-	m_function_depth += 1;
-	int async_base = m_total_variables;
-	m_function_base_variable_index.push_back(async_base);
-	int prev_total_locals = m_total_locals_in_curr_scope;
-	m_total_locals_in_curr_scope = 0;
+	m_state.m_function_depth += 1;
+	int async_base = m_state.m_total_variables;
+	m_state.m_function_base_variable_index.push_back(async_base);
+	int prev_total_locals = m_state.m_total_locals_in_curr_scope;
+	m_state.m_total_locals_in_curr_scope = 0;
 
-	int parent_base = (m_function_depth >= 2) ? m_function_base_variable_index[static_cast<size_t>(m_function_depth - 2)] : 0;
+	int parent_base = (m_state.m_function_depth >= 2) ? m_state.m_function_base_variable_index[static_cast<size_t>(m_state.m_function_depth - 2)] : 0;
 	int captured_count = async_base - parent_base;
 
 	return ParseExpression()
@@ -3363,9 +3404,9 @@ MidoriResult::ExpressionResult Parser::ParseAsyncExpression()
 		(
 			[&keyword, prev_total_locals, captured_count, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
 			{
-				m_total_locals_in_curr_scope = prev_total_locals;
-				m_function_base_variable_index.pop_back();
-				m_function_depth -= 1;
+				m_state.m_total_locals_in_curr_scope = prev_total_locals;
+				m_state.m_function_base_variable_index.pop_back();
+				m_state.m_function_depth -= 1;
 
 				std::unique_ptr<MidoriExpression> async_expr = std::make_unique<MidoriExpression>(MidoriExpression::Async(keyword, std::move(expr)));
 				async_expr->GetExpression<MidoriExpression::Async>().m_captured_count = captured_count;
@@ -3506,380 +3547,505 @@ MidoriResult::ExpressionResult Parser::ParseDefaultExpression(bool& default_visi
 
 MidoriResult::StatementResult Parser::ParseStatement()
 {
-	if (Match(Token::Name::CONTINUE))
-	{
-		return ParseContinueStatement();
-	}
-	else
-	{
-		return ParseSimpleStatement();
-	}
+	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::CONTINUE,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseContinueStatement();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseSimpleStatement();
+		}
+	);
 }
 
 MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 {
-	if (Match(Token::Name::TEXT))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::TextType>();
-	}
-	else if (Match(Token::Name::FLOAT))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::FloatType>();
-	}
-	else if (Match(Token::Name::INTEGER))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	}
-	else if (Match(Token::Name::BYTE))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::ByteType>();
-	}
-	else if (Match(Token::Name::WORD))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::WordType>();
-	}
-	else if (Match(Token::Name::BOOL))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::BoolType>();
-	}
-	else if (Match(Token::Name::UNIT))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::UnitType>();
-	}
-	else if (Match(Token::Name::NEVER))
-	{
-		return MidoriType::MakeLiteralType<MidoriType::NeverType>();
-	}
-	else if (Match(Token::Name::ARRAY))
-	{
-		return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Array'.")
-			.and_then
-			(
-				[this](Token&&) ->MidoriResult::TypeResult
+	return ParseChoice<std::shared_ptr<MidoriType>>(m_state,
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::TEXT,
+				[this](Token&&) -> MidoriResult::TypeResult
 				{
-					return ParseType()
+					return MidoriType::MakeLiteralType<MidoriType::TextType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::FLOAT,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::FloatType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::INTEGER,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::BYTE,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::ByteType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::WORD,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::WordType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::BOOL,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::BoolType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::UNIT,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::NEVER,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MidoriType::MakeLiteralType<MidoriType::NeverType>();
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::ARRAY,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Array'.")
 						.and_then
 						(
-							[this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
+							[this](Token&&) -> MidoriResult::TypeResult
 							{
-								return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after array type.")
+								return ParseType()
 									.and_then
 									(
-										[&type](Token&&)->MidoriResult::TypeResult
+										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
 										{
-											return MidoriType::MakeArrayType(type);
+											return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after array type.")
+												.and_then
+												(
+													[&type](Token&&) -> MidoriResult::TypeResult
+													{
+														return MidoriType::MakeArrayType(type);
+													}
+												);
 										}
 									);
 							}
 						);
 				}
 			);
-	}
-	else if (Match(Token::Name::FUTURE))
-	{
-		return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Future'.")
-			.and_then
-			(
-				[this](Token&&) ->MidoriResult::TypeResult
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::FUTURE,
+				[this](Token&&) -> MidoriResult::TypeResult
 				{
-					return ParseType()
+					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Future'.")
 						.and_then
 						(
-							[this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
+							[this](Token&&) -> MidoriResult::TypeResult
 							{
-								return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after future type.")
+								return ParseType()
 									.and_then
 									(
-										[&type](Token&&)->MidoriResult::TypeResult
+										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
 										{
-											return MidoriType::MakeFutureType(type);
+											return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after future type.")
+												.and_then
+												(
+													[&type](Token&&) -> MidoriResult::TypeResult
+													{
+														return MidoriType::MakeFutureType(type);
+													}
+												);
 										}
 									);
 							}
 						);
 				}
 			);
-	}
-	else if (Match(Token::Name::FUNCTION))
-	{
-		std::function<MidoriResult::TypeResult(std::vector<std::shared_ptr<MidoriType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
-			{
-				return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type token.")
-					.and_then
-					(
-						[&types, is_foreign, this](Token&&) ->MidoriResult::TypeResult
+		},
+		[this, is_foreign]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::FUNCTION,
+				[this, is_foreign](Token&&) -> MidoriResult::TypeResult
+				{
+					std::function<MidoriResult::TypeResult(std::vector<std::shared_ptr<MidoriType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
 						{
-							return ParseType()
+							return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type token.")
 								.and_then
 								(
-									[&types, is_foreign](std::shared_ptr<MidoriType>&& return_type) ->MidoriResult::TypeResult
+									[&types, is_foreign, this](Token&&) ->MidoriResult::TypeResult
 									{
-										return MidoriType::MakeFunctionType(std::move(types), std::move(return_type), is_foreign);
+										return ParseType()
+											.and_then
+											(
+												[&types, is_foreign](std::shared_ptr<MidoriType>&& return_type) ->MidoriResult::TypeResult
+												{
+													return MidoriType::MakeFunctionType(std::move(types), std::move(return_type), is_foreign);
+												}
+											);
 									}
 								);
-						}
-					);
-			};
-		return Consume(Token::Name::LEFT_PAREN, "Expected '(' before function argument types.")
-			.and_then
-			(
-				[&func_type_aux_func, this](Token&&)
-				{
-					if (!Match(Token::Name::RIGHT_PAREN))
-					{
-						return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-							(
-								[this]() { return ParseType(); },
-								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type"); },
-								[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after argument types."); }
-							)
-							.and_then
-							(
-								[&func_type_aux_func](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
-								{
-									return func_type_aux_func(std::move(types));
-								}
-							);
-					}
-					else
-					{
-						return func_type_aux_func({});
-					}
-				}
-			);
-	}
-	else if (Match(Token::Name::LEFT_PAREN))
-	{
-		// Parse tuple type: (Type1, Type2, ...)
-		// Empty tuple is Unit
-		if (Match(Token::Name::RIGHT_PAREN))
-		{
-			return MidoriType::MakeLiteralType<MidoriType::UnitType>();
-		}
-
-		return ParseType()
-			.and_then
-			(
-				[this](std::shared_ptr<MidoriType>&& first_type) -> MidoriResult::TypeResult
-				{
-					if (Match(Token::Name::COMMA))
-					{
-						// It's a tuple - parse remaining types
-						std::vector<std::shared_ptr<MidoriType>> element_types;
-						element_types.push_back(std::move(first_type));
-
-						// Parse remaining tuple element types
-						do
-						{
-							MidoriResult::TypeResult elem_result = ParseType();
-							if (!elem_result)
-							{
-								return elem_result;
-							}
-							element_types.push_back(std::move(elem_result.value()));
-						} while (Match(Token::Name::COMMA));
-
-						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple types.")
-							.and_then
-							(
-								[&element_types](Token&&) -> MidoriResult::TypeResult
-								{
-									return MidoriType::MakeTupleType(std::move(element_types));
-								}
-							);
-					}
-					else
-					{
-						// Just a parenthesized type - return it
-						return Consume
+						};
+					return Consume(Token::Name::LEFT_PAREN, "Expected '(' before function argument types.")
+						.and_then
 						(
-							Token::Name::RIGHT_PAREN, "Expected ')' after type.")
-							.and_then([&first_type](Token&&) -> MidoriResult::TypeResult
-								{
-									return first_type;
-								}
-							);
-					}
-				}
-			);
-	}
-	else if (Match(Token::Name::IDENTIFIER_LITERAL))
-	{
-		return MatchNameResolution()
-			.and_then
-			(
-				[this](Token&& type_name) ->MidoriResult::TypeResult
-				{
-					std::string mangled_name = Mangle(type_name.m_lexeme);
-					std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
-
-					std::shared_ptr<MidoriType> base_type = nullptr;
-
-					if (found_scope_it != m_scopes.crend())
-					{
-						base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
-					}
-					else
-					{
-						// Check imported type signatures via use imports
-						for (const UseImport& use_import : m_current_use_imports)
-						{
-							if (use_import.m_symbol_name == type_name.m_lexeme)
+							[&func_type_aux_func, this](Token&&)
 							{
-								std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_imported_type_signatures.find(use_import.m_module_name);
-								if (module_it != m_imported_type_signatures.cend())
+								if (!Match(Token::Name::RIGHT_PAREN))
 								{
-									TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
-									if (type_it != module_it->second.cend())
-									{
-										base_type = type_it->second;
-										break;
-									}
+									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+										(
+											[this]() { return ParseType(); },
+											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type"); },
+											[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after argument types."); }
+										)
+										.and_then
+										(
+											[&func_type_aux_func](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
+											{
+												return func_type_aux_func(std::move(types));
+											}
+										);
+								}
+								else
+								{
+									return func_type_aux_func({});
 								}
 							}
-						}
+						);
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::LEFT_PAREN,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					if (Match(Token::Name::RIGHT_PAREN))
+					{
+						return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+					}
 
-						// Check for qualified access (ModuleName::TypeName)
-						if (base_type == nullptr)
-						{
-							std::string qualifier = ExtractQualifier(type_name.m_lexeme);
-							if (!qualifier.empty())
+					return ParseType()
+						.and_then
+						(
+							[this](std::shared_ptr<MidoriType>&& first_type) -> MidoriResult::TypeResult
 							{
-								std::string symbol_name = ExtractSymbolName(type_name.m_lexeme);
-								std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_imported_type_signatures.find(qualifier);
-								if (module_it != m_imported_type_signatures.cend())
+								if (Match(Token::Name::COMMA))
 								{
-									TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
-									if (type_it != module_it->second.cend())
+									std::vector<std::shared_ptr<MidoriType>> element_types;
+									element_types.push_back(std::move(first_type));
+
+									do
 									{
-										base_type = type_it->second;
-									}
-									else
-									{
-										std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator symbols_it = m_imported_symbols.find(qualifier);
-										if (symbols_it != m_imported_symbols.cend())
+										MidoriResult::TypeResult elem_result = ParseType();
+										if (!elem_result)
 										{
-											return std::unexpected<std::string>(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
+											return elem_result;
+										}
+										element_types.push_back(std::move(elem_result.value()));
+									} while (Match(Token::Name::COMMA));
+
+									return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple types.")
+										.and_then
+										(
+											[&element_types](Token&&) -> MidoriResult::TypeResult
+											{
+												return MidoriType::MakeTupleType(std::move(element_types));
+											}
+										);
+								}
+								else
+								{
+									return Consume
+									(
+										Token::Name::RIGHT_PAREN, "Expected ')' after type.")
+										.and_then([&first_type](Token&&) -> MidoriResult::TypeResult
+											{
+												return first_type;
+											}
+										);
+								}
+							}
+						);
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::IDENTIFIER_LITERAL,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return MatchNameResolution()
+						.and_then
+						(
+							[this](Token&& type_name) ->MidoriResult::TypeResult
+							{
+								std::string mangled_name = Mangle(type_name.m_lexeme);
+								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
+
+								std::shared_ptr<MidoriType> base_type = nullptr;
+
+								if (found_scope_it != m_state.m_scopes.crend())
+								{
+									base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
+								}
+								else
+								{
+									for (const UseImport& use_import : m_state.m_current_use_imports)
+									{
+										if (use_import.m_symbol_name == type_name.m_lexeme)
+										{
+											std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(use_import.m_module_name);
+											if (module_it != m_context.m_imported_type_signatures.cend())
+											{
+												TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
+												if (type_it != module_it->second.cend())
+												{
+													base_type = type_it->second;
+													break;
+												}
+											}
 										}
 									}
-								}
-							}
-						}
 
-						// Check bare imports (unqualified access to exported types from imported modules)
-						if (base_type == nullptr)
-						{
-							for (const auto& [mod_name, env] : m_imported_type_signatures)
-							{
-								if (env.contains(type_name.m_lexeme))
+									if (base_type == nullptr)
+									{
+										std::string qualifier = ExtractQualifier(type_name.m_lexeme);
+										if (!qualifier.empty())
+										{
+											std::string symbol_name = ExtractSymbolName(type_name.m_lexeme);
+											std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(qualifier);
+											if (module_it != m_context.m_imported_type_signatures.cend())
+											{
+												TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
+												if (type_it != module_it->second.cend())
+												{
+													base_type = type_it->second;
+												}
+												else
+												{
+													std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator symbols_it = m_context.m_imported_symbols.find(qualifier);
+													if (symbols_it != m_context.m_imported_symbols.cend())
+													{
+														return std::unexpected<std::string>(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
+													}
+												}
+											}
+										}
+									}
+
+									if (base_type == nullptr)
+									{
+										for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
+										{
+											if (env.contains(type_name.m_lexeme))
+											{
+												base_type = env.at(type_name.m_lexeme);
+												break;
+											}
+										}
+									}
+
+									if (base_type == nullptr)
+									{
+										return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
+									}
+								}
+
+								if (Match(Token::Name::LEFT_ANGLE))
 								{
-									base_type = env.at(type_name.m_lexeme);
-									break;
+									MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+										(
+											[this]() { return ParseType(); },
+											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
+											[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+										);
+
+									if (!type_args_result.has_value())
+									{
+										return std::unexpected<std::string>(type_args_result.error());
+									}
+
+									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
+
+									std::vector<std::string> generic_params;
+									if (base_type->IsType<MidoriType::StructType>())
+									{
+										generic_params = base_type->GetType<MidoriType::StructType>().m_generic_params;
+									}
+									else if (base_type->IsType<MidoriType::UnionType>())
+									{
+										generic_params = base_type->GetType<MidoriType::UnionType>().m_generic_params;
+									}
+
+									if (type_args.size() != generic_params.size())
+									{
+										return std::unexpected<std::string>(GenerateParserError(
+											"Type argument count mismatch: expected " + std::to_string(generic_params.size()) +
+											", got " + std::to_string(type_args.size()), type_name));
+									}
+
+									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+									for (size_t i = 0; i < generic_params.size(); ++i)
+									{
+										substitutions[generic_params[i]] = type_args[i];
+									}
+
+									return MidoriType::SubstituteTypeParams(base_type, substitutions);
 								}
+
+								return base_type;
 							}
-						}
-
-						if (base_type == nullptr)
-						{
-							return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
-						}
-					}
-
-					// Check if there are generic type arguments
-					if (Match(Token::Name::LEFT_ANGLE))
-					{
-						MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-							(
-								[this]() { return ParseType(); },
-								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-								[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
-							);
-
-						if (!type_args_result.has_value())
-						{
-							return std::unexpected<std::string>(type_args_result.error());
-						}
-
-						std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
-
-						// Get generic parameters from the base type
-						std::vector<std::string> generic_params;
-						if (base_type->IsType<MidoriType::StructType>())
-						{
-							generic_params = base_type->GetType<MidoriType::StructType>().m_generic_params;
-						}
-						else if (base_type->IsType<MidoriType::UnionType>())
-						{
-							generic_params = base_type->GetType<MidoriType::UnionType>().m_generic_params;
-						}
-
-						// Check argument count matches parameter count
-						if (type_args.size() != generic_params.size())
-						{
-							return std::unexpected<std::string>(GenerateParserError(
-								"Type argument count mismatch: expected " + std::to_string(generic_params.size()) +
-								", got " + std::to_string(type_args.size()), type_name));
-						}
-
-						// Build substitution map
-						std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-						for (size_t i = 0; i < generic_params.size(); ++i)
-						{
-							substitutions[generic_params[i]] = type_args[i];
-						}
-
-						// Substitute generic parameters with concrete types
-						return MidoriType::SubstituteTypeParams(base_type, substitutions);
-					}
-
-					return base_type;
+						);
 				}
 			);
-	}
-	else
-	{
-		return std::unexpected<std::string>(GenerateParserError("Expected type token.", Peek(0)));
-	}
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return std::unexpected<std::string>(GenerateParserError("Expected type token.", Peek(0)));
+		}
+	);
 }
 
 MidoriResult::StatementResult Parser::ParseDeclaration()
 {
-	if (Match(Token::Name::DEF))
-	{
-		return ParseDefineStatement();
-	}
-	else if (Match(Token::Name::DEFUN))
-	{
-		return ParseDefineFunctionStatement();
-	}
-	else if (Match(Token::Name::STRUCT))
-	{
-		return ParseStructDeclaration();
-	}
-	else if (Match(Token::Name::UNION))
-	{
-		return ParseUnionDeclaration();
-	}
-	else if (Match(Token::Name::CLASS))
-	{
-		return ParseClassDeclaration();
-	}
-	else if (Match(Token::Name::INSTANCE))
-	{
-		return ParseInstanceDeclaration();
-	}
-	else if (Match(Token::Name::FOREIGN))
-	{
-		return ParseForeignStatement();
-	}
-	else if (Match(Token::Name::TYPE))
-	{
-		return ParseTypeAliasDeclaration();
-	}
-	else
-	{
-		return ParseStatement();
-	}
+	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::DEF,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseDefineStatement();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::DEFUN,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseDefineFunctionStatement();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::STRUCT,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseStructDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::UNION,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseUnionDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::CLASS,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseClassDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::INSTANCE,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseInstanceDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::FOREIGN,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseForeignStatement();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::TYPE,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseTypeAliasDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseStatement();
+		}
+	);
 }
 
 MidoriResult::ParserResult Parser::Parse()
@@ -3943,7 +4109,7 @@ MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 									[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
 									{
 										std::shared_ptr<MidoriType> param_type = MidoriType::MakeGenericType(param_name.m_lexeme);
-										m_scopes.back().m_defined_types[param_name.m_lexeme] = param_type;
+										m_state.m_scopes.back().m_defined_types[param_name.m_lexeme] = param_type;
 
 										// Keep the type alive if requested
 										if (out_types != nullptr)
@@ -4034,27 +4200,27 @@ Parser::VariableContext::VariableContext(int relative_index, int absolute_index,
 
 const Parser::TypeclassMethodMap& Parser::GetTypeclassMethods() const
 {
-	return m_class_methods;
+	return m_state.m_class_methods;
 }
 
 CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 {
 	CompiledModule::TypeclassMetadataMap result;
-	for (const auto& [tc_name, methods] : m_class_methods)
+	for (const auto& [tc_name, methods] : m_state.m_class_methods)
 	{
 		CompiledModule::TypeclassMetadata metadata;
 		metadata.m_method_names = methods;
-		if (m_typeclass_type_params.contains(tc_name))
+		if (m_state.m_typeclass_type_params.contains(tc_name))
 		{
-			metadata.m_type_param_names = m_typeclass_type_params.at(tc_name);
+			metadata.m_type_param_names = m_state.m_typeclass_type_params.at(tc_name);
 		}
-		if (m_class_instances.contains(tc_name))
+		if (m_state.m_class_instances.contains(tc_name))
 		{
-			metadata.m_instance_methods = m_class_instances.at(tc_name);
+			metadata.m_instance_methods = m_state.m_class_instances.at(tc_name);
 		}
-		if (m_typeclass_method_types.contains(tc_name))
+		if (m_state.m_typeclass_method_types.contains(tc_name))
 		{
-			metadata.m_method_types = m_typeclass_method_types.at(tc_name);
+			metadata.m_method_types = m_state.m_typeclass_method_types.at(tc_name);
 		}
 		result[tc_name] = std::move(metadata);
 	}

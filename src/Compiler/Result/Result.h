@@ -14,26 +14,29 @@
 
 namespace MidoriResult
 {
-	using TokenResult = std::expected<Token, std::string>;
-	using TokenListResult = std::expected<std::vector<Token>, std::string>;
-	using FunctionParamResult = std::expected<std::pair<Token, std::shared_ptr<MidoriType>>, std::string>;
-	using FunctionParamsResult = std::expected<std::vector<std::pair<Token, std::shared_ptr<MidoriType>>>, std::string>;
-	using LexerResult = std::expected<TokenStream, std::string>;
-	using ModuleManagerResult = std::expected<BuildGraph, std::string>;
-	using BytecodeLinkerResult = std::expected<MidoriExecutable, std::string>;
-	using ExpressionResult = std::expected<std::unique_ptr<MidoriExpression>, std::string>;
-	using StatementResult = std::expected<std::unique_ptr<MidoriStatement>, std::string>;
-	using ParserResult = std::expected<MidoriProgramTree, std::string>;
-	using TypeResult = std::expected<std::shared_ptr<MidoriType>, std::string>;
-	using TypeListResult = std::expected<std::vector<std::shared_ptr<MidoriType>>, std::string>;
-	using TypeCheckerResult = std::expected<MidoriProgramTree, std::string>;
-	using OptimizerResult = std::expected<MidoriProgramTree, std::string>;
-	using CodeGeneratorResult = std::expected<BytecodeModule, std::string>;
-	using CompiledModuleResult = std::expected<CompiledModule, std::string>;
-	using CompilerResult = std::expected<MidoriExecutable, std::string>;
+	template<typename ValueType>
+	using Result = std::expected<ValueType, std::string>;
+
+	using TokenResult = Result<Token>;
+	using TokenListResult = Result<std::vector<Token>>;
+	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MidoriType>>>;
+	using FunctionParamsResult = Result<std::vector<std::pair<Token, std::shared_ptr<MidoriType>>>>;
+	using LexerResult = Result<TokenStream>;
+	using ModuleManagerResult = Result<BuildGraph>;
+	using BytecodeLinkerResult = Result<MidoriExecutable>;
+	using ExpressionResult = Result<std::unique_ptr<MidoriExpression>>;
+	using StatementResult = Result<std::unique_ptr<MidoriStatement>>;
+	using ParserResult = Result<MidoriProgramTree>;
+	using TypeResult = Result<std::shared_ptr<MidoriType>>;
+	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
+	using TypeCheckerResult = Result<MidoriProgramTree>;
+	using OptimizerResult = Result<MidoriProgramTree>;
+	using CodeGeneratorResult = Result<BytecodeModule>;
+	using CompiledModuleResult = Result<CompiledModule>;
+	using CompilerResult = Result<MidoriExecutable>;
 
 	// Generic result types
-	using VoidResult = std::expected<void, std::string>;
+	using VoidResult = Result<void>;
 	using VoidResultList = std::vector<VoidResult>;
 
 	// Async compilation result types

@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <stack>
+#include <string_view>
 #include <unordered_map>
 
 #include "Common/Error/Error.h"
@@ -46,28 +47,44 @@ private:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
 
-	std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
-	std::unordered_map<std::string, TypeEnvironment> m_imported_type_signatures;
-	TypeclassMethodMap m_class_methods;
-	TypeclassInstanceMap m_typeclass_type_params;
-	TypeclassInstanceMap m_class_instances;
-	TypeclassMethodTypeMap m_typeclass_method_types;
-	TokenStream m_tokens;
-	std::string m_file_name;
-	Scopes m_scopes{ Scope() };
-	std::stack<int> m_local_count_before_loop;
-	std::vector<int> m_function_base_variable_index{0};  // Base variable index per depth
-	std::vector<UseImport> m_current_use_imports;
-	std::vector<std::string> m_namespaces;
-	std::vector<MidoriType::ClassConstraint> m_active_constraints;  // Constraints active in current parsing context
-	const ModuleDeclaration* m_current_module;
-	const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations;
-	const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports;
-	const std::vector<std::string>& m_source_lines;
-	int m_function_depth = 0;
-	int m_current_token_index = 0;
-	int m_total_locals_in_curr_scope = 0;
-	int m_total_variables = 0;
+	inline static constexpr std::string_view s_no_match_error = "__midori_no_match__";
+
+	struct ParseContext
+	{
+		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
+		std::unordered_map<std::string, TypeEnvironment> m_imported_type_signatures;
+		TokenStream m_tokens;
+		std::string m_file_name;
+		const ModuleDeclaration* m_current_module = nullptr;
+		const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations = nullptr;
+		const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports = nullptr;
+		const std::vector<std::string>* m_source_lines = nullptr;
+
+		ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl);
+	};
+
+	struct ParseState
+	{
+		TypeclassMethodMap m_class_methods;
+		TypeclassInstanceMap m_typeclass_type_params;
+		TypeclassInstanceMap m_class_instances;
+		TypeclassMethodTypeMap m_typeclass_method_types;
+		Scopes m_scopes{ Scope() };
+		std::stack<int> m_local_count_before_loop;
+		std::vector<int> m_function_base_variable_index{0};
+		std::vector<UseImport> m_current_use_imports;
+		std::vector<std::string> m_namespaces;
+		std::vector<MidoriType::ClassConstraint> m_active_constraints;
+		int m_function_depth = 0;
+		int m_current_token_index = 0;
+		int m_total_locals_in_curr_scope = 0;
+		int m_total_variables = 0;
+
+		ParseState(const std::vector<UseImport>& use_imports);
+	};
+
+	ParseContext m_context;
+	ParseState m_state;
 
 public:
 	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
@@ -121,16 +138,59 @@ private:
 	template<typename OutputType, typename ParseFunc>
 	std::expected<OutputType, std::string> TryParser(ParseFunc&& func)
 	{
-		int prev_index = m_current_token_index;
+		ParseState checkpoint = m_state;
 		return func()
 			.or_else
 			(
-				[prev_index, this](std::string&& error) -> std::expected<OutputType, std::string> 
+				[&checkpoint, this](std::string&& error) -> std::expected<OutputType, std::string> 
 				{
-					m_current_token_index = prev_index;
-					return std::unexpected(error);
+					m_state = std::move(checkpoint);
+					return std::unexpected(std::move(error));
 				}
 			);
+	}
+
+	template<typename OutputType>
+	std::expected<OutputType, std::string> NoMatch()
+	{
+		return std::unexpected<std::string>(std::string(s_no_match_error));
+	}
+
+	template<typename OutputType, typename ParseFunc>
+	std::expected<OutputType, std::string> ParseWhen(ParseState& state, Token::Name token, ParseFunc&& func)
+	{
+		if (!Check(state, token, 0))
+		{
+			return NoMatch<OutputType>();
+		}
+
+		Token consumed = Advance(state);
+		return func(std::move(consumed));
+	}
+
+	template<typename OutputType, typename First, typename... Rest>
+	std::expected<OutputType, std::string> ParseChoice(ParseState& state, First&& first, Rest&&... rest)
+	{
+		static_cast<void>(state);
+		std::expected<OutputType, std::string> result = first();
+		if (result.has_value())
+		{
+			return result;
+		}
+
+		if (!IsNoMatchError(result.error()))
+		{
+			return result;
+		}
+
+		if constexpr (sizeof...(Rest) == 0)
+		{
+			return result;
+		}
+		else
+		{
+			return ParseChoice<OutputType>(state, std::forward<Rest>(rest)...);
+		}
 	}
 
 	template<typename OutputType, typename ParseFunc, typename Delim, typename EndCond>
@@ -317,7 +377,19 @@ private:
 	
 	void Synchronize();
 
+	bool IsNoMatchError(const std::string& error) const;
+
 	std::string GenerateParserError(std::string&& message, const Token& token);
+
+	bool IsAtEnd(ParseState& state);
+
+	bool Check(ParseState& state, Token::Name type, int offset);
+
+	Token& Peek(ParseState& state, int offset);
+
+	Token& Previous(ParseState& state);
+
+	Token& Advance(ParseState& state);
 
 	bool IsAtEnd();
 
