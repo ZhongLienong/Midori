@@ -1,7 +1,7 @@
 #include "TailCallOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
-int TailCallOptimization::Optimize(MidoriProgramTree& program_tree)
+MidoriResult::OptimizerResult TailCallOptimization::Optimize(MidoriProgramTree program_tree)
 {
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
@@ -14,11 +14,7 @@ int TailCallOptimization::Optimize(MidoriProgramTree& program_tree)
 			VisitStatement(stmt);
 		}
 	);
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	return GetOptimizationsPerformed();
-#else
-	return 0;
-#endif
+	return std::move(program_tree);
 }
 
 std::string_view TailCallOptimization::GetName() const

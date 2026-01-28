@@ -31,7 +31,7 @@ namespace
 	}
 }
 
-int StrengthReduction::Optimize(MidoriProgramTree& program_tree)
+MidoriResult::OptimizerResult StrengthReduction::Optimize(MidoriProgramTree program_tree)
 {
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
@@ -45,12 +45,7 @@ int StrengthReduction::Optimize(MidoriProgramTree& program_tree)
 			VisitStatement(stmt);
 		}
 	);
-
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	return GetOptimizationsPerformed();
-#else
-	return 0;
-#endif
+	return std::move(program_tree);
 }
 
 std::string_view StrengthReduction::GetName() const

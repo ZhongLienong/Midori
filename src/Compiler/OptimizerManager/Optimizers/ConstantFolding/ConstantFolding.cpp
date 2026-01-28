@@ -23,7 +23,7 @@ namespace
 	}
 }
 
-int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
+MidoriResult::OptimizerResult ConstantFolding::Optimize(MidoriProgramTree program_tree)
 {
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
@@ -37,12 +37,7 @@ int ConstantFolding::Optimize(MidoriProgramTree& program_tree)
 			VisitStatement(stmt);
 		}
 	);
-
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	return GetOptimizationsPerformed();
-#else
-	return 0;
-#endif
+	return std::move(program_tree);
 }
 
 std::string_view ConstantFolding::GetName() const

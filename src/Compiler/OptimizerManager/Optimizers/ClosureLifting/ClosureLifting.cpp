@@ -18,9 +18,9 @@ namespace
 		{
 		}
 
-		int Optimize(MidoriProgramTree&) override 
+		MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override 
 		{ 
-			return 0; 
+			return std::move(program_tree); 
 		}
 
 		std::string_view GetName() const override 
@@ -86,9 +86,9 @@ namespace
 		{
 		}
 
-		int Optimize(MidoriProgramTree&) override 
+		MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override 
 		{ 
-			return 0; 
+			return std::move(program_tree); 
 		}
 		
 		std::string_view GetName() const override
@@ -151,13 +151,12 @@ namespace
 	};
 }
 
-int ClosureLifting::Optimize(MidoriProgramTree& program_tree)
+MidoriResult::OptimizerResult ClosureLifting::Optimize(MidoriProgramTree program_tree)
 {
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	ResetCounter();
 #endif
 	m_new_globals.clear();
-	m_lifted_count = 0;
 
 	std::ranges::for_each
 	(
@@ -173,12 +172,7 @@ int ClosureLifting::Optimize(MidoriProgramTree& program_tree)
 	{
 		program_tree.insert(program_tree.begin(), std::make_move_iterator(m_new_globals.begin()), std::make_move_iterator(m_new_globals.end()));
 	}
-
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	return GetOptimizationsPerformed();
-#else
-	return m_lifted_count;
-#endif
+	return std::move(program_tree);
 }
 
 std::string_view ClosureLifting::GetName() const
@@ -223,7 +217,6 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 					SelfReferencePatcher patcher(defun.m_name.m_lexeme, lifted_token.m_lexeme);
 					patcher.Patch(defun.m_body);
 
-					m_lifted_count++;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 					MarkOptimization();
 #endif

@@ -5,7 +5,7 @@
 class ConstantFolding : public MidoriOptimizer
 {
 public:
-	int Optimize(MidoriProgramTree& program_tree) override;
+	MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override;
 
 	std::string_view GetName() const override;
 

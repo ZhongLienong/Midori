@@ -16,7 +16,7 @@ protected:
 public:
 	virtual ~MidoriOptimizer() = default;
 
-	virtual int Optimize(MidoriProgramTree& program_tree) = 0;
+	virtual MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) = 0;
 
 	virtual std::string_view GetName() const = 0;
 

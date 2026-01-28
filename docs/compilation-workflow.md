@@ -8,45 +8,46 @@ The Midori compiler follows a traditional multi-pass architecture:
 
 ```
 Source Code (.mdr)
-       │
-       ▼
-   ┌───────┐
-   │ Lexer │  Tokenization
-   └───┬───┘
-       │ TokenStream
-       ▼
-┌──────────────┐
-│ModuleManager │  Dependency Resolution
-└──────┬───────┘
-       │ BuildGraph
-       ▼
-   ┌────────┐
-   │ Parser │  Syntax Analysis (per module, parallel)
-   └───┬────┘
-       │ AST (MidoriProgramTree)
-       ▼
-┌─────────────┐
-│ TypeChecker │  Semantic Analysis
-└──────┬──────┘
-       │ Typed AST
-       ▼
-┌──────────────────┐
-│ OptimizerManager │  AST Optimizations
-└────────┬─────────┘
-       │ Optimized AST
-       ▼
-┌───────────────┐
-│ CodeGenerator │  Bytecode Emission
-└───────┬───────┘
-       │ BytecodeModule
-       ▼
-┌────────────────┐
-│ BytecodeLinker │  Module Linking
-└───────┬────────┘
-       │ MidoriExecutable
-       ▼
+    |
+    v
++--------+
+| Lexer  | Tokenization
++---+----+
+    | TokenStream
+    v
++---------------+
+| ModuleManager | Dependency Resolution
++------+--------+
+       | BuildGraph
+       v
++--------+
+| Parser | Syntax Analysis (per module, parallel)
++---+----+
+    | AST (MidoriProgramTree)
+    v
++------------+
+| TypeChecker| Semantic Analysis
++-----+------+
+      | Typed AST
+      v
++-----------------+
+| OptimizerManager| AST Optimizations
++------+----------+
+       | Optimized AST
+       v
++--------------+
+| CodeGenerator| Bytecode Emission
++------+-------+
+       | BytecodeModule
+       v
++---------------+
+| BytecodeLinker| Module Linking
++------+--------+
+       | MidoriExecutable
+       v
   Virtual Machine
 ```
+
 
 ## Phase 1: Lexical Analysis (Lexer)
 
@@ -86,7 +87,7 @@ Each token contains:
 - **UTF-8 support** - Handles multi-byte characters in strings
 - **Nested comments** - Block comments can be nested
 - **Number formats** - Integers, floats, hex literals
-- **Escape sequences** - `\n`, `\t`, `\\`, `\"` in strings
+- **Escape sequences** - `\\n`, `\\t`, `\\\\`, `\\\"` in strings
 
 ## Phase 2: Module Resolution (ModuleManager)
 
@@ -112,18 +113,18 @@ The module manager handles imports and builds a dependency graph for parallel co
    - Search path imports: `import { <ModuleName> }` (uses `MIDORI_PATH`)
 3. **Dependency graph construction** - Build directed graph of module dependencies
 4. **Cycle detection** - Check for circular imports (error if found)
-5. **Compilation tier calculation** - Topological sort for parallel compilation
-   - Modules with no dependencies compile first
-   - Dependent modules wait for their dependencies
+5. **Scheduling metadata** - Compute dependency counts and stable tiers for deterministic output/link order
+6. **Ready-queue scheduling** - Compile any module whose dependencies are complete; newly unblocked modules are queued immediately
 
-### Parallel Compilation
+### Dependency-driven Scheduling
 
-Modules are organized into "tiers" for parallel execution:
+Modules compile as soon as their dependencies complete. The compiler maintains a ready queue; tiers are still derived for deterministic progress output and link order, but they do not gate scheduling.
 
 ```
-Tier 1: [A, B, C]     (no dependencies, compile in parallel)
-Tier 2: [D, E]        (depend on tier 1, wait then compile in parallel)
-Tier 3: [F]           (depends on tier 2)
+Ready: [A, B, C]
+Compile any ready modules in parallel.
+When A completes -> D becomes ready.
+When B and C complete -> E becomes ready.
 ```
 
 ## Phase 3: Syntax Analysis (Parser)
@@ -267,6 +268,10 @@ x >> 2
 x & 7
 ```
 
+#### Closure Lifting (`ClosureLifting`)
+
+Hoists nested functions into top-level functions with explicit environment objects for captured variables, simplifying code generation for closures.
+
 #### Tail Call Optimization (`TailCallOptimization`)
 
 Converts tail-recursive calls to loops:
@@ -283,13 +288,13 @@ defun factorial(n: Int, acc: Int) : Int => {
 
 ### Optimization Pipeline
 
-Optimizers run in sequence, with multiple passes until no more optimizations apply:
+Optimizers run once in a fixed order (no fixpoint iteration yet):
 
 ```
-repeat until stable:
-    ConstantFolding.optimize()
-    StrengthReduction.optimize()
-    TailCallOptimization.optimize()
+ConstantFolding.optimize()
+StrengthReduction.optimize()
+ClosureLifting.optimize()
+TailCallOptimization.optimize()
 ```
 
 ## Phase 6: Code Generation (CodeGenerator)
@@ -471,19 +476,19 @@ The FFI system provides a hybrid approach for calling native functions with opti
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    FFI Resolution                        │
-├─────────────────────────────────────────────────────────┤
-│  Static Builtins (index 0-N)                            │
-│  ├─ Print, ReadLine, SquareRoot, etc.                   │
-│  └─ Direct function pointer array in VM                 │
-│  └─ Resolved at compile time via CALL_FOREIGN_INDEXED   │
-├─────────────────────────────────────────────────────────┤
-│  Dynamic Fallback (CALL_FOREIGN)                        │
-│  ├─ For extensions not in the registry                  │
-│  └─ Runtime lookup with caching                         │
-└─────────────────────────────────────────────────────────┘
++------------------------------+
+|        FFI Resolution        |
++------------------------------+
+| Static builtins (indexed)    |
+| - CALL_FOREIGN_INDEXED       |
+| - Direct function pointer    |
++------------------------------+
+| Dynamic fallback             |
+| - CALL_FOREIGN               |
+| - Runtime lookup + cache     |
++------------------------------+
 ```
+
 
 ### FFI Registry
 
