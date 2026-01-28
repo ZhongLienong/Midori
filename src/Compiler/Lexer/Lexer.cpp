@@ -137,13 +137,13 @@ int Lexer::ConsumeAlphaNumeric()
 	return ConsumeWhile([this](char c) { return IsAlphaNumeric(c); });
 }
 
-MidoriResult::TokenResult Lexer::SkipLineComment()
+MidoriResult::VoidResult Lexer::SkipLineComment()
 {
 	ConsumeWhile([](char c) { return c != '\n'; });
-	return Token(" "s, Token::Name::WHITESPACE, m_line, m_file_name);
+	return {};
 }
 
-MidoriResult::TokenResult Lexer::SkipBlockComment()
+MidoriResult::VoidResult Lexer::SkipBlockComment()
 {
 	while (true)
 	{
@@ -151,7 +151,7 @@ MidoriResult::TokenResult Lexer::SkipBlockComment()
 		{
 			Advance(); // '*'
 			Advance(); // '/'
-			return Token(" "s, Token::Name::WHITESPACE, m_line, m_file_name);
+			return {};
 		}
 
 		if (IsAtEnd(0))
@@ -170,13 +170,13 @@ MidoriResult::TokenResult Lexer::SkipBlockComment()
 	}
 }
 
-MidoriResult::TokenResult Lexer::SkipWhitespaceAndComments()
+MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 {
 	while (true)
 	{
 		if (IsAtEnd(0))
 		{
-			return Token(" "s, Token::Name::WHITESPACE, m_line, m_file_name);
+			return {};
 		}
 
 		char c = LookAhead(0);
@@ -198,23 +198,19 @@ MidoriResult::TokenResult Lexer::SkipWhitespaceAndComments()
 			{
 				Advance(); // '/'
 				Advance(); // '/'
-				(void)SkipLineComment();
-				continue;
+				return SkipLineComment()
+					.and_then([this]() -> MidoriResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			else if (LookAhead(1) == '*')
 			{
 				Advance(); // '/'
 				Advance(); // '*'
-				MidoriResult::TokenResult result = SkipBlockComment();
-				if (!result.has_value())
-				{
-					return result;
-				}
-				continue;
+				return SkipBlockComment()
+					.and_then([this]() -> MidoriResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
-			return Token(" "s, Token::Name::WHITESPACE, m_line, m_file_name);
+			return {};
 		default:
-			return Token(" "s, Token::Name::WHITESPACE, m_line, m_file_name);
+			return {};
 		}
 	}
 }
@@ -331,296 +327,289 @@ MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
 		: MakeTokenResult(Token::Name::IDENTIFIER_LITERAL);
 }
 
+MidoriResult::TokenResult Lexer::LexTokenAfterWhitespace()
+{
+	if (IsAtEnd(0))
+	{
+		m_begin = m_current;
+		return MakeTokenResult(Token::Name::END_OF_FILE);
+	}
+	else
+	{
+		m_begin = m_current;
+		return LexTokenFrom(Advance());
+	}
+}
+
+MidoriResult::TokenResult Lexer::LexTokenFrom(char next_char)
+{
+	switch (next_char)
+	{
+	case '(':
+		return MakeTokenResult(Token::Name::LEFT_PAREN);
+	case ')':
+		return MakeTokenResult(Token::Name::RIGHT_PAREN);
+	case '{':
+		return MakeTokenResult(Token::Name::LEFT_BRACE);
+	case '}':
+		return MakeTokenResult(Token::Name::RIGHT_BRACE);
+	case '[':
+		return MakeTokenResult(Token::Name::LEFT_BRACKET);
+	case ']':
+		return MakeTokenResult(Token::Name::RIGHT_BRACKET);
+	case ',':
+		return MakeTokenResult(Token::Name::COMMA);
+	case '.':
+		return MatchDot();
+	case ';':
+		return MakeTokenResult(Token::Name::SINGLE_SEMICOLON);
+	case '+':
+		return MatchPlus();
+	case '-':
+		return MatchMinus();
+	case ':':
+		return MatchColon();
+	case '%':
+		return MatchPercent();
+	case '*':
+		return MatchStar();
+	case '/':
+		return MatchSlash();
+	case '|':
+		return MatchPipe();
+	case '^':
+		return MatchCaret();
+	case '&':
+		return MatchAmpersand();
+	case '!':
+		return MatchBang();
+	case '=':
+		return MatchEqual();
+	case '>':
+		return MatchGreater();
+	case '<':
+		return MatchLess();
+	case '~':
+		return MatchTilde();
+	case '#':
+		return MakeTokenResult(Token::Name::HASH);
+	case '"':
+		return MatchString();
+	default:
+		return MatchLiteralOrIdentifier(next_char);
+	}
+}
+
+MidoriResult::TokenResult Lexer::MatchDot()
+{
+	if (IsDigit(LookAhead(0)))
+	{
+		return MatchNumber();
+	}
+
+	return MatchNext('.')
+		? MakeTokenResult(Token::Name::DOUBLE_DOT)
+		: MakeTokenResult(Token::Name::SINGLE_DOT);
+}
+
+MidoriResult::TokenResult Lexer::MatchPlus()
+{
+	if (MatchNext('+'))
+	{
+		return MatchNext('=')
+			? MakeTokenResult(Token::Name::PLUS_PLUS_EQUAL)
+			: MakeTokenResult(Token::Name::DOUBLE_PLUS);
+	}
+
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::PLUS_EQUAL)
+		: MakeTokenResult(Token::Name::SINGLE_PLUS);
+}
+
+MidoriResult::TokenResult Lexer::MatchMinus()
+{
+	if (MatchNext('>'))
+	{
+		return MakeTokenResult(Token::Name::THIN_ARROW);
+	}
+
+	if (MatchNext('-'))
+	{
+		return MakeTokenResult(Token::Name::DOUBLE_MINUS);
+	}
+
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::MINUS_EQUAL)
+		: MakeTokenResult(Token::Name::SINGLE_MINUS);
+}
+
+MidoriResult::TokenResult Lexer::MatchColon()
+{
+	return MatchNext(':')
+		? MakeTokenResult(Token::Name::DOUBLE_COLON)
+		: MakeTokenResult(Token::Name::SINGLE_COLON);
+}
+
+MidoriResult::TokenResult Lexer::MatchPercent()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::PERCENT_EQUAL)
+		: MakeTokenResult(Token::Name::PERCENT);
+}
+
+MidoriResult::TokenResult Lexer::MatchStar()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::STAR_EQUAL)
+		: MakeTokenResult(Token::Name::STAR);
+}
+
+MidoriResult::TokenResult Lexer::MatchSlash()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::SLASH_EQUAL)
+		: MakeTokenResult(Token::Name::SLASH);
+}
+
+MidoriResult::TokenResult Lexer::MatchPipe()
+{
+	if (MatchNext('|'))
+	{
+		return MakeTokenResult(Token::Name::DOUBLE_BAR);
+	}
+
+	if (MatchNext('>'))
+	{
+		return MakeTokenResult(Token::Name::BAR_BRACKET);
+	}
+
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::BAR_EQUAL)
+		: MakeTokenResult(Token::Name::SINGLE_BAR);
+}
+
+MidoriResult::TokenResult Lexer::MatchCaret()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::CARET_EQUAL)
+		: MakeTokenResult(Token::Name::CARET);
+}
+
+MidoriResult::TokenResult Lexer::MatchAmpersand()
+{
+	if (MatchNext('&'))
+	{
+		return MakeTokenResult(Token::Name::DOUBLE_AMPERSAND);
+	}
+
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::AMPERSAND_EQUAL)
+		: MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
+}
+
+MidoriResult::TokenResult Lexer::MatchBang()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::BANG_EQUAL)
+		: MakeTokenResult(Token::Name::BANG);
+}
+
+MidoriResult::TokenResult Lexer::MatchEqual()
+{
+	if (MatchNext('='))
+	{
+		return MakeTokenResult(Token::Name::DOUBLE_EQUAL);
+	}
+
+	if (MatchNext('>'))
+	{
+		return MakeTokenResult(Token::Name::FAT_ARROW);
+	}
+
+	if (MatchNext('+'))
+	{
+		return MatchEqualPlusPlus();
+	}
+
+	return MakeTokenResult(Token::Name::SINGLE_EQUAL);
+}
+
+MidoriResult::TokenResult Lexer::MatchEqualPlusPlus()
+{
+	return MatchNext('+')
+		? MakeTokenResult(Token::Name::EQUAL_PLUS_PLUS)
+		: std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_line, m_begin - m_line_start, m_file_name, m_source_lines));
+}
+
+MidoriResult::TokenResult Lexer::MatchGreater()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::GREATER_EQUAL)
+		: MakeTokenResult(Token::Name::RIGHT_ANGLE);
+}
+
+MidoriResult::TokenResult Lexer::MatchLess()
+{
+	if (MatchNext('='))
+	{
+		return MakeTokenResult(Token::Name::LESS_EQUAL);
+	}
+
+	return MatchNext('~')
+		? MatchLeftShift()
+		: MakeTokenResult(Token::Name::LEFT_ANGLE);
+}
+
+MidoriResult::TokenResult Lexer::MatchLeftShift()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::LEFT_SHIFT_EQUAL)
+		: MakeTokenResult(Token::Name::LEFT_SHIFT);
+}
+
+MidoriResult::TokenResult Lexer::MatchTilde()
+{
+	return MatchNext('>')
+		? MatchRightShift()
+		: MakeTokenResult(Token::Name::TILDE);
+}
+
+MidoriResult::TokenResult Lexer::MatchRightShift()
+{
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::RIGHT_SHIFT_EQUAL)
+		: MakeTokenResult(Token::Name::RIGHT_SHIFT);
+}
+
+MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
+{
+	if (IsDigit(next_char))
+	{
+		return MatchNumber();
+	}
+
+	if (IsAlpha(next_char))
+	{
+		return MatchIdentifierOrReserved();
+	}
+
+	if (next_char == '\0')
+	{
+		return MakeTokenResult(Token::Name::END_OF_FILE);
+	}
+
+	return MakeInvalidCharacterError(next_char);
+}
+
+MidoriResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
+{
+	return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_line, m_current - m_line_start, m_file_name, m_source_lines));
+}
+
 MidoriResult::TokenResult Lexer::LexOneToken()
 {
 	return SkipWhitespaceAndComments()
-		.and_then
-		(
-			[this](Token&&) ->MidoriResult::TokenResult
-			{
-				m_begin = m_current;
-
-				char next_char = Advance();
-				switch (next_char)
-				{
-				case '(':
-					return MakeTokenResult(Token::Name::LEFT_PAREN);
-				case ')':
-					return MakeTokenResult(Token::Name::RIGHT_PAREN);
-				case '{':
-					return MakeTokenResult(Token::Name::LEFT_BRACE);
-				case '}':
-					return MakeTokenResult(Token::Name::RIGHT_BRACE);
-				case '[':
-					return MakeTokenResult(Token::Name::LEFT_BRACKET);
-				case ']':
-					return MakeTokenResult(Token::Name::RIGHT_BRACKET);
-				case ',':
-					return MakeTokenResult(Token::Name::COMMA);
-				case '.':
-				{
-					if (IsDigit(LookAhead(0)))
-					{
-						return MatchNumber();
-					}
-					else if (MatchNext('.'))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_DOT);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_DOT);
-					}
-				}
-				case ';':
-					return MakeTokenResult(Token::Name::SINGLE_SEMICOLON);
-				case '+':
-				{
-					if (MatchNext('+'))
-					{
-						if (MatchNext('='))
-						{
-							return MakeTokenResult(Token::Name::PLUS_PLUS_EQUAL);
-						}
-						else
-						{
-							return MakeTokenResult(Token::Name::DOUBLE_PLUS);
-						}
-					}
-					else
-					{
-						if (MatchNext('='))
-						{
-							return MakeTokenResult(Token::Name::PLUS_EQUAL);
-						}
-						else
-						{
-							return MakeTokenResult(Token::Name::SINGLE_PLUS);
-						}
-					}
-				}
-				case '-':
-				{
-					if (MatchNext('>'))
-					{
-						return MakeTokenResult(Token::Name::THIN_ARROW);
-					}
-					else if (MatchNext('-'))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_MINUS);
-					}
-					else if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::MINUS_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_MINUS);
-					}
-				}
-				case ':':
-				{
-					if (MatchNext(':'))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_COLON);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_COLON);
-					}
-				}
-				case '%':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::PERCENT_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::PERCENT);
-					}
-				}
-				case '*':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::STAR_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::STAR);
-					}
-				}
-				case '/':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::SLASH_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SLASH);
-					}
-				}
-				case '|':
-				{
-					if (MatchNext('|'))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_BAR);
-					}
-					else if (MatchNext('>'))
-					{
-						return MakeTokenResult(Token::Name::BAR_BRACKET);
-					}
-					else if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::BAR_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_BAR);
-					}
-				}
-				case '^':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::CARET_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::CARET);
-					}
-				}
-				case '&':
-				{
-					if (MatchNext('&'))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_AMPERSAND);
-					}
-					else if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::AMPERSAND_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
-					}
-				}
-				case '!':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::BANG_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::BANG);
-					}
-				}
-				case '=':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::DOUBLE_EQUAL);
-					}
-					else if (MatchNext('>'))
-					{
-						return MakeTokenResult(Token::Name::FAT_ARROW);
-					}
-					else if (MatchNext('+'))
-					{
-						if (MatchNext('+'))
-						{
-							return MakeTokenResult(Token::Name::EQUAL_PLUS_PLUS);
-						}
-						else
-						{
-							return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_line, m_begin - m_line_start, m_file_name, m_source_lines));
-						}
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::SINGLE_EQUAL);
-					}
-				}
-				case '>':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::GREATER_EQUAL);
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::RIGHT_ANGLE);
-					}
-				}
-				case '<':
-				{
-					if (MatchNext('='))
-					{
-						return MakeTokenResult(Token::Name::LESS_EQUAL);
-					}
-					else if (MatchNext('~'))
-					{
-						if (MatchNext('='))
-						{
-							return MakeTokenResult(Token::Name::LEFT_SHIFT_EQUAL);
-						}
-						else
-						{
-							return MakeTokenResult(Token::Name::LEFT_SHIFT);
-						}
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::LEFT_ANGLE);
-					}
-				}
-				case '~':
-				{
-					if (MatchNext('>'))
-					{
-						if (MatchNext('='))
-						{
-							return MakeTokenResult(Token::Name::RIGHT_SHIFT_EQUAL);
-						}
-						else
-						{
-							return MakeTokenResult(Token::Name::RIGHT_SHIFT);
-						}
-					}
-					else
-					{
-						return MakeTokenResult(Token::Name::TILDE);
-					}
-				}
-				case '#':
-					return MakeTokenResult(Token::Name::HASH);
-				case '"':
-					return MatchString();
-				default:
-				{
-					if (IsDigit(next_char))
-					{
-						return MatchNumber();
-					}
-					else if (IsAlpha(next_char))
-					{
-						return MatchIdentifierOrReserved();
-					}
-					else if (next_char == '\0')
-					{
-						return MakeTokenResult(Token::Name::END_OF_FILE);
-					}
-					else
-					{
-						return std::unexpected<std::string>(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_line, m_current - m_line_start, m_file_name, m_source_lines));
-					}
-				}
-				}
-			}
-		);
+		.and_then([this]() -> MidoriResult::TokenResult { return LexTokenAfterWhitespace(); });
 }
 
 std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
@@ -648,16 +637,26 @@ MidoriResult::LexerResult Lexer::LexRecursive(TokenStream&& tokens, std::string&
 {
 	while (!IsAtEnd(0))
 	{
-		MidoriResult::TokenResult token_result = LexOneToken();
-
-		if (token_result.has_value())
-		{
-			tokens.AddToken(std::move(token_result.value()));
-		}
-		else
-		{
-			errors.append(std::move(token_result.error())).append("\n");
-		}
+		static_cast<void>
+		(
+			LexOneToken()
+				.and_then
+				(
+					[&tokens](Token&& token) -> MidoriResult::VoidResult
+					{
+						tokens.AddToken(std::move(token));
+						return {};
+					}
+				)
+				.or_else
+				(
+					[&errors](std::string&& error) -> MidoriResult::VoidResult
+					{
+						errors.append(std::move(error)).append("\n");
+						return {};
+					}
+				)
+		);
 	}
 
 	if (!errors.empty())

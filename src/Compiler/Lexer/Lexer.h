@@ -51,7 +51,51 @@ private:
 
 	MidoriResult::TokenResult LexOneToken();
 
-	MidoriResult::TokenResult SkipWhitespaceAndComments();
+	MidoriResult::TokenResult LexTokenAfterWhitespace();
+
+	MidoriResult::TokenResult LexTokenFrom(char next_char);
+
+	MidoriResult::TokenResult MatchDot();
+
+	MidoriResult::TokenResult MatchPlus();
+
+	MidoriResult::TokenResult MatchMinus();
+
+	MidoriResult::TokenResult MatchColon();
+
+	MidoriResult::TokenResult MatchPercent();
+
+	MidoriResult::TokenResult MatchStar();
+
+	MidoriResult::TokenResult MatchSlash();
+
+	MidoriResult::TokenResult MatchPipe();
+
+	MidoriResult::TokenResult MatchCaret();
+
+	MidoriResult::TokenResult MatchAmpersand();
+
+	MidoriResult::TokenResult MatchBang();
+
+	MidoriResult::TokenResult MatchEqual();
+
+	MidoriResult::TokenResult MatchEqualPlusPlus();
+
+	MidoriResult::TokenResult MatchGreater();
+
+	MidoriResult::TokenResult MatchLess();
+
+	MidoriResult::TokenResult MatchLeftShift();
+
+	MidoriResult::TokenResult MatchTilde();
+
+	MidoriResult::TokenResult MatchRightShift();
+
+	MidoriResult::TokenResult MatchLiteralOrIdentifier(char next_char);
+
+	MidoriResult::TokenResult MakeInvalidCharacterError(char next_char) const;
+
+	MidoriResult::VoidResult SkipWhitespaceAndComments();
 
 	MidoriResult::TokenResult MatchString();
 
@@ -64,9 +108,9 @@ private:
 
 	MidoriResult::TokenResult MatchStringRecursive(std::string&& acc);
 
-	MidoriResult::TokenResult SkipLineComment();
+	MidoriResult::VoidResult SkipLineComment();
 
-	MidoriResult::TokenResult SkipBlockComment();
+	MidoriResult::VoidResult SkipBlockComment();
 
 	int ConsumeDigits();
 
