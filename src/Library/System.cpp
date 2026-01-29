@@ -133,7 +133,9 @@ extern "C"
 		char* result = AllocateString("macOS");
 #elif defined(__linux__)
 		char* result = AllocateString("Linux");
-#elif defined(__EMSCRIPTEN__)
+#elif defined(MIDORI_WASM64)
+		char* result = AllocateString("WebAssembly (wasm64)");
+#elif defined(__EMSCRIPTEN__) || defined(MIDORI_WASM)
 		char* result = AllocateString("WebAssembly");
 #else
 		char* result = AllocateString("Unknown");

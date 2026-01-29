@@ -118,6 +118,8 @@ private:
 
 	void EmitVariable(int variable_index, OpCode op, int line);
 
+	int GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line);
+
 	int EmitJump(OpCode op, int line);
 
 	void PatchJump(int offset, int line);

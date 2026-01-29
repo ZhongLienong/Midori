@@ -74,7 +74,10 @@ def clean_build() -> None:
 
 def configure() -> bool:
 	print("\nConfiguring with Emscripten...")
-	return run_command(['emcmake', 'cmake', '..', '-DCMAKE_BUILD_TYPE=Release'], cwd=BUILD_DIR)
+	return run_command(
+		['emcmake', 'cmake', '..', '-DCMAKE_BUILD_TYPE=Release', '-DMIDORI_WASM64=ON'],
+		cwd=BUILD_DIR
+	)
 
 
 def build() -> bool:

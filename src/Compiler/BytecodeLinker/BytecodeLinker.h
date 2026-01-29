@@ -56,6 +56,10 @@ private:
 
 	size_t ConvertImportIndex(int global_index) const;
 
+	bool IsImportIndexWide(int global_index) const;
+
+	size_t ConvertImportIndexWide(int global_index) const;
+
 	size_t MergeString(const std::string& str);
 
 	std::optional<size_t> FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const;

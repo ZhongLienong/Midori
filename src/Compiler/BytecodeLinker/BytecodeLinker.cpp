@@ -288,6 +288,19 @@ void BytecodeLinker::ConcatenateBytecode()
 			BytecodePatcherFn patch_procedure = [this, &module_proc_base_offset, &string_mapping, &import_resolved_indices, &module_global_base_offset](BytecodeStream& procedure)
 				{
 					int bytecode_size = procedure.GetByteCodeSize();
+					auto read_wide_operand = [&procedure](int offset) -> int
+						{
+							int high_byte = static_cast<int>(procedure.ReadByteCode(offset + 1));
+							int low_byte = static_cast<int>(procedure.ReadByteCode(offset + 2));
+							return (high_byte << SHIFT_8_BITS) | low_byte;
+						};
+					auto write_wide_operand = [&procedure](int offset, int value)
+						{
+							int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
+							int low_byte = value & BYTE_MASK;
+							procedure.SetByteCode(offset + 1, static_cast<OpCode>(high_byte));
+							procedure.SetByteCode(offset + 2, static_cast<OpCode>(low_byte));
+						};
 
 					for (int offset = 0; offset < bytecode_size; )
 					{
@@ -319,21 +332,38 @@ void BytecodeLinker::ConcatenateBytecode()
 						{
 							int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 
-
-
 							if (IsImportIndex(old_global_index))
 							{
 								size_t import_array_index = ConvertImportIndex(old_global_index);
 								if (import_array_index < import_resolved_indices.size())
 								{
 									size_t resolved_index = import_resolved_indices[import_array_index];
-										procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
+									procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
 								}
 							}
 							else
 							{
 								int new_global_index = old_global_index + static_cast<int>(module_global_base_offset);
 								procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_global_index));
+							}
+						}
+						else if (opcode == OpCode::DEFINE_GLOBAL_WIDE || opcode == OpCode::GET_GLOBAL_WIDE || opcode == OpCode::SET_GLOBAL_WIDE)
+						{
+							int old_global_index = read_wide_operand(offset);
+
+							if (IsImportIndexWide(old_global_index))
+							{
+								size_t import_array_index = ConvertImportIndexWide(old_global_index);
+								if (import_array_index < import_resolved_indices.size())
+								{
+									size_t resolved_index = import_resolved_indices[import_array_index];
+									write_wide_operand(offset, static_cast<int>(resolved_index));
+								}
+							}
+							else
+							{
+								int new_global_index = old_global_index + static_cast<int>(module_global_base_offset);
+								write_wide_operand(offset, new_global_index);
 							}
 						}
 
@@ -445,6 +475,16 @@ size_t BytecodeLinker::ConvertImportIndex(int global_index) const
 	return static_cast<size_t>(-import_index - 1);
 }
 
+bool BytecodeLinker::IsImportIndexWide(int global_index) const
+{
+	return global_index >= IMPORT_PLACEHOLDER_BASE;
+}
+
+size_t BytecodeLinker::ConvertImportIndexWide(int global_index) const
+{
+	return static_cast<size_t>(global_index - IMPORT_PLACEHOLDER_BASE);
+}
+
 size_t BytecodeLinker::MergeString(const std::string& str)
 {
 	std::vector<std::string>::const_iterator it = std::ranges::find(m_global_string_pool, str);
@@ -548,6 +588,19 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 	else if (opcode == OpCode::CALL_PROC)
 	{
 		return 3;  // opcode + proc_index + arity
+	}
+	else if
+	(
+		opcode == OpCode::DEFINE_GLOBAL_WIDE ||
+		opcode == OpCode::GET_GLOBAL_WIDE ||
+		opcode == OpCode::SET_GLOBAL_WIDE ||
+		opcode == OpCode::GET_LOCAL_WIDE ||
+		opcode == OpCode::SET_LOCAL_WIDE ||
+		opcode == OpCode::GET_CELL_WIDE ||
+		opcode == OpCode::SET_CELL_WIDE
+	)
+	{
+		return 3;
 	}
 	else if
 	(

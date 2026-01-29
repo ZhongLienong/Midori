@@ -509,9 +509,9 @@ namespace
 			(
 				*m_state.m_env, 
 				m_state.m_file_path, 
-				m_state.m_tier_idx,
+				m_state.m_tier_idx
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-				&m_state.m_optimizer_log
+				,&m_state.m_optimizer_log
 #endif
 			);
 

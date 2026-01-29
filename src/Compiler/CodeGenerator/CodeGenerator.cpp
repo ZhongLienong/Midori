@@ -198,6 +198,33 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 	EmitTwoBytes(variable_index >> 8, variable_index & 0xFF, line);
 }
 
+int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line)
+{
+	int import_slot = -1;
+	for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+	{
+		if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
+		{
+			import_slot = static_cast<int>(i);
+			break;
+		}
+	}
+
+	if (import_slot < 0)
+	{
+		if (m_tracked_imports.size() >= static_cast<size_t>(MAX_IMPORT_PLACEHOLDERS))
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many imports (max {})", MAX_IMPORT_PLACEHOLDERS), line, m_file_name, m_source_lines));
+			return -1;
+		}
+
+		m_tracked_imports.emplace_back(symbol_name, module_name);
+		import_slot = static_cast<int>(m_tracked_imports.size() - 1u);
+	}
+
+	return IMPORT_PLACEHOLDER_BASE + import_slot;
+}
+
 int CodeGenerator::EmitJump(OpCode op, int line)
 {
 	EmitByte(op, line);
@@ -1601,34 +1628,18 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 
 				if (name.find(NameSeparator) != std::string::npos)
 				{
-					// This is an imported symbol - assign a negative index as placeholder
+					// This is an imported symbol - assign a placeholder for linker patching
 					// Track this import for linker patching
 					size_t separator_pos = name.find(NameSeparator);
 					std::string module_name = name.substr(0u, separator_pos);
 					std::string symbol_name = name.substr(separator_pos + 2u);
-
-					// Check if we've already tracked this import
-					int import_index = 0;
-					bool found = false;
-					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+					int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
+					if (import_placeholder < 0)
 					{
-						if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
-						{
-							import_index = -(static_cast<int>(i) + 1);  // -1, -2, -3, etc.
-							found = true;
-							break;
-						}
+						return;
 					}
 
-					if (!found)
-					{
-						m_tracked_imports.emplace_back(symbol_name, module_name);
-						import_index = -static_cast<int>(m_tracked_imports.size());  // -1 for first import, -2 for second, etc.
-					}
-
-					// Emit negative index (will be patched by linker to positive global index)
-					// Cast to uint8_t will wrap negative values (e.g., -1 becomes 255, -2 becomes 254)
-					EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
+					EmitVariable(import_placeholder, OpCode::GET_GLOBAL, line);
 				}
 				else
 				{
@@ -1806,33 +1817,17 @@ void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 
 				if (name.find(NameSeparator) != std::string::npos)
 				{
-					// This is an imported symbol - assign a negative index as placeholder
+					// This is an imported symbol - assign a placeholder for linker patching
 					size_t separator_pos = name.find(NameSeparator);
 					std::string module_name = name.substr(0u, separator_pos);
 					std::string symbol_name = name.substr(separator_pos + 2u);
-
-					// Check if we've already tracked this import
-					int import_index = 0;
-					bool found = false;
-					for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+					int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
+					if (import_placeholder < 0)
 					{
-						if (m_tracked_imports[i].m_from_module == module_name &&
-							m_tracked_imports[i].m_name == symbol_name)
-						{
-							import_index = -(static_cast<int>(i) + 1);  // -1, -2, -3, etc.
-							found = true;
-							break;
-						}
+						return;
 					}
 
-					if (!found)
-					{
-						m_tracked_imports.emplace_back(symbol_name, module_name);
-						import_index = -static_cast<int>(m_tracked_imports.size());  // -1 for first import, -2 for second, etc.
-					}
-
-					// Emit negative index (will be patched by linker)
-					EmitVariable(static_cast<uint8_t>(import_index), OpCode::SET_GLOBAL, line);
+					EmitVariable(import_placeholder, OpCode::SET_GLOBAL, line);
 				}
 				else
 				{
@@ -3335,25 +3330,13 @@ bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, 
 		std::string symbol_name = resolved_name.substr(0u, at_pos);
 		std::string module_name = resolved_name.substr(at_pos + 1u);
 
-		int import_index = 0;
-		bool found = false;
-		for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
+		int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
+		if (import_placeholder < 0)
 		{
-			if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
-			{
-				import_index = -(static_cast<int>(i) + 1);
-				found = true;
-				break;
-			}
+			return false;
 		}
 
-		if (!found)
-		{
-			m_tracked_imports.emplace_back(symbol_name, module_name);
-			import_index = -static_cast<int>(m_tracked_imports.size());
-		}
-
-		EmitVariable(static_cast<uint8_t>(import_index), OpCode::GET_GLOBAL, line);
+		EmitVariable(import_placeholder, OpCode::GET_GLOBAL, line);
 		return true;
 	}
 

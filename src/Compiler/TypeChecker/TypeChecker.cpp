@@ -903,6 +903,13 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 						signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
 					}
 				}
+				else if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
+				{
+					if ((exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme)) && stmt.m_annotated_type.has_value())
+					{
+						signatures[stmt.m_name.m_lexeme] = stmt.m_annotated_type.value();
+					}
+				}
 			},
 			**statement
 		);

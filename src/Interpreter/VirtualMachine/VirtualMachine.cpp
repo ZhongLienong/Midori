@@ -2354,6 +2354,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SPAWN_ASYNC:
 		{
+			// Ensure captured locals live on the heap before worker threads read them.
+			PromoteCells();
+
 			MidoriValue callable = Pop();
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 

@@ -1,0 +1,260 @@
+module fractal_renderer
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+    "../MidoriPrelude/Math.mdr",
+    "../MidoriPrelude/DateTime.mdr"
+}
+
+struct Complex 
+{
+    Real : Float,
+    Imag : Float,
+};
+
+struct Color
+{
+    R : Float,
+    G : Float,
+    B : Float,
+};
+
+defun complex_add(a : Complex, b : Complex) : Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
+defun complex_mul(a : Complex, b : Complex) : Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+defun complex_square(a : Complex) : Complex => complex_mul(a, a);
+defun complex_square_conj(a : Complex) : Complex => new Complex(a.Real * a.Real - a.Imag * a.Imag, -2.0 * a.Real * a.Imag);
+defun complex_abs_square(a : Complex) : Float => a.Real * a.Real + a.Imag * a.Imag;
+
+defun color_add(a : Color, b : Color) : Color => new Color(a.R + b.R, a.G + b.G, a.B + b.B);
+defun color_scale(a : Color, scale : Float) : Color => new Color(a.R * scale, a.G * scale, a.B * scale);
+
+defun color_from_smooth(smooth : Float, limit : Int) : Color =>
+{
+    def limit_f = limit as Float;
+    if smooth >= limit_f
+    then new Color(0.0, 0.0, 0.0)
+    else
+    {
+        def t = Math::Clamp(smooth / limit_f, 0.0, 1.0);
+        def t_gamma = Math::Pow(t, 0.85);
+        def r = 0.5 + 0.5 * Math::Cos(Math::Tau * (t_gamma + 0.0));
+        def g = 0.5 + 0.5 * Math::Cos(Math::Tau * (t_gamma + 0.33));
+        def b = 0.5 + 0.5 * Math::Cos(Math::Tau * (t_gamma + 0.67));
+        new Color(r, g, b)
+    }
+};
+
+defun color_to_text(color : Color) : Text =>
+{
+    def r = Math::Clamp(Math::Round(color.R * 255.0), 0.0, 255.0) as Int;
+    def g = Math::Clamp(Math::Round(color.G * 255.0), 0.0, 255.0) as Int;
+    def b = Math::Clamp(Math::Round(color.B * 255.0), 0.0, 255.0) as Int;
+    (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n"
+};
+
+def log_2 = Math::Log(2.0);
+
+defun smooth_iter_value(iterations : Int, z : Complex, limit : Int) : Float =>
+{
+    if iterations >= limit
+    then limit as Float
+    else
+    {
+        def zn = complex_abs_square(z);
+        if zn <= 0.0
+        then iterations as Float
+        else
+        {
+            def log_zn = Math::Log(zn) / 2.0;
+            def nu = Math::Log(log_zn / log_2) / log_2;
+            (iterations as Float) + 1.0 - nu
+        }
+    }
+};
+
+defun smooth_iter_mandelbrot(c : Complex, limit : Int) : Float =>
+{
+    def z = new Complex(0.0, 0.0);
+    def iterations = 0;
+    loop
+    {
+        if iterations >= limit then break () else ();
+        z = complex_add(complex_square(z), c);
+        if complex_abs_square(z) >= 4.0 then break () else ();
+        iterations = iterations + 1;
+    };
+    smooth_iter_value(iterations, z, limit)
+};
+
+defun smooth_iter_julia(z0 : Complex, c : Complex, limit : Int) : Float =>
+{
+    def z = z0;
+    def iterations = 0;
+    loop
+    {
+        if iterations >= limit then break () else ();
+        z = complex_add(complex_square(z), c);
+        if complex_abs_square(z) >= 4.0 then break () else ();
+        iterations = iterations + 1;
+    };
+    smooth_iter_value(iterations, z, limit)
+};
+
+defun smooth_iter_burning_ship(c : Complex, limit : Int) : Float =>
+{
+    def z = new Complex(0.0, 0.0);
+    def iterations = 0;
+    loop
+    {
+        if iterations >= limit then break () else ();
+        def z_abs = new Complex(Math::Abs(z.Real), Math::Abs(z.Imag));
+        z = complex_add(complex_square(z_abs), c);
+        if complex_abs_square(z) >= 4.0 then break () else ();
+        iterations = iterations + 1;
+    };
+    smooth_iter_value(iterations, z, limit)
+};
+
+defun smooth_iter_tricorn(c : Complex, limit : Int) : Float =>
+{
+    def z = new Complex(0.0, 0.0);
+    def iterations = 0;
+    loop
+    {
+        if iterations >= limit then break () else ();
+        z = complex_add(complex_square_conj(z), c);
+        if complex_abs_square(z) >= 4.0 then break () else ();
+        iterations = iterations + 1;
+    };
+    smooth_iter_value(iterations, z, limit)
+};
+
+def FractalMandelbrot = 0;
+def FractalJulia = 1;
+def FractalBurningShip = 2;
+def FractalTricorn = 3;
+
+defun smooth_iter_for(fractal_kind : Int, point : Complex, julia_c : Complex, limit : Int) : Float =>
+{
+    if fractal_kind == FractalMandelbrot
+    then smooth_iter_mandelbrot(point, limit)
+    else if fractal_kind == FractalJulia
+    then smooth_iter_julia(point, julia_c, limit)
+    else if fractal_kind == FractalBurningShip
+    then smooth_iter_burning_ship(point, limit)
+    else smooth_iter_tricorn(point, limit)
+};
+
+defun render_fractal_ppm(width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min : Complex, view_max : Complex, fractal_kind : Int, julia_c : Complex) : Text =>
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def ppm_data = "";
+
+    def width_f = width as Float;
+    def height_f = height as Float;
+    def real_span = view_max.Real - view_min.Real;
+    def imag_span = view_max.Imag - view_min.Imag;
+    def samples_f = samples_per_axis as Float;
+    def inv_samples = 1.0 / ((samples_per_axis * samples_per_axis) as Float);
+
+    // Growable array/list so we never default-construct Future<Text>
+    def row_tasks : Array<Future<Text>> = [];
+
+    def y = 0;
+    loop
+    {
+        def y_copy = y; // capture
+        row_tasks ++= (async
+        {
+            def row_data = "";
+            def x = 0;
+            loop
+            {
+                def color_sum = new Color(0.0, 0.0, 0.0);
+
+                def sx = 0;
+                loop
+                {
+                    def sy = 0;
+                    loop
+                    {
+                        def u = ((x as Float) + ((sx as Float) + 0.5) / samples_f) / width_f;
+                        def v = ((y_copy as Float) + ((sy as Float) + 0.5) / samples_f) / height_f;
+                        def real = view_min.Real + u * real_span;
+                        def imag = view_min.Imag + v * imag_span;
+                        def point = new Complex(real, imag);
+
+                        def smooth = smooth_iter_for(fractal_kind, point, julia_c, limit);
+                        def sample_color = color_from_smooth(smooth, limit);
+                        color_sum = color_add(color_sum, sample_color);
+
+                        sy = sy + 1;
+                        if sy >= samples_per_axis then break () else ();
+                    };
+
+                    sx = sx + 1;
+                    if sx >= samples_per_axis then break () else ();
+                };
+
+                def final_color = color_scale(color_sum, inv_samples);
+                row_data ++= color_to_text(final_color);
+
+                x = x + 1;
+                if x >= width then break () else ();
+            };
+            row_data
+        });
+
+        y = y + 1;
+        if y >= height then break () else ();
+    };
+
+    // Deterministic output order: await rows in the same order we pushed them
+    def i = 0;
+    loop
+    {
+        ppm_data ++= await row_tasks[i];
+        i = i + 1;
+        if i >= height then break () else ();
+    };
+
+    ppm_header ++= ppm_data
+};
+
+def output_dir = "D:/Xuexi/";
+
+def width = 1920;
+def height = 1080;
+def limit = 200;
+def samples_per_axis = 2;
+
+def zero_complex = new Complex(0.0, 0.0);
+
+def start = DateTime::GetTime();
+
+def mandelbrot_view_min = new Complex(-2.5, -1.2);
+def mandelbrot_view_max = new Complex(1.0, 1.2);
+def mandelbrot_output = render_fractal_ppm(width, height, limit, samples_per_axis, mandelbrot_view_min, mandelbrot_view_max, FractalMandelbrot, zero_complex);
+IO::WriteFile(output_dir ++ "mandelbrot.ppm", mandelbrot_output);
+
+def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
+
+def julia_view_min = new Complex(-1.8, -1.2);
+def julia_view_max = new Complex(1.8, 1.2);
+def julia_output = render_fractal_ppm(width, height, limit, samples_per_axis, julia_view_min, julia_view_max, FractalJulia, julia_constant);
+IO::WriteFile(output_dir ++ "julia.ppm", julia_output);
+
+def burning_ship_view_min = new Complex(-2.2, -2.5);
+def burning_ship_view_max = new Complex(1.2, 1.2);
+def burning_ship_output = render_fractal_ppm(width, height, limit, samples_per_axis, burning_ship_view_min, burning_ship_view_max, FractalBurningShip, zero_complex);
+IO::WriteFile(output_dir ++ "burning_ship.ppm", burning_ship_output);
+
+def tricorn_view_min = new Complex(-2.2, -1.8);
+def tricorn_view_max = new Complex(1.2, 1.8);
+def tricorn_output = render_fractal_ppm(width, height, limit, samples_per_axis, tricorn_view_min, tricorn_view_max, FractalTricorn, zero_complex);
+IO::WriteFile(output_dir ++ "tricorn.ppm", tricorn_output);
+
+def end = DateTime::GetTime();
+
+IO::PrintLine("Time: " ++ ((end - start) as Text));

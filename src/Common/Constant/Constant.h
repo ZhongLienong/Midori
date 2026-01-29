@@ -18,6 +18,10 @@ inline constexpr int MAX_LOCAL_VARIABLES{ UINT8_MAX };
 
 inline constexpr int MAX_VARIABLES{ UINT16_MAX };
 
+inline constexpr int IMPORT_PLACEHOLDER_BASE{ 0xF000 };
+
+inline constexpr int MAX_IMPORT_PLACEHOLDERS{ 0x1000 };
+
 inline constexpr int MAX_JUMP_SIZE{ UINT16_MAX };
 
 inline constexpr int MAX_FUNCTION_ARITY{ UINT8_MAX };

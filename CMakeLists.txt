@@ -86,6 +86,12 @@ file(GLOB_RECURSE LIBRARY_SOURCES CONFIGURE_DEPENDS
 if(EMSCRIPTEN)
     message(STATUS "Configuring for WebAssembly build with Emscripten")
 
+    option(MIDORI_WASM64 "Build WebAssembly with memory64 (wasm64)" ON)
+    set(MIDORI_WASM64_FLAGS)
+    if(MIDORI_WASM64)
+        list(APPEND MIDORI_WASM64_FLAGS -sMEMORY64=1)
+    endif()
+
     # Collect WASM-specific files
     file(GLOB_RECURSE WASM_FILES CONFIGURE_DEPENDS
         "src/WASM/*.h"
@@ -102,11 +108,17 @@ if(EMSCRIPTEN)
 
     midori_configure_target(Midori)
 
+    target_compile_definitions(Midori PRIVATE MIDORI_WASM=1)
+    if(MIDORI_WASM64)
+        target_compile_definitions(Midori PRIVATE MIDORI_WASM64=1)
+    endif()
+
     # Target-specific compile options
     target_compile_options(Midori PRIVATE
         -fexceptions
         -O3
         -Wno-deprecated-literal-operator
+        ${MIDORI_WASM64_FLAGS}
     )
 
     # Emscripten linker options
@@ -124,6 +136,7 @@ if(EMSCRIPTEN)
         -sFORCE_FILESYSTEM=1
         -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile,wasmTable
         -sEXPORTED_FUNCTIONS=_malloc,_free
+        ${MIDORI_WASM64_FLAGS}
         --no-entry
     )
 
