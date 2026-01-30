@@ -1,0 +1,31 @@
+module ClassInstanceConstraints
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+class Debug<T> {
+    debug: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return "Int(" ++ (value as Text) ++ ")";
+    };
+};
+
+instance Debug<Int> {
+    defun debug(value: Int) : Text => {
+        return "Debug(" ++ (value as Text) ++ ")";
+    };
+};
+
+defun debug_value<T>(x: T) : Text where Debug<T> => {
+    return Debug::debug(x);
+};
+
+def result = debug_value(7);
+IO::PrintLine(result);
+IO::PrintLine("class_instance_constraints: PASS");

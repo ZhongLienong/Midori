@@ -1,0 +1,38 @@
+module StructUnionWhereConstraints
+
+// Test: Struct and union constraints
+// Expected: Should compile and allow constrained usage
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Box<T> where Show<T> {
+    value: T
+};
+
+union Result<T, E> where Show<T>, Show<E> = Ok(T) | Err(E);
+
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return value as Text;
+    };
+};
+
+instance Show<Text> {
+    defun show(value: Text) : Text => {
+        return value;
+    };
+};
+
+def boxed = new Box(10);
+
+defun show_box<T>(b: Box<T>) : Text where Show<T> => {
+    return Show::show(b.value);
+};
+
+def text_result = show_box(boxed);
+
+def ok_val = new Result::Ok(1);
+
+def err_val = new Result::Err("fail");

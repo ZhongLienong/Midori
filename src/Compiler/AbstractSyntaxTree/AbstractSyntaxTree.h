@@ -79,18 +79,20 @@ public:
 	{
 		Token m_name;
 		std::vector<Token> m_generic_params;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::shared_ptr<MidoriType> m_self_type;
 
-		Struct(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
+		Struct(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type);
 	};
 
 	struct Union
 	{
 		Token m_name;
 		std::vector<Token> m_generic_params;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::shared_ptr<MidoriType> m_self_type;
 
-		Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type);
+		Union(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type);
 	};
 
 	struct Class

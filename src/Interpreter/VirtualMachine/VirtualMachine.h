@@ -46,11 +46,11 @@ private:
     using ValueStackPointer = MidoriValue*;
     using InstructionPointer = const OpCode*;
 
-    struct CallFrame
+	struct CallFrame
 	{
         ValueStackPointer return_bp;
         InstructionPointer return_ip;
-        MidoriTuple* closure_ptr;
+        MidoriTraceable* closure_traceable;
     };
     using CallStackPointer = CallFrame*;
 
@@ -205,9 +205,9 @@ private:
 
 	int GetLineFromIP(InstructionPointer ip, int proc_index) noexcept;
 
-	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTraceable* closure_traceable) noexcept
 	{
-		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_ptr};
+		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_traceable};
 		++m_call_stack_pointer;
 	}
 

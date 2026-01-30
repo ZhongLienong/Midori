@@ -1242,7 +1242,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 		m_generic_structs.insert(struct_stmt.m_name.m_lexeme);
 	}
 
+	if (!struct_stmt.m_constraints.empty())
+	{
+		if (struct_stmt.m_generic_params.empty())
+		{
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
+		}
+
+		for (const MidoriType::ClassConstraint& constraint : struct_stmt.m_constraints)
+		{
+			if (!m_classes.contains(constraint.m_class_name))
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + constraint.m_class_name + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+			}
+
+			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
+			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
+			}
+		}
+	}
+
 	std::shared_ptr<MidoriType> struct_constructor_type = MidoriType::MakeFunctionType(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
+	struct_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_stmt.m_constraints;
 	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
 
 	return MidoriType::MakeUndecidedType();
@@ -1264,11 +1287,34 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 		m_generic_unions.insert(union_stmt.m_name.m_lexeme);
 	}
 
+	if (!union_stmt.m_constraints.empty())
+	{
+		if (union_stmt.m_generic_params.empty())
+		{
+			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
+		}
+
+		for (const MidoriType::ClassConstraint& constraint : union_stmt.m_constraints)
+		{
+			if (!m_classes.contains(constraint.m_class_name))
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + constraint.m_class_name + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+			}
+
+			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
+			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
+			}
+		}
+	}
+
 	MidoriType::UnionType& union_type = union_stmt.m_self_type->GetType<MidoriType::UnionType>();
 	for (auto& [member_name, member_ctx] : union_type.m_member_info)
 	{
 		std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
 		std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr(union_stmt.m_self_type));
+		union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = union_stmt.m_constraints;
 		m_name_type_table.back()[member_name] = union_constructor_type;
 	}
 

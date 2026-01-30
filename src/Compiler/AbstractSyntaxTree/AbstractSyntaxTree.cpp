@@ -332,16 +332,18 @@ MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name
 {
 }
 
-MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type)
+MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
+	m_constraints(std::move(constraints)),
 	m_self_type(std::move(self_type))
 {
 }
 
-MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& self_type)
+MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
+	m_constraints(std::move(constraints)),
 	m_self_type(std::move(self_type))
 {
 }

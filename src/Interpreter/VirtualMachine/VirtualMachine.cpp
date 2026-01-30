@@ -26,6 +26,15 @@
 
 using namespace std::string_literals;
 
+namespace
+{
+	bool IsModuleBootstrapName(const MidoriText& name) noexcept
+	{
+		std::string_view view(name.GetCString());
+		return view.starts_with(MODULE_BOOTSTRAP_PREFIX);
+	}
+}
+
 VirtualMachine::VirtualMachine(MidoriRuntime& runtime) noexcept
 	: m_runtime(&runtime)
 {
@@ -197,7 +206,11 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 	if (current_proc >= 0 && current_proc < static_cast<int>(m_executable->m_procedure_names.size()))
 	{
-		trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable->m_procedure_names[current_proc].GetCString(), reset, file_name, current_line));
+		const MidoriText& proc_name = m_executable->m_procedure_names[current_proc];
+		if (!IsModuleBootstrapName(proc_name))
+		{
+			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, proc_name.GetCString(), reset, file_name, current_line));
+		}
 	}
 	else
 	{
@@ -218,7 +231,11 @@ std::string VirtualMachine::GenerateStackTrace() noexcept
 
 		if (proc_index >= 0 && proc_index < static_cast<int>(m_executable->m_procedure_names.size()))
 		{
-			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable->m_procedure_names[proc_index].GetCString(), reset, file_name, line));
+			const MidoriText& proc_name = m_executable->m_procedure_names[proc_index];
+			if (!IsModuleBootstrapName(proc_name))
+			{
+				trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, proc_name.GetCString(), reset, file_name, line));
+			}
 		}
 		else
 		{
@@ -334,6 +351,15 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoo
 	GarbageCollector::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
 
 	stack_roots.insert(stack_roots.end(), global_roots.cbegin(), global_roots.cend());
+
+	for (CallStackPointer frame_ptr = m_call_stack_begin; frame_ptr < m_call_stack_pointer; ++frame_ptr)
+	{
+		MidoriTraceable* closure_traceable = frame_ptr->closure_traceable;
+		if (closure_traceable && m_gc.Contains(closure_traceable))
+		{
+			stack_roots.emplace_back(closure_traceable);
+		}
+	}
 
 	if (m_curr_closure_traceable != nullptr)
 	{
@@ -1991,10 +2017,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_closure_traceable);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
+			m_curr_closure_traceable = callable.GetPointer();
 
 			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
@@ -2006,10 +2033,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int proc_index = static_cast<int>(ReadByte());
 			int arity = static_cast<int>(ReadByte());
 
-			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_closure_traceable);
 
 			// Static functions have no captures, so no environment needed
 			m_curr_environment = nullptr;
+			m_curr_closure_traceable = nullptr;
 			m_instruction_pointer = m_executable->GetBytecodeStream(proc_index)[0u];
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
@@ -2032,8 +2060,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			std::memmove(m_value_stack_base_pointer, args_source, arity * sizeof(MidoriValue));
 			m_value_stack_pointer = m_value_stack_base_pointer + arity;
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			MidoriTraceable* closure_traceable = callable.GetPointer();
+			MidoriClosure& closure = closure_traceable->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
+			m_curr_closure_traceable = closure_traceable;
 
 			// Jump to the start of the function without creating a new call frame
 			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
@@ -2331,7 +2361,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 			m_value_stack_base_pointer = frame.return_bp;
 			m_value_stack_pointer = return_point;
 			m_instruction_pointer = frame.return_ip;
-			m_curr_environment = frame.closure_ptr;
+			m_curr_closure_traceable = frame.closure_traceable;
+			if (m_curr_closure_traceable)
+			{
+				MidoriClosure& closure = m_curr_closure_traceable->GetTraceable<MidoriClosure>();
+				m_curr_environment = &closure.m_cell_values;
+			}
+			else
+			{
+				m_curr_environment = nullptr;
+			}
 
 			Push(value);
 
@@ -2490,9 +2529,13 @@ int VirtualMachine::Execute() noexcept
 
 		if (current_proc >= 0 && current_proc < static_cast<int>(m_executable->m_procedure_names.size()))
 		{
-			Printer::Print("  at ");
-			Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable->m_procedure_names[current_proc].GetCString());
-			Printer::PrintFormatted(" in {} (line {})\n", file_name, current_line);
+			const MidoriText& proc_name = m_executable->m_procedure_names[current_proc];
+			if (!IsModuleBootstrapName(proc_name))
+			{
+				Printer::Print("  at ");
+				Printer::Print<Printer::Color::BRIGHT_YELLOW>(proc_name.GetCString());
+				Printer::PrintFormatted(" in {} (line {})\n", file_name, current_line);
+			}
 		}
 		else
 		{
@@ -2513,9 +2556,13 @@ int VirtualMachine::Execute() noexcept
 
 			if (proc_index >= 0 && proc_index < static_cast<int>(m_executable->m_procedure_names.size()))
 			{
-				Printer::Print("  at ");
-				Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable->m_procedure_names[proc_index].GetCString());
-				Printer::PrintFormatted(" in {} (line {})\n", file_name, line);
+				const MidoriText& proc_name = m_executable->m_procedure_names[proc_index];
+				if (!IsModuleBootstrapName(proc_name))
+				{
+					Printer::Print("  at ");
+					Printer::Print<Printer::Color::BRIGHT_YELLOW>(proc_name.GetCString());
+					Printer::PrintFormatted(" in {} (line {})\n", file_name, line);
+				}
 			}
 			else
 			{

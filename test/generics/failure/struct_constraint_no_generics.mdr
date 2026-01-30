@@ -1,0 +1,12 @@
+module StructConstraintNoGenerics
+
+// Test: Constraints require generic parameters
+// Expected: SHOULD FAIL - struct has no type params
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Box where Show<Int> {
+    value: Int
+};

@@ -84,6 +84,19 @@ private:
 		ParseState(const std::vector<UseImport>& use_imports);
 	};
 
+	struct ActiveConstraintGuard
+	{
+		Parser* m_parser = nullptr;
+		size_t m_prev_size = 0u;
+
+		ActiveConstraintGuard(Parser* parser, size_t prev_size);
+
+		~ActiveConstraintGuard();
+
+		ActiveConstraintGuard(const ActiveConstraintGuard&) = delete;
+		ActiveConstraintGuard& operator=(const ActiveConstraintGuard&) = delete;
+	};
+
 	ParseContext m_context;
 	ParseState m_state;
 
@@ -537,6 +550,8 @@ private:
 	MidoriResult::StatementResult ParseSimpleStatement();
 
 	MidoriResult::StatementResult ParseForeignStatement();
+
+	std::expected<std::vector<MidoriType::ClassConstraint>, std::string> ParseClassConstraints(const Token& context_token);
 
 	MidoriResult::StatementResult ParseStatement();
 };
