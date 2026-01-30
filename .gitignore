@@ -371,3 +371,9 @@ FodyWeavers.xsd
 # Build
 build/
 build-wasm/
+
+# Reference packages (local build artifacts)
+reference_package/native/target/
+reference_package/lib/windows/x64/*.dll
+reference_package/lib/linux/x86_64/*.so
+reference_package/lib/macos/*.dylib

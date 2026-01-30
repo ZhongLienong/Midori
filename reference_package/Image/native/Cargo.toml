@@ -1,0 +1,11 @@
+[package]
+name = "midori_image"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+image = "0.25.1"
+libc = "0.2"

@@ -1,0 +1,20 @@
+[package]
+name = "Image"
+version = "0.1.0"
+authors = ["jk381"]
+description = "Image IO bindings for Midori using Rust."
+license = "MIT"
+midori_version = ">=1.0.0"
+
+[package.modules]
+main = "Image.mdr"
+exports = ["Image"]
+
+[ffi]
+enabled = true
+library_name = "midori_image"
+
+[ffi.functions]
+"MIDORI_FFI_Image_ReadInfo" = "midori_image_read_info"
+"MIDORI_FFI_Image_ReadRGBA" = "midori_image_read_rgba"
+"MIDORI_FFI_Image_WriteRGBA" = "midori_image_write_rgba"
