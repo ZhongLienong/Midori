@@ -15,17 +15,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROGRAM = REPO_ROOT / "misc" / "fractal_renderer.mdr"
-DEFAULT_IMAGE_PACKAGE = Path(r"C:\Users\jk381\source\repos\ZhongLienong\Midori\reference_package")
+DEFAULT_IMAGE_PACKAGE = Path(r"C:\Users\jk381\source\repos\ZhongLienong\Midori\reference_package\Image")
 
 
 def find_midori_exe(repo: Path) -> Path | None:
     candidates = [
         repo / "out" / "build" / "x64-release" / "out" / "Midori.exe",
-        repo / "out" / "build" / "x64-development" / "out" / "Midori.exe",
-        repo / "out" / "build" / "x64-debug" / "out" / "Midori.exe",
-        repo / "build" / "out" / "Midori.exe",
-        repo / "build" / "Release" / "Midori.exe",
-        repo / "build" / "Midori.exe",
     ]
     for candidate in candidates:
         if candidate.is_file():
