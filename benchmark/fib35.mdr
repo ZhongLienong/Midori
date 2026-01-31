@@ -2,8 +2,8 @@ module Fib35
 
 import 
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun fib(n : Int) : Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);

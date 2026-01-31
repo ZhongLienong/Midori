@@ -2,8 +2,8 @@ module Fib35Tailcall
 
 import 
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun fib_tail(n : Int, a : Int, b : Int) : Int =>

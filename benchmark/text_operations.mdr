@@ -1,0 +1,147 @@
+module TextOperations
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun TestTextConcatenation(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result = result ++ "x";
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestTextAppend(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result ++= "x";
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Text append (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestTextBuilding(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result = result ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text);
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestTextConversion(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			def text = i as Text;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Int to Text conversion (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestLargeTextConcatenation() : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def large_chunk = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ";
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= 1000
+		then break ()
+		else
+		{
+			result = result ++ large_chunk;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Large text chunk concatenation (1000 chunks): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestNestedTextOperations() : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= 500
+		then break ()
+		else
+		{
+			def temp = "Iteration: " ++ (i as Text);
+			result = result ++ temp ++ ", ";
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Nested text operations (500 iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+TestTextConcatenation(10000);
+TestTextAppend(10000);
+TestTextBuilding(5000);
+TestTextConversion(50000);
+TestLargeTextConcatenation();
+TestNestedTextOperations();

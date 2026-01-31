@@ -1,0 +1,272 @@
+module ComprehensiveBenchmarks
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun TestTextConcatenation(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result = result ++ "x";
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestTextAppend(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result ++= "x";
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Text append (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestTextBuilding(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def result = "";
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			result = result ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text);
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayAppend(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array append (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayConcatenation(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr = arr ++ [i];
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array concatenation (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayAccess(size : Int, num_accesses : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+	def sum = 0;
+	def j = 0;
+	loop
+	{
+		if j >= num_accesses
+		then break ()
+		else
+		{
+			def index = j % size;
+			sum = sum + arr[index];
+			j = j + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array access (" ++ (num_accesses as Text) ++ " accesses, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayIteration(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+	def sum = 0;
+	def j = 0;
+	loop
+	{
+		if j >= size
+		then break ()
+		else
+		{
+			sum = sum + arr[j];
+			j = j + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayOfText(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def arr : Array<Text> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= ("Item " ++ (i as Text));
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array of Text (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestNestedArrays(outer_size : Int, inner_size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+	def outer : Array<Array<Int>> = [];
+	def i = 0;
+	loop
+	{
+		if i >= outer_size
+		then break ()
+		else
+		{
+			def inner : Array<Int> = [];
+			def j = 0;
+			loop
+			{
+				if j >= inner_size
+				then break ()
+				else
+				{
+					inner ++= (i * inner_size + j);
+					j = j + 1;
+				}
+			};
+			outer ++= inner;
+			i = i + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayFilter(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+	def filtered : Array<Int> = [];
+	def j = 0;
+	loop
+	{
+		if j >= size
+		then break ()
+		else
+		{
+			if arr[j] % 2 == 0
+			then filtered ++= arr[j]
+			else 0;
+			j = j + 1;
+		}
+	};
+	def end = DateTime::GetTime();
+	IO::PrintLine("Array filter (even from " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+IO::PrintLine("=== MidoriText Benchmarks ===");
+TestTextConcatenation(10000);
+TestTextAppend(10000);
+TestTextBuilding(5000);
+
+IO::PrintLine("");
+IO::PrintLine("=== MidoriArray<Int> Benchmarks ===");
+TestArrayAppend(10000);
+TestArrayConcatenation(5000);
+TestArrayAccess(10000, 100000);
+TestArrayIteration(50000);
+
+IO::PrintLine("");
+IO::PrintLine("=== MidoriArray<Text> Benchmarks ===");
+TestArrayOfText(5000);
+
+IO::PrintLine("");
+IO::PrintLine("=== Complex Operations ===");
+TestNestedArrays(100, 100);
+TestArrayFilter(20000);

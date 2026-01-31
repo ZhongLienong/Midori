@@ -1,54 +1,14 @@
-module Test
+module LinkedList
+import { "../MidoriPrelude/IO.mdr", "../MidoriPrelude/Convertable.mdr"  }
 
-import
-{
-    "../MidoriPrelude/IO.mdr",
-}
+union ListNode<T> = None | Value(T, ListNode<T>);
 
-// Test 1: Forward iteration (positive step)
-IO::PrintLine("Test 1 - Forward 0..1..10 (expected 45):");
-def sum1 = 0;
-for i in 0..1..10 {
-    sum1 = sum1 + i;
-};
-IO::PrintLine(sum1 as Text);
+defun ListToString<T>(List : ListNode<T>) : Text where Convertable<T, Text> =>
+    match List with
+        case ListNode::None => ""
+        case ListNode::Value(Head, Tail) => (Head as Text) ++ ", " ++ ListToString(Tail)
+;
 
-// Test 2: Backward iteration (negative step)
-IO::PrintLine("Test 2 - Backward 0..-1..-10 (expected -45):");
-def sum2 = 0;
-for i in 0..-1..-10 {
-    sum2 = sum2 + i;
-};
-IO::PrintLine(sum2 as Text);
+def MyList = new ListNode::Value(1, new ListNode::Value(2, new ListNode::Value(3, new ListNode::None())));
 
-// Test 3: Forward iteration with explicit step
-IO::PrintLine("Test 3 - Forward 0..2..10 (expected 20):");
-def sum3 = 0;
-for i in 0..2..10 {
-    sum3 = sum3 + i;
-};
-IO::PrintLine(sum3 as Text);
-
-// Test 4: Backward iteration with larger negative step
-IO::PrintLine("Test 4 - Backward 10..-2..0 (expected 30):");
-def sum4 = 0;
-for i in 10..-2..0 {
-    sum4 = sum4 + i;
-};
-IO::PrintLine(sum4 as Text);
-
-// Test 5: Single iteration
-IO::PrintLine("Test 5 - Single 5..1..6 (expected 5):");
-def sum5 = 0;
-for i in 5..1..6 {
-    sum5 = sum5 + i;
-};
-IO::PrintLine(sum5 as Text);
-
-// Test 6: Empty range (should not iterate - wrong direction)
-IO::PrintLine("Test 6 - Empty 0..1..-10 (expected 0):");
-def sum6 = 0;
-for i in 0..1..-10 {
-    sum6 = sum6 + i;
-};
-IO::PrintLine(sum6 as Text);
+IO::PrintLine(ListToString(MyList));

@@ -2,8 +2,8 @@ module StrConcat
 
 import 
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 def start = DateTime::GetTime();

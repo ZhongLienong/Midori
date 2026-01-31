@@ -2,8 +2,8 @@ module Prime100000
 
 import 
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun IsPrime(n : Int) : Bool =>

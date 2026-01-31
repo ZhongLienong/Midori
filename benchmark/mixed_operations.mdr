@@ -1,0 +1,252 @@
+module MixedOperations
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun TestTextArrayCombination(iterations : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def texts : Array<Text> = [];
+	def i = 0;
+	loop
+	{
+		if i >= iterations
+		then break ()
+		else
+		{
+			texts ++= ("Number: " ++ (i as Text));
+			i = i + 1;
+		}
+	};
+
+	def combined = "";
+	def j = 0;
+	loop
+	{
+		if j >= iterations
+		then break ()
+		else
+		{
+			combined = combined ++ texts[j];
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Text-Array combination (" ++ (iterations as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayFilter(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def filtered : Array<Int> = [];
+	def j = 0;
+	loop
+	{
+		if j >= size
+		then break ()
+		else
+		{
+			if arr[j] % 2 == 0
+			then filtered ++= arr[j]
+			else 0;
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array filter (even numbers from " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayMap(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def mapped : Array<Int> = [];
+	def j = 0;
+	loop
+	{
+		if j >= size
+		then break ()
+		else
+		{
+			mapped ++= (arr[j] * 2);
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array map (multiply by 2, " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestStringBuilder(num_parts : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def parts : Array<Text> = [];
+	def i = 0;
+	loop
+	{
+		if i >= num_parts
+		then break ()
+		else
+		{
+			parts ++= ("Part" ++ (i as Text) ++ " ");
+			i = i + 1;
+		}
+	};
+
+	def result = "";
+	def j = 0;
+	loop
+	{
+		if j >= num_parts
+		then break ()
+		else
+		{
+			result ++= parts[j];
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("String builder pattern (" ++ (num_parts as Text) ++ " parts): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestComplexDataStructure() : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def records : Array<Text> = [];
+	def i = 0;
+	loop
+	{
+		if i >= 1000
+		then break ()
+		else
+		{
+			def id = i as Text;
+			def name = "User" ++ id;
+			def email = name ++ "@example.com";
+			def record = "ID:" ++ id ++ ",Name:" ++ name ++ ",Email:" ++ email;
+			records ++= record;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Complex data structure (1000 records): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayReversal(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def reversed : Array<Int> = [];
+	def j = size - 1;
+	loop
+	{
+		if j < 0
+		then break ()
+		else
+		{
+			reversed ++= arr[j];
+			j = j - 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array reversal (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestMemoryIntensive() : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arrays : Array<Array<Int>> = [];
+	def i = 0;
+	loop
+	{
+		if i >= 100
+		then break ()
+		else
+		{
+			def inner : Array<Int> = [];
+			def j = 0;
+			loop
+			{
+				if j >= 1000
+				then break ()
+				else
+				{
+					inner ++= (i * 1000 + j);
+					j = j + 1;
+				}
+			};
+			arrays ++= inner;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Memory intensive test (100x1000 nested arrays): " ++ ((end - start) as Text) ++ " ms");
+};
+
+TestTextArrayCombination(2000);
+TestArrayFilter(20000);
+TestArrayMap(20000);
+TestStringBuilder(3000);
+TestComplexDataStructure();
+TestArrayReversal(10000);
+TestMemoryIntensive();

@@ -2,8 +2,8 @@ module BinarySearch
 
 import
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun BinarySearch(arr : Array<Int>, target : Int, low : Int, high : Int) : Int =>

@@ -1,0 +1,236 @@
+module ArrayOperations
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun TestArrayAppend(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array append (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayConcatenation(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr = arr ++ [i];
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array concatenation (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayAccess(size : Int, num_accesses : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def sum = 0;
+	def j = 0;
+	loop
+	{
+		if j >= num_accesses
+		then break ()
+		else
+		{
+			def index = j % size;
+			sum = sum + arr[index];
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array access (" ++ (num_accesses as Text) ++ " accesses on " ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayIteration(size : Int) : Unit =>
+{
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= i;
+			i = i + 1;
+		}
+	};
+
+	def start = DateTime::GetTime();
+
+	def sum = 0;
+	def j = 0;
+	loop
+	{
+		if j >= size
+		then break ()
+		else
+		{
+			sum = sum + arr[j];
+			j = j + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayBuilding(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arr : Array<Int> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr = arr ++ [i * 2] ++ [i * 3];
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array building with multiple concatenations (" ++ (size as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestLargeArrayOperations() : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arr1 : Array<Int> = [];
+	def arr2 : Array<Int> = [];
+
+	def i = 0;
+	loop
+	{
+		if i >= 5000
+		then break ()
+		else
+		{
+			arr1 ++= i;
+			arr2 ++= i * 2;
+			i = i + 1;
+		}
+	};
+
+	def combined = arr1 ++ arr2;
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Large array operations (2x5000 elements combined): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestArrayOfText(size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def arr : Array<Text> = [];
+	def i = 0;
+	loop
+	{
+		if i >= size
+		then break ()
+		else
+		{
+			arr ++= ("Item " ++ (i as Text));
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Array of Text (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+};
+
+defun TestNestedArrays(outer_size : Int, inner_size : Int) : Unit =>
+{
+	def start = DateTime::GetTime();
+
+	def outer : Array<Array<Int>> = [];
+	def i = 0;
+	loop
+	{
+		if i >= outer_size
+		then break ()
+		else
+		{
+			def inner : Array<Int> = [];
+			def j = 0;
+			loop
+			{
+				if j >= inner_size
+				then break ()
+				else
+				{
+					inner ++= (i * inner_size + j);
+					j = j + 1;
+				}
+			};
+			outer ++= inner;
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::GetTime();
+
+	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+};
+
+TestArrayAppend(10000);
+TestArrayConcatenation(5000);
+TestArrayAccess(10000, 100000);
+TestArrayIteration(50000);
+TestArrayBuilding(2000);
+TestLargeArrayOperations();
+TestArrayOfText(5000);
+TestNestedArrays(100, 100);

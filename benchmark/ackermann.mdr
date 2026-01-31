@@ -2,8 +2,8 @@ module Ackermann
 
 import
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun Ackermann(m : Int, n : Int) : Int =>

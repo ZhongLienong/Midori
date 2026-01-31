@@ -2,8 +2,8 @@ module Sorting
 
 import
 {
-	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
 }
 
 defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>

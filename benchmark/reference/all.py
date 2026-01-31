@@ -1,6 +1,183 @@
 import time
 from typing import List
 
+def test_text_concatenation(iterations: int) -> None:
+    start = time.perf_counter()
+    result = ""
+    i = 0
+    while True:
+        if i >= iterations:
+            break
+        else:
+            result = result + "x"
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Text concatenation ({iterations} iterations): {duration_ms:.2f} ms")
+
+def test_text_append(iterations: int) -> None:
+    start = time.perf_counter()
+    result = ""
+    i = 0
+    while True:
+        if i >= iterations:
+            break
+        else:
+            result += "x"
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Text append ({iterations} iterations): {duration_ms:.2f} ms")
+
+def test_text_building(iterations: int) -> None:
+    start = time.perf_counter()
+    result = ""
+    i = 0
+    while True:
+        if i >= iterations:
+            break
+        else:
+            result = result + "Hello" + " " + "World" + " " + str(i)
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Text building ({iterations} iterations): {duration_ms:.2f} ms")
+
+def test_array_append(size: int) -> None:
+    start = time.perf_counter()
+    arr: List[int] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr.append(i)
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array append ({size} elements): {duration_ms:.2f} ms")
+
+def test_array_concatenation(size: int) -> None:
+    start = time.perf_counter()
+    arr: List[int] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr = arr + [i]
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array concatenation ({size} elements): {duration_ms:.2f} ms")
+
+def test_array_access(size: int, num_accesses: int) -> None:
+    arr: List[int] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr.append(i)
+            i += 1
+
+    start = time.perf_counter()
+    total = 0
+    j = 0
+    while True:
+        if j >= num_accesses:
+            break
+        else:
+            index = j % size
+            total = total + arr[index]
+            j += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array access ({num_accesses} accesses, sum={total}): {duration_ms:.2f} ms")
+
+def test_array_iteration(size: int) -> None:
+    arr: List[int] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr.append(i)
+            i += 1
+
+    start = time.perf_counter()
+    total = 0
+    j = 0
+    while True:
+        if j >= size:
+            break
+        else:
+            total = total + arr[j]
+            j += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array iteration ({size} elements, sum={total}): {duration_ms:.2f} ms")
+
+def test_array_of_text(size: int) -> None:
+    start = time.perf_counter()
+    arr: List[str] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr.append("Item " + str(i))
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array of Text ({size} elements): {duration_ms:.2f} ms")
+
+def test_nested_arrays(outer_size: int, inner_size: int) -> None:
+    start = time.perf_counter()
+    outer: List[List[int]] = []
+    i = 0
+    while True:
+        if i >= outer_size:
+            break
+        else:
+            inner: List[int] = []
+            j = 0
+            while True:
+                if j >= inner_size:
+                    break
+                else:
+                    inner.append(i * inner_size + j)
+                    j += 1
+            outer.append(inner)
+            i += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Nested arrays ({outer_size}x{inner_size}): {duration_ms:.2f} ms")
+
+def test_array_filter(size: int) -> None:
+    arr: List[int] = []
+    i = 0
+    while True:
+        if i >= size:
+            break
+        else:
+            arr.append(i)
+            i += 1
+
+    start = time.perf_counter()
+    filtered: List[int] = []
+    j = 0
+    while True:
+        if j >= size:
+            break
+        else:
+            if arr[j] % 2 == 0:
+                filtered.append(arr[j])
+            j += 1
+    end = time.perf_counter()
+    duration_ms = (end - start) * 1000
+    print(f"Array filter (even from {size} elements): {duration_ms:.2f} ms")
+
 def test_prime_numbers() -> None:
     """
     Counts all prime numbers up to 100,000 and benchmarks the time.
@@ -231,11 +408,23 @@ def test_binary_search(array_size: int, num_searches: int) -> None:
 # ---
 
 if __name__ == "__main__":
-    # Run the benchmarks
-    test_fib(35)
-    test_prime_numbers()
-    test_string_manipulation()
-    test_parenthesis_generation(8)
-    test_ackermann(3, 5)
-    test_sorting(5000)
-    test_binary_search(100000, 10000)
+    print("=== MidoriText Benchmarks ===")
+    test_text_concatenation(10000)
+    test_text_append(10000)
+    test_text_building(5000)
+
+    print("")
+    print("=== MidoriArray<Int> Benchmarks ===")
+    test_array_append(10000)
+    test_array_concatenation(5000)
+    test_array_access(10000, 100000)
+    test_array_iteration(50000)
+
+    print("")
+    print("=== MidoriArray<Text> Benchmarks ===")
+    test_array_of_text(5000)
+
+    print("")
+    print("=== Complex Operations ===")
+    test_nested_arrays(100, 100)
+    test_array_filter(20000)
