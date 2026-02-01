@@ -522,6 +522,7 @@ MidoriArray::MidoriArray(int size)
 		m_long.m_size = size;
 		m_long.m_capacity = size;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 		for (int i = 0; i < size; i += 1)
 		{
 			new (&m_long.m_ptr[i]) MidoriValue();
@@ -546,6 +547,7 @@ MidoriArray::MidoriArray(const MidoriArray& other)
 		m_long.m_size = other.m_long.m_size;
 		m_long.m_capacity = other.m_long.m_capacity;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 }
 
@@ -583,6 +585,7 @@ MidoriArray& MidoriArray::operator=(const MidoriArray& other)
 		m_long.m_size = other.m_long.m_size;
 		m_long.m_capacity = other.m_long.m_capacity;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 	return *this;
 }
@@ -642,6 +645,7 @@ void MidoriArray::Expand(int new_capacity)
 		m_long.m_size = current_size;
 		m_long.m_capacity = capacity;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 	else
 	{
@@ -868,6 +872,7 @@ MidoriTuple::MidoriTuple(int size)
 		m_long.m_size = size;
 		m_long.m_capacity = size;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 }
 
@@ -888,6 +893,7 @@ MidoriTuple::MidoriTuple(const MidoriTuple& other)
 		m_long.m_size = other.m_long.m_size;
 		m_long.m_capacity = other.m_long.m_size;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 }
 
@@ -925,6 +931,7 @@ MidoriTuple& MidoriTuple::operator=(const MidoriTuple& other)
 		m_long.m_size = other.m_long.m_size;
 		m_long.m_capacity = other.m_long.m_size;
 		m_long.m_flag = 0;
+		m_short.m_size_flag = 0;
 	}
 	return *this;
 }

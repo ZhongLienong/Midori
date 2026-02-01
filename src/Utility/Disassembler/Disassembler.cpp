@@ -849,6 +849,9 @@ namespace Disassembler
 		case OpCode::LOAD_TAG:
 			SimpleInstruction("LOAD_TAG", offset);
 			break;
+		case OpCode::GET_TAG:
+			SimpleInstruction("GET_TAG", offset);
+			break;
 		case OpCode::SET_TAG:
 			SetTagInstruction("SET_TAG", executable, proc_index, offset);
 			break;

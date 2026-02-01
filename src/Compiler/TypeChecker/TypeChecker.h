@@ -119,6 +119,10 @@ private:
 
 	void UpdateConditionOperandType(MidoriExpression::ConditionOperandType& op_type, const std::unique_ptr<MidoriExpression>& expr);
 
+	MidoriResult::TypeResult CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
+
+	bool IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
+
 	std::shared_ptr<MidoriType> FreshTypeVar();
 
 	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type);

@@ -369,6 +369,242 @@ void TypeChecker::UpdateConditionOperandType(MidoriExpression::ConditionOperandT
 	}
 }
 
+MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
+{
+	std::shared_ptr<MidoriType> resolved_expected = ApplySubstitution(expected_type);
+
+	return std::visit
+	(
+		[&](auto&& node) -> MidoriResult::TypeResult
+		{
+			using T = std::decay_t<decltype(node)>;
+			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			{
+				node.m_type_data = resolved_expected;
+				m_name_type_table.back()[node.m_name.m_lexeme] = resolved_expected;
+				return node.m_type_data;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			{
+				switch (node.m_kind)
+				{
+				case MidoriPattern::LiteralKind::Bool:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+					break;
+				case MidoriPattern::LiteralKind::Float:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
+					break;
+				case MidoriPattern::LiteralKind::Integer:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+					break;
+				case MidoriPattern::LiteralKind::Byte:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
+					break;
+				case MidoriPattern::LiteralKind::Word:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
+					break;
+				case MidoriPattern::LiteralKind::Text:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
+					break;
+				case MidoriPattern::LiteralKind::Unit:
+					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+					break;
+				}
+
+				return Unify(node.m_token, node.m_type_data, resolved_expected)
+					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			{
+				if (!resolved_expected->IsType<MidoriType::TupleType>())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
+				}
+
+				const MidoriType::TupleType& tuple_type = resolved_expected->GetType<MidoriType::TupleType>();
+				if (tuple_type.m_element_types.size() != node.m_elements.size())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
+				}
+
+				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
+				{
+					MidoriResult::TypeResult elem_result = CheckPattern(*node.m_elements[i], tuple_type.m_element_types[i]);
+					if (!elem_result.has_value())
+					{
+						return std::unexpected<std::string>(std::move(elem_result.error()));
+					}
+				}
+
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			{
+				if (!resolved_expected->IsType<MidoriType::ArrayType>())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
+				}
+
+				const MidoriType::ArrayType& array_type = resolved_expected->GetType<MidoriType::ArrayType>();
+				for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
+				{
+					MidoriResult::TypeResult elem_result = CheckPattern(*elem, array_type.m_element_type);
+					if (!elem_result.has_value())
+					{
+						return std::unexpected<std::string>(std::move(elem_result.error()));
+					}
+				}
+
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			{
+				if (node.m_is_union)
+				{
+					if (!resolved_expected->IsType<MidoriType::UnionType>())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					}
+
+					MidoriType::UnionType& union_type = resolved_expected->GetType<MidoriType::UnionType>();
+					if (!union_type.m_member_info.contains(node.m_name))
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
+					}
+
+					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
+					if (member_ctx.m_member_types.size() != node.m_args.size())
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
+					}
+
+					node.m_tag = member_ctx.m_tag;
+					for (size_t i = 0u; i < node.m_args.size(); i += 1u)
+					{
+						MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], member_ctx.m_member_types[i]);
+						if (!arg_result.has_value())
+						{
+							return std::unexpected<std::string>(std::move(arg_result.error()));
+						}
+					}
+
+					node.m_type_data = resolved_expected;
+					return node.m_type_data;
+				}
+
+				if (!resolved_expected->IsType<MidoriType::StructType>())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+				}
+
+				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
+				if (struct_type.m_name != node.m_name)
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
+				}
+
+				if (struct_type.m_member_types.size() != node.m_args.size())
+				{
+					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
+				}
+
+				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
+				{
+					MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], struct_type.m_member_types[i]);
+					if (!arg_result.has_value())
+					{
+						return std::unexpected<std::string>(std::move(arg_result.error()));
+					}
+				}
+
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
+			else
+			{
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", Token(), m_file_name, m_source_lines));
+			}
+		},
+		*pattern
+	);
+}
+
+bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
+{
+	std::shared_ptr<MidoriType> resolved_expected = ApplySubstitution(expected_type);
+
+	return std::visit
+	(
+		[&](auto&& node) -> bool
+		{
+			using T = std::decay_t<decltype(node)>;
+			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			{
+				return true;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			{
+				return false;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			{
+				if (!resolved_expected->IsType<MidoriType::TupleType>())
+				{
+					return false;
+				}
+				const MidoriType::TupleType& tuple_type = resolved_expected->GetType<MidoriType::TupleType>();
+				if (tuple_type.m_element_types.size() != node.m_elements.size())
+				{
+					return false;
+				}
+				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
+				{
+					if (!IsIrrefutablePattern(*node.m_elements[i], tuple_type.m_element_types[i]))
+					{
+						return false;
+					}
+				}
+				return true;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			{
+				return false;
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			{
+				if (node.m_is_union)
+				{
+					return false;
+				}
+				if (!resolved_expected->IsType<MidoriType::StructType>())
+				{
+					return false;
+				}
+				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
+				if (struct_type.m_member_types.size() != node.m_args.size())
+				{
+					return false;
+				}
+				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
+				{
+					if (!IsIrrefutablePattern(*node.m_args[i], struct_type.m_member_types[i]))
+					{
+						return false;
+					}
+				}
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		},
+		*pattern
+	);
+}
+
 std::shared_ptr<MidoriType> TypeChecker::FreshTypeVar()
 {
 	return MidoriType::MakeTypeVariable(m_next_type_var_id++);
@@ -1526,17 +1762,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 		(
 			[&match, this](std::shared_ptr<MidoriType>&& arg_type) -> MidoriResult::TypeResult
 			{
-				if (!arg_type->IsType<MidoriType::UnionType>())
+				std::shared_ptr<MidoriType> resolved_arg_type = ApplySubstitution(arg_type);
+				bool is_union = resolved_arg_type->IsType<MidoriType::UnionType>();
+
+				std::unordered_set<std::string> expected_member_names;
+				if (is_union)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: expected union type", match.m_match_keyword, m_file_name, m_source_lines, arg_type));
+					const MidoriType::UnionType& union_type = resolved_arg_type->GetType<MidoriType::UnionType>();
+					for (const auto& pair : union_type.m_member_info)
+					{
+						expected_member_names.insert(pair.first);
+					}
 				}
 
-				const MidoriType::UnionType& union_type = arg_type->GetType<MidoriType::UnionType>();
-				std::unordered_set<std::string> expected_member_names;
-				for (const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::value_type& pair : union_type.m_member_info)
-				{
-					expected_member_names.insert(pair.first);
-				}
 				bool has_default_case = false;
 				std::shared_ptr<MidoriType>* prev_case_type = nullptr;
 
@@ -1553,34 +1791,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					}
 					else if (case_expr->IsExpression<MidoriExpression::Case>())
 					{
-						MidoriExpression::Case& member_case = case_expr->GetExpression<MidoriExpression::Case>();
-						const std::string& branch_name = member_case.m_member_name;
-						if (!expected_member_names.contains(branch_name))
+						MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+						MidoriResult::TypeResult pattern_result = CheckPattern(*match_case.m_pattern, resolved_arg_type);
+						if (!pattern_result.has_value())
 						{
-							error = MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Match expression type error: unrecognized member '{}'", branch_name), member_case.m_keyword, m_file_name, m_source_lines);
+							error = std::move(pattern_result.error());
 						}
-						else
+						else if (is_union && match_case.m_pattern->IsPattern<MidoriPattern::Constructor>())
 						{
-							if (member_case.m_binding_names.size() != union_type.m_member_info.at(branch_name).m_member_types.size())
+							const MidoriPattern::Constructor& ctor = match_case.m_pattern->GetPattern<MidoriPattern::Constructor>();
+							if (ctor.m_is_union)
 							{
-								error = MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: incorrect case arity", member_case.m_keyword, m_file_name, m_source_lines);
+								expected_member_names.erase(ctor.m_name);
 							}
-							else
-							{
-								member_case.m_tag = union_type.m_member_info.at(branch_name).m_tag;
+						}
+						else if (is_union && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+						{
+							expected_member_names.clear();
+						}
 
-								expected_member_names.erase(branch_name);
-								std::ranges::for_each
-								(
-									std::views::iota(0u, member_case.m_binding_names.size()),
-									[&member_case, &union_type, &branch_name, this](size_t idx)
-									{
-										const std::string& binding_name = member_case.m_binding_names[idx];
-										m_name_type_table.back()[binding_name] = union_type.m_member_info.at(branch_name).m_member_types[idx];
-									}
-								);
-								case_result = Evaluate(member_case.m_expr);
-							}
+						if (error.empty())
+						{
+							case_result = Evaluate(match_case.m_expr);
 						}
 					}
 
@@ -1606,15 +1838,29 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					}
 				}
 
-				if (!expected_member_names.empty() && !has_default_case)
+				if (is_union)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Not all union members are matched", match.m_match_keyword, m_file_name, m_source_lines));
+					if (!expected_member_names.empty() && !has_default_case)
+					{
+						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Not all union members are matched", match.m_match_keyword, m_file_name, m_source_lines));
+					}
 				}
 				else
 				{
-					match.m_type_data = *prev_case_type;
-					return match.m_type_data;
+					if (!has_default_case)
+					{
+						bool irrefutable = match.m_cases.size() == 1u
+							&& match.m_cases[0u]->IsExpression<MidoriExpression::Case>()
+							&& IsIrrefutablePattern(*match.m_cases[0u]->GetExpression<MidoriExpression::Case>().m_pattern, resolved_arg_type);
+						if (!irrefutable)
+						{
+							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
+						}
+					}
 				}
+
+				match.m_type_data = *prev_case_type;
+				return match.m_type_data;
 			}
 		);
 }

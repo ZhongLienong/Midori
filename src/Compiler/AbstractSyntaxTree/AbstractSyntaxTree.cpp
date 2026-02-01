@@ -1,5 +1,37 @@
 #include "AbstractSyntaxTree.h"
 
+MidoriPattern::Binding::Binding(const Token& name, std::optional<int> local_index)
+	: m_name(name),
+	m_local_index(std::move(local_index))
+{
+}
+
+MidoriPattern::Literal::Literal(const Token& token, LiteralKind kind)
+	: m_token(token),
+	m_kind(kind)
+{
+}
+
+MidoriPattern::Tuple::Tuple(const Token& left_paren, std::vector<std::unique_ptr<MidoriPattern>>&& elements)
+	: m_left_paren(left_paren),
+	m_elements(std::move(elements))
+{
+}
+
+MidoriPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements)
+	: m_left_bracket(left_bracket),
+	m_elements(std::move(elements))
+{
+}
+
+MidoriPattern::Constructor::Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MidoriPattern>>&& args, bool is_union)
+	: m_name_token(name_token),
+	m_name(std::move(name)),
+	m_args(std::move(args)),
+	m_is_union(is_union)
+{
+}
+
 MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),
@@ -222,12 +254,11 @@ MidoriExpression::Match::Match(const Token& switch_keyword, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Case::Case(const Token& keyword, std::vector<std::string>&& binding_names, const std::string& member_name, std::unique_ptr<MidoriExpression>&& expr, int tag)
+MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count)
 	: m_keyword(keyword),
-	m_binding_names(std::move(binding_names)),
-	m_member_name(member_name),
+	m_pattern(std::move(pattern)),
 	m_expr(std::move(expr)),
-	m_tag(tag)
+	m_binding_count(binding_count)
 {
 }
 
@@ -281,6 +312,26 @@ MidoriExpression::Await::Await(const Token& keyword, std::unique_ptr<MidoriExpre
 bool MidoriExpression::Block::HasDefine() const
 {
 	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::VariableDefinition>(); });
+}
+
+MidoriPattern::PatternUnion& MidoriPattern::operator*()
+{
+	return m_variant;
+}
+
+const MidoriPattern::PatternUnion& MidoriPattern::operator*() const
+{
+	return m_variant;
+}
+
+std::shared_ptr<MidoriType>& MidoriPattern::GetType()
+{
+	return std::visit([](auto&& arg) -> std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
+}
+
+const std::shared_ptr<MidoriType>& MidoriPattern::GetType() const
+{
+	return std::visit([](auto&& arg) -> const std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
 }
 
 MidoriExpression::ExpressionUnion& MidoriExpression::operator*()

@@ -293,6 +293,362 @@ void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& oper
 	}
 }
 
+void CodeGenerator::EmitPopCount(int count, int line)
+{
+	while (count > 0)
+	{
+		int chunk = std::min(count, static_cast<int>(UINT8_MAX));
+		if (chunk == 1)
+		{
+			EmitByte(OpCode::POP, line);
+		}
+		else
+		{
+			EmitByte(OpCode::POP_VALUES, line);
+			EmitByte(static_cast<OpCode>(chunk), line);
+		}
+		count -= chunk;
+	}
+}
+
+int CodeGenerator::CountPatternBindings(const MidoriPattern& pattern) const
+{
+	std::function<int(const MidoriPattern&)> count = [&](const MidoriPattern& current) -> int
+		{
+			return std::visit
+			(
+				[&](auto&& node) -> int
+				{
+					using T = std::decay_t<decltype(node)>;
+					if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+					{
+						return 1;
+					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+					{
+						return 0;
+					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
+					{
+						int total = 0;
+						for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
+						{
+							total += count(*elem);
+						}
+						return total;
+					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+					{
+						int total = 0;
+						for (const std::unique_ptr<MidoriPattern>& arg : node.m_args)
+						{
+							total += count(*arg);
+						}
+						return total;
+					}
+					else
+					{
+						return 0;
+					}
+				},
+				*current
+			);
+		};
+
+	return count(pattern);
+}
+
+void CodeGenerator::EmitPatternLiteralConstant(const MidoriPattern::Literal& literal)
+{
+	int line = literal.m_token.m_line;
+	const std::string& lexeme = literal.m_token.m_lexeme;
+	try
+	{
+		switch (literal.m_kind)
+		{
+		case MidoriPattern::LiteralKind::Bool:
+			EmitByte(lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
+			break;
+		case MidoriPattern::LiteralKind::Float:
+			EmitFloatConstant(std::stod(lexeme), line);
+			break;
+		case MidoriPattern::LiteralKind::Integer:
+			EmitIntegerConstant(std::stoll(lexeme), line);
+			break;
+		case MidoriPattern::LiteralKind::Byte:
+		{
+			uint64_t value = 0u;
+			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+			{
+				value = std::stoull(lexeme, nullptr, 16);
+			}
+			else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+			{
+				value = std::stoull(lexeme, nullptr, 2);
+			}
+			else
+			{
+				value = std::stoull(lexeme);
+			}
+			EmitByteConstant(static_cast<MidoriByte>(value), line);
+			break;
+		}
+		case MidoriPattern::LiteralKind::Word:
+		{
+			uint64_t value = 0u;
+			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+			{
+				value = std::stoull(lexeme, nullptr, 16);
+			}
+			else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+			{
+				value = std::stoull(lexeme, nullptr, 2);
+			}
+			else
+			{
+				value = std::stoull(lexeme);
+			}
+			EmitWordConstant(value, line);
+			break;
+		}
+		case MidoriPattern::LiteralKind::Text:
+			EmitTextConstant(lexeme, line);
+			break;
+		case MidoriPattern::LiteralKind::Unit:
+			EmitByte(OpCode::OP_UNIT, line);
+			break;
+		}
+	}
+	catch (const std::exception&)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid literal in pattern '" + lexeme + "'", literal.m_token, m_file_name, m_source_lines));
+	}
+}
+
+void CodeGenerator::EmitPatternLiteralEquals(const MidoriPattern::Literal& literal, int line)
+{
+	switch (literal.m_kind)
+	{
+	case MidoriPattern::LiteralKind::Float:
+		EmitByte(OpCode::EQUAL_FLOAT, line);
+		break;
+	case MidoriPattern::LiteralKind::Byte:
+		EmitByte(OpCode::EQUAL_BYTE, line);
+		break;
+	case MidoriPattern::LiteralKind::Word:
+		EmitByte(OpCode::EQUAL_WORD, line);
+		break;
+	case MidoriPattern::LiteralKind::Text:
+		EmitByte(OpCode::EQUAL_TEXT, line);
+		break;
+	case MidoriPattern::LiteralKind::Unit:
+		// Unit patterns are irrefutable once types match
+		break;
+	default:
+		EmitByte(OpCode::EQUAL_INTEGER, line);
+		break;
+	}
+}
+
+void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<int>& failure_jumps, int extra_pops)
+{
+	std::visit
+	(
+		[this, &failure_jumps, extra_pops](auto&& node)
+		{
+			using T = std::decay_t<decltype(node)>;
+			int line = 0;
+			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			{
+				EmitByte(OpCode::POP, node.m_name.m_line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			{
+				line = node.m_token.m_line;
+				if (node.m_kind == MidoriPattern::LiteralKind::Unit)
+				{
+					EmitByte(OpCode::POP, line);
+					EmitByte(OpCode::OP_TRUE, line);
+				}
+				else
+				{
+					EmitPatternLiteralConstant(node);
+					EmitPatternLiteralEquals(node, line);
+				}
+
+				int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
+				EmitByte(OpCode::POP, line);
+				int jump_over_failure = EmitJump(OpCode::JUMP, line);
+				PatchJump(jump_if_false, line);
+				EmitByte(OpCode::POP, line);
+				EmitPopCount(extra_pops, line);
+				failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+				PatchJump(jump_over_failure, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			{
+				line = node.m_left_paren.m_line;
+				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				{
+					EmitByte(OpCode::DUP, line);
+					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+					EmitByte(OpCode::GET_ARRAY, line);
+					EmitByte(static_cast<OpCode>(1), line);
+					EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
+				}
+				EmitByte(OpCode::POP, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			{
+				line = node.m_left_bracket.m_line;
+				EmitByte(OpCode::DUP, line);
+				EmitByte(OpCode::GET_ARRAY_LENGTH, line);
+				EmitIntegerConstant(static_cast<MidoriInteger>(node.m_elements.size()), line);
+				EmitByte(OpCode::EQUAL_INTEGER, line);
+				int length_fail = EmitJump(OpCode::JUMP_IF_FALSE, line);
+				EmitByte(OpCode::POP, line);
+
+				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				{
+					EmitByte(OpCode::DUP, line);
+					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+					EmitByte(OpCode::GET_ARRAY, line);
+					EmitByte(static_cast<OpCode>(1), line);
+					EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
+				}
+				EmitByte(OpCode::POP, line);
+				int jump_over_failure = EmitJump(OpCode::JUMP, line);
+				PatchJump(length_fail, line);
+				EmitByte(OpCode::POP, line);
+				EmitPopCount(extra_pops + 1, line);
+				failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+				PatchJump(jump_over_failure, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			{
+				line = node.m_name_token.m_line;
+				if (node.m_is_union)
+				{
+					EmitByte(OpCode::DUP, line);
+					EmitByte(OpCode::GET_TAG, line);
+					EmitIntegerConstant(static_cast<MidoriInteger>(node.m_tag), line);
+					EmitByte(OpCode::EQUAL_INTEGER, line);
+					int tag_fail = EmitJump(OpCode::JUMP_IF_FALSE, line);
+					EmitByte(OpCode::POP, line);
+
+					EmitByte(OpCode::LOAD_TAG, line);
+					EmitByte(OpCode::POP, line);
+
+					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
+					{
+						EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], failure_jumps, extra_pops + i);
+					}
+
+					int jump_over_failure = EmitJump(OpCode::JUMP, line);
+					PatchJump(tag_fail, line);
+					EmitByte(OpCode::POP, line);
+					EmitByte(OpCode::POP, line);
+					EmitPopCount(extra_pops, line);
+					failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+					PatchJump(jump_over_failure, line);
+				}
+				else
+				{
+					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
+					{
+						EmitByte(OpCode::DUP, line);
+						EmitByte(OpCode::GET_MEMBER, line);
+						EmitByte(static_cast<OpCode>(i), line);
+						EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
+					}
+					EmitByte(OpCode::POP, line);
+				}
+			}
+		},
+		*pattern
+	);
+}
+
+void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
+{
+	std::visit
+	(
+		[this](auto&& node)
+		{
+			using T = std::decay_t<decltype(node)>;
+			int line = 0;
+			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			{
+				line = node.m_name.m_line;
+				if (node.m_local_index.has_value())
+				{
+					EmitVariable(node.m_local_index.value(), OpCode::SET_LOCAL, line);
+					EmitByte(OpCode::POP, line);
+				}
+				else
+				{
+					EmitByte(OpCode::POP, line);
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			{
+				EmitByte(OpCode::POP, node.m_token.m_line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			{
+				line = node.m_left_paren.m_line;
+				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				{
+					EmitByte(OpCode::DUP, line);
+					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+					EmitByte(OpCode::GET_ARRAY, line);
+					EmitByte(static_cast<OpCode>(1), line);
+					EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
+				}
+				EmitByte(OpCode::POP, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			{
+				line = node.m_left_bracket.m_line;
+				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				{
+					EmitByte(OpCode::DUP, line);
+					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+					EmitByte(OpCode::GET_ARRAY, line);
+					EmitByte(static_cast<OpCode>(1), line);
+					EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
+				}
+				EmitByte(OpCode::POP, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			{
+				line = node.m_name_token.m_line;
+				if (node.m_is_union)
+				{
+					EmitByte(OpCode::LOAD_TAG, line);
+					EmitByte(OpCode::POP, line);
+					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
+					{
+						EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
+					}
+				}
+				else
+				{
+					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
+					{
+						EmitByte(OpCode::DUP, line);
+						EmitByte(OpCode::GET_MEMBER, line);
+						EmitByte(static_cast<OpCode>(i), line);
+						EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
+					}
+					EmitByte(OpCode::POP, line);
+				}
+			}
+		},
+		*pattern
+	);
+}
+
 void CodeGenerator::BeginLoop(int loop_start)
 {
 	m_loop_contexts.emplace(std::vector<int>(), loop_start, loop_start);
@@ -491,7 +847,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		||
 		(
 			def.m_value->IsExpression<MidoriExpression::Match>()
-			&& std::ranges::any_of(def.m_value->GetExpression<MidoriExpression::Match>().m_cases, [](const std::unique_ptr<MidoriExpression>& case_expr) { return case_expr->IsExpression<MidoriExpression::Case>() && !case_expr->GetExpression<MidoriExpression::Case>().m_binding_names.empty(); })
+			&& std::ranges::any_of(def.m_value->GetExpression<MidoriExpression::Match>().m_cases, [](const std::unique_ptr<MidoriExpression>& case_expr) { return case_expr->IsExpression<MidoriExpression::Case>() && case_expr->GetExpression<MidoriExpression::Case>().m_binding_count > 0; })
 		);
 	if (need_placeholder)
 	{
@@ -2193,84 +2549,55 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 void CodeGenerator::operator()(MidoriExpression::Match& match)
 {
 	int line = match.m_match_keyword.m_line;
-	Visit(match.m_arg_expr);
-	EmitByte(OpCode::LOAD_TAG, line);
-
-	// Check if we can use jump table optimization
-	// Requirements:
-	// 1. All cases are Case expressions (not Default)
-	// 2. Tags are dense and sequential starting from 0: 0, 1, 2, 3, ..., n-1
-	// 3. At least 3 cases (jump table overhead not worth it for 2 cases)
-	bool can_use_jump_table = match.m_cases.size() >= 3u;
-	std::vector<MidoriExpression::Case*> sorted_cases;
-	sorted_cases.reserve(match.m_cases.size());
-
-	if (can_use_jump_table)
+	if (match.m_match_value_index < 0)
 	{
-		for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
-		{
-			if (!case_expr->IsExpression<MidoriExpression::Case>())
-			{
-				can_use_jump_table = false;
-				break;
-			}
-			sorted_cases.emplace_back(&case_expr->GetExpression<MidoriExpression::Case>());
-		}
-
-		// Sort cases by tag and check for dense sequential tags
-		if (can_use_jump_table)
-		{
-			std::ranges::sort(sorted_cases, [](const MidoriExpression::Case* a, const MidoriExpression::Case* b) { return a->m_tag < b->m_tag; });
-
-			for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
-			{
-				if (sorted_cases[i]->m_tag != static_cast<int>(i))
-				{
-					can_use_jump_table = false;
-					break;
-				}
-			}
-		}
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Match expression missing hidden value slot", match.m_match_keyword, m_file_name, m_source_lines));
+		return;
 	}
 
-	if (can_use_jump_table)
+	EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+	if (m_local_count < match.m_match_value_index + 1)
 	{
-		EmitByte(OpCode::MATCH_JUMP_TABLE, line);
-		EmitByte(static_cast<OpCode>(sorted_cases.size()), line);
+		m_local_count = match.m_match_value_index + 1;
+	}
 
-		// Reserve space for jump offsets (2 bytes each)
-		std::vector<int> case_offset_positions;
-		case_offset_positions.reserve(sorted_cases.size());
-		for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
+	Visit(match.m_arg_expr);
+	EmitVariable(match.m_match_value_index, OpCode::SET_LOCAL, line);
+	EmitByte(OpCode::POP, line);
+
+	std::vector<int> end_jumps;
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		if (case_expr->IsExpression<MidoriExpression::Default>())
 		{
-			case_offset_positions.emplace_back(m_procedures[m_current_procedure_index].GetByteCodeSize());
-			EmitByte(static_cast<OpCode>(BYTE_MASK), line);
-			EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+			Visit(case_expr);
+			end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+			break;
 		}
 
-		// Emit all case bodies and patch offsets
-		std::vector<int> end_jumps;
-		end_jumps.reserve(sorted_cases.size());
-		for (size_t i = 0u; i < sorted_cases.size(); i += 1u)
+		MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+		std::vector<int> failure_jumps;
+		EmitVariable(match.m_match_value_index, OpCode::GET_LOCAL, line);
+		EmitPatternCheck(*match_case.m_pattern, failure_jumps, 0);
+
+		int binding_count = match_case.m_binding_count;
+		for (int i = 0; i < binding_count; i += 1)
 		{
-			MidoriExpression::Case* member_case = sorted_cases[i];
+			EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+		}
 
-			// Patch the jump table offset for this case
-			int case_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
-			int offset_from_table = case_start - static_cast<int>(case_offset_positions[0u] + sorted_cases.size() * 2u);
-			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i], static_cast<OpCode>(offset_from_table & BYTE_MASK));
-			m_procedures[m_current_procedure_index].SetByteCode(case_offset_positions[i] + 1, static_cast<OpCode>((offset_from_table >> SHIFT_8_BITS) & BYTE_MASK));
+		EmitVariable(match.m_match_value_index, OpCode::GET_LOCAL, line);
+		EmitPatternBind(*match_case.m_pattern);
 
-			// Emit case body
-			Visit(member_case->m_expr);
+		Visit(match_case.m_expr);
 
-			// Pop match scope bindings
-			int num_to_pop = static_cast<int>(member_case->m_binding_names.size());
-			while (num_to_pop > 0)
+		if (binding_count > 0)
+		{
+			int remaining = binding_count;
+			while (remaining > 0)
 			{
-				int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
-
-				if (count_to_pop == num_to_pop)
+				int count_to_pop = std::min(remaining, static_cast<int>(UINT8_MAX));
+				if (count_to_pop == remaining)
 				{
 					EmitByte(OpCode::POP_MATCH_SCOPE, line);
 				}
@@ -2279,77 +2606,25 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 					EmitByte(OpCode::POP_VALUES, line);
 				}
 				EmitByte(static_cast<OpCode>(count_to_pop), line);
-				num_to_pop -= count_to_pop;
+				remaining -= count_to_pop;
 			}
-
-			end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
 		}
 
-		// Patch all end jumps to point after the match
-		for (int jump_addr : end_jumps)
+		end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+
+		for (int jump_addr : failure_jumps)
 		{
 			PatchJump(jump_addr, line);
 		}
 	}
-	else
+
+	for (int jump_addr : end_jumps)
 	{
-		// Fall back to linear search
-		std::vector<int> jumps;
-		for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
-		{
-			if (case_expr->IsExpression<MidoriExpression::Case>())
-			{
-				MidoriExpression::Case& member_case = case_expr->GetExpression<MidoriExpression::Case>();
-
-				EmitByte(OpCode::DUP, line);
-				MidoriInteger member_tag = static_cast<MidoriInteger>(member_case.m_tag);
-				EmitIntegerConstant(member_tag, line);
-				EmitByte(OpCode::EQUAL_INTEGER, line);
-				int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
-				EmitByte(OpCode::POP, line); // pop tag
-				EmitByte(OpCode::POP, line); // pop comp result
-
-				Visit(case_expr);
-
-				int num_to_pop = static_cast<int>(member_case.m_binding_names.size());
-				while (num_to_pop > 0)
-				{
-					int count_to_pop = std::min(num_to_pop, static_cast<int>(UINT8_MAX));
-
-					if (count_to_pop == num_to_pop)
-					{
-						EmitByte(OpCode::POP_MATCH_SCOPE, line);
-					}
-					else
-					{
-						EmitByte(OpCode::POP_VALUES, line);
-					}
-					EmitByte(static_cast<OpCode>(count_to_pop), line);
-					num_to_pop -= count_to_pop;
-				}
-				jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-
-				PatchJump(jump_if_false, line);
-				EmitByte(OpCode::POP, line);
-			}
-			else
-			{
-				Visit(case_expr);
-
-				jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-				break;
-			}
-		}
-
-		std::ranges::for_each
-		(
-			jumps,
-			[this, line](int jump_addr)
-			{
-				PatchJump(jump_addr, line);
-			}
-		);
+		PatchJump(jump_addr, line);
 	}
+
+	EmitByte(OpCode::SWAP, line);
+	EmitByte(OpCode::POP, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Case& case_expr)

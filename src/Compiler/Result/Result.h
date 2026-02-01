@@ -25,6 +25,7 @@ namespace MidoriResult
 	using ModuleManagerResult = Result<BuildGraph>;
 	using BytecodeLinkerResult = Result<MidoriExecutable>;
 	using ExpressionResult = Result<std::unique_ptr<MidoriExpression>>;
+	using PatternResult = Result<std::unique_ptr<MidoriPattern>>;
 	using StatementResult = Result<std::unique_ptr<MidoriStatement>>;
 	using ParserResult = Result<MidoriProgramTree>;
 	using TypeResult = Result<std::shared_ptr<MidoriType>>;

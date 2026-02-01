@@ -1,0 +1,46 @@
+module MatchPatterns
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+def pair = (2, 3);
+def tuple_sum = match pair with
+	case (x, y) => x + y
+;
+
+def point = new Point(4, 5);
+def area = match point with
+	case Point(x, y) => x * y
+;
+
+def arr = [1, 2, 3];
+def array_sum = match arr with
+	case [a, b, c] => a + b + c
+	default => 0
+;
+
+def literal_match = match 3 with
+	case 1 => 10
+	case 3 => 30
+	default => 0
+;
+
+def text_match = match "hi" with
+	case "bye" => 0
+	case "hi" => 1
+	default => -1
+;
+
+IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
+IO::PrintLine("area=" ++ (area as Text));
+IO::PrintLine("array_sum=" ++ (array_sum as Text));
+IO::PrintLine("literal_match=" ++ (literal_match as Text));
+IO::PrintLine("text_match=" ++ (text_match as Text));

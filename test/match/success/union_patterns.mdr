@@ -1,0 +1,24 @@
+module MatchUnionPatterns
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+union Option = None | Some(Int);
+
+def none_val = new Option::None();
+def some_val = new Option::Some(8);
+
+def none_result = match none_val with
+	case Option::None => 0
+	case Option::Some(x) => x
+;
+
+def some_result = match some_val with
+	case Option::None => 0
+	case Option::Some(x) => x
+;
+
+IO::PrintLine("none_result=" ++ (none_result as Text));
+IO::PrintLine("some_result=" ++ (some_result as Text));

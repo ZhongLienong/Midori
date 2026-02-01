@@ -50,6 +50,11 @@ void PrintAbstractSyntaxTree::Visit(const std::unique_ptr<MidoriExpression>& exp
 	VisitNode([this, depth](auto&& arg) { (*this)(arg, depth); }, expression);
 }
 
+void PrintAbstractSyntaxTree::Visit(const std::unique_ptr<MidoriPattern>& pattern, int depth) const
+{
+	VisitNode([this, depth](auto&& arg) { (*this)(arg, depth); }, pattern);
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriStatement::ExpressionStatement& simple, int depth) const
 {
 	PrintWithIndentation(depth, "Simple {");
@@ -487,18 +492,8 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Match& match, i
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Case& case_expr, int depth) const
 {
 	PrintWithIndentation(depth, "Case {");
-	PrintWithIndentation(depth + 1, "MemberName {");
-	PrintWithIndentation(depth + 2, case_expr.m_member_name);
-	PrintWithIndentation(depth + 2, "Binding: ");
-	std::ranges::for_each
-	(
-		case_expr.m_binding_names,
-		[depth, this](const std::string& binding_name)
-		{
-			PrintWithIndentation(depth + 2, binding_name);
-		}
-	);
-	PrintWithIndentation(depth + 1, "}");
+	PrintWithIndentation(depth + 1, "Pattern: ");
+	Visit(case_expr.m_pattern, depth + 2);
 	PrintWithIndentation(depth + 1, "Value {");
 	Visit(case_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth + 1, "}");
@@ -561,6 +556,63 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Await& await_ex
 	PrintWithIndentation(depth, "Await {");
 	PrintWithIndentation(depth + 1, "Future: ");
 	Visit(await_expr.m_expr, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Binding& binding, int depth) const
+{
+	PrintWithIndentation(depth, "BindingPattern {");
+	PrintWithIndentation(depth + 1, binding.m_name.m_lexeme);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Literal& literal, int depth) const
+{
+	PrintWithIndentation(depth, "LiteralPattern {");
+	PrintWithIndentation(depth + 1, literal.m_token.m_lexeme);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Tuple& tuple, int depth) const
+{
+	PrintWithIndentation(depth, "TuplePattern {");
+	std::ranges::for_each
+	(
+		tuple.m_elements,
+		[depth, this](const std::unique_ptr<MidoriPattern>& elem)
+		{
+			Visit(elem, depth + 1);
+		}
+	);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Array& array, int depth) const
+{
+	PrintWithIndentation(depth, "ArrayPattern {");
+	std::ranges::for_each
+	(
+		array.m_elements,
+		[depth, this](const std::unique_ptr<MidoriPattern>& elem)
+		{
+			Visit(elem, depth + 1);
+		}
+	);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Constructor& constructor, int depth) const
+{
+	PrintWithIndentation(depth, "ConstructorPattern {");
+	PrintWithIndentation(depth + 1, constructor.m_name);
+	std::ranges::for_each
+	(
+		constructor.m_args,
+		[depth, this](const std::unique_ptr<MidoriPattern>& arg)
+		{
+			Visit(arg, depth + 1);
+		}
+	);
 	PrintWithIndentation(depth, "}");
 }
 

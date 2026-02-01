@@ -72,6 +72,9 @@ constexpr std::string_view FOR_ARRAY_PREFIX = "$for_array_";
 // Array comprehension hidden variable prefix
 constexpr std::string_view COMPREHENSION_RESULT_PREFIX = "$comp_result_";
 
+// Match expression hidden variable prefix
+constexpr std::string_view MATCH_VALUE_PREFIX = "$match_value_";
+
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";

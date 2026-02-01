@@ -151,6 +151,97 @@ public:
 
 using MidoriProgramTree = std::vector<std::unique_ptr<MidoriStatement>>;
 
+class MidoriPattern
+{
+public:
+	struct BasePattern
+	{
+		std::shared_ptr<MidoriType> m_type_data = MidoriType::MakeUndecidedType();
+	};
+
+	struct Binding : BasePattern
+	{
+		Token m_name;
+		std::optional<int> m_local_index;
+
+		Binding(const Token& name, std::optional<int> local_index);
+	};
+
+	enum class LiteralKind
+	{
+		Bool,
+		Integer,
+		Byte,
+		Word,
+		Float,
+		Text,
+		Unit
+	};
+
+	struct Literal : BasePattern
+	{
+		Token m_token;
+		LiteralKind m_kind;
+
+		Literal(const Token& token, LiteralKind kind);
+	};
+
+	struct Tuple : BasePattern
+	{
+		Token m_left_paren;
+		std::vector<std::unique_ptr<MidoriPattern>> m_elements;
+
+		Tuple(const Token& left_paren, std::vector<std::unique_ptr<MidoriPattern>>&& elements);
+	};
+
+	struct Array : BasePattern
+	{
+		Token m_left_bracket;
+		std::vector<std::unique_ptr<MidoriPattern>> m_elements;
+
+		Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements);
+	};
+
+	struct Constructor : BasePattern
+	{
+		Token m_name_token;
+		std::string m_name;
+		std::vector<std::unique_ptr<MidoriPattern>> m_args;
+		bool m_is_union = false;
+		int m_tag = -1;
+
+		Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MidoriPattern>>&& args, bool is_union);
+	};
+
+private:
+	using PatternUnion = std::variant<Binding, Literal, Tuple, Array, Constructor>;
+	PatternUnion m_variant;
+
+public:
+	template<typename T>
+	MidoriPattern(T&& pattern_data) : m_variant(std::move(pattern_data))
+	{
+	}
+
+	template<typename T>
+	T& GetPattern()
+	{
+		return std::get<T>(m_variant);
+	}
+
+	template<typename T>
+	constexpr bool IsPattern() const
+	{
+		return std::holds_alternative<T>(m_variant);
+	}
+
+	PatternUnion& operator*();
+	const PatternUnion& operator*() const;
+
+	std::shared_ptr<MidoriType>& GetType();
+	const std::shared_ptr<MidoriType>& GetType() const;
+};
+
 class MidoriExpression
 {
 public:
@@ -488,6 +579,7 @@ public:
 		Token m_match_keyword;
 		std::unique_ptr<MidoriExpression> m_arg_expr;
 		std::vector<std::unique_ptr<MidoriExpression>> m_cases;
+		int m_match_value_index = -1;
 
 		Match(const Token& match_keyword, std::unique_ptr<MidoriExpression>&& arg_expr, std::vector<std::unique_ptr<MidoriExpression>>&& cases);
 	};
@@ -495,12 +587,11 @@ public:
 	struct Case : BaseExpression
 	{
 		Token m_keyword;
-		std::vector<std::string> m_binding_names;
-		std::string m_member_name;
+		std::unique_ptr<MidoriPattern> m_pattern;
 		std::unique_ptr<MidoriExpression> m_expr;
-		int m_tag;
+		int m_binding_count = 0;
 
-		Case(const Token& keyword, std::vector<std::string>&& binding_names, const std::string& member_name, std::unique_ptr<MidoriExpression>&& expr, int tag);
+		Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count);
 	};
 
 	struct Default : BaseExpression
@@ -730,4 +821,22 @@ template<typename Visitor>
 decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriExpression>& expression)
 {
 	return std::visit(std::forward<Visitor>(visitor), **expression);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, MidoriPattern& pattern)
+{
+	return std::visit(std::forward<Visitor>(visitor), *pattern);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriPattern>& pattern)
+{
+	return std::visit(std::forward<Visitor>(visitor), **pattern);
+}
+
+template<typename Visitor>
+decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriPattern>& pattern)
+{
+	return std::visit(std::forward<Visitor>(visitor), **pattern);
 }

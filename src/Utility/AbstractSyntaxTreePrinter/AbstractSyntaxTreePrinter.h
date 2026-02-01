@@ -98,10 +98,22 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Await& await_expr, int depth = 0) const;
 
+	void operator()(const MidoriPattern::Binding& binding, int depth = 0) const;
+
+	void operator()(const MidoriPattern::Literal& literal, int depth = 0) const;
+
+	void operator()(const MidoriPattern::Tuple& tuple, int depth = 0) const;
+
+	void operator()(const MidoriPattern::Array& array, int depth = 0) const;
+
+	void operator()(const MidoriPattern::Constructor& constructor, int depth = 0) const;
+
 private:
 
 	void Visit(const std::unique_ptr<MidoriStatement>& statement, int depth) const;
 
 	void Visit(const std::unique_ptr<MidoriExpression>& expression, int depth) const;
+
+	void Visit(const std::unique_ptr<MidoriPattern>& pattern, int depth) const;
 };
 #endif

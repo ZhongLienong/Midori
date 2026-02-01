@@ -453,6 +453,8 @@ private:
 
 	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
 
+	std::optional<int> RegisterHiddenLocal(const std::string&);
+
 	std::optional<int> DetectArrayComprehension();
 
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
@@ -526,6 +528,8 @@ private:
 	MidoriResult::ExpressionResult ParseAwaitExpression();
 
 	MidoriResult::ExpressionResult ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword);
+
+	MidoriResult::PatternResult ParsePattern();
 
 	MidoriResult::ExpressionResult ParseDefaultExpression(bool& default_visited, Token& keyword);
 

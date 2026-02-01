@@ -130,6 +130,18 @@ private:
 
 	void EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line);
 
+	void EmitPopCount(int count, int line);
+
+	int CountPatternBindings(const MidoriPattern& pattern) const;
+
+	void EmitPatternCheck(const MidoriPattern& pattern, std::vector<int>& failure_jumps, int extra_pops);
+
+	void EmitPatternBind(const MidoriPattern& pattern);
+
+	void EmitPatternLiteralConstant(const MidoriPattern::Literal& literal);
+
+	void EmitPatternLiteralEquals(const MidoriPattern::Literal& literal, int line);
+
 	void BeginLoop(int loop_start);
 
 	void EndLoop(int line);

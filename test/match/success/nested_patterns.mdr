@@ -1,0 +1,21 @@
+module MatchNestedPatterns
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+def payload = (new Point(2, 5), [3, 4], ());
+
+def result = match payload with
+	case (Point(px, py), [a, b], ()) => px + py + a + b
+	default => 0
+;
+
+IO::PrintLine("nested_result=" ++ (result as Text));

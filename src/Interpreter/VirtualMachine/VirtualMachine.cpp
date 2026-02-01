@@ -1740,6 +1740,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(static_cast<MidoriInteger>(union_ref.m_index));
 			break;
 		}
+		case OpCode::GET_TAG:
+		{
+			MidoriValue union_val = Pop();
+			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
+			Push(static_cast<MidoriInteger>(union_ref.m_index));
+			break;
+		}
 		case OpCode::SET_TAG:
 		{
 			int tag = static_cast<int>(ReadByte());

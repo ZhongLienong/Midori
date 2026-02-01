@@ -628,6 +628,13 @@ std::optional<int> Parser::RegisterOrUpdateLocalVariable(const std::string& name
 	return local_index;
 }
 
+std::optional<int> Parser::RegisterHiddenLocal(const std::string&)
+{
+	int local_index = m_state.m_total_locals_in_curr_scope++;
+	m_state.m_total_variables += 1;
+	return local_index;
+}
+
 MidoriResult::ExpressionResult Parser::ParseFactor()
 {
 	return ParseBinary(&Parser::ParseUnaryLogicalBitwise, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT);
@@ -3201,10 +3208,15 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 		(
 			[&match_keyword, this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
 			{
+				static int s_match_counter = 0;
+				std::optional<int> match_value_index_opt = RegisterHiddenLocal(std::string(MATCH_VALUE_PREFIX) + std::to_string(s_match_counter));
+				int match_value_index = match_value_index_opt.value_or(-1);
+				s_match_counter += 1;
+
 				return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
 					.and_then
 					(
-						[&expr, &match_keyword, this](Token&&) ->MidoriResult::ExpressionResult
+						[&expr, &match_keyword, this, match_value_index, match_value_index_opt](Token&&) ->MidoriResult::ExpressionResult
 						{
 							bool default_visited = false;
 							std::unordered_set<std::string> visited_names;
@@ -3239,7 +3251,16 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 								return std::unexpected<std::string>(GenerateParserError("Expected at least one case.", match_keyword));
 							}
 
-							return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
+							std::unique_ptr<MidoriExpression> match_expr = std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
+							match_expr->GetExpression<MidoriExpression::Match>().m_match_value_index = match_value_index;
+
+							if (match_value_index_opt.has_value())
+							{
+								m_state.m_total_locals_in_curr_scope -= 1;
+								m_state.m_total_variables -= 1;
+							}
+
+							return match_expr;
 						}
 					);
 			}
@@ -3421,92 +3442,406 @@ MidoriResult::ExpressionResult Parser::ParseAwaitExpression()
 
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
-	std::function<MidoriResult::ExpressionResult(Token&, std::vector<std::string>&&, Token&&)> handle_body = [this](Token& keyword, std::vector<std::string>&& binding_names, Token&& member_name) -> MidoriResult::ExpressionResult
+	std::function<int(const MidoriPattern&)> count_bindings = [&](const MidoriPattern& current) -> int
 		{
-			return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
-				.and_then
-				(
-					[&keyword, &binding_names, &member_name, this](Token&&)->MidoriResult::ExpressionResult
+			return std::visit
+			(
+				[&](auto&& node) -> int
+				{
+					using T = std::decay_t<decltype(node)>;
+					if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
 					{
-						return ParseExpression()
-							.and_then
-							(
-								[&keyword, &binding_names, &member_name, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
-								{
-									EndScope();
-									return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(binding_names), member_name.m_lexeme, std::move(case_expr), 0));
-								}
-							);
+						return 1;
 					}
-				);
+					else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+					{
+						return 0;
+					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
+					{
+						int total = 0;
+						for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
+						{
+							total += count_bindings(*elem);
+						}
+						return total;
+					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+					{
+						int total = 0;
+						for (const std::unique_ptr<MidoriPattern>& arg : node.m_args)
+						{
+							total += count_bindings(*arg);
+						}
+						return total;
+					}
+					else
+					{
+						return 0;
+					}
+				},
+				*current
+			);
 		};
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected constructor name.")
+
+	BeginScope();
+	MidoriResult::PatternResult pattern_result = ParsePattern();
+	if (!pattern_result.has_value())
+	{
+		EndScope();
+		return std::unexpected<std::string>(std::move(pattern_result.error()));
+	}
+
+	std::unique_ptr<MidoriPattern> pattern = std::move(pattern_result.value());
+	if (pattern->IsPattern<MidoriPattern::Constructor>())
+	{
+		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
+		if (constructor.m_is_union)
+		{
+			if (visited_members.contains(constructor.m_name))
+			{
+				EndScope();
+				return std::unexpected<std::string>(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
+			}
+			visited_members.emplace(constructor.m_name);
+		}
+	}
+
+	int binding_count = count_bindings(*pattern);
+
+	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then
 		(
-			[&handle_body, &visited_members, &keyword, this](Token&&) ->MidoriResult::ExpressionResult
+			[&keyword, &pattern, binding_count, this](Token&&)->MidoriResult::ExpressionResult
 			{
-				return MatchNameResolution()
+				return ParseExpression()
 					.and_then
 					(
-						[&handle_body, &visited_members, &keyword, this](Token&& member_name) ->MidoriResult::ExpressionResult
+						[&keyword, &pattern, binding_count, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
 						{
-							member_name.m_lexeme = Mangle(member_name.m_lexeme);
-
-							if (visited_members.contains(member_name.m_lexeme))
-							{
-								return std::unexpected<std::string>(GenerateParserError("Duplicate case in match statement.", member_name));
-							}
-							else
-							{
-								visited_members.emplace(member_name.m_lexeme);
-							}
-
-							BeginScope();
-							if (Match(Token::Name::LEFT_PAREN))
-							{
-								return ParseDelimitedZeroOrMoreLimited<std::string>
-									(
-										[this]() -> std::expected<std::string, std::string>
-										{
-											return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name.")
-												.and_then
-												(
-													[this](Token&& field_name) -> std::expected<std::string, std::string>
-													{
-														field_name.m_lexeme = Mangle(field_name.m_lexeme);
-														constexpr bool is_variable = true;
-
-														return DefineName(field_name, is_variable)
-															.and_then
-															(
-																[this](Token&& field_name) -> std::expected<std::string, std::string>
-																{
-																	RegisterOrUpdateLocalVariable(field_name.m_lexeme);
-																	return field_name.m_lexeme;
-																}
-															);
-													}
-												);
-										},
-										[this]() { return Consume(Token::Name::COMMA, "Expected ',' after parameter."); },
-										[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after constructor."); }
-									)
-									.and_then
-									(
-										[&keyword, &member_name, &handle_body](std::vector<std::string>&& binding_names) ->MidoriResult::ExpressionResult
-										{
-											return handle_body(keyword, std::move(binding_names), std::move(member_name));
-										}
-									);
-							}
-							else
-							{
-								return handle_body(keyword, std::vector<std::string>(), std::move(member_name));
-							}
+							EndScope();
+							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), binding_count));
 						}
 					);
 			}
 		);
+}
+
+MidoriResult::PatternResult Parser::ParsePattern()
+{
+	auto make_numeric_literal = [](Token token) -> std::unique_ptr<MidoriPattern>
+		{
+			const std::string& lexeme = token.m_lexeme;
+			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+			{
+				uint64_t value = 0u;
+				if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
+				{
+					value = std::stoull(lexeme, nullptr, 16);
+				}
+				else
+				{
+					value = std::stoull(lexeme, nullptr, 2);
+				}
+
+				if (value <= 0xFF)
+				{
+					return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Byte));
+				}
+				if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+				{
+					return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+				}
+				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Word));
+			}
+
+			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+		};
+
+	if (Match(Token::Name::LEFT_PAREN))
+	{
+		Token left_paren = Previous();
+
+		if (Match(Token::Name::RIGHT_PAREN))
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Unit));
+		}
+
+		return ParsePattern()
+			.and_then
+			(
+				[this, left_paren](std::unique_ptr<MidoriPattern>&& first_pattern) -> MidoriResult::PatternResult
+				{
+					if (Match(Token::Name::COMMA))
+					{
+						std::vector<std::unique_ptr<MidoriPattern>> elements;
+						elements.push_back(std::move(first_pattern));
+
+						do
+						{
+							MidoriResult::PatternResult elem_result = ParsePattern();
+							if (!elem_result)
+							{
+								return std::unexpected<std::string>(elem_result.error());
+							}
+							elements.push_back(std::move(elem_result.value()));
+						} while (Match(Token::Name::COMMA));
+
+						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
+							.and_then
+							(
+								[&elements, left_paren](Token&&) -> MidoriResult::PatternResult
+								{
+									return std::make_unique<MidoriPattern>(MidoriPattern::Tuple(left_paren, std::move(elements)));
+								}
+							);
+					}
+
+					return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after pattern.")
+						.and_then
+						(
+							[pattern = std::move(first_pattern)](Token&&) mutable -> MidoriResult::PatternResult
+							{
+								return std::move(pattern);
+							}
+						);
+				}
+			);
+	}
+
+	if (Match(Token::Name::LEFT_BRACKET))
+	{
+		Token left_bracket = Previous();
+		if (Match(Token::Name::RIGHT_BRACKET))
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, {}));
+		}
+
+		return ParsePattern()
+			.and_then
+			(
+				[this, left_bracket](std::unique_ptr<MidoriPattern>&& first_pattern) -> MidoriResult::PatternResult
+				{
+					std::vector<std::unique_ptr<MidoriPattern>> elements;
+					elements.push_back(std::move(first_pattern));
+
+					while (Match(Token::Name::COMMA))
+					{
+						MidoriResult::PatternResult elem_result = ParsePattern();
+						if (!elem_result)
+						{
+							return std::unexpected<std::string>(elem_result.error());
+						}
+						elements.push_back(std::move(elem_result.value()));
+					}
+
+					return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after array pattern.")
+						.and_then
+						(
+							[&elements, left_bracket](Token&&) -> MidoriResult::PatternResult
+							{
+								return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, std::move(elements)));
+							}
+						);
+				}
+			);
+	}
+
+	if (Match(Token::Name::TRUE, Token::Name::FALSE))
+	{
+		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Bool));
+	}
+
+	if (Match(Token::Name::FLOAT_LITERAL))
+	{
+		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Float));
+	}
+
+	if (Match(Token::Name::INTEGER_LITERAL))
+	{
+		return make_numeric_literal(Previous());
+	}
+
+	if (Match(Token::Name::TEXT_LITERAL))
+	{
+		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Text));
+	}
+
+	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
+	{
+		Token sign_token = Previous();
+		bool is_negative = sign_token.m_token_name == Token::Name::SINGLE_MINUS;
+		if (Match(Token::Name::FLOAT_LITERAL))
+		{
+			Token literal = Previous();
+			literal.m_lexeme = (is_negative ? "-"s : ""s) + literal.m_lexeme;
+			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Float));
+		}
+		if (Match(Token::Name::INTEGER_LITERAL))
+		{
+			Token literal = Previous();
+			literal.m_lexeme = (is_negative ? "-"s : ""s) + literal.m_lexeme;
+			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Integer));
+		}
+
+		return std::unexpected<std::string>(GenerateParserError("Expected numeric literal after unary sign in pattern.", sign_token));
+	}
+
+	if (Match(Token::Name::IDENTIFIER_LITERAL))
+	{
+		Token identifier = Previous();
+		return MatchNameResolution()
+			.and_then
+			(
+				[&identifier, this](Token&& resolved) -> MidoriResult::PatternResult
+				{
+					resolved.m_lexeme = Mangle(resolved.m_lexeme);
+
+					bool is_union = false;
+					bool is_constructor = false;
+					for (auto it = m_state.m_scopes.rbegin(); it != m_state.m_scopes.rend(); ++it)
+					{
+						if (it->m_union_constructors.contains(resolved.m_lexeme))
+						{
+							is_union = true;
+							is_constructor = true;
+							break;
+						}
+						if (it->m_struct_constructors.contains(resolved.m_lexeme))
+						{
+							is_union = false;
+							is_constructor = true;
+							break;
+						}
+					}
+
+					if (!is_constructor)
+					{
+						std::string raw_name = resolved.m_lexeme;
+						std::string lookup_base = raw_name;
+						size_t separator_pos = raw_name.find(NameSeparator);
+						if (separator_pos != std::string::npos)
+						{
+							lookup_base = raw_name.substr(0, separator_pos);
+						}
+
+						auto resolve_imported_constructor = [&](const TypeEnvironment& env) -> bool
+						{
+							std::string type_name = lookup_base;
+							if (!env.contains(type_name))
+							{
+								return false;
+							}
+
+							std::shared_ptr<MidoriType> type = env.at(type_name);
+							if (type->IsType<MidoriType::UnionType>())
+							{
+								if (separator_pos == std::string::npos)
+								{
+									return false;
+								}
+
+								std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
+								const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+								std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
+
+								if (union_type.m_member_info.contains(member_key))
+								{
+									resolved.m_lexeme = member_key;
+									is_union = true;
+									is_constructor = true;
+									return true;
+								}
+							}
+							else if (type->IsType<MidoriType::StructType>())
+							{
+								if (raw_name == type_name)
+								{
+									is_union = false;
+									is_constructor = true;
+									return true;
+								}
+							}
+
+							return false;
+						};
+
+						for (const UseImport& use_import : m_state.m_current_use_imports)
+						{
+							if (use_import.m_symbol_name == lookup_base)
+							{
+								if (m_context.m_imported_type_signatures.contains(use_import.m_module_name))
+								{
+									if (resolve_imported_constructor(m_context.m_imported_type_signatures.at(use_import.m_module_name)))
+									{
+										break;
+									}
+								}
+							}
+						}
+
+						if (!is_constructor)
+						{
+							for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
+							{
+								if (resolve_imported_constructor(env))
+								{
+									break;
+								}
+							}
+						}
+					}
+
+					if (is_constructor)
+					{
+						if (Match(Token::Name::LEFT_PAREN))
+						{
+							std::vector<std::unique_ptr<MidoriPattern>> args;
+							if (!Match(Token::Name::RIGHT_PAREN))
+							{
+								do
+								{
+									MidoriResult::PatternResult arg_result = ParsePattern();
+									if (!arg_result)
+									{
+										return std::unexpected<std::string>(arg_result.error());
+									}
+									args.push_back(std::move(arg_result.value()));
+								} while (Match(Token::Name::COMMA));
+
+								if (!Match(Token::Name::RIGHT_PAREN))
+								{
+									return std::unexpected<std::string>(GenerateParserError("Expected ')' after constructor pattern.", Peek(0)));
+								}
+							}
+
+							return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
+						}
+
+						return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(resolved, std::string(resolved.m_lexeme), {}, is_union));
+					}
+
+					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)
+					{
+						return std::unexpected<std::string>(GenerateParserError("Unknown constructor in pattern.", resolved));
+					}
+
+					Token binding_name = std::move(identifier);
+					constexpr bool is_variable = true;
+					return DefineName(binding_name, is_variable)
+						.and_then
+						(
+							[this](Token&& defined_name) -> MidoriResult::PatternResult
+							{
+								std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
+								return std::make_unique<MidoriPattern>(MidoriPattern::Binding(defined_name, std::move(local_index)));
+							}
+						);
+				}
+			);
+	}
+
+	return std::unexpected<std::string>(GenerateParserError("Expected pattern.", Peek(0)));
 }
 
 MidoriResult::ExpressionResult Parser::ParseDefaultExpression(bool& default_visited, Token& keyword)
