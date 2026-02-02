@@ -1,0 +1,23 @@
+module IterableMapTest
+
+import
+{
+    "../../../MidoriPrelude/Collections/Map.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Iterable.mdr"
+}
+
+def map : Map::Map<Int, Int> = Map::MapNew();
+Map::MapInsert(map, 1, 10);
+Map::MapInsert(map, 2, 20);
+
+def iter = Map::MapIterNew(map);
+def total = 0;
+
+for entry in iter {
+    total <- total + entry.value;
+};
+
+if total == 30
+then IO::PrintLine("iterable_map: PASS")
+else IO::PrintLine("iterable_map: FAIL");

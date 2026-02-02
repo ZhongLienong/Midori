@@ -5,37 +5,38 @@ import
 {
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/HashMap.mdr",
-    "../../../MidoriPrelude/Prelude.mdr"
+    "../../../MidoriPrelude/Collections/Map.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr"
 }
-use Prelude.Option;
+use Option.{Option}
 
-def measurements : HashMap::MapData<Float, Text> = HashMap::MapNew();
+def measurements : Map::Map<Float, Text> = Map::MapNew();
 
 // Insert with Float keys
-HashMap::MapInsert(measurements, 3.14, "Pi");
-HashMap::MapInsert(measurements, 2.71, "Euler");
-HashMap::MapInsert(measurements, 1.41, "Sqrt2");
+Map::MapInsert(measurements, 3.14, "Pi");
+Map::MapInsert(measurements, 2.71, "Euler");
+Map::MapInsert(measurements, 1.41, "Sqrt2");
 
-IO::PrintLine("Size: " ++ (HashMap::MapSize(measurements) as Text));
+IO::PrintLine("Size: " ++ (Map::MapCount(measurements) as Text));
 
 // Get values
-def pi_node = HashMap::MapGet(measurements, 3.14);
+def pi_node = Map::MapGet(measurements, 3.14);
 match pi_node with
     case Option::Some(val) => IO::PrintLine("3.14 = " ++ val)
     case Option::None() => IO::PrintLine("3.14 not found")
 ;
 
-def euler_node = HashMap::MapGet(measurements, 2.71);
+def euler_node = Map::MapGet(measurements, 2.71);
 match euler_node with
     case Option::Some(val) => IO::PrintLine("2.71 = " ++ val)
     case Option::None() => IO::PrintLine("2.71 not found")
 ;
 
-def unknown_node = HashMap::MapGet(measurements, 9.99);
+def unknown_node = Map::MapGet(measurements, 9.99);
 match unknown_node with
     case Option::Some(val) => IO::PrintLine("9.99 = " ++ val)
     case Option::None() => IO::PrintLine("9.99 not found")
 ;
 
 IO::PrintLine("hashmap_float: PASS");
+

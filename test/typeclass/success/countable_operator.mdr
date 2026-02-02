@@ -1,0 +1,18 @@
+module TestCountableOperator
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr" }
+
+struct Box {
+    values: Array<Int>
+};
+
+instance Countable<Box> {
+    defun Count(box: Box) : Int => #box.values;
+};
+
+def box = new Box([1, 2, 3, 4]);
+def len = #box;
+
+if len == 4
+then IO::PrintLine("countable_operator: PASS")
+else IO::PrintLine("countable_operator: FAIL");

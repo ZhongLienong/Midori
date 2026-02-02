@@ -1,6 +1,0 @@
-module Prelude
-public export { Option, Result, List }
-
-union Option<T> = None | Some(T);
-union Result<T, E> = Error(E) | OK(T);
-union List<T> = Nil | Cons(T, List);

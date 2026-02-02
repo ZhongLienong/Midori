@@ -1,0 +1,14 @@
+module Countable
+public export { Countable }
+
+class Countable<T>
+{
+    Count: fn(value: T) -> Int;
+};
+
+foreign "MIDORI_FFI_TextLength" TextLength : fn(Text) -> Int;
+
+instance Countable<Text>
+{
+    defun Count(value: Text) : Int => TextLength(value);
+};

@@ -2,21 +2,21 @@ module SimpleHashMapTest
 
 import
 {
-    "../../../MidoriPrelude/HashMap.mdr",
-    "../../../MidoriPrelude/Prelude.mdr"
+    "../../../MidoriPrelude/Collections/Map.mdr"
 }
 
-def scores : HashMap::MapData<Int, Int> = HashMap::MapNew();
+def scores : Map::Map<Int, Int> = Map::MapNew();
 
-HashMap::MapInsert(scores, 1, 100);
-HashMap::MapInsert(scores, 2, 85);
+Map::MapInsert(scores, 1, 100);
+Map::MapInsert(scores, 2, 85);
 
-def result1 = HashMap::MapGetOr(scores, 1, 0);
-def result2 = HashMap::MapGetOr(scores, 999, -1);
+def result1 = Map::MapGetOr(scores, 1, 0);
+def result2 = Map::MapGetOr(scores, 999, -1);
 
-def is_empty1 = HashMap::MapIsEmpty(scores);
-HashMap::MapClear(scores);
-def is_empty2 = HashMap::MapIsEmpty(scores);
+def is_empty1 = Map::MapIsEmpty(scores);
+Map::MapClear(scores);
+def is_empty2 = Map::MapIsEmpty(scores);
 
 ();
+
 

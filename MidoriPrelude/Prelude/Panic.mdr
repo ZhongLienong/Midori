@@ -1,0 +1,8 @@
+module Panic
+import { "../IO.mdr", "../System.mdr" }
+public export { Panic }
+
+defun Panic(message: Text) : Never => {
+    IO::PrintErrorLine(message);
+    loop { System::Exit(1); }
+};

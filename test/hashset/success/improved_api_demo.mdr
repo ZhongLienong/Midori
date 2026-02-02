@@ -3,52 +3,53 @@ module ImprovedSetDemo
 import
 {
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/HashSet.mdr"
+    "../../../MidoriPrelude/Collections/Set.mdr"
 }
 
-def numbers : HashSet::SetData<Int> = HashSet::SetNew();
-def evens : HashSet::SetData<Int> = HashSet::SetNew();
+def numbers : Set::Set<Int> = Set::SetNew();
+def evens : Set::Set<Int> = Set::SetNew();
 
-HashSet::SetInsert(numbers, 1);
-HashSet::SetInsert(numbers, 2);
-HashSet::SetInsert(numbers, 3);
-HashSet::SetInsert(numbers, 4);
-HashSet::SetInsert(numbers, 5);
+Set::SetInsert(numbers, 1);
+Set::SetInsert(numbers, 2);
+Set::SetInsert(numbers, 3);
+Set::SetInsert(numbers, 4);
+Set::SetInsert(numbers, 5);
 
-HashSet::SetInsert(evens, 2);
-HashSet::SetInsert(evens, 4);
-HashSet::SetInsert(evens, 6);
+Set::SetInsert(evens, 2);
+Set::SetInsert(evens, 4);
+Set::SetInsert(evens, 6);
 
 IO::PrintLine("=== Basic operations ===");
-IO::PrintLine("Numbers size: " ++ (HashSet::SetSize(numbers) as Text));
-IO::PrintLine("Evens size: " ++ (HashSet::SetSize(evens) as Text));
+IO::PrintLine("Numbers size: " ++ (Set::SetCount(numbers) as Text));
+IO::PrintLine("Evens size: " ++ (Set::SetCount(evens) as Text));
 
 IO::PrintLine("=== SetIsEmpty ===");
-def empty_set : HashSet::SetData<Int> = HashSet::SetNew();
-IO::PrintLine(if HashSet::SetIsEmpty(empty_set) then "Empty set is empty" else "Empty set has elements");
-IO::PrintLine(if HashSet::SetIsEmpty(numbers) then "Numbers is empty" else "Numbers has elements");
+def empty_set : Set::Set<Int> = Set::SetNew();
+IO::PrintLine(if Set::SetIsEmpty(empty_set) then "Empty set is empty" else "Empty set has elements");
+IO::PrintLine(if Set::SetIsEmpty(numbers) then "Numbers is empty" else "Numbers has elements");
 
 IO::PrintLine("=== SetUnion ===");
-def union_set = HashSet::SetUnion(numbers, evens);
-IO::PrintLine("Union size: " ++ (HashSet::SetSize(union_set) as Text));
-IO::PrintLine("Contains 1: " ++ (if HashSet::SetContains(union_set, 1) then "true" else "false"));
-IO::PrintLine("Contains 6: " ++ (if HashSet::SetContains(union_set, 6) then "true" else "false"));
+def union_set = Set::SetUnion(numbers, evens);
+IO::PrintLine("Union size: " ++ (Set::SetCount(union_set) as Text));
+IO::PrintLine("Contains 1: " ++ (if Set::SetContains(union_set, 1) then "true" else "false"));
+IO::PrintLine("Contains 6: " ++ (if Set::SetContains(union_set, 6) then "true" else "false"));
 
 IO::PrintLine("=== SetIntersection ===");
-def intersection_set = HashSet::SetIntersection(numbers, evens);
-IO::PrintLine("Intersection size: " ++ (HashSet::SetSize(intersection_set) as Text));
-IO::PrintLine("Contains 2: " ++ (if HashSet::SetContains(intersection_set, 2) then "true" else "false"));
-IO::PrintLine("Contains 1: " ++ (if HashSet::SetContains(intersection_set, 1) then "true" else "false"));
+def intersection_set = Set::SetIntersection(numbers, evens);
+IO::PrintLine("Intersection size: " ++ (Set::SetCount(intersection_set) as Text));
+IO::PrintLine("Contains 2: " ++ (if Set::SetContains(intersection_set, 2) then "true" else "false"));
+IO::PrintLine("Contains 1: " ++ (if Set::SetContains(intersection_set, 1) then "true" else "false"));
 
 IO::PrintLine("=== SetDifference ===");
-def diff_set = HashSet::SetDifference(numbers, evens);
-IO::PrintLine("Difference size: " ++ (HashSet::SetSize(diff_set) as Text));
-IO::PrintLine("Contains 1: " ++ (if HashSet::SetContains(diff_set, 1) then "true" else "false"));
-IO::PrintLine("Contains 2: " ++ (if HashSet::SetContains(diff_set, 2) then "true" else "false"));
+def diff_set = Set::SetDifference(numbers, evens);
+IO::PrintLine("Difference size: " ++ (Set::SetCount(diff_set) as Text));
+IO::PrintLine("Contains 1: " ++ (if Set::SetContains(diff_set, 1) then "true" else "false"));
+IO::PrintLine("Contains 2: " ++ (if Set::SetContains(diff_set, 2) then "true" else "false"));
 
 IO::PrintLine("=== SetClear ===");
-HashSet::SetClear(numbers);
-IO::PrintLine("After clear, size: " ++ (HashSet::SetSize(numbers) as Text));
-IO::PrintLine(if HashSet::SetIsEmpty(numbers) then "Numbers is now empty" else "Numbers still has elements");
+Set::SetClear(numbers);
+IO::PrintLine("After clear, size: " ++ (Set::SetCount(numbers) as Text));
+IO::PrintLine(if Set::SetIsEmpty(numbers) then "Numbers is now empty" else "Numbers still has elements");
 
 IO::PrintLine("improved_set_demo: PASS");
+

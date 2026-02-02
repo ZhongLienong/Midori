@@ -1,0 +1,42 @@
+module IterableIteration
+
+import
+{
+    "../../MidoriPrelude/IO.mdr",
+    "../../MidoriPrelude/Iterable.mdr",
+    "../../MidoriPrelude/Prelude/Option.mdr"
+}
+
+use Option.{Option}
+
+struct Counter
+{
+    current: Int,
+    end: Int
+};
+
+defun CounterNew(end: Int) : Counter => new Counter(0, end);
+
+instance Iterable<Counter, Int>
+{
+    defun Next(counter: Counter) : Option<Int> => {
+        if counter.current >= counter.end
+        then new Option::None()
+        else {
+            def value = counter.current;
+            counter.current = counter.current + 1;
+            new Option::Some(value)
+        }
+    };
+};
+
+def iter = CounterNew(4);
+def total = 0;
+
+for i in iter {
+    total <- total + i;
+};
+
+if total == 6
+then IO::PrintLine("iterable_iteration: PASS")
+else IO::PrintLine("iterable_iteration: FAIL");

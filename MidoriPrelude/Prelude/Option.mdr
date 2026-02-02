@@ -1,0 +1,33 @@
+module Option
+import { "Panic.mdr" }
+public export
+{
+    Option,
+    OptionMap, OptionBind, OptionUnwrap, OptionUnwrapOrPanic
+}
+
+union Option<T> = None | Some(T);
+
+defun OptionMap<A, B>(option: Option<A>, f: fn(A) -> B) : Option<B> => {
+    match option with
+        case Option::Some(value) => new Option::Some<B>(f(value))
+        case Option::None() => new Option::None<B>()
+};
+
+defun OptionBind<A, B>(option: Option<A>, f: fn(A) -> Option<B>) : Option<B> => {
+    match option with
+        case Option::Some(value) => f(value)
+        case Option::None() => new Option::None<B>()
+};
+
+defun OptionUnwrap<T>(option: Option<T>, default_value: T) : T => {
+    match option with
+        case Option::Some(value) => value
+        case Option::None() => default_value
+};
+
+defun OptionUnwrapOrPanic<T>(option: Option<T>, message: Text) : T => {
+    match option with
+        case Option::Some(value) => value
+        case Option::None() => Panic::Panic(message)
+};

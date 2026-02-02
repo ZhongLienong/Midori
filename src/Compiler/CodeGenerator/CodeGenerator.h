@@ -54,6 +54,7 @@ private:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
+	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
 
 	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
 	std::vector<MidoriText> m_procedure_names;
@@ -70,6 +71,7 @@ private:
 	TypeEnvironment m_generic_type_substitution;
 	TypeclassMethodMap m_class_methods;
 	TypeclassInstanceMap m_class_instances;
+	TypeclassInstanceTypeMap m_class_instance_type_args;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 	std::unordered_map<std::string, size_t> m_ffi_indices;
 
@@ -88,7 +90,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const TypeclassInstanceTypeMap& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
 
@@ -118,6 +120,10 @@ private:
 
 	void EmitVariable(int variable_index, OpCode op, int line);
 
+	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, TypeEnvironment& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited) const;
+
+	bool EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter_type, const std::shared_ptr<MidoriType>& item_type, int line);
+
 	int GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line);
 
 	int EmitJump(OpCode op, int line);
@@ -131,6 +137,8 @@ private:
 	void EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line);
 
 	void EmitPopCount(int count, int line);
+
+	void EmitInstanceMethodDefinitions();
 
 	int CountPatternBindings(const MidoriPattern& pattern) const;
 

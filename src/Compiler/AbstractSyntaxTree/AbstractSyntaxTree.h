@@ -362,6 +362,7 @@ public:
 	{
 		Token m_op;
 		std::unique_ptr<MidoriExpression> m_expr;
+		bool m_uses_countable = false;
 
 		UnaryPrefix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
@@ -538,6 +539,9 @@ public:
 		int m_hidden_array_index = -1;
 		int m_result_array_index = -1;  
 		bool m_is_array_iteration = false;
+		bool m_is_iterable_iteration = false;
+		int m_iterable_some_tag = -1;
+		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 
 		ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& transform_expr, std::unique_ptr<MidoriExpression>&& range);
 	};
@@ -622,6 +626,9 @@ public:
 		int m_hidden_end_index = -1;    // For range: end; For array: length
 		int m_hidden_array_index = -1;  // For array iteration: stores array reference
 		bool m_is_array_iteration = false;
+		bool m_is_iterable_iteration = false;
+		int m_iterable_some_tag = -1;
+		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 
 		For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body);
 	};

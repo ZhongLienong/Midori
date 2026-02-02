@@ -5,37 +5,38 @@ import
 {
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/HashMap.mdr",
-    "../../../MidoriPrelude/Prelude.mdr"
+    "../../../MidoriPrelude/Collections/Map.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr"
 }
-use Prelude.Option;
+use Option.{Option}
 
-def scores : HashMap::MapData<Int, Text> = HashMap::MapNew();
+def scores : Map::Map<Int, Text> = Map::MapNew();
 
 // Insert with Int keys
-HashMap::MapInsert(scores, 1, "First Place");
-HashMap::MapInsert(scores, 2, "Second Place");
-HashMap::MapInsert(scores, 3, "Third Place");
+Map::MapInsert(scores, 1, "First Place");
+Map::MapInsert(scores, 2, "Second Place");
+Map::MapInsert(scores, 3, "Third Place");
 
-IO::PrintLine("Size: " ++ (HashMap::MapSize(scores) as Text));
+IO::PrintLine("Size: " ++ (Map::MapCount(scores) as Text));
 
 // Get values
-def first_node = HashMap::MapGet(scores, 1);
+def first_node = Map::MapGet(scores, 1);
 match first_node with
     case Option::Some(val) => IO::PrintLine("Position 1: " ++ val)
     case Option::None() => IO::PrintLine("Position 1 not found")
 ;
 
-def second_node = HashMap::MapGet(scores, 2);
+def second_node = Map::MapGet(scores, 2);
 match second_node with
     case Option::Some(val) => IO::PrintLine("Position 2: " ++ val)
     case Option::None() => IO::PrintLine("Position 2 not found")
 ;
 
-def tenth_node = HashMap::MapGet(scores, 10);
+def tenth_node = Map::MapGet(scores, 10);
 match tenth_node with
     case Option::Some(val) => IO::PrintLine("Position 10: " ++ val)
     case Option::None() => IO::PrintLine("Position 10 not found")
 ;
 
 IO::PrintLine("hashmap_int: PASS");
+

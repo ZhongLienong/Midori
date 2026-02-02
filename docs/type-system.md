@@ -90,7 +90,7 @@ for i in 10..-1..0 {   -- 10, 9, 8, ..., 1 (backward)
 };
 ```
 
-Both ranges and arrays are valid iterables for `for` expressions.
+Both ranges and arrays are valid iterables for `for` expressions. You can also define custom iteration by implementing `Iterable<Iter, Item>` with a `Next` method that returns `Option<Item>`.
 
 ### Futures
 

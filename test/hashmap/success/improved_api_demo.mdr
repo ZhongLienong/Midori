@@ -3,49 +3,52 @@ module ImprovedApiDemo
 import
 {
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/HashMap.mdr",
-    "../../../MidoriPrelude/Prelude.mdr"
+    "../../../MidoriPrelude/Collections/Map.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr"
 }
 
-def scores : HashMap::MapData<Text, Int> = HashMap::MapNew();
+use Option.{Option}
 
-HashMap::MapInsert(scores, "Alice", 100);
-HashMap::MapInsert(scores, "Bob", 85);
-HashMap::MapInsert(scores, "Charlie", 92);
+def scores : Map::Map<Text, Int> = Map::MapNew();
+
+Map::MapInsert(scores, "Alice", 100);
+Map::MapInsert(scores, "Bob", 85);
+Map::MapInsert(scores, "Charlie", 92);
 
 IO::PrintLine("=== MapGet with Option ===");
-def alice_score = HashMap::MapGet(scores, "Alice");
+def alice_score = Map::MapGet(scores, "Alice");
 match alice_score with
     case Option::Some(score) => IO::PrintLine("Alice: " ++ (score as Text))
     case Option::None() => IO::PrintLine("Alice not found")
 ;
 
 IO::PrintLine("=== MapGetOr with default ===");
-def dave_score = HashMap::MapGetOr(scores, "Dave", 0);
+def dave_score = Map::MapGetOr(scores, "Dave", 0);
 IO::PrintLine("Dave (default): " ++ (dave_score as Text));
 
-def bob_score = HashMap::MapGetOr(scores, "Bob", 0);
+def bob_score = Map::MapGetOr(scores, "Bob", 0);
 IO::PrintLine("Bob: " ++ (bob_score as Text));
 
 IO::PrintLine("=== MapUpdate returns old value ===");
-def old_alice = HashMap::MapUpdate(scores, "Alice", 105);
+def old_alice = Map::MapUpdate(scores, "Alice", 105);
 match old_alice with
     case Option::Some(old) => IO::PrintLine("Alice old score: " ++ (old as Text))
     case Option::None() => IO::PrintLine("Alice had no previous score")
 ;
 
-def new_alice = HashMap::MapGet(scores, "Alice");
+def new_alice = Map::MapGet(scores, "Alice");
 match new_alice with
     case Option::Some(score) => IO::PrintLine("Alice new score: " ++ (score as Text))
     case Option::None() => ()
 ;
 
 IO::PrintLine("=== MapIsEmpty ===");
-IO::PrintLine(if HashMap::MapIsEmpty(scores) then "Map is empty" else "Map has entries");
+IO::PrintLine(if Map::MapIsEmpty(scores) then "Map is empty" else "Map has entries");
 
 IO::PrintLine("=== MapClear ===");
-HashMap::MapClear(scores);
-IO::PrintLine("After clear, size: " ++ (HashMap::MapSize(scores) as Text));
-IO::PrintLine(if HashMap::MapIsEmpty(scores) then "Map is now empty" else "Map still has entries");
+Map::MapClear(scores);
+IO::PrintLine("After clear, size: " ++ (Map::MapCount(scores) as Text));
+IO::PrintLine(if Map::MapIsEmpty(scores) then "Map is now empty" else "Map still has entries");
 
 IO::PrintLine("improved_api_demo: PASS");
+

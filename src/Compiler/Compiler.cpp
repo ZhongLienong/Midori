@@ -46,6 +46,7 @@ namespace
 		std::unordered_map<std::string, TypeChecker::ClassInfo> m_imported_typeclass_infos;
 		CompiledModule::TypeclassMethodMap m_imported_typeclass_methods;
 		std::unordered_map<std::string, std::vector<std::string>> m_imported_typeclass_instances;
+		std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>> m_imported_typeclass_instance_types;
 		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
 	};
 
@@ -101,6 +102,13 @@ namespace
 		std::unordered_map<std::string, size_t> m_remaining_deps;
 		std::unordered_map<std::string, std::vector<std::string>> m_dependents;
 		std::vector<std::string> m_all_modules;
+	};
+
+	struct CompilerAccess : Compiler
+	{
+		using Compiler::MergeInstanceMethods;
+		using Compiler::MergeInstanceTypeArgs;
+		using Compiler::TypeclassDefinitionsMatch;
 	};
 
 	template <typename T, void (*Apply)(CompileState&, T&&)>
@@ -289,13 +297,22 @@ namespace
 
 				for (const auto& [tc_name, metadata] : dep.m_typeclass_metadata)
 				{
-					if (context.m_imported_typeclass_metadata.contains(tc_name))
+					std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
+					if (existing_it != context.m_imported_typeclass_metadata.end())
 					{
-						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep.m_module_name), 0, file_path));
-					}
+						if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
+						{
+							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep.m_module_name), 0, file_path));
+						}
 
-					context.m_imported_typeclass_metadata[tc_name] = metadata;
-					imported_typeclass_sources[tc_name] = dep.m_module_name;
+						CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
+						CompilerAccess::MergeInstanceTypeArgs(existing_it->second.m_instance_type_args, metadata.m_instance_type_args);
+					}
+					else
+					{
+						context.m_imported_typeclass_metadata[tc_name] = metadata;
+						imported_typeclass_sources[tc_name] = dep.m_module_name;
+					}
 				}
 
 				for (const auto& [name, type] : dep.m_type_signatures)
@@ -321,6 +338,7 @@ namespace
 			context.m_imported_typeclass_infos[typeclass_name] = std::move(info);
 			context.m_imported_typeclass_methods[typeclass_name] = metadata.m_method_names;
 			context.m_imported_typeclass_instances[typeclass_name] = metadata.m_instance_methods;
+			context.m_imported_typeclass_instance_types[typeclass_name] = metadata.m_instance_type_args;
 		}
 
 		return context;
@@ -356,7 +374,7 @@ namespace
 
 	static MidoriResult::TypeCheckerResult TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
-		return TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos).TypeCheck();
+		return TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types).TypeCheck();
 	}
 
 	static MidoriResult::OptimizerResult OptimizeModule(MidoriProgramTree&& ast
@@ -401,7 +419,7 @@ namespace
 
 	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context)
 	{
-		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_generic_functions).GenerateModuleBytecode();
+		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions).GenerateModuleBytecode();
 	}
 
 	static MidoriResult::VoidResult ValidateExports(const std::unordered_set<std::string>& export_set, const BytecodeModule& module_bytecode, const CompiledModule::TypeclassMetadataMap& typeclass_metadata, const TypeChecker::TypeEnvironment& type_signatures, const std::string& module_name, const std::string& file_path)
@@ -717,6 +735,85 @@ namespace
 
 		return {};
 	}
+}
+
+void Compiler::MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming)
+{
+	for (const std::string& method_name : incoming)
+	{
+		if (std::ranges::find(target, method_name) == target.end())
+		{
+			target.emplace_back(method_name);
+		}
+	}
+}
+
+bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right)
+{
+	if (left.size() != right.size())
+	{
+		return false;
+	}
+
+	for (size_t i = 0u; i < left.size(); i += 1u)
+	{
+		if (*left[i] != *right[i])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming)
+{
+	for (const std::vector<std::shared_ptr<MidoriType>>& incoming_args : incoming)
+	{
+		bool exists = false;
+		for (const std::vector<std::shared_ptr<MidoriType>>& existing_args : target)
+		{
+			if (InstanceTypeArgsEqual(existing_args, incoming_args))
+			{
+				exists = true;
+				break;
+			}
+		}
+
+		if (!exists)
+		{
+			target.push_back(incoming_args);
+		}
+	}
+}
+
+bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right)
+{
+	if (left.m_method_names != right.m_method_names)
+	{
+		return false;
+	}
+	if (left.m_type_param_names != right.m_type_param_names)
+	{
+		return false;
+	}
+	if (left.m_method_types.size() != right.m_method_types.size())
+	{
+		return false;
+	}
+	for (const auto& [method_name, method_type] : left.m_method_types)
+	{
+		auto it = right.m_method_types.find(method_name);
+		if (it == right.m_method_types.end())
+		{
+			return false;
+		}
+		if (*method_type != *it->second)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 Compiler::Compiler(std::string&& source_code, std::string&& file_name)

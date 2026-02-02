@@ -1,0 +1,59 @@
+module List
+import { "../Iterable.mdr", "Option.mdr" }
+public export
+{
+    List,
+    ListIter, ListIterNew,
+    ListMap, ListLength, ListAppend, ListFilter
+}
+use Option.{Option}
+
+union List<T> = Nil | Cons(T, List);
+
+struct ListIter<T>
+{
+    current: List<T>
+};
+
+defun ListIterNew<T>(list: List<T>) : ListIter<T> => new ListIter(list);
+
+instance Iterable<ListIter<T>, T>
+{
+    defun Next(iter: ListIter<T>) : Option<T> => {
+        match iter.current with
+            case List::Cons(head, tail) => {
+                iter.current = tail;
+                new Option::Some<T>(head)
+            }
+            case List::Nil => new Option::None<T>()
+    };
+};
+
+defun ListMap<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
+    match list with
+        case List::Cons(head, tail) => new List::Cons<B>(f(head), ListMap(tail, f))
+        case List::Nil => new List::Nil<B>()
+};
+
+defun ListLength<T>(list: List<T>) : Int => {
+    match list with
+        case List::Cons(_, tail) => 1 + ListLength(tail)
+        case List::Nil => 0
+};
+
+defun ListAppend<T>(left: List<T>, right: List<T>) : List<T> => {
+    match left with
+        case List::Nil => right
+        case List::Cons(head, tail) => new List::Cons<T>(head, ListAppend(tail, right))
+};
+
+defun ListFilter<T>(list: List<T>, predicate: fn(T) -> Bool) : List<T> => {
+    match list with
+        case List::Nil => new List::Nil<T>()
+        case List::Cons(head, tail) => {
+            def filtered_tail = ListFilter(tail, predicate);
+            if predicate(head)
+            then new List::Cons<T>(head, filtered_tail)
+            else filtered_tail
+        }
+};

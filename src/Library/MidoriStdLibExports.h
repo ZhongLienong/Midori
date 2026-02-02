@@ -110,6 +110,9 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetPlatform)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetProcessId)(void** args, void* ret) noexcept;
 
+	// Text
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextLength)(void** args, void* ret) noexcept;
+
 	// Hashing
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(HashText)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(HashFloat)(void** args, void* ret) noexcept;

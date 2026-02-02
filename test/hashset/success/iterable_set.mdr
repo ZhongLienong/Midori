@@ -1,0 +1,23 @@
+module IterableSetTest
+
+import
+{
+    "../../../MidoriPrelude/Collections/Set.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Iterable.mdr"
+}
+
+def set : Set::Set<Int> = Set::SetNew();
+Set::SetInsert(set, 1);
+Set::SetInsert(set, 2);
+
+def iter = Set::SetIterNew(set);
+def total = 0;
+
+for value in iter {
+    total <- total + value;
+};
+
+if total == 3
+then IO::PrintLine("iterable_set: PASS")
+else IO::PrintLine("iterable_set: FAIL");

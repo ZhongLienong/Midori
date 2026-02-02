@@ -1,0 +1,9 @@
+module Iterable
+import { "Prelude/Option.mdr" }
+public export { Iterable }
+use Option.{Option}
+
+class Iterable<Iter, Item>
+{
+    Next: fn(iter: Iter) -> Option<Item>;
+};

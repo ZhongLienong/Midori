@@ -1,0 +1,300 @@
+module Set
+public export
+{
+    Set,
+    SetIter, SetIterNew,
+    SetNew, SetInsert, SetContains, SetRemove,
+    SetCount, SetSize, SetIsEmpty, SetClear, SetUnion, SetIntersection, SetDifference, SetToArray
+}
+import { "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+use Option.{Option}
+
+union SetSlot<T> = Empty | Deleted | Occupied(T);
+
+struct Set<T>
+{
+    buckets: Array<SetSlot<T>>,
+    count: Int,
+    capacity: Int
+};
+
+struct SetIter<T>
+{
+    set: Set<T>,
+    index: Int
+};
+
+defun SetIterNew<T>(set: Set<T>) : SetIter<T> => new SetIter(set, 0);
+
+instance Iterable<SetIter<T>, T>
+{
+    defun Next(iter: SetIter<T>) : Option<T> => {
+        loop {
+            if iter.index >= iter.set.capacity
+            then break new Option::None<T>()
+            else {
+                def idx = iter.index;
+                iter.index = iter.index + 1;
+                def entry = iter.set.buckets[idx];
+                match entry with
+                    case SetSlot::Occupied(elem) => break new Option::Some<T>(elem)
+                    default => ()
+            }
+        }
+    };
+};
+
+defun MakeSetBuckets<T>(capacity: Int) : Array<SetSlot<T>> => {
+    def buckets : Array<SetSlot<T>> = [];
+    def i = 0;
+    loop {
+        if i >= capacity
+        then break ()
+        else {
+            buckets ++= new SetSlot::Empty();
+            i = i + 1;
+        }
+    };
+    buckets
+};
+
+defun SetNewWithCapacity<T>(capacity: Int) : Set<T> => {
+    def cap = if capacity < 16 then 16 else capacity;
+    new Set(MakeSetBuckets(cap), 0, cap)
+};
+
+defun SetNew<T>() : Set<T> => SetNewWithCapacity(16);
+
+defun FindSetSlot<T>(set: Set<T>, elem: T, hash: Int) : Int
+    where Equatable<T> => {
+    def idx = hash % set.capacity;
+    if idx < 0 then idx = 0 - idx else 0;
+    def i = 0;
+    loop {
+        if i >= set.capacity
+        then break -1
+        else {
+            def probe_idx = (idx + i) % set.capacity;
+            def entry = set.buckets[probe_idx];
+            match entry with
+                case SetSlot::Empty() => break -1
+                case SetSlot::Deleted() => { i = i + 1; }
+                case SetSlot::Occupied(e) => {
+                    if Equatable::Equals(e, elem)
+                    then break probe_idx
+                    else { i = i + 1; }
+                }
+        }
+    }
+};
+
+defun FindSetInsertSlot<T>(set: Set<T>, elem: T, hash: Int) : Int
+    where Equatable<T> => {
+    def idx = hash % set.capacity;
+    if idx < 0 then idx = 0 - idx else 0;
+    def i = 0;
+    loop {
+        if i >= set.capacity
+        then break -1
+        else {
+            def probe_idx = (idx + i) % set.capacity;
+            def entry = set.buckets[probe_idx];
+            match entry with
+                case SetSlot::Empty() => break probe_idx
+                case SetSlot::Deleted() => break probe_idx
+                case SetSlot::Occupied(e) => {
+                    if Equatable::Equals(e, elem)
+                    then break probe_idx
+                    else { i = i + 1; }
+                }
+        }
+    }
+};
+
+defun SetInsertNoRehash<T>(set: Set<T>, elem: T) : Bool
+    where Hashable<T>, Equatable<T> => {
+    def h = Hashable::Hash(elem);
+    def slot = FindSetInsertSlot(set, elem, h);
+    if slot < 0
+    then false
+    else {
+        def existing = set.buckets[slot];
+        def was_new = match existing with
+            case SetSlot::Occupied(_elem) => false
+            default => true
+        ;
+        if was_new then {
+            set.buckets[slot] = new SetSlot::Occupied(elem);
+            set.count = set.count + 1;
+        } else ();
+        was_new
+    }
+};
+
+defun SetRehash<T>(set: Set<T>, new_capacity: Int) : Unit
+    where Hashable<T>, Equatable<T> => {
+    def old_buckets = set.buckets;
+    def old_capacity = set.capacity;
+    set.buckets = MakeSetBuckets(new_capacity);
+    set.capacity = new_capacity;
+    set.count = 0;
+    def i = 0;
+    loop {
+        if i >= old_capacity
+        then break ()
+        else {
+            def entry = old_buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => { SetInsertNoRehash(set, elem); () }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    ()
+};
+
+defun SetInsert<T>(set: Set<T>, elem: T) : Bool
+    where Hashable<T>, Equatable<T> => {
+    def projected = set.count + 1;
+    if projected * 10 >= set.capacity * 7
+    then SetRehash(set, set.capacity * 2)
+    else ();
+    SetInsertNoRehash(set, elem)
+};
+
+defun SetContains<T>(set: Set<T>, elem: T) : Bool
+    where Hashable<T>, Equatable<T> => {
+    def h = Hashable::Hash(elem);
+    def slot = FindSetSlot(set, elem, h);
+    slot >= 0
+};
+
+defun SetRemove<T>(set: Set<T>, elem: T) : Bool
+    where Hashable<T>, Equatable<T> => {
+    def h = Hashable::Hash(elem);
+    def slot = FindSetSlot(set, elem, h);
+    if slot < 0
+    then false
+    else {
+        set.buckets[slot] = new SetSlot::Deleted();
+        set.count = set.count - 1;
+        true
+    }
+};
+
+defun SetCount<T>(set: Set<T>) : Int => set.count;
+
+defun SetSize<T>(set: Set<T>) : Int => SetCount(set);
+
+defun SetIsEmpty<T>(set: Set<T>) : Bool => set.count == 0;
+
+defun SetClear<T>(set: Set<T>) : Unit => {
+    def i = 0;
+    loop {
+        if i >= set.capacity
+        then break ()
+        else {
+            set.buckets[i] = new SetSlot::Empty();
+            i = i + 1;
+        }
+    };
+    set.count = 0;
+    ()
+};
+
+defun SetUnion<T>(set1: Set<T>, set2: Set<T>) : Set<T>
+    where Hashable<T>, Equatable<T> => {
+    def result : Set<T> = SetNew();
+    def i = 0;
+    loop {
+        if i >= set1.capacity
+        then break ()
+        else {
+            def entry = set1.buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => { SetInsert(result, elem); () }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    i = 0;
+    loop {
+        if i >= set2.capacity
+        then break ()
+        else {
+            def entry = set2.buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => { SetInsert(result, elem); () }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    result
+};
+
+defun SetIntersection<T>(set1: Set<T>, set2: Set<T>) : Set<T>
+    where Hashable<T>, Equatable<T> => {
+    def result : Set<T> = SetNew();
+    def i = 0;
+    loop {
+        if i >= set1.capacity
+        then break ()
+        else {
+            def entry = set1.buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => {
+                    if SetContains(set2, elem)
+                    then { SetInsert(result, elem); () }
+                    else ()
+                }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    result
+};
+
+defun SetDifference<T>(set1: Set<T>, set2: Set<T>) : Set<T>
+    where Hashable<T>, Equatable<T> => {
+    def result : Set<T> = SetNew();
+    def i = 0;
+    loop {
+        if i >= set1.capacity
+        then break ()
+        else {
+            def entry = set1.buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => {
+                    if SetContains(set2, elem)
+                    then ()
+                    else { SetInsert(result, elem); () }
+                }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    result
+};
+
+defun SetToArray<T>(set: Set<T>) : Array<T> => {
+    def values : Array<T> = [];
+    def i = 0;
+    loop {
+        if i >= set.capacity
+        then break ()
+        else {
+            def entry = set.buckets[i];
+            match entry with
+                case SetSlot::Occupied(elem) => { values ++= elem; () }
+                default => ()
+            ;
+            i = i + 1;
+        }
+    };
+    values
+};

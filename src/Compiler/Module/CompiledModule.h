@@ -34,6 +34,7 @@ struct CompiledModule
 		std::unordered_set<std::string> m_method_names;
 		std::vector<std::string> m_type_param_names;
 		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
+		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_instance_type_args;
 	};
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;

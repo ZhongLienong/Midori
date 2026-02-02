@@ -1,0 +1,33 @@
+module Result
+import { "Panic.mdr" }
+public export
+{
+    Result,
+    ResultMap, ResultBind, ResultUnwrap, ResultUnwrapOrPanic
+}
+
+union Result<T, E> = Error(E) | OK(T);
+
+defun ResultMap<A, B, E>(result: Result<A, E>, f: fn(A) -> B) : Result<B, E> => {
+    match result with
+        case Result::OK(value) => new Result::OK<B, E>(f(value))
+        case Result::Error(err) => new Result::Error<B, E>(err)
+};
+
+defun ResultBind<A, B, E>(result: Result<A, E>, f: fn(A) -> Result<B, E>) : Result<B, E> => {
+    match result with
+        case Result::OK(value) => f(value)
+        case Result::Error(err) => new Result::Error<B, E>(err)
+};
+
+defun ResultUnwrap<T, E>(result: Result<T, E>, default_value: T) : T => {
+    match result with
+        case Result::OK(value) => value
+        case Result::Error(_) => default_value
+};
+
+defun ResultUnwrapOrPanic<T, E>(result: Result<T, E>, message: Text) : T => {
+    match result with
+        case Result::OK(value) => value
+        case Result::Error(_) => Panic::Panic(message)
+};

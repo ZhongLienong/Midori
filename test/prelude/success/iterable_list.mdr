@@ -1,0 +1,22 @@
+module IterableListTest
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/List.mdr"
+}
+
+use List.{List}
+
+def list = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil<Int>())));
+def iter = List::ListIterNew(list);
+def total = 0;
+
+for value in iter {
+    total <- total + value;
+};
+
+if total == 6
+then IO::PrintLine("iterable_list: PASS")
+else IO::PrintLine("iterable_list: FAIL");

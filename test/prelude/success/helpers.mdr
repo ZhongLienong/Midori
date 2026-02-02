@@ -1,0 +1,76 @@
+module PreludeHelpers
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr",
+    "../../../MidoriPrelude/Prelude/Result.mdr",
+    "../../../MidoriPrelude/Prelude/List.mdr"
+}
+
+use IO.{PrintLine}
+use Option.{Option, OptionMap, OptionBind, OptionUnwrap, OptionUnwrapOrPanic}
+use Result.{Result, ResultMap, ResultBind, ResultUnwrap, ResultUnwrapOrPanic}
+use List.{List, ListMap, ListLength, ListAppend, ListFilter}
+
+defun inc(x: Int) : Int => x + 1;
+
+defun to_some(x: Int) : Option<Int> => {
+    if x > 0
+    then new Option::Some(x + 10)
+    else new Option::None()
+};
+
+defun is_even(x: Int) : Bool => x % 2 == 0;
+
+def opt_value : Option<Int> = new Option::Some(1);
+
+def opt_mapped = OptionMap(opt_value, inc);
+
+def opt_bound = OptionBind(opt_value, to_some);
+
+def opt_unwrap = OptionUnwrap(new Option::None(), 5);
+
+def opt_unwrap_panic = OptionUnwrapOrPanic(opt_value, "unexpected None");
+
+match opt_mapped with
+    case Option::Some(v) => PrintLine("opt map: " ++ (v as Text))
+    case Option::None() => PrintLine("opt map: none")
+;
+
+match opt_bound with
+    case Option::Some(v) => PrintLine("opt bind: " ++ (v as Text))
+    case Option::None() => PrintLine("opt bind: none")
+;
+
+PrintLine("opt unwrap: " ++ (opt_unwrap as Text));
+PrintLine("opt unwrap panic: " ++ (opt_unwrap_panic as Text));
+
+def ok_value : Result<Int, Text> = new Result::OK(7);
+
+def err_value : Result<Int, Text> = new Result::Error("nope");
+
+def ok_unwrap_panic = ResultUnwrapOrPanic(ok_value, "unexpected Error");
+
+match ResultMap(ok_value, inc) with
+    case Result::OK(v) => PrintLine("result map: " ++ (v as Text))
+    case Result::Error(e) => PrintLine("result map err: " ++ e)
+;
+
+match ResultBind(err_value, fn(x: Int) : Result<Int, Text> => new Result::OK(x + 1)) with
+    case Result::OK(v) => PrintLine("result bind: " ++ (v as Text))
+    case Result::Error(e) => PrintLine("result bind err: " ++ e)
+;
+
+PrintLine("result unwrap: " ++ (ResultUnwrap(err_value, 42) as Text));
+PrintLine("result unwrap panic: " ++ (ok_unwrap_panic as Text));
+
+def list1 : List<Int> = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
+
+def list2 = ListMap(list1, inc);
+
+def list3 = ListAppend(list1, list2);
+
+def list4 = ListFilter(list3, is_even);
+
+PrintLine("list len: " ++ (ListLength(list4) as Text));

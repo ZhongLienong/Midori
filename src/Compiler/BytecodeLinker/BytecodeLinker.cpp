@@ -434,12 +434,107 @@ BytecodeStream BytecodeLinker::BuildBootstrapProcedure()
 
 	BytecodeStream bootstrap;
 
+	auto is_instance_method_name = [](std::string_view name) -> bool
+		{
+			size_t first_underscore = name.find('_');
+			if (first_underscore == std::string::npos || first_underscore + 1u >= name.size())
+			{
+				return false;
+			}
+			if (std::isupper(static_cast<unsigned char>(name[first_underscore + 1u])) == 0)
+			{
+				return false;
+			}
+			size_t second_underscore = name.find('_', first_underscore + 1u);
+			return second_underscore != std::string::npos;
+		};
+
+	struct InstanceGlobalInit
+	{
+		size_t m_proc_index;
+		size_t m_global_index;
+	};
+
+	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module;
+	std::unordered_set<size_t> initialized_globals;
+	for (size_t proc_idx = 0u; proc_idx < m_global_procedure_names.size(); proc_idx += 1u)
+	{
+		std::string proc_name = m_global_procedure_names[proc_idx].GetCString();
+		size_t at_pos = proc_name.find(ModuleSeparator);
+		if (at_pos == std::string::npos)
+		{
+			continue;
+		}
+
+		std::string base_name = proc_name.substr(0u, at_pos);
+		if (base_name.starts_with(MAIN_PROCEDURE_PREFIX) || base_name.starts_with(MODULE_BOOTSTRAP_PREFIX))
+		{
+			continue;
+		}
+		if (!is_instance_method_name(base_name))
+		{
+			continue;
+		}
+
+		std::vector<MidoriText>::const_iterator global_it = std::ranges::find_if
+		(
+			m_global_variables,
+			[&base_name](const MidoriText& global_name)
+			{
+				return global_name.GetCString() == base_name;
+			}
+		);
+
+		if (global_it == m_global_variables.end())
+		{
+			continue;
+		}
+
+		size_t global_index = static_cast<size_t>(std::distance(m_global_variables.cbegin(), global_it));
+		if (!initialized_globals.insert(global_index).second)
+		{
+			continue;
+		}
+
+		std::string module_name = proc_name.substr(at_pos + 1u);
+		instance_inits_by_module[module_name].push_back({ proc_idx, global_index });
+	}
+
+	auto emit_instance_global = [](BytecodeStream& stream, size_t proc_idx, size_t global_index)
+		{
+			stream.AddByteCode(OpCode::MAKE_FUNCTION, 0);
+			stream.AddByteCode(static_cast<OpCode>(proc_idx), 0);
+
+			if (global_index <= MAX_LOCAL_VARIABLES)
+			{
+				stream.AddByteCode(OpCode::DEFINE_GLOBAL, 0);
+				stream.AddByteCode(static_cast<OpCode>(global_index), 0);
+			}
+			else
+			{
+				stream.AddByteCode(OpCode::DEFINE_GLOBAL_WIDE, 0);
+				int high_byte = (static_cast<int>(global_index) >> SHIFT_8_BITS) & BYTE_MASK;
+				int low_byte = static_cast<int>(global_index) & BYTE_MASK;
+				stream.AddByteCode(static_cast<OpCode>(high_byte), 0);
+				stream.AddByteCode(static_cast<OpCode>(low_byte), 0);
+			}
+		};
+
 	std::ranges::for_each
 	(
 		m_modules,
-		[&bootstrap, &add_module_initializer](const BytecodeModule& module)
+		[&bootstrap, &add_module_initializer, &instance_inits_by_module, &emit_instance_global](const BytecodeModule& module)
 		{
 			add_module_initializer(bootstrap, module);
+
+			auto init_it = instance_inits_by_module.find(module.m_module_name);
+			if (init_it != instance_inits_by_module.end())
+			{
+				for (const InstanceGlobalInit& init : init_it->second)
+				{
+					emit_instance_global(bootstrap, init.m_proc_index, init.m_global_index);
+				}
+			}
 		}
 	);
 

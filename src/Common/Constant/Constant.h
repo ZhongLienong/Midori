@@ -88,6 +88,14 @@ constexpr std::string_view ORDERABLE_CLASS_NAME = "Orderable";
 constexpr std::string_view COMPARE_METHOD_NAME = "Compare";
 constexpr std::string_view COMPARE_MANGLED_PREFIX = "Compare_Orderable_";
 
+constexpr std::string_view COUNTABLE_CLASS_NAME = "Countable";
+constexpr std::string_view COUNT_METHOD_NAME = "Count";
+constexpr std::string_view COUNT_MANGLED_PREFIX = "Count_Countable_";
+
+constexpr std::string_view ITERABLE_CLASS_NAME = "Iterable";
+constexpr std::string_view NEXT_METHOD_NAME = "Next";
+constexpr std::string_view NEXT_MANGLED_PREFIX = "Next_Iterable_";
+
 // Standard library paths
 constexpr std::string_view STDLIB_DLL_NAME = "MidoriStdLib.dll";
 constexpr std::string_view STDLIB_SO_NAME = "libMidoriStdLib.so";
