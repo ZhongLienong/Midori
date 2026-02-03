@@ -1,5 +1,36 @@
 #include "AbstractSyntaxTree.h"
 
+namespace
+{
+	struct TypeDataAccessor
+	{
+		template<typename T>
+		std::shared_ptr<MidoriType>& operator()(T& arg) const
+		{
+			return arg.m_type_data;
+		}
+	};
+
+	struct ConstTypeDataAccessor
+	{
+		template<typename T>
+		const std::shared_ptr<MidoriType>& operator()(const T& arg) const
+		{
+			return arg.m_type_data;
+		}
+	};
+
+	std::optional<std::unique_ptr<MidoriExpression>> MakeOptionalExpression(std::unique_ptr<MidoriExpression>&& expr)
+	{
+		if (expr == nullptr)
+		{
+			return std::nullopt;
+		}
+
+		return std::optional<std::unique_ptr<MidoriExpression>>(std::move(expr));
+	}
+}
+
 MidoriPattern::Binding::Binding(const Token& name, std::optional<int> local_index)
 	: m_name(name),
 	m_local_index(std::move(local_index))
@@ -242,7 +273,7 @@ MidoriExpression::RangeTernary::RangeTernary(const Token& first_op, const Token&
 MidoriExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, int local_count, std::unique_ptr<MidoriExpression>&& final_expr)
 	: m_right_brace(right_brace),
 	m_stmts(std::move(stmts)),
-	m_final_expr(final_expr == nullptr ? std::nullopt : std::optional<std::unique_ptr<MidoriExpression>>(std::move(final_expr))),
+	m_final_expr(MakeOptionalExpression(std::move(final_expr))),
 	m_local_count(local_count)
 {
 }
@@ -326,12 +357,12 @@ const MidoriPattern::PatternUnion& MidoriPattern::operator*() const
 
 std::shared_ptr<MidoriType>& MidoriPattern::GetType()
 {
-	return std::visit([](auto&& arg) -> std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
+	return std::visit(TypeDataAccessor{}, m_variant);
 }
 
 const std::shared_ptr<MidoriType>& MidoriPattern::GetType() const
 {
-	return std::visit([](auto&& arg) -> const std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
+	return std::visit(ConstTypeDataAccessor{}, m_variant);
 }
 
 MidoriExpression::ExpressionUnion& MidoriExpression::operator*()
@@ -339,12 +370,27 @@ MidoriExpression::ExpressionUnion& MidoriExpression::operator*()
 	return m_variant;
 }
 
+const MidoriExpression::ExpressionUnion& MidoriExpression::operator*() const
+{
+	return m_variant;
+}
+
 std::shared_ptr<MidoriType>& MidoriExpression::GetType()
 {
-	return std::visit([](auto&& arg) -> std::shared_ptr<MidoriType>& { return arg.m_type_data; }, m_variant);
+	return std::visit(TypeDataAccessor{}, m_variant);
+}
+
+const std::shared_ptr<MidoriType>& MidoriExpression::GetType() const
+{
+	return std::visit(ConstTypeDataAccessor{}, m_variant);
 }
 
 MidoriStatement::StatementUnion& MidoriStatement::operator*()
+{
+	return m_variant;
+}
+
+const MidoriStatement::StatementUnion& MidoriStatement::operator*() const
 {
 	return m_variant;
 }

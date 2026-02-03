@@ -1,10 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <functional>
 #include <memory>
-#include <variant>
-#include <optional>
+#include <ranges>
+#include <string>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "Compiler/Token/Token.h"
 #include "Type.h"
@@ -141,12 +144,19 @@ public:
 	}
 
 	template<typename T>
+	const T& GetStatement() const
+	{
+		return std::get<T>(m_variant);
+	}
+
+	template<typename T>
 	constexpr bool IsStatement() const
 	{
 		return std::holds_alternative<T>(m_variant);
 	}
 
 	StatementUnion& operator*();
+	const StatementUnion& operator*() const;
 };
 
 using MidoriProgramTree = std::vector<std::unique_ptr<MidoriStatement>>;
@@ -225,6 +235,12 @@ public:
 
 	template<typename T>
 	T& GetPattern()
+	{
+		return std::get<T>(m_variant);
+	}
+
+	template<typename T>
+	const T& GetPattern() const
 	{
 		return std::get<T>(m_variant);
 	}
@@ -461,7 +477,7 @@ public:
 		Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, ConstructContext&& construct_ctx);
 
 		template<typename T>
-		constexpr bool IsConstructTypeOf()
+		constexpr bool IsConstructTypeOf() const
 		{
 			return std::holds_alternative<T>(m_construct_ctx);
 		}
@@ -533,15 +549,15 @@ public:
 		Token m_in_keyword;                                 
 		std::unique_ptr<MidoriExpression> m_transform_expr;
 		std::unique_ptr<MidoriExpression> m_range;    
+		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 		int m_loop_variable_index = -1;
 		int m_hidden_step_index = -1;    
 		int m_hidden_end_index = -1;  
 		int m_hidden_array_index = -1;
 		int m_result_array_index = -1;  
+		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;
-		int m_iterable_some_tag = -1;
-		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 
 		ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& transform_expr, std::unique_ptr<MidoriExpression>&& range);
 	};
@@ -621,14 +637,14 @@ public:
 		Token m_in_keyword;
 		std::unique_ptr<MidoriExpression> m_range;
 		std::unique_ptr<MidoriExpression> m_body;
+		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 		int m_loop_variable_index = -1;
 		int m_hidden_step_index = -1;   // For range: step; For array: current index
 		int m_hidden_end_index = -1;    // For range: end; For array: length
 		int m_hidden_array_index = -1;  // For array iteration: stores array reference
+		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;
-		int m_iterable_some_tag = -1;
-		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
 
 		For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body);
 	};
@@ -684,166 +700,191 @@ public:
 	}
 
 	template<typename T>
+	const T& GetExpression() const
+	{
+		return std::get<T>(m_variant);
+	}
+
+	template<typename T>
 	constexpr bool IsExpression() const
 	{
 		return std::holds_alternative<T>(m_variant);
 	}
 
 	ExpressionUnion& operator*();
+	const ExpressionUnion& operator*() const;
 
 	std::shared_ptr<MidoriType>& GetType();
+	const std::shared_ptr<MidoriType>& GetType() const;
+
+	template<typename Kind>
+	struct ContainsVisitor
+	{
+		template<typename T>
+		bool operator()(const T& node) const
+		{
+			if constexpr (std::is_same_v<T, Kind>)
+			{
+				return true;
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::As>)
+			{
+				return node.m_expr->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Binary>)
+			{
+				return node.m_left->template Contains<Kind>() || node.m_right->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
+			{
+				return node.m_expr->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
+			{
+				return node.m_expr->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Group>)
+			{
+				return node.m_expr_in->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
+			{
+				return node.m_condition->template Contains<Kind>()
+					|| node.m_true_branch->template Contains<Kind>()
+					|| node.m_else_branch->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
+			{
+				const bool has_statement = std::ranges::any_of
+				(
+					node.m_stmts,
+					[](const std::unique_ptr<MidoriStatement>& stmt)
+					{
+						return stmt->template IsStatement<MidoriStatement::ExpressionStatement>()
+							&& stmt->template GetStatement<MidoriStatement::ExpressionStatement>().m_expr->template Contains<Kind>();
+					}
+				);
+
+				const bool has_final_expr = node.m_final_expr.has_value()
+					&& node.m_final_expr.value()->template Contains<Kind>();
+
+				return has_statement || has_final_expr;
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
+			{
+				return node.m_body->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
+			{
+				return node.m_body->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Call>)
+			{
+				const bool has_arg = std::ranges::any_of
+				(
+					node.m_arguments,
+					[](const std::unique_ptr<MidoriExpression>& arg)
+					{
+						return arg->template Contains<Kind>();
+					}
+				);
+
+				return node.m_callee->template Contains<Kind>() || has_arg;
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
+			{
+				return node.m_value->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
+			{
+				return node.m_value->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::ArrayComprehension>)
+			{
+				return node.m_transform_expr->template Contains<Kind>()
+					|| node.m_range->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Async>)
+			{
+				return node.m_expr->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Await>)
+			{
+				return node.m_expr->template Contains<Kind>();
+			}
+			else
+			{
+				return false;
+			}
+		}
+	};
 
 	template<typename Kind>
 	bool Contains() const 
 	{
-		return std::visit
-		(
-			[this](auto&& node) -> bool
-			{
-				using T = std::decay_t<decltype(node)>;
-
-				if constexpr (std::is_same_v<T, Kind>)
-				{
-					return true;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::As>)
-				{
-					return node.m_expr->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Binary>)
-				{
-					return node.m_left->template Contains<Kind>() || node.m_right->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
-				{
-					return node.m_expr->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
-				{
-					return node.m_expr->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Group>)
-				{
-					return node.m_expr_in->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
-				{
-					return node.m_condition->template Contains<Kind>() || node.m_true_branch->template Contains<Kind>() || node.m_else_branch->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
-				{
-					return std::ranges::any_of
-					(
-						node.m_stmts, [this](const std::unique_ptr<MidoriStatement>& stmt)
-						{
-							return stmt->template IsStatement<MidoriStatement::ExpressionStatement>() && stmt->template GetStatement<MidoriStatement::ExpressionStatement>().m_expr->template Contains<Kind>();
-						}
-					)
-						|| (node.m_final_expr.has_value() && node.m_final_expr.value()->template Contains<Kind>());
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
-				{
-					return node.m_body->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
-				{
-					return node.m_body->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Call>)
-				{
-					if (node.m_callee->template Contains<Kind>())
-					{
-						return true;
-					}
-					for (const std::unique_ptr<MidoriExpression>& arg : node.m_arguments)
-					{
-						if (arg->template Contains<Kind>())
-						{
-							return true;
-						}
-					}
-					return false;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-				{
-					return node.m_value->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
-				{
-					return node.m_value->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::ArrayComprehension>)
-				{
-					return node.m_transform_expr->template Contains<Kind>() || node.m_range->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Async>)
-				{
-					return node.m_expr->template Contains<Kind>();
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Await>)
-				{
-					return node.m_expr->template Contains<Kind>();
-				}
-				else
-				{
-					return false;
-				}
-			},
-			m_variant
-		);
+		return std::visit(ContainsVisitor<Kind>{}, m_variant);
 	}
 };
 
+namespace MidoriAstDetail
+{
+	template<typename Visitor, typename Node>
+	using VisitNodeRefResult = decltype(std::visit(std::declval<Visitor>(), *std::declval<Node>()));
+
+	template<typename Visitor, typename Node>
+	using VisitNodePtrResult = decltype(std::visit(std::declval<Visitor>(), **std::declval<Node>()));
+}
+
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, MidoriStatement& statement)
+MidoriAstDetail::VisitNodeRefResult<Visitor, MidoriStatement&> VisitNode(Visitor&& visitor, MidoriStatement& statement)
 {
 	return std::visit(std::forward<Visitor>(visitor), *statement);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriStatement>& statement)
+MidoriAstDetail::VisitNodePtrResult<Visitor, std::unique_ptr<MidoriStatement>&> VisitNode(Visitor&& visitor, std::unique_ptr<MidoriStatement>& statement)
 {
 	return std::visit(std::forward<Visitor>(visitor), **statement);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriStatement>& statement)
+MidoriAstDetail::VisitNodePtrResult<Visitor, const std::unique_ptr<MidoriStatement>&> VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriStatement>& statement)
 {
 	return std::visit(std::forward<Visitor>(visitor), **statement);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, MidoriExpression& expression)
+MidoriAstDetail::VisitNodeRefResult<Visitor, MidoriExpression&> VisitNode(Visitor&& visitor, MidoriExpression& expression)
 {
 	return std::visit(std::forward<Visitor>(visitor), *expression);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriExpression>& expression)
+MidoriAstDetail::VisitNodePtrResult<Visitor, std::unique_ptr<MidoriExpression>&> VisitNode(Visitor&& visitor, std::unique_ptr<MidoriExpression>& expression)
 {
 	return std::visit(std::forward<Visitor>(visitor), **expression);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriExpression>& expression)
+MidoriAstDetail::VisitNodePtrResult<Visitor, const std::unique_ptr<MidoriExpression>&> VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriExpression>& expression)
 {
 	return std::visit(std::forward<Visitor>(visitor), **expression);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, MidoriPattern& pattern)
+MidoriAstDetail::VisitNodeRefResult<Visitor, MidoriPattern&> VisitNode(Visitor&& visitor, MidoriPattern& pattern)
 {
 	return std::visit(std::forward<Visitor>(visitor), *pattern);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, std::unique_ptr<MidoriPattern>& pattern)
+MidoriAstDetail::VisitNodePtrResult<Visitor, std::unique_ptr<MidoriPattern>&> VisitNode(Visitor&& visitor, std::unique_ptr<MidoriPattern>& pattern)
 {
 	return std::visit(std::forward<Visitor>(visitor), **pattern);
 }
 
 template<typename Visitor>
-decltype(auto) VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriPattern>& pattern)
+MidoriAstDetail::VisitNodePtrResult<Visitor, const std::unique_ptr<MidoriPattern>&> VisitNode(Visitor&& visitor, const std::unique_ptr<MidoriPattern>& pattern)
 {
 	return std::visit(std::forward<Visitor>(visitor), **pattern);
 }

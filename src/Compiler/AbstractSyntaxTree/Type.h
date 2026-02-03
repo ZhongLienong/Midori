@@ -72,8 +72,8 @@ public:
 	{
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
 		std::shared_ptr<MidoriType> m_return_type;
-		bool m_is_foreign = false;
 		std::vector<ClassConstraint> m_constraints;
+		bool m_is_foreign = false;
 	};
 
 	struct StructType
@@ -186,6 +186,7 @@ public:
 	friend bool operator==(const MidoriType& lhs, const MidoriType& rhs);
 
 private:
+	struct TypeEqualityVisitor;
 	static bool CompareStructTypes(const StructType& a, const StructType& b);
 	static bool CompareUnionTypes(const UnionType& a, const UnionType& b);
 	static bool CompareGenericStructs(const StructType& a, const StructType& b);

@@ -4464,12 +4464,16 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 						}
 						if (changed)
 						{
-							return std::make_shared<MidoriType>(MidoriType::FunctionType{
-								std::move(substituted_params),
-								substituted_return,
-								type_variant.m_is_foreign,
-								type_variant.m_constraints
-							});
+							return std::make_shared<MidoriType>
+							(
+								MidoriType::FunctionType
+								{
+									.m_param_types = std::move(substituted_params),
+									.m_return_type = substituted_return,
+									.m_constraints = type_variant.m_constraints,
+									.m_is_foreign = type_variant.m_is_foreign
+								}
+							);
 						}
 						return current;
 					}
