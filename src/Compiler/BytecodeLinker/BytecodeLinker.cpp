@@ -2,10 +2,137 @@
 #include "Common/Constant/Constant.h"
 
 #include <algorithm>
+#include <cctype>
 #include <format>
-#include <functional>
 #include <numeric>
 #include <ranges>
+#include <unordered_set>
+
+namespace
+{
+	struct InstanceGlobalInit
+	{
+		size_t m_proc_index;
+		size_t m_global_index;
+	};
+
+	int ReadWideOperand(const BytecodeStream& procedure, int offset)
+	{
+		const int high_byte = static_cast<int>(procedure.ReadByteCode(offset + 1));
+		const int low_byte = static_cast<int>(procedure.ReadByteCode(offset + 2));
+		return (high_byte << SHIFT_8_BITS) | low_byte;
+	}
+
+	void WriteWideOperand(BytecodeStream& procedure, int offset, int value)
+	{
+		const int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
+		const int low_byte = value & BYTE_MASK;
+		procedure.SetByteCode(offset + 1, static_cast<OpCode>(high_byte));
+		procedure.SetByteCode(offset + 2, static_cast<OpCode>(low_byte));
+	}
+
+	bool IsInstanceMethodName(std::string_view name)
+	{
+		const size_t first_underscore = name.find('_');
+		if (first_underscore == std::string::npos || first_underscore + 1u >= name.size())
+		{
+			return false;
+		}
+		if (std::isupper(static_cast<unsigned char>(name[first_underscore + 1u])) == 0)
+		{
+			return false;
+		}
+		const size_t second_underscore = name.find('_', first_underscore + 1u);
+		return second_underscore != std::string::npos;
+	}
+
+	void AddModuleInitializer(BytecodeStream& bootstrap, const BytecodeModule& module, const std::unordered_map<std::string, size_t>& module_base_procedure_indices)
+	{
+		const std::unordered_map<std::string, size_t>::const_iterator base_it =
+			module_base_procedure_indices.find(module.m_module_name);
+
+		const size_t module_base_index = base_it->second;
+		const size_t module_global_index = module_base_index + 1u;
+
+		bootstrap.AddByteCode(OpCode::MAKE_CLOSURE, 0);
+		bootstrap.AddByteCode(static_cast<OpCode>(module_global_index), 0);
+		bootstrap.AddByteCode(OpCode::BIND_CAPTURES, 0);
+		bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
+		bootstrap.AddByteCode(OpCode::CALL, 0);
+		bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
+		bootstrap.AddByteCode(OpCode::POP, 0);
+	}
+
+	void EmitInstanceGlobal(BytecodeStream& stream, size_t proc_idx, size_t global_index)
+	{
+		stream.AddByteCode(OpCode::MAKE_FUNCTION, 0);
+		stream.AddByteCode(static_cast<OpCode>(proc_idx), 0);
+
+		if (global_index <= MAX_LOCAL_VARIABLES)
+		{
+			stream.AddByteCode(OpCode::DEFINE_GLOBAL, 0);
+			stream.AddByteCode(static_cast<OpCode>(global_index), 0);
+			return;
+		}
+
+		stream.AddByteCode(OpCode::DEFINE_GLOBAL_WIDE, 0);
+		const int high_byte = (static_cast<int>(global_index) >> SHIFT_8_BITS) & BYTE_MASK;
+		const int low_byte = static_cast<int>(global_index) & BYTE_MASK;
+		stream.AddByteCode(static_cast<OpCode>(high_byte), 0);
+		stream.AddByteCode(static_cast<OpCode>(low_byte), 0);
+	}
+
+	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> BuildInstanceGlobalInits(const std::vector<MidoriText>& procedure_names, const std::vector<MidoriText>& global_variables)
+	{
+		std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module;
+		std::unordered_set<size_t> initialized_globals;
+
+		for (size_t proc_idx = 0u; proc_idx < procedure_names.size(); proc_idx += 1u)
+		{
+			const std::string proc_name = procedure_names[proc_idx].GetCString();
+			const size_t at_pos = proc_name.find(ModuleSeparator);
+			if (at_pos == std::string::npos)
+			{
+				continue;
+			}
+
+			const std::string base_name = proc_name.substr(0u, at_pos);
+			if (base_name.starts_with(MAIN_PROCEDURE_PREFIX) || base_name.starts_with(MODULE_BOOTSTRAP_PREFIX))
+			{
+				continue;
+			}
+			if (!IsInstanceMethodName(base_name))
+			{
+				continue;
+			}
+
+			const std::vector<MidoriText>::const_iterator global_it = std::ranges::find_if
+			(
+				global_variables,
+				[&base_name](const MidoriText& global_name)
+				{
+					return global_name.GetCString() == base_name;
+				}
+			);
+
+			if (global_it == global_variables.end())
+			{
+				continue;
+			}
+
+			const size_t global_index = static_cast<size_t>(std::distance(global_variables.cbegin(), global_it));
+			if (!initialized_globals.insert(global_index).second)
+			{
+				continue;
+			}
+
+			const std::string module_name = proc_name.substr(at_pos + 1u);
+			instance_inits_by_module[module_name].push_back(InstanceGlobalInit{proc_idx, global_index});
+		}
+
+		return instance_inits_by_module;
+	}
+}
 
 BytecodeLinker::BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name)
 	: m_modules(std::move(modules)),
@@ -70,81 +197,63 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 void BytecodeLinker::AssignModuleBaseOffsets()
 {
-	using AccumulatorFn = std::function<size_t(size_t, const BytecodeModule&)>;
-
-	AccumulatorFn assign_and_accumulate = [this](size_t current_index, const BytecodeModule& module) -> size_t
-		{
-			m_module_base_procedure_indices[module.m_module_name] = current_index;
-			return current_index + module.m_procedures.size();
-		};
-
-	static_cast<void>(std::accumulate(m_modules.begin(), m_modules.end(), 0uz, assign_and_accumulate));
+	static_cast<void>
+	(
+		std::accumulate
+		(
+			m_modules.begin(),
+			m_modules.end(),
+			0uz,
+			[this](size_t current_index, const BytecodeModule& module)
+			{
+				m_module_base_procedure_indices[module.m_module_name] = current_index;
+				return current_index + module.m_procedures.size();
+			}
+		)
+	);
 }
 
 MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 {
-	using ExportProcessorFn = std::function<MidoriResult::VoidResult(const BytecodeModule&)>;
+	for (const BytecodeModule& module : m_modules)
+	{
+		const size_t module_base = m_module_base_procedure_indices.at(module.m_module_name);
 
-	ExportProcessorFn process_module_exports = [this](const BytecodeModule& module) -> MidoriResult::VoidResult
+		for (const BytecodeModule::ExportedSymbol& exp : module.m_exports)
 		{
-			size_t module_base = m_module_base_procedure_indices[module.m_module_name];
+			const std::string symbol_key = MakeSymbolKey(module.m_module_name, exp.m_name);
+			const size_t global_procedure_index = module_base + exp.m_procedure_index;
 
-			using ExportValidatorFn = std::function<MidoriResult::VoidResult(const BytecodeModule::ExportedSymbol&)>;
+			if (m_global_symbol_to_procedure.contains(symbol_key))
+			{
+				return std::unexpected(std::format("Duplicate symbol export: {} from module {}", exp.m_name, module.m_module_name));
+			}
 
-			ExportValidatorFn validate_and_register = [this, &module, module_base](const BytecodeModule::ExportedSymbol& exp) -> MidoriResult::VoidResult
-				{
-					std::string symbol_key = MakeSymbolKey(module.m_module_name, exp.m_name);
-					size_t global_procedure_index = module_base + exp.m_procedure_index;
+			m_global_symbol_to_procedure[symbol_key] = global_procedure_index;
+		}
+	}
 
-					if (m_global_symbol_to_procedure.contains(symbol_key))
-					{
-						return std::unexpected(std::format("Duplicate symbol export: {} from module {}", exp.m_name, module.m_module_name));
-					}
-
-					m_global_symbol_to_procedure[symbol_key] = global_procedure_index;
-					return {};
-				};
-
-			std::vector<MidoriResult::VoidResult> results;
-			std::ranges::transform(module.m_exports, std::back_inserter(results), validate_and_register);
-
-			std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
-			(
-				results,
-				[](const MidoriResult::VoidResult& result) { return result.has_value(); }
-			);
-
-			return (error_it != results.end()) ? *error_it : MidoriResult::VoidResult{};
-		};
-
-	std::vector<MidoriResult::VoidResult> module_results;
-	std::ranges::transform(m_modules, std::back_inserter(module_results), process_module_exports);
-
-	std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
-	(
-		module_results,
-		[](const MidoriResult::VoidResult& result) { return result.has_value(); }
-	);
-
-	return (error_it != module_results.end()) ? *error_it : MidoriResult::VoidResult{};
+	return {};
 }
 
 void BytecodeLinker::MergeConstantPools()
 {
-	using StringMapperFn = std::function<size_t(const std::string&)>;
-
 	std::ranges::for_each
 	(
 		m_modules,
 		[this](const BytecodeModule& module)
 		{
-			StringMapperFn map_string = [this](const std::string& str) -> size_t
+			std::vector<size_t> string_index_mapping;
+			string_index_mapping.reserve(module.m_string_pool.size());
+			std::ranges::transform
+			(
+				module.m_string_pool,
+				std::back_inserter(string_index_mapping),
+				[this](const std::string& str)
 				{
 					return MergeString(str);
-				};
-
-			std::vector<size_t> string_index_mapping;
-			std::ranges::transform(module.m_string_pool, std::back_inserter(string_index_mapping), map_string);
+				}
+			);
 
 			m_module_string_index_mappings[module.m_module_name] = std::move(string_index_mapping);
 		}
@@ -165,79 +274,40 @@ void BytecodeLinker::MergeFunctionNames()
 
 void BytecodeLinker::MergeGlobalVariables()
 {
-	using GlobalAccumulatorFn = std::function<size_t(size_t, const BytecodeModule&)>;
+	static_cast<void>
+	(
+		std::accumulate
+		(
+			m_modules.begin(),
+			m_modules.end(),
+			0uz,
+			[this](size_t current_index, const BytecodeModule& module)
+			{
+				m_module_base_global_indices[module.m_module_name] = current_index;
 
-	GlobalAccumulatorFn accumulate_globals = [this](size_t current_index, const BytecodeModule& module) -> size_t
-		{
-			m_module_base_global_indices[module.m_module_name] = current_index;
+				std::ranges::copy(module.m_global_variables, std::back_inserter(m_global_variables));
 
-			std::ranges::copy(module.m_global_variables, std::back_inserter(m_global_variables));
-
-			return current_index + module.m_global_variables.size();
-		};
-
-	static_cast<void>(std::accumulate(m_modules.begin(), m_modules.end(), 0uz, accumulate_globals));
+				return current_index + module.m_global_variables.size();
+			}
+		)
+	);
 }
 
 MidoriResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
 {
-	using ImportValidatorFn = std::function<MidoriResult::VoidResult(const BytecodeModule::ImportedSymbol&)>;
-
-	std::vector<MidoriResult::VoidResult> validation_results;
-
-	std::ranges::for_each
-	(
-		m_modules,
-		[this, &validation_results](const BytecodeModule& module)
+	for (const BytecodeModule& module : m_modules)
+	{
+		for (const BytecodeModule::ImportedSymbol& import : module.m_imports)
 		{
-			ImportValidatorFn validate_import = [this, &module](const BytecodeModule::ImportedSymbol& import) -> MidoriResult::VoidResult
-				{
-					std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
-					bool found_as_procedure = m_global_symbol_to_procedure.contains(symbol_key);
-
-					if (found_as_procedure)
-					{
-						return {};
-					}
-
-					std::vector<BytecodeModule>::const_iterator module_it = std::ranges::find_if
-					(
-						m_modules,
-						[&import](const BytecodeModule& m) { return m.m_module_name == import.m_from_module; }
-					);
-
-					if (module_it == m_modules.end())
-					{
-						return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})",import.m_name, import.m_from_module, module.m_module_name));
-					}
-
-					std::vector<MidoriText>::const_iterator global_it = std::ranges::find_if
-					(
-						module_it->m_global_variables,
-						[&import](const MidoriText& global_var) { return global_var.GetCString() == import.m_name; }
-					);
-
-					bool found_as_global = (global_it != module_it->m_global_variables.end());
-
-					if (!found_as_global)
-					{
-						return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})",import.m_name, import.m_from_module, module.m_module_name));
-					}
-
-					return {};
-				};
-
-			std::ranges::transform(module.m_imports,std::back_inserter(validation_results),validate_import);
+			const MidoriResult::VoidResult result = ValidateImport(module, import);
+			if (!result.has_value())
+			{
+				return result;
+			}
 		}
-	);
+	}
 
-	std::vector<MidoriResult::VoidResult>::const_iterator error_it = std::ranges::find_if_not
-	(
-		validation_results,
-		[](const MidoriResult::VoidResult& result) { return result.has_value(); }
-	);
-
-	return (error_it != validation_results.end()) ? *error_it : MidoriResult::VoidResult{};
+	return {};
 }
 
 void BytecodeLinker::ConcatenateBytecode()
@@ -247,133 +317,20 @@ void BytecodeLinker::ConcatenateBytecode()
 		m_modules,
 		[this](BytecodeModule& module)
 		{
-			size_t module_proc_base_offset = m_module_base_procedure_indices[module.m_module_name];
-			size_t module_global_base_offset = m_module_base_global_indices[module.m_module_name];
+			const size_t module_proc_base_offset = m_module_base_procedure_indices.at(module.m_module_name);
+			const size_t module_global_base_offset = m_module_base_global_indices.at(module.m_module_name);
+			const std::vector<size_t>& string_mapping = m_module_string_index_mappings.at(module.m_module_name);
+			const std::vector<size_t> import_resolved_indices = ResolveImports(module);
 
-			using ImportResolverFn = std::function<size_t(const BytecodeModule::ImportedSymbol&)>;
-
-			ImportResolverFn resolve_import = [this](const BytecodeModule::ImportedSymbol& import) -> size_t
+			std::ranges::for_each
+			(
+				module.m_procedures,
+				[this, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](BytecodeStream& procedure)
 				{
-					std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
-
-					std::vector<BytecodeModule>::const_iterator module_it = std::ranges::find_if
-					(
-						m_modules,
-						[&import](const BytecodeModule& m) { return m.m_module_name == import.m_from_module; }
-					);
-
-					if (module_it == m_modules.end())
-					{
-						return 0;
-					}
-
-					std::optional<size_t> export_result = FindSymbolInExports(*module_it, import.m_name);
-					if (export_result.has_value())
-					{
-						return export_result.value();
-					}
-
-					std::optional<size_t> global_result = FindSymbolInGlobals(*module_it, import.m_name, m_module_base_global_indices[module_it->m_module_name]);
-
-					return global_result.value_or(0);
-				};
-
-			std::vector<size_t> import_resolved_indices;
-			std::ranges::transform(module.m_imports,std::back_inserter(import_resolved_indices),resolve_import);
-
-			const std::vector<size_t>& string_mapping = m_module_string_index_mappings[module.m_module_name];
-
-			using BytecodePatcherFn = std::function<void(BytecodeStream&)>;
-
-			BytecodePatcherFn patch_procedure = [this, &module_proc_base_offset, &string_mapping, &import_resolved_indices, &module_global_base_offset](BytecodeStream& procedure)
-				{
-					int bytecode_size = procedure.GetByteCodeSize();
-					auto read_wide_operand = [&procedure](int offset) -> int
-						{
-							int high_byte = static_cast<int>(procedure.ReadByteCode(offset + 1));
-							int low_byte = static_cast<int>(procedure.ReadByteCode(offset + 2));
-							return (high_byte << SHIFT_8_BITS) | low_byte;
-						};
-					auto write_wide_operand = [&procedure](int offset, int value)
-						{
-							int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
-							int low_byte = value & BYTE_MASK;
-							procedure.SetByteCode(offset + 1, static_cast<OpCode>(high_byte));
-							procedure.SetByteCode(offset + 2, static_cast<OpCode>(low_byte));
-						};
-
-					for (int offset = 0; offset < bytecode_size; )
-					{
-						OpCode opcode = procedure.ReadByteCode(offset);
-						int advance = CalculateInstructionSize(opcode, procedure, offset);
-
-						if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
-						{
-							int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-							int new_proc_index = old_proc_index + static_cast<int>(module_proc_base_offset);
-							procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
-						}
-						else if (opcode == OpCode::CALL_PROC)
-						{
-							int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-							int new_proc_index = old_proc_index + static_cast<int>(module_proc_base_offset);
-							procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
-						}
-						else if (opcode == OpCode::LOAD_STRING)
-						{
-							int old_string_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-							if (old_string_index >= 0 && static_cast<size_t>(old_string_index) < string_mapping.size())
-							{
-								size_t new_string_index = string_mapping[old_string_index];
-								procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_string_index));
-							}
-						}
-						else if (opcode == OpCode::DEFINE_GLOBAL || opcode == OpCode::GET_GLOBAL || opcode == OpCode::SET_GLOBAL)
-						{
-							int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-
-							if (IsImportIndex(old_global_index))
-							{
-								size_t import_array_index = ConvertImportIndex(old_global_index);
-								if (import_array_index < import_resolved_indices.size())
-								{
-									size_t resolved_index = import_resolved_indices[import_array_index];
-									procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
-								}
-							}
-							else
-							{
-								int new_global_index = old_global_index + static_cast<int>(module_global_base_offset);
-								procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_global_index));
-							}
-						}
-						else if (opcode == OpCode::DEFINE_GLOBAL_WIDE || opcode == OpCode::GET_GLOBAL_WIDE || opcode == OpCode::SET_GLOBAL_WIDE)
-						{
-							int old_global_index = read_wide_operand(offset);
-
-							if (IsImportIndexWide(old_global_index))
-							{
-								size_t import_array_index = ConvertImportIndexWide(old_global_index);
-								if (import_array_index < import_resolved_indices.size())
-								{
-									size_t resolved_index = import_resolved_indices[import_array_index];
-									write_wide_operand(offset, static_cast<int>(resolved_index));
-								}
-							}
-							else
-							{
-								int new_global_index = old_global_index + static_cast<int>(module_global_base_offset);
-								write_wide_operand(offset, new_global_index);
-							}
-						}
-
-						offset += advance;
-					}
-
+					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping);
 					m_global_procedures.push_back(std::move(procedure));
-				};
-
-			std::ranges::for_each(module.m_procedures, patch_procedure);
+				}
+			);
 		}
 	);
 }
@@ -412,129 +369,32 @@ void BytecodeLinker::PatchBootstrapOffsets()
 	);
 }
 
-BytecodeStream BytecodeLinker::BuildBootstrapProcedure()
+BytecodeStream BytecodeLinker::BuildBootstrapProcedure() const
 {
-	using BootstrapBuilderFn = std::function<void(BytecodeStream&, const BytecodeModule&)>;
-
-	BootstrapBuilderFn add_module_initializer = [this](BytecodeStream& bootstrap, const BytecodeModule& module)
-		{
-			std::unordered_map<std::string, size_t>::const_iterator base_it = m_module_base_procedure_indices.find(module.m_module_name);
-
-			size_t module_base_index = base_it->second;
-			size_t module_global_index = module_base_index + 1u;
-
-			bootstrap.AddByteCode(OpCode::MAKE_CLOSURE, 0);
-			bootstrap.AddByteCode(static_cast<OpCode>(module_global_index), 0);
-			bootstrap.AddByteCode(OpCode::BIND_CAPTURES, 0);
-			bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
-			bootstrap.AddByteCode(OpCode::CALL, 0);
-			bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
-			bootstrap.AddByteCode(OpCode::POP, 0);
-		};
-
 	BytecodeStream bootstrap;
-
-	auto is_instance_method_name = [](std::string_view name) -> bool
-		{
-			size_t first_underscore = name.find('_');
-			if (first_underscore == std::string::npos || first_underscore + 1u >= name.size())
-			{
-				return false;
-			}
-			if (std::isupper(static_cast<unsigned char>(name[first_underscore + 1u])) == 0)
-			{
-				return false;
-			}
-			size_t second_underscore = name.find('_', first_underscore + 1u);
-			return second_underscore != std::string::npos;
-		};
-
-	struct InstanceGlobalInit
-	{
-		size_t m_proc_index;
-		size_t m_global_index;
-	};
-
-	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module;
-	std::unordered_set<size_t> initialized_globals;
-	for (size_t proc_idx = 0u; proc_idx < m_global_procedure_names.size(); proc_idx += 1u)
-	{
-		std::string proc_name = m_global_procedure_names[proc_idx].GetCString();
-		size_t at_pos = proc_name.find(ModuleSeparator);
-		if (at_pos == std::string::npos)
-		{
-			continue;
-		}
-
-		std::string base_name = proc_name.substr(0u, at_pos);
-		if (base_name.starts_with(MAIN_PROCEDURE_PREFIX) || base_name.starts_with(MODULE_BOOTSTRAP_PREFIX))
-		{
-			continue;
-		}
-		if (!is_instance_method_name(base_name))
-		{
-			continue;
-		}
-
-		std::vector<MidoriText>::const_iterator global_it = std::ranges::find_if
-		(
-			m_global_variables,
-			[&base_name](const MidoriText& global_name)
-			{
-				return global_name.GetCString() == base_name;
-			}
-		);
-
-		if (global_it == m_global_variables.end())
-		{
-			continue;
-		}
-
-		size_t global_index = static_cast<size_t>(std::distance(m_global_variables.cbegin(), global_it));
-		if (!initialized_globals.insert(global_index).second)
-		{
-			continue;
-		}
-
-		std::string module_name = proc_name.substr(at_pos + 1u);
-		instance_inits_by_module[module_name].push_back({ proc_idx, global_index });
-	}
-
-	auto emit_instance_global = [](BytecodeStream& stream, size_t proc_idx, size_t global_index)
-		{
-			stream.AddByteCode(OpCode::MAKE_FUNCTION, 0);
-			stream.AddByteCode(static_cast<OpCode>(proc_idx), 0);
-
-			if (global_index <= MAX_LOCAL_VARIABLES)
-			{
-				stream.AddByteCode(OpCode::DEFINE_GLOBAL, 0);
-				stream.AddByteCode(static_cast<OpCode>(global_index), 0);
-			}
-			else
-			{
-				stream.AddByteCode(OpCode::DEFINE_GLOBAL_WIDE, 0);
-				int high_byte = (static_cast<int>(global_index) >> SHIFT_8_BITS) & BYTE_MASK;
-				int low_byte = static_cast<int>(global_index) & BYTE_MASK;
-				stream.AddByteCode(static_cast<OpCode>(high_byte), 0);
-				stream.AddByteCode(static_cast<OpCode>(low_byte), 0);
-			}
-		};
+	const std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module = BuildInstanceGlobalInits(m_global_procedure_names, m_global_variables);
 
 	std::ranges::for_each
 	(
 		m_modules,
-		[&bootstrap, &add_module_initializer, &instance_inits_by_module, &emit_instance_global](const BytecodeModule& module)
+		[this, &bootstrap, &instance_inits_by_module](const BytecodeModule& module)
 		{
-			add_module_initializer(bootstrap, module);
+			AddModuleInitializer(bootstrap, module, m_module_base_procedure_indices);
 
-			auto init_it = instance_inits_by_module.find(module.m_module_name);
-			if (init_it != instance_inits_by_module.end())
+			const std::unordered_map<std::string, std::vector<InstanceGlobalInit>>::const_iterator init_it = instance_inits_by_module.find(module.m_module_name);
+			if (init_it == instance_inits_by_module.end())
 			{
-				for (const InstanceGlobalInit& init : init_it->second)
-				{
-					emit_instance_global(bootstrap, init.m_proc_index, init.m_global_index);
-				}
+				return;
 			}
+
+			std::ranges::for_each
+			(
+				init_it->second,
+				[&bootstrap](const InstanceGlobalInit& init)
+				{
+					EmitInstanceGlobal(bootstrap, init.m_proc_index, init.m_global_index);
+				}
+			);
 		}
 	);
 
@@ -630,105 +490,212 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 	return base_global_offset + local_index;
 }
 
+MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
+{
+	const std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
+	if (m_global_symbol_to_procedure.contains(symbol_key))
+	{
+		return {};
+	}
+
+	const BytecodeModule* imported_module = FindModule(import.m_from_module);
+	if (imported_module == nullptr)
+	{
+		return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name));
+	}
+
+	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
+	const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+	if (!global_result.has_value())
+	{
+		return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name));
+	}
+
+	return {};
+}
+
+std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module) const
+{
+	std::vector<size_t> import_resolved_indices;
+	import_resolved_indices.reserve(module.m_imports.size());
+
+	std::ranges::transform
+	(
+		module.m_imports,
+		std::back_inserter(import_resolved_indices),
+		[this](const BytecodeModule::ImportedSymbol& import)
+		{
+			const BytecodeModule* imported_module = FindModule(import.m_from_module);
+			if (imported_module == nullptr)
+			{
+				return 0uz;
+			}
+
+			const std::optional<size_t> export_result = FindSymbolInExports(*imported_module, import.m_name);
+			if (export_result.has_value())
+			{
+				return export_result.value();
+			}
+
+			const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
+			const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+
+			return global_result.value_or(0uz);
+		}
+	);
+
+	return import_resolved_indices;
+}
+
+void BytecodeLinker::PatchProcedure(
+	BytecodeStream& procedure,
+	size_t module_proc_base_offset,
+	size_t module_global_base_offset,
+	const std::vector<size_t>& import_resolved_indices,
+	const std::vector<size_t>& string_mapping) const
+{
+	const int bytecode_size = procedure.GetByteCodeSize();
+	const int proc_base_offset = static_cast<int>(module_proc_base_offset);
+	const int global_base_offset = static_cast<int>(module_global_base_offset);
+
+	for (int offset = 0; offset < bytecode_size; )
+	{
+		const OpCode opcode = procedure.ReadByteCode(offset);
+		const int advance = CalculateInstructionSize(opcode, procedure, offset);
+
+		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC)
+		{
+			const int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			const int new_proc_index = old_proc_index + proc_base_offset;
+			procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
+		}
+		else if (opcode == OpCode::LOAD_STRING)
+		{
+			const int old_string_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			if (old_string_index >= 0 && static_cast<size_t>(old_string_index) < string_mapping.size())
+			{
+				const size_t new_string_index = string_mapping[old_string_index];
+				procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_string_index));
+			}
+		}
+		else if (opcode == OpCode::DEFINE_GLOBAL || opcode == OpCode::GET_GLOBAL || opcode == OpCode::SET_GLOBAL)
+		{
+			const int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+
+			if (IsImportIndex(old_global_index))
+			{
+				const size_t import_array_index = ConvertImportIndex(old_global_index);
+				if (import_array_index < import_resolved_indices.size())
+				{
+					const size_t resolved_index = import_resolved_indices[import_array_index];
+					procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
+				}
+			}
+			else
+			{
+				const int new_global_index = old_global_index + global_base_offset;
+				procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_global_index));
+			}
+		}
+		else if (opcode == OpCode::DEFINE_GLOBAL_WIDE || opcode == OpCode::GET_GLOBAL_WIDE || opcode == OpCode::SET_GLOBAL_WIDE)
+		{
+			const int old_global_index = ReadWideOperand(procedure, offset);
+
+			if (IsImportIndexWide(old_global_index))
+			{
+				const size_t import_array_index = ConvertImportIndexWide(old_global_index);
+				if (import_array_index < import_resolved_indices.size())
+				{
+					const size_t resolved_index = import_resolved_indices[import_array_index];
+					WriteWideOperand(procedure, offset, static_cast<int>(resolved_index));
+				}
+			}
+			else
+			{
+				const int new_global_index = old_global_index + global_base_offset;
+				WriteWideOperand(procedure, offset, new_global_index);
+			}
+		}
+
+		offset += advance;
+	}
+}
+
 int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream& procedure, int offset) const
 {
-	if (opcode == OpCode::INTEGER_CONSTANT || opcode == OpCode::FLOAT_CONSTANT || opcode == OpCode::WORD_CONSTANT)
+	switch (opcode)
 	{
-		return 9;
-	}
-	else if (opcode == OpCode::BYTE_CONSTANT)
-	{
-		return 2;
-	}
-	else if (opcode == OpCode::CREATE_ARRAY)
-	{
-		return 4;
-	}
-	else if
-	(
-		opcode == OpCode::JUMP ||
-		opcode == OpCode::JUMP_IF_FALSE ||
-		opcode == OpCode::JUMP_IF_TRUE ||
-		opcode == OpCode::JUMP_BACK ||
-		opcode == OpCode::BREAK ||
-		opcode == OpCode::IF_INTEGER_EQUAL ||
-		opcode == OpCode::IF_INTEGER_NOT_EQUAL ||
-		opcode == OpCode::IF_INTEGER_GREATER ||
-		opcode == OpCode::IF_INTEGER_GREATER_EQUAL ||
-		opcode == OpCode::IF_INTEGER_LESS ||
-		opcode == OpCode::IF_INTEGER_LESS_EQUAL ||
-		opcode == OpCode::IF_FLOAT_EQUAL ||
-		opcode == OpCode::IF_FLOAT_NOT_EQUAL ||
-		opcode == OpCode::IF_FLOAT_GREATER ||
-		opcode == OpCode::IF_FLOAT_GREATER_EQUAL ||
-		opcode == OpCode::IF_FLOAT_LESS ||
-		opcode == OpCode::IF_FLOAT_LESS_EQUAL
-	)
-	{
-		return 3;
-	}
-	else if (opcode == OpCode::MATCH_JUMP_TABLE)
-	{
-		int case_count = static_cast<int>(procedure.ReadByteCode(offset + 1));
-		return 2 + (case_count * 2);
-	}
-	else if (opcode == OpCode::CALL_FOREIGN)
-	{
-		return 3;
-	}
-	else if (opcode == OpCode::CALL_FOREIGN_INDEXED)
-	{
-		return 4;  // opcode + ffi_index + arity + return_type
-	}
-	else if (opcode == OpCode::CALL_PROC)
-	{
-		return 3;  // opcode + proc_index + arity
-	}
-	else if
-	(
-		opcode == OpCode::DEFINE_GLOBAL_WIDE ||
-		opcode == OpCode::GET_GLOBAL_WIDE ||
-		opcode == OpCode::SET_GLOBAL_WIDE ||
-		opcode == OpCode::GET_LOCAL_WIDE ||
-		opcode == OpCode::SET_LOCAL_WIDE ||
-		opcode == OpCode::GET_CELL_WIDE ||
-		opcode == OpCode::SET_CELL_WIDE
-	)
-	{
-		return 3;
-	}
-	else if
-	(
-		opcode == OpCode::MAKE_CLOSURE ||
-		opcode == OpCode::MAKE_FUNCTION ||
-		opcode == OpCode::LOAD_STRING ||
-		opcode == OpCode::DEFINE_GLOBAL ||
-		opcode == OpCode::GET_GLOBAL ||
-		opcode == OpCode::SET_GLOBAL ||
-		opcode == OpCode::GET_LOCAL ||
-		opcode == OpCode::SET_LOCAL ||
-		opcode == OpCode::GET_CELL ||
-		opcode == OpCode::SET_CELL ||
-		opcode == OpCode::CALL ||
-		opcode == OpCode::BIND_CAPTURES ||
-		opcode == OpCode::GET_MEMBER ||
-		opcode == OpCode::SET_MEMBER ||
-		opcode == OpCode::POP_VALUES ||
-		opcode == OpCode::POP_LOCAL_SCOPE ||
-		opcode == OpCode::POP_BLOCK_SCOPE ||
-		opcode == OpCode::POP_MATCH_SCOPE ||
-		opcode == OpCode::TAIL_CALL ||
-		opcode == OpCode::GET_ARRAY ||
-		opcode == OpCode::SET_ARRAY ||
-		opcode == OpCode::CONSTRUCT_STRUCT ||
-		opcode == OpCode::CONSTRUCT_UNION ||
-		opcode == OpCode::SET_TAG
-	)
-	{
-		return 2;
-	}
-	else
-	{
-		return 1;
+		case OpCode::INTEGER_CONSTANT:
+		case OpCode::FLOAT_CONSTANT:
+		case OpCode::WORD_CONSTANT:
+			return 9;
+		case OpCode::BYTE_CONSTANT:
+			return 2;
+		case OpCode::CREATE_ARRAY:
+			return 4;
+		case OpCode::JUMP:
+		case OpCode::JUMP_IF_FALSE:
+		case OpCode::JUMP_IF_TRUE:
+		case OpCode::JUMP_BACK:
+		case OpCode::BREAK:
+		case OpCode::IF_INTEGER_EQUAL:
+		case OpCode::IF_INTEGER_NOT_EQUAL:
+		case OpCode::IF_INTEGER_GREATER:
+		case OpCode::IF_INTEGER_GREATER_EQUAL:
+		case OpCode::IF_INTEGER_LESS:
+		case OpCode::IF_INTEGER_LESS_EQUAL:
+		case OpCode::IF_FLOAT_EQUAL:
+		case OpCode::IF_FLOAT_NOT_EQUAL:
+		case OpCode::IF_FLOAT_GREATER:
+		case OpCode::IF_FLOAT_GREATER_EQUAL:
+		case OpCode::IF_FLOAT_LESS:
+		case OpCode::IF_FLOAT_LESS_EQUAL:
+			return 3;
+		case OpCode::MATCH_JUMP_TABLE:
+		{
+			const int case_count = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			return 2 + (case_count * 2);
+		}
+		case OpCode::CALL_FOREIGN:
+			return 3;
+		case OpCode::CALL_FOREIGN_INDEXED:
+			return 4;  // opcode + ffi_index + arity + return_type
+		case OpCode::CALL_PROC:
+			return 3;  // opcode + proc_index + arity
+		case OpCode::DEFINE_GLOBAL_WIDE:
+		case OpCode::GET_GLOBAL_WIDE:
+		case OpCode::SET_GLOBAL_WIDE:
+		case OpCode::GET_LOCAL_WIDE:
+		case OpCode::SET_LOCAL_WIDE:
+		case OpCode::GET_CELL_WIDE:
+		case OpCode::SET_CELL_WIDE:
+			return 3;
+		case OpCode::MAKE_CLOSURE:
+		case OpCode::MAKE_FUNCTION:
+		case OpCode::LOAD_STRING:
+		case OpCode::DEFINE_GLOBAL:
+		case OpCode::GET_GLOBAL:
+		case OpCode::SET_GLOBAL:
+		case OpCode::GET_LOCAL:
+		case OpCode::SET_LOCAL:
+		case OpCode::GET_CELL:
+		case OpCode::SET_CELL:
+		case OpCode::CALL:
+		case OpCode::BIND_CAPTURES:
+		case OpCode::GET_MEMBER:
+		case OpCode::SET_MEMBER:
+		case OpCode::POP_VALUES:
+		case OpCode::POP_LOCAL_SCOPE:
+		case OpCode::POP_BLOCK_SCOPE:
+		case OpCode::POP_MATCH_SCOPE:
+		case OpCode::TAIL_CALL:
+		case OpCode::GET_ARRAY:
+		case OpCode::SET_ARRAY:
+		case OpCode::CONSTRUCT_STRUCT:
+		case OpCode::CONSTRUCT_UNION:
+		case OpCode::SET_TAG:
+			return 2;
+		default:
+			return 1;
 	}
 }
