@@ -21,8 +21,8 @@ struct BuildGraph
 
 	std::unordered_map<std::string, BuildNode> m_nodes;
 	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
-	std::unordered_map<std::string, std::vector<UseImport>> m_use_imports;  // Maps file_name -> use imports
 	std::unordered_map<std::string, std::string> m_module_name_to_file;     // Maps module_name -> file_path (for duplicate detection)
+	std::unordered_map<std::string, std::vector<UseImport>> m_use_imports;  // Maps file_name -> use imports
 
 	std::vector<std::string> GetStartingPoints() const;
 
