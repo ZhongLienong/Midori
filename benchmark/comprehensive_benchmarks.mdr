@@ -242,7 +242,7 @@ defun TestArrayFilter(size : Int) : Unit =>
 		{
 			if arr[j] % 2 == 0
 			then filtered ++= arr[j]
-			else 0;
+			else [0];
 			j = j + 1;
 		}
 	};

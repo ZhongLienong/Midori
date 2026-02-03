@@ -40,7 +40,7 @@ Future<Array<Float>>  // Future resolving to an array
 `async expr` spawns a concurrent task and immediately returns a `Future<T>`:
 
 - The expression runs in a **separate worker VM** with its own heap
-- Workers share global variables with the main VM
+- Workers share global variables stored in the `MidoriRuntime` singleton with the main VM
 - Returns immediately without blocking
 
 ```midori
@@ -58,6 +58,10 @@ def task3 = async compute(30);
 def task : Future<Int> = async compute(42);
 def result : Int = await task;  // Blocks until complete
 ```
+
+## Error Handling
+
+If an async task terminates with a runtime error, the `Future<T>` is marked as failed. Awaiting a failed future terminates the current VM with a runtime error ("Async task error"); the original error details are not propagated. Errors in tasks that are never awaited are currently dropped.
 
 ## Variable Capture
 
@@ -84,8 +88,8 @@ defun make_tasks(values: Array<Int>) : Array<Future<Int>> => {
 ```midori
 // UNSAFE - Race condition!
 let arr = [1, 2, 3];
-spawn { arr ++= 4; }
-spawn { arr ++= 5; }  // Both tasks mutate same array concurrently
+def t1 = async { arr ++= 4; };
+def t2 = async { arr ++= 5; };  // Both tasks mutate same array concurrently
 ```
 
 **Important**: When capturing loop variables, create a copy inside the loop:
@@ -138,7 +142,7 @@ This prevents dangling pointers when the worker VM is destroyed.
 - Each VM has its own allocator and garbage collector
 - No stop-the-world coordination between VMs
 - Return values are deep-copied before worker VM destruction
-- Global variables are shared (user must avoid concurrent mutation)
+- Global variables live in the `MidoriRuntime` singleton and are shared across VMs (avoid concurrent mutation)
 
 ## Best Practices
 
@@ -165,6 +169,7 @@ This prevents dangling pointers when the worker VM is destroyed.
 
 - **No cancellation** - Once spawned, tasks run to completion
 - **No timeouts** - Await blocks indefinitely
+- **No error payloads** - Awaiting a failed task raises a generic runtime error
 - **No inter-task communication** - Tasks cannot send messages to each other
 - **Race conditions accepted** - Concurrent capture mutation is undefined behavior
 
