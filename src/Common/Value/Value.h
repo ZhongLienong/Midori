@@ -249,6 +249,8 @@ public:
 
 	void AddFront(const MidoriValue& value);
 
+	void Extend(const MidoriArray& other);
+
 	std::optional<MidoriValue> Pop();
 
 	int GetLength() const;

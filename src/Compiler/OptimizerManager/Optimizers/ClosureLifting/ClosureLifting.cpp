@@ -62,6 +62,12 @@ namespace
 			VisitAndReplace(assign.m_value);
 		}
 
+		void operator()(MidoriExpression::ExtendAssign& assign) override
+		{
+			RewriteAccess(assign.m_name, assign.m_name_ctx);
+			VisitAndReplace(assign.m_value);
+		}
+
 		void operator()(MidoriExpression::PrependAssign& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
@@ -132,6 +138,12 @@ namespace
 		}
 
 		void operator()(MidoriExpression::AppendAssign& assign) override
+		{
+			CheckAccess(assign.m_name, assign.m_name_ctx);
+			VisitAndReplace(assign.m_value);
+		}
+
+		void operator()(MidoriExpression::ExtendAssign& assign) override
 		{
 			CheckAccess(assign.m_name, assign.m_name_ctx);
 			VisitAndReplace(assign.m_value);

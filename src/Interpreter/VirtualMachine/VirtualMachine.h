@@ -8,6 +8,7 @@
 
 #include <array>
 #include <bit>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <unordered_map>
@@ -54,6 +55,12 @@ private:
     };
     using CallStackPointer = CallFrame*;
 
+    struct FFIArrayArgument
+    {
+        void* data;
+        int length;
+    };
+
     // Hot Pointers
     InstructionPointer m_instruction_pointer = nullptr;
     ValueStackPointer m_value_stack_pointer = nullptr;
@@ -67,6 +74,7 @@ private:
     // Infrastructure & Cold Data
     MidoriAllocator m_allocator;
     GarbageCollector m_gc;
+    GarbageCollector::GarbageCollectionRoots m_gc_roots_scratch;
 
     MidoriRuntime* m_runtime = nullptr;
     const MidoriExecutable* m_executable = nullptr;
@@ -75,6 +83,8 @@ private:
 
     MidoriValue m_async_result;
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
+    std::array<void*, UINT8_MAX> m_ffi_args{};
+    std::vector<FFIArrayArgument> m_ffi_array_args;
     std::vector<MidoriTraceable*> m_string_literal_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
     std::unordered_map<int, MidoriTraceable*> m_static_closure_cache;
@@ -97,7 +107,8 @@ private:
 	{
 		if (m_gc.ShouldCollect())
 		{
-			m_gc.ReclaimMemory(GetGarbageCollectionRoots(), m_allocator);
+			BuildGarbageCollectionRoots(m_gc_roots_scratch);
+			m_gc.ReclaimMemory(m_gc_roots_scratch, m_allocator);
 		}
 	}
 
@@ -229,9 +240,7 @@ private:
 
 	int CheckArrayPopResult(const std::optional<MidoriValue>& result) noexcept;
 
-    GarbageCollector::GarbageCollectionRoots GetValueStackGarbageCollectionRoots() const noexcept;
-
-    GarbageCollector::GarbageCollectionRoots GetGlobalTableGarbageCollectionRoots() const noexcept;
+    void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 
 	void InitializeStacks() noexcept;
 

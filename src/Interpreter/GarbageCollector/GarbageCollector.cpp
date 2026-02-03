@@ -3,7 +3,6 @@
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <algorithm>
-#include <ranges>
 
 #if MIDORI_DEBUG_INFO
 #include "Common\Printer\Printer.h"
@@ -111,7 +110,8 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	if (ptr->IsTraceable<MidoriArray>())
 	{
 		MidoriArray& arr = ptr->GetTraceable<MidoriArray>();
-		for (int idx : std::views::iota(0, arr.GetLength()))
+		int length = arr.GetLength();
+		for (int idx = 0; idx < length; idx += 1)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
@@ -124,7 +124,8 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	else if (ptr->IsTraceable<MidoriClosure>())
 	{
 		MidoriTuple& cell_values = ptr->GetTraceable<MidoriClosure>().m_cell_values;
-		for (int i = 0; i < cell_values.GetLength(); i += 1)
+		int length = cell_values.GetLength();
+		for (int i = 0; i < length; i += 1)
 		{
 			MidoriValue& value = cell_values[i];
 			MidoriTraceable* child_ptr = value.GetPointer();
@@ -146,7 +147,8 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	else if (ptr->IsTraceable<MidoriStruct>())
 	{
 		MidoriTuple& arr = ptr->GetTraceable<MidoriStruct>().m_values;
-		for (int idx : std::views::iota(0, arr.GetLength()))
+		int length = arr.GetLength();
+		for (int idx = 0; idx < length; idx += 1)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
@@ -159,8 +161,8 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	else if (ptr->IsTraceable<MidoriUnion>())
 	{
 		MidoriTuple& arr = ptr->GetTraceable<MidoriUnion>().m_values;
-
-		for (int idx : std::views::iota(0, arr.GetLength()))
+		int length = arr.GetLength();
+		for (int idx = 0; idx < length; idx += 1)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
@@ -182,7 +184,8 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		if (future.m_closure)
 		{
 			MidoriTuple& cell_values = future.m_closure->m_cell_values;
-			for (int i = 0; i < cell_values.GetLength(); i += 1)
+			int length = cell_values.GetLength();
+			for (int i = 0; i < length; i += 1)
 			{
 				MidoriValue& value = cell_values[i];
 				MidoriTraceable* child_ptr = value.GetPointer();
@@ -195,7 +198,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	}
 }
 
-void GarbageCollector::ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAllocator& allocator, bool force_clean)
+void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
 {
 	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
 	{

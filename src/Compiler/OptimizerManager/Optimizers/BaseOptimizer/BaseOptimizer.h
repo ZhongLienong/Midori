@@ -89,6 +89,8 @@ protected:
 
 	virtual void operator()(MidoriExpression::AppendAssign& append_assign);
 
+	virtual void operator()(MidoriExpression::ExtendAssign& extend_assign);
+
 	virtual void operator()(MidoriExpression::PrependAssign& prepend_assign);
 
 	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign);

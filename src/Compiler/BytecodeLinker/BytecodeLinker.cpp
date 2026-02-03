@@ -31,6 +31,21 @@ namespace
 		procedure.SetByteCode(offset + 2, static_cast<OpCode>(low_byte));
 	}
 
+	int ReadShortOperandLE(const BytecodeStream& procedure, int offset)
+	{
+		const int low_byte = static_cast<int>(procedure.ReadByteCode(offset + 1));
+		const int high_byte = static_cast<int>(procedure.ReadByteCode(offset + 2));
+		return low_byte | (high_byte << SHIFT_8_BITS);
+	}
+
+	void WriteShortOperandLE(BytecodeStream& procedure, int offset, int value)
+	{
+		const int low_byte = value & BYTE_MASK;
+		const int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
+		procedure.SetByteCode(offset + 1, static_cast<OpCode>(low_byte));
+		procedure.SetByteCode(offset + 2, static_cast<OpCode>(high_byte));
+	}
+
 	bool IsInstanceMethodName(std::string_view name)
 	{
 		const size_t first_underscore = name.find('_');
@@ -356,7 +371,7 @@ void BytecodeLinker::PatchBootstrapOffsets()
 					int new_proc_index = old_proc_index + 1;
 					procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
 				}
-				else if (opcode == OpCode::CALL_PROC)
+				else if (opcode == OpCode::CALL_PROC || opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
 				{
 					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 					int new_proc_index = old_proc_index + 1;
@@ -563,7 +578,8 @@ void BytecodeLinker::PatchProcedure(
 		const OpCode opcode = procedure.ReadByteCode(offset);
 		const int advance = CalculateInstructionSize(opcode, procedure, offset);
 
-		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC)
+		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
+			opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
 		{
 			const int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 			const int new_proc_index = old_proc_index + proc_base_offset;
@@ -576,6 +592,15 @@ void BytecodeLinker::PatchProcedure(
 			{
 				const size_t new_string_index = string_mapping[old_string_index];
 				procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_string_index));
+			}
+		}
+		else if (opcode == OpCode::LOAD_STRING_WIDE)
+		{
+			const int old_string_index = ReadShortOperandLE(procedure, offset);
+			if (old_string_index >= 0 && static_cast<size_t>(old_string_index) < string_mapping.size())
+			{
+				const size_t new_string_index = string_mapping[old_string_index];
+				WriteShortOperandLE(procedure, offset, static_cast<int>(new_string_index));
 			}
 		}
 		else if (opcode == OpCode::DEFINE_GLOBAL || opcode == OpCode::GET_GLOBAL || opcode == OpCode::SET_GLOBAL)
@@ -633,6 +658,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 			return 2;
 		case OpCode::CREATE_ARRAY:
 			return 4;
+		case OpCode::LOAD_STRING_WIDE:
+			return 3;
 		case OpCode::JUMP:
 		case OpCode::JUMP_IF_FALSE:
 		case OpCode::JUMP_IF_TRUE:
@@ -662,6 +689,11 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 			return 4;  // opcode + ffi_index + arity + return_type
 		case OpCode::CALL_PROC:
 			return 3;  // opcode + proc_index + arity
+		case OpCode::CALL_PROC_0:
+		case OpCode::CALL_PROC_1:
+		case OpCode::CALL_PROC_2:
+		case OpCode::CALL_PROC_3:
+			return 2;  // opcode + proc_index
 		case OpCode::DEFINE_GLOBAL_WIDE:
 		case OpCode::GET_GLOBAL_WIDE:
 		case OpCode::SET_GLOBAL_WIDE:
@@ -695,6 +727,19 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::CONSTRUCT_UNION:
 		case OpCode::SET_TAG:
 			return 2;
+		case OpCode::CALL_0:
+		case OpCode::CALL_1:
+		case OpCode::CALL_2:
+		case OpCode::CALL_3:
+		case OpCode::GET_LOCAL_0:
+		case OpCode::GET_LOCAL_1:
+		case OpCode::GET_LOCAL_2:
+		case OpCode::GET_LOCAL_3:
+		case OpCode::SET_LOCAL_0:
+		case OpCode::SET_LOCAL_1:
+		case OpCode::SET_LOCAL_2:
+		case OpCode::SET_LOCAL_3:
+			return 1;
 		default:
 			return 1;
 	}

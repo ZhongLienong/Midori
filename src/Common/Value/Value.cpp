@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <charconv>
 #include <execution>
 #include <ranges>
 
@@ -744,6 +745,41 @@ void MidoriArray::AddBack(const MidoriValue& value)
 		m_long.m_ptr[m_long.m_size] = value;
 		m_long.m_size += 1;
 	}
+}
+
+void MidoriArray::Extend(const MidoriArray& other)
+{
+	int other_len = other.GetLength();
+	if (other_len == 0)
+	{
+		return;
+	}
+
+	int current_len = GetLength();
+	int new_len = current_len + other_len;
+
+	if (IsShort())
+	{
+		if (new_len <= SOO_CAPACITY)
+		{
+			const MidoriValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
+			std::memcpy(m_short.m_buffer + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MidoriValue));
+			SetShortSize(new_len);
+			return;
+		}
+
+		int new_capacity = std::max(new_len, s_initial_capacity);
+		Expand(new_capacity);
+	}
+	else if (new_len > m_long.m_capacity)
+	{
+		int new_capacity = std::max(new_len, m_long.m_capacity * 2);
+		Expand(new_capacity);
+	}
+
+	const MidoriValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
+	std::memcpy(m_long.m_ptr + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MidoriValue));
+	m_long.m_size = new_len;
 }
 
 int MidoriArray::GetLength() const
@@ -1545,8 +1581,13 @@ MidoriFloat MidoriText::ToFloat() const
 
 MidoriText MidoriText::FromInteger(MidoriInteger value)
 {
-	char buffer[21];
-	std::snprintf(buffer, 21, "%lld", value);
+	char buffer[32];
+	std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
+	if (result.ec != std::errc())
+	{
+		return MidoriText();
+	}
+	*result.ptr = '\0';
 	return MidoriText(buffer);
 }
 

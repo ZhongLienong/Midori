@@ -40,6 +40,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime) noexcept
 {
 	m_executable = &runtime.GetExecutable();
 	m_global_vars = runtime.GetGlobalsPtr();
+	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
 	InitializeStacks();
 
@@ -52,6 +53,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 {
 	m_executable = &runtime.GetExecutable();
 	m_global_vars = runtime.GetGlobalsPtr();
+	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
 	InitializeStacks();
 
@@ -115,7 +117,7 @@ MidoriValue VirtualMachine::GetAsyncResult() const noexcept
 VirtualMachine::~VirtualMachine()
 {
 	GarbageCollector::GarbageCollectionRoots roots;
-	m_gc.ReclaimMemory(std::move(roots), m_allocator, true);
+	m_gc.ReclaimMemory(roots, m_allocator, true);
 
 #ifdef _WIN32
 	if (m_value_stack_region)
@@ -317,57 +319,58 @@ int VirtualMachine::CheckArrayPopResult(const std::optional<MidoriValue>& result
 	return 0;
 }
 
-GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGlobalTableGarbageCollectionRoots() const noexcept
+void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
 {
-	GarbageCollector::GarbageCollectionRoots roots;
-	roots.reserve(m_global_vars->size());
+	roots.clear();
 
-	for (MidoriValue val : *m_global_vars)
+	size_t stack_count = 0uz;
+	if (m_value_stack_begin != nullptr && m_value_stack_pointer != nullptr)
 	{
-		MidoriTraceable* ptr = val.GetPointer();
-		if (ptr != nullptr && m_gc.Contains(ptr))
+		stack_count = static_cast<size_t>(m_value_stack_pointer - m_value_stack_begin);
+	}
+
+	size_t global_count = 0uz;
+	if (m_global_vars != nullptr)
+	{
+		global_count = m_global_vars->size();
+	}
+
+	roots.reserve(stack_count + global_count + m_string_literal_cache.size() + m_small_string_pool.size() + 1uz);
+
+	if (stack_count > 0uz)
+	{
+		for (MidoriValue* it = m_value_stack_begin; it != m_value_stack_pointer; ++it)
 		{
-			roots.emplace_back(ptr);
+			MidoriTraceable* ptr = it->GetPointer();
+			if (ptr && m_gc.Contains(ptr))
+			{
+				roots.emplace_back(ptr);
+			}
 		}
 	}
 
-	return roots;
-}
-
-GarbageCollector::GarbageCollectionRoots VirtualMachine::GetValueStackGarbageCollectionRoots() const noexcept
-{
-	GarbageCollector::GarbageCollectionRoots roots;
-	roots.reserve((m_value_stack_pointer - m_value_stack_begin));
-
-	for (MidoriValue* it = m_value_stack_begin; it != m_value_stack_pointer; ++it)
+	if (m_global_vars != nullptr)
 	{
-		MidoriTraceable* ptr = it->GetPointer();
-		if (ptr && m_gc.Contains(ptr))
+		for (const MidoriValue& val : *m_global_vars)
 		{
-			roots.emplace_back(ptr);
+			MidoriTraceable* ptr = val.GetPointer();
+			if (ptr != nullptr && m_gc.Contains(ptr))
+			{
+				roots.emplace_back(ptr);
+			}
 		}
 	}
-
-	return roots;
-}
-
-GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoots() const noexcept
-{
-	GarbageCollector::GarbageCollectionRoots stack_roots = GetValueStackGarbageCollectionRoots();
-	GarbageCollector::GarbageCollectionRoots global_roots = GetGlobalTableGarbageCollectionRoots();
-
-	stack_roots.insert(stack_roots.end(), global_roots.cbegin(), global_roots.cend());
 
 	if (m_curr_closure_traceable != nullptr)
 	{
-		stack_roots.emplace_back(m_curr_closure_traceable);
+		roots.emplace_back(m_curr_closure_traceable);
 	}
 
 	for (MidoriTraceable* cached_string : m_string_literal_cache)
 	{
 		if (cached_string)
 		{
-			stack_roots.emplace_back(cached_string);
+			roots.emplace_back(cached_string);
 		}
 	}
 
@@ -375,11 +378,16 @@ GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoo
 	{
 		if (value)
 		{
-			stack_roots.emplace_back(value);
+			roots.emplace_back(value);
 		}
 	}
+}
 
-	return stack_roots;
+GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoots() const noexcept
+{
+	GarbageCollector::GarbageCollectionRoots roots;
+	BuildGarbageCollectionRoots(roots);
+	return roots;
 }
 
 MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexcept
@@ -480,6 +488,23 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::LOAD_STRING:
 		{
 			size_t index = static_cast<size_t>(ReadByte());
+			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
+			{
+				if (index >= m_string_literal_cache.size())
+				{
+					m_string_literal_cache.resize(index + 1, nullptr);
+				}
+				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data());
+			}
+			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
+			MidoriText text_copy(cached_text);
+			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
+			Push(new_string);
+			break;
+		}
+		case OpCode::LOAD_STRING_WIDE:
+		{
+			size_t index = static_cast<size_t>(ReadShort());
 			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
 			{
 				if (index >= m_string_literal_cache.size())
@@ -1161,6 +1186,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect();
 			break;
 		}
+		case OpCode::EXTEND_ARRAY:
+		{
+			MidoriValue value = Pop();
+			MidoriValue& array = Peek();
+
+			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
+			MidoriArray& other_ref = value.GetPointer()->GetTraceable<MidoriArray>();
+			array_ref.Extend(other_ref);
+			TryCollect();
+			break;
+		}
 		case OpCode::PREPEND_ARRAY:
 		{
 			MidoriValue value = Pop();
@@ -1828,15 +1864,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
 			}
 
-			struct ArrayArgument
+			m_ffi_array_args.clear();
+			if (m_ffi_array_args.capacity() < static_cast<size_t>(arity))
 			{
-				void* data;
-				int length;
-			};
-
-			std::vector<ArrayArgument> array_arg_storage;
-			array_arg_storage.reserve(arity);
-			void* args[UINT8_MAX] = {};
+				m_ffi_array_args.reserve(static_cast<size_t>(arity));
+			}
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
@@ -1847,26 +1879,30 @@ int VirtualMachine::ExecuteLoop() noexcept
 					MidoriTraceable* ptr = arg.GetPointer();
 					if (ptr->IsTraceable<MidoriText>())
 					{
-						args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+						m_ffi_args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
 					}
 					else if (ptr->IsTraceable<MidoriArray>())
 					{
 						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
-						ArrayArgument array_arg;
+						FFIArrayArgument array_arg;
 						array_arg.data = &array[0u];
 						array_arg.length = array.GetLength();
-						array_arg_storage.push_back(array_arg);
-						args[static_cast<size_t>(idx)] = &array_arg_storage.back();
+						m_ffi_array_args.push_back(array_arg);
+						m_ffi_args[static_cast<size_t>(idx)] = &m_ffi_array_args.back();
+					}
+					else
+					{
+						m_ffi_args[static_cast<size_t>(idx)] = nullptr;
 					}
 				}
 				else
 				{
-					std::memcpy(&args[idx], arg.GetRawDataPtr(), sizeof(double));
+					std::memcpy(&m_ffi_args[idx], arg.GetRawDataPtr(), sizeof(double));
 				}
 			}
 
 			MidoriValue return_val;
-			proc(args, reinterpret_cast<void*>(&return_val));
+			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
 			if (return_type == 1)
 			{
@@ -1922,15 +1958,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			FFIFunction proc = m_ffi_table[ffi_index];
 
-			struct ArrayArgument
+			m_ffi_array_args.clear();
+			if (m_ffi_array_args.capacity() < static_cast<size_t>(arity))
 			{
-				void* data;
-				int length;
-			};
-
-			std::vector<ArrayArgument> array_arg_storage;
-			array_arg_storage.reserve(arity);
-			void* args[UINT8_MAX] = {};
+				m_ffi_array_args.reserve(static_cast<size_t>(arity));
+			}
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
@@ -1941,26 +1973,30 @@ int VirtualMachine::ExecuteLoop() noexcept
 					MidoriTraceable* ptr = arg.GetPointer();
 					if (ptr->IsTraceable<MidoriText>())
 					{
-						args[idx] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+						m_ffi_args[idx] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
 					}
 					else if (ptr->IsTraceable<MidoriArray>())
 					{
 						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
-						ArrayArgument array_arg;
+						FFIArrayArgument array_arg;
 						array_arg.data = &array[0u];
 						array_arg.length = array.GetLength();
-						array_arg_storage.push_back(array_arg);
-						args[idx] = &array_arg_storage.back();
+						m_ffi_array_args.push_back(array_arg);
+						m_ffi_args[idx] = &m_ffi_array_args.back();
+					}
+					else
+					{
+						m_ffi_args[idx] = nullptr;
 					}
 				}
 				else
 				{
-					std::memcpy(&args[idx], arg.GetRawDataPtr(), sizeof(double));
+					std::memcpy(&m_ffi_args[idx], arg.GetRawDataPtr(), sizeof(double));
 				}
 			}
 
 			MidoriValue return_val;
-			proc(args, reinterpret_cast<void*>(&return_val));
+			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
 			if (return_type == 1)
 			{
@@ -2031,10 +2067,53 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
+		case OpCode::CALL_0:
+		case OpCode::CALL_1:
+		case OpCode::CALL_2:
+		case OpCode::CALL_3:
+		{
+			MidoriValue callable = Pop();
+			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_0);
+
+#if MIDORI_DEBUG_FULL
+			if (!callable.IsPointer())
+			{
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
+			// Save caller's frame before switching to callee
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+
+			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
 		case OpCode::CALL_PROC:
 		{
 			int proc_index = static_cast<int>(ReadByte());
 			int arity = static_cast<int>(ReadByte());
+
+			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
+
+			// Static functions have no captures, so no environment needed
+			m_curr_environment = nullptr;
+			m_instruction_pointer = m_executable->GetBytecodeStream(proc_index)[0u];
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_PROC_0:
+		case OpCode::CALL_PROC_1:
+		case OpCode::CALL_PROC_2:
+		case OpCode::CALL_PROC_3:
+		{
+			int proc_index = static_cast<int>(ReadByte());
+			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_PROC_0);
 
 			PushCallFrame(m_value_stack_base_pointer, m_instruction_pointer, m_curr_environment);
 
@@ -2193,6 +2272,27 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SET_LOCAL:
 		{
 			int offset = static_cast<int>(ReadByte());
+			MidoriValue& var = *(m_value_stack_base_pointer + offset);
+
+			MidoriValue& value = Peek();
+			var = value;
+			break;
+		}
+		case OpCode::GET_LOCAL_0:
+		case OpCode::GET_LOCAL_1:
+		case OpCode::GET_LOCAL_2:
+		case OpCode::GET_LOCAL_3:
+		{
+			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::GET_LOCAL_0);
+			Push(*(m_value_stack_base_pointer + offset));
+			break;
+		}
+		case OpCode::SET_LOCAL_0:
+		case OpCode::SET_LOCAL_1:
+		case OpCode::SET_LOCAL_2:
+		case OpCode::SET_LOCAL_3:
+		{
+			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::SET_LOCAL_0);
 			MidoriValue& var = *(m_value_stack_base_pointer + offset);
 
 			MidoriValue& value = Peek();

@@ -3293,6 +3293,47 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 		);
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ExtendAssign& extend_assign)
+{
+	return Evaluate(extend_assign.m_value)
+		.and_then
+		(
+			[&extend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
+			{
+				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				{
+					TypeEnvironment::iterator var = it->find(extend_assign.m_name.m_lexeme);
+					if (var != it->end())
+					{
+						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
+						if (!target_type->IsType<MidoriType::ArrayType>() && !target_type->IsType<MidoriType::TypeVariable>())
+						{
+							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: expected array type", extend_assign.m_name, m_file_name, m_source_lines, target_type));
+						}
+
+						if (target_type->IsType<MidoriType::ArrayType>())
+						{
+							return Unify(extend_assign.m_name, target_type, value_type)
+								.and_then
+								(
+									[&extend_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+									{
+										extend_assign.m_type_data = target_type;
+										return extend_assign.m_type_data;
+									}
+								);
+						}
+
+						extend_assign.m_type_data = target_type;
+						return extend_assign.m_type_data;
+					}
+				}
+
+				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: variable not found", extend_assign.m_name, m_file_name, m_source_lines));
+			}
+		);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
 	return Evaluate(prepend_assign.m_value)

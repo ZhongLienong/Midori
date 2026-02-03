@@ -111,6 +111,21 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void LoadStringWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		int index = low_byte | (high_byte << 8);
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// string pool index");
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void JumpInstruction(std::string_view name, int sign, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
@@ -252,11 +267,37 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void CallFixedInstruction(std::string_view name, int arity, int& offset)
+	{
+		offset += 1;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of parameters: " + std::to_string(arity));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void CallDirectInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int target_proc = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(target_proc));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// proc: " + std::to_string(target_proc) + ", params: " + std::to_string(arity));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
+	void CallDirectFixedInstruction(std::string_view name, int arity, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int target_proc = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		offset += 2;
 		std::ostringstream formated_str;
 
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
@@ -428,6 +469,9 @@ namespace Disassembler
 		{
 		case OpCode::LOAD_STRING:
 			LoadStringInstruction("LOAD_STRING", executable, proc_index, offset);
+			break;
+		case OpCode::LOAD_STRING_WIDE:
+			LoadStringWideInstruction("LOAD_STRING_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::INTEGER_CONSTANT:
 			NumericConstantInstruction(true, "INTEGER_CONSTANT", executable, proc_index, offset);
@@ -657,6 +701,9 @@ namespace Disassembler
 		case OpCode::APPEND_ARRAY:
 			SimpleInstruction("APPEND_ARRAY", offset);
 			break;
+		case OpCode::EXTEND_ARRAY:
+			SimpleInstruction("EXTEND_ARRAY", offset);
+			break;
 		case OpCode::PREPEND_ARRAY:
 			SimpleInstruction("PREPEND_ARRAY", offset);
 			break;
@@ -867,8 +914,32 @@ namespace Disassembler
 		case OpCode::CALL:
 			CallInstruction("CALL", executable, proc_index, offset);
 			break;
+		case OpCode::CALL_0:
+			CallFixedInstruction("CALL_0", 0, offset);
+			break;
+		case OpCode::CALL_1:
+			CallFixedInstruction("CALL_1", 1, offset);
+			break;
+		case OpCode::CALL_2:
+			CallFixedInstruction("CALL_2", 2, offset);
+			break;
+		case OpCode::CALL_3:
+			CallFixedInstruction("CALL_3", 3, offset);
+			break;
 		case OpCode::CALL_PROC:
 			CallDirectInstruction("CALL_PROC", executable, proc_index, offset);
+			break;
+		case OpCode::CALL_PROC_0:
+			CallDirectFixedInstruction("CALL_PROC_0", 0, executable, proc_index, offset);
+			break;
+		case OpCode::CALL_PROC_1:
+			CallDirectFixedInstruction("CALL_PROC_1", 1, executable, proc_index, offset);
+			break;
+		case OpCode::CALL_PROC_2:
+			CallDirectFixedInstruction("CALL_PROC_2", 2, executable, proc_index, offset);
+			break;
+		case OpCode::CALL_PROC_3:
+			CallDirectFixedInstruction("CALL_PROC_3", 3, executable, proc_index, offset);
 			break;
 		case OpCode::TAIL_CALL:
 			CallInstruction("TAIL_CALL", executable, proc_index, offset);
@@ -902,6 +973,30 @@ namespace Disassembler
 			break;
 		case OpCode::SET_LOCAL:
 			LocalOrCellVariableInstruction("SET_LOCAL", executable, proc_index, offset);
+			break;
+		case OpCode::GET_LOCAL_0:
+			SimpleInstruction("GET_LOCAL_0", offset);
+			break;
+		case OpCode::GET_LOCAL_1:
+			SimpleInstruction("GET_LOCAL_1", offset);
+			break;
+		case OpCode::GET_LOCAL_2:
+			SimpleInstruction("GET_LOCAL_2", offset);
+			break;
+		case OpCode::GET_LOCAL_3:
+			SimpleInstruction("GET_LOCAL_3", offset);
+			break;
+		case OpCode::SET_LOCAL_0:
+			SimpleInstruction("SET_LOCAL_0", offset);
+			break;
+		case OpCode::SET_LOCAL_1:
+			SimpleInstruction("SET_LOCAL_1", offset);
+			break;
+		case OpCode::SET_LOCAL_2:
+			SimpleInstruction("SET_LOCAL_2", offset);
+			break;
+		case OpCode::SET_LOCAL_3:
+			SimpleInstruction("SET_LOCAL_3", offset);
 			break;
 		case OpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);

@@ -9,6 +9,7 @@ enum class OpCode : uint8_t
 {
 	// Constants and Literals
 	LOAD_STRING,
+	LOAD_STRING_WIDE,
 	INTEGER_CONSTANT,
 	FLOAT_CONSTANT,
 	BYTE_CONSTANT,
@@ -102,6 +103,7 @@ enum class OpCode : uint8_t
 	// Array Mutations
 	APPEND_ARRAY,
 	PREPEND_ARRAY,
+	EXTEND_ARRAY,
 
 	// Text Mutations
 	APPEND_TEXT,
@@ -187,7 +189,15 @@ enum class OpCode : uint8_t
 	CALL_FOREIGN,
 	CALL_FOREIGN_INDEXED,
 	CALL,
+	CALL_0,
+	CALL_1,
+	CALL_2,
+	CALL_3,
 	CALL_PROC,
+	CALL_PROC_0,
+	CALL_PROC_1,
+	CALL_PROC_2,
+	CALL_PROC_3,
 	TAIL_CALL,
 	CONSTRUCT_STRUCT,
 	CONSTRUCT_UNION,
@@ -201,6 +211,14 @@ enum class OpCode : uint8_t
 	SET_GLOBAL,
 	GET_LOCAL,
 	SET_LOCAL,
+	GET_LOCAL_0,
+	GET_LOCAL_1,
+	GET_LOCAL_2,
+	GET_LOCAL_3,
+	SET_LOCAL_0,
+	SET_LOCAL_1,
+	SET_LOCAL_2,
+	SET_LOCAL_3,
 	GET_CELL,
 	SET_CELL,
 

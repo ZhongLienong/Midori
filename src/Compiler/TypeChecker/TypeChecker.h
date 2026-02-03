@@ -186,6 +186,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::AppendAssign& append_assign);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::ExtendAssign& extend_assign);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::PrependAssign& prepend_assign);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::CompoundAssign& compound_assign);

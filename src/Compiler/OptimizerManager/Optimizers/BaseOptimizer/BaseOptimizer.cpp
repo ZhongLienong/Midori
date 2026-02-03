@@ -148,6 +148,11 @@ void MidoriOptimizer::operator()(MidoriExpression::AppendAssign& append_assign)
 	VisitAndReplace(append_assign.m_value);
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::ExtendAssign& extend_assign)
+{
+	VisitAndReplace(extend_assign.m_value);
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
 	VisitAndReplace(prepend_assign.m_value);

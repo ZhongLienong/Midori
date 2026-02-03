@@ -33,7 +33,7 @@ public:
 	GarbageCollector(const GarbageCollector&) = delete;
 	GarbageCollector& operator=(const GarbageCollector&) = delete;
 
-	void ReclaimMemory(GarbageCollectionRoots&& roots, MidoriAllocator& allocator, bool force_clean = false);
+	void ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean = false);
 
 	bool ShouldCollect() const;
 

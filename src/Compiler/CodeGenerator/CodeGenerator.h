@@ -120,6 +120,10 @@ private:
 
 	void EmitVariable(int variable_index, OpCode op, int line);
 
+	void EmitCall(int arity, int line);
+
+	void EmitCallProc(int proc_index, int arity, int line);
+
 	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, TypeEnvironment& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited) const;
 
 	bool EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter_type, const std::shared_ptr<MidoriType>& item_type, int line);
@@ -205,6 +209,8 @@ private:
 	void operator()(MidoriExpression::Assignment& bind);
 
 	void operator()(MidoriExpression::AppendAssign& append_assign);
+
+	void operator()(MidoriExpression::ExtendAssign& extend_assign);
 
 	void operator()(MidoriExpression::PrependAssign& prepend_assign);
 

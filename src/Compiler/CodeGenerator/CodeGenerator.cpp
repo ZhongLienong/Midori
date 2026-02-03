@@ -1,3 +1,4 @@
+#include <bit>
 #include <cctype>
 #include <filesystem>
 #include <format>
@@ -30,15 +31,16 @@ void CodeGenerator::PopByte(int line)
 
 void CodeGenerator::EmitTextConstant(std::string_view data, int line)
 {
-	if (m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT)
+	if (m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT_LONG)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Too many text constants", line, m_file_name, m_source_lines));
 		return;
 	}
 
 	m_string_pool.emplace_back(data);
-	EmitByte(OpCode::LOAD_STRING, line);
-	EmitByte(static_cast<OpCode>(m_string_pool_index++), line);
+	const int string_index = m_string_pool_index++;
+	EmitByte(OpCode::LOAD_STRING_WIDE, line);
+	EmitTwoBytes(string_index & BYTE_MASK, (string_index >> SHIFT_8_BITS) & BYTE_MASK, line);
 }
 
 void CodeGenerator::EmitTwoBytes(int byte1, int byte2, int line)
@@ -85,7 +87,7 @@ void CodeGenerator::EmitNumericConstant(MidoriInteger val, int line, bool is_int
 
 void CodeGenerator::EmitFloatConstant(MidoriFloat value, int line)
 {
-	MidoriInteger reinterpreted_int = *reinterpret_cast<MidoriInteger*>(&value);
+	MidoriInteger reinterpreted_int = std::bit_cast<MidoriInteger>(value);
 	EmitNumericConstant(reinterpreted_int, line, false);
 }
 
@@ -152,6 +154,20 @@ void CodeGenerator::EmitWordConstant(MidoriWord value, int line)
 
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 {
+	if (variable_index >= 0 && variable_index <= 3)
+	{
+		if (op == OpCode::GET_LOCAL)
+		{
+			EmitByte(static_cast<OpCode>(static_cast<int>(OpCode::GET_LOCAL_0) + variable_index), line);
+			return;
+		}
+		if (op == OpCode::SET_LOCAL)
+		{
+			EmitByte(static_cast<OpCode>(static_cast<int>(OpCode::SET_LOCAL_0) + variable_index), line);
+			return;
+		}
+	}
+
 	if (variable_index <= MAX_LOCAL_VARIABLES)
 	{
 		EmitByte(op, line);
@@ -196,6 +212,59 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 
 	EmitByte(wide_op, line);
 	EmitTwoBytes(variable_index >> 8, variable_index & 0xFF, line);
+}
+
+void CodeGenerator::EmitCall(int arity, int line)
+{
+	switch (arity)
+	{
+	case 0:
+		EmitByte(OpCode::CALL_0, line);
+		return;
+	case 1:
+		EmitByte(OpCode::CALL_1, line);
+		return;
+	case 2:
+		EmitByte(OpCode::CALL_2, line);
+		return;
+	case 3:
+		EmitByte(OpCode::CALL_3, line);
+		return;
+	default:
+		break;
+	}
+
+	EmitByte(OpCode::CALL, line);
+	EmitByte(static_cast<OpCode>(arity), line);
+}
+
+void CodeGenerator::EmitCallProc(int proc_index, int arity, int line)
+{
+	switch (arity)
+	{
+	case 0:
+		EmitByte(OpCode::CALL_PROC_0, line);
+		EmitByte(static_cast<OpCode>(proc_index), line);
+		return;
+	case 1:
+		EmitByte(OpCode::CALL_PROC_1, line);
+		EmitByte(static_cast<OpCode>(proc_index), line);
+		return;
+	case 2:
+		EmitByte(OpCode::CALL_PROC_2, line);
+		EmitByte(static_cast<OpCode>(proc_index), line);
+		return;
+	case 3:
+		EmitByte(OpCode::CALL_PROC_3, line);
+		EmitByte(static_cast<OpCode>(proc_index), line);
+		return;
+	default:
+		break;
+	}
+
+	EmitByte(OpCode::CALL_PROC, line);
+	EmitByte(static_cast<OpCode>(proc_index), line);
+	EmitByte(static_cast<OpCode>(arity), line);
 }
 
 bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, TypeEnvironment& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited) const
@@ -390,8 +459,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 
 				if (EmitResolvedNameGetGlobal(candidate.m_resolved_name, line))
 				{
-					EmitByte(OpCode::CALL, line);
-					EmitByte(static_cast<OpCode>(1), line);
+					EmitCall(1, line);
 					return true;
 				}
 
@@ -411,8 +479,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 		if (it != m_global_variables.end())
 		{
 			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-			EmitByte(OpCode::CALL, line);
-			EmitByte(static_cast<OpCode>(1), line);
+			EmitCall(1, line);
 			return true;
 		}
 
@@ -484,8 +551,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 		{
 			if (EmitResolvedNameGetGlobal(resolved_name.value(), line))
 			{
-				EmitByte(OpCode::CALL, line);
-				EmitByte(static_cast<OpCode>(1), line);
+				EmitCall(1, line);
 				return true;
 			}
 
@@ -570,8 +636,7 @@ void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& opera
 	if (it != m_global_variables.end())
 	{
 		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitByte(OpCode::CALL, line);
-		EmitByte(static_cast<OpCode>(2), line);
+		EmitCall(2, line);
 	}
 	else
 	{
@@ -586,8 +651,7 @@ void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& oper
 	if (it != m_global_variables.end())
 	{
 		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitByte(OpCode::CALL, line);
-		EmitByte(static_cast<OpCode>(2), line);
+		EmitCall(2, line);
 	}
 	else
 	{
@@ -1488,8 +1552,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 			{
 				if (EmitResolvedNameGetGlobal(resolved_method, line))
 				{
-					EmitByte(OpCode::CALL, line);
-					EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
+					EmitCall(1, line);
 					return;
 				}
 			}
@@ -1506,8 +1569,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 			if (it != m_global_variables.end())
 			{
 				EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-				EmitByte(OpCode::CALL, line);
-				EmitByte(static_cast<OpCode>(1), line);  // 1 parameter
+				EmitCall(1, line);
 				return;
 			}
 
@@ -1579,8 +1641,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 			{
 				if (EmitResolvedNameGetGlobal(resolved_name.value(), line))
 				{
-					EmitByte(OpCode::CALL, line);
-					EmitByte(static_cast<OpCode>(1), line);
+					EmitCall(1, line);
 					return;
 				}
 			}
@@ -2215,9 +2276,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 			GenericFunctionInfo& generic_info = m_generic_functions[function_name];
 			if (generic_info.m_captured_count == 0)
 			{
-				EmitByte(OpCode::CALL_PROC, line);
-				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-				EmitByte(static_cast<OpCode>(1), line);
+				EmitCallProc(specialized_proc_index, 1, line);
 			}
 			else
 			{
@@ -2225,8 +2284,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
 				EmitByte(OpCode::BIND_CAPTURES, line);
 				EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
-				EmitByte(OpCode::CALL, line);
-				EmitByte(static_cast<OpCode>(1), line);
+				EmitCall(1, line);
 			}
 
 			return true;
@@ -2258,8 +2316,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 				{
 					if (EmitResolvedNameGetGlobal(resolved_method, line))
 					{
-						EmitByte(OpCode::CALL, line);
-						EmitByte(static_cast<OpCode>(1), line);
+						EmitCall(1, line);
 						return true;
 					}
 				}
@@ -2272,8 +2329,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 				if (it != m_global_variables.end())
 				{
 					EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-					EmitByte(OpCode::CALL, line);
-					EmitByte(static_cast<OpCode>(1), line);
+					EmitCall(1, line);
 					return true;
 				}
 
@@ -2437,9 +2493,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 			else
 			{
-				EmitByte(OpCode::CALL_PROC, line);
-				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-				EmitByte(static_cast<OpCode>(arity), line);
+				EmitCallProc(specialized_proc_index, arity, line);
 			}
 		}
 		else
@@ -2457,9 +2511,12 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 			else
 			{
-				EmitByte(OpCode::CALL, line);
+				EmitCall(arity, line);
 			}
-			EmitByte(static_cast<OpCode>(arity), line);
+			if (call.m_is_tail_call)
+			{
+				EmitByte(static_cast<OpCode>(arity), line);
+			}
 		}
 	}
 	else
@@ -2537,8 +2594,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		}
 		else
 		{
-			EmitByte(OpCode::CALL, line);
-			EmitByte(static_cast<OpCode>(arity), line);
+			EmitCall(arity, line);
 		}
 	}
 }
@@ -2667,6 +2723,35 @@ void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
 	{
 		EmitByte(OpCode::APPEND_TEXT, line);
 	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::ExtendAssign& extend_assign)
+{
+	int line = extend_assign.m_name.m_line;
+
+	std::visit([&extend_assign, line, this](auto&& arg)
+		{
+			using T = std::decay_t<decltype(arg)>;
+
+			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
+			{
+				const std::string& name = extend_assign.m_name.m_lexeme;
+				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
+			{
+				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+			}
+		},
+		extend_assign.m_name_ctx
+	);
+
+	Visit(extend_assign.m_value);
+	EmitByte(OpCode::EXTEND_ARRAY, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)

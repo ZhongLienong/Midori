@@ -409,6 +409,15 @@ public:
 		AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
+	struct ExtendAssign : BaseExpression
+	{
+		Token m_name;
+		std::unique_ptr<MidoriExpression> m_value;
+		NameContext::Tag m_name_ctx;
+
+		ExtendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+	};
+
 	struct PrependAssign : BaseExpression
 	{
 		Token m_name;
@@ -684,7 +693,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, AppendAssign, PrependAssign, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break, Async, Await>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, AppendAssign, ExtendAssign, PrependAssign, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break, Async, Await>;
 	ExpressionUnion m_variant;
 
 public:
@@ -790,6 +799,10 @@ public:
 				);
 
 				return node.m_callee->template Contains<Kind>() || has_arg;
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::ExtendAssign>)
+			{
+				return node.m_value->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 			{
