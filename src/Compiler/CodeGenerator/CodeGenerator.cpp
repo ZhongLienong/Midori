@@ -12,10 +12,39 @@
 
 using namespace std::string_literals;
 
-void CodeGenerator::EmitByte(OpCode byte, int line)
+namespace
+{
+	bool HasNameSuffix(const std::string& name, std::string_view suffix)
+	{
+		if (name == suffix)
+		{
+			return true;
+		}
+		if (!name.ends_with(suffix))
+		{
+			return false;
+		}
+		size_t pos = name.size() - suffix.size();
+		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
+	}
+}
+
+CodeGenerator::BytecodeBuilder CodeGenerator::BytecodeBuilder::EmitByte(OpCode byte, int line) &&
 {
 	m_last_opcode = byte;
 	m_procedures[m_current_procedure_index].AddByteCode(byte, line);
+	return std::move(*this);
+}
+
+CodeGenerator::BytecodeBuilder CodeGenerator::BytecodeBuilder::PopByte(int line) &&
+{
+	m_procedures[m_current_procedure_index].PopByteCode(line);
+	return std::move(*this);
+}
+
+void CodeGenerator::EmitByte(OpCode byte, int line)
+{
+	m_builder = std::move(m_builder).EmitByte(byte, line);
 }
 
 void CodeGenerator::AddError(std::string&& error)
@@ -26,19 +55,19 @@ void CodeGenerator::AddError(std::string&& error)
 
 void CodeGenerator::PopByte(int line)
 {
-	m_procedures[m_current_procedure_index].PopByteCode(line);
+	m_builder = std::move(m_builder).PopByte(line);
 }
 
 void CodeGenerator::EmitTextConstant(std::string_view data, int line)
 {
-	if (m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT_LONG)
+	if (m_builder.m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT_LONG)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Too many text constants", line, m_file_name, m_source_lines));
 		return;
 	}
 
-	m_string_pool.emplace_back(data);
-	const int string_index = m_string_pool_index++;
+	m_builder.m_string_pool.emplace_back(data);
+	const int string_index = m_builder.m_string_pool_index++;
 	EmitByte(OpCode::LOAD_STRING_WIDE, line);
 	EmitTwoBytes(string_index & BYTE_MASK, (string_index >> SHIFT_8_BITS) & BYTE_MASK, line);
 }
@@ -407,7 +436,7 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 
 		for (const auto& [member_name, pattern_ctx] : pattern_union.m_member_info)
 		{
-			auto concrete_it = concrete_union.m_member_info.find(member_name);
+			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::const_iterator concrete_it = concrete_union.m_member_info.find(member_name);
 			if (concrete_it == concrete_union.m_member_info.end())
 			{
 				return false;
@@ -483,31 +512,6 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 			return true;
 		}
 
-		auto resolve_instance_name = [this](const std::string& base_name) -> std::optional<std::string>
-		{
-			if (m_global_variables.contains(base_name))
-			{
-				return base_name;
-			}
-
-			TypeclassInstanceMap::iterator instances_it = m_class_instances.find(std::string(ITERABLE_CLASS_NAME));
-			if (instances_it == m_class_instances.end())
-			{
-				return std::nullopt;
-			}
-
-			std::string pattern_with_at = base_name + ModuleSeparator;
-			for (const std::string& instance_method : instances_it->second)
-			{
-				if (instance_method == base_name || instance_method.starts_with(pattern_with_at))
-				{
-					return instance_method;
-				}
-			}
-
-			return std::nullopt;
-		};
-
 		std::optional<std::string> resolved_name;
 		TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(std::string(ITERABLE_CLASS_NAME));
 		if (instance_args_it != m_class_instance_type_args.end())
@@ -531,7 +535,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 				}
 
 				std::string candidate_base = MidoriType::MangleInstanceMethodName(std::string(NEXT_METHOD_NAME), std::string(ITERABLE_CLASS_NAME), candidate_args);
-				std::optional<std::string> candidate_name = resolve_instance_name(candidate_base);
+				std::optional<std::string> candidate_name = ResolveInstanceName(std::string(ITERABLE_CLASS_NAME), candidate_base);
 				if (!candidate_name.has_value())
 				{
 					continue;
@@ -566,6 +570,31 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 	return false;
 }
 
+std::optional<std::string> CodeGenerator::ResolveInstanceName(const std::string& class_name, const std::string& base_name) const
+{
+	if (m_global_variables.contains(base_name))
+	{
+		return base_name;
+	}
+
+	TypeclassInstanceMap::const_iterator instances_it = m_class_instances.find(class_name);
+	if (instances_it == m_class_instances.end())
+	{
+		return std::nullopt;
+	}
+
+	std::string pattern_with_at = base_name + ModuleSeparator;
+	for (const std::string& instance_method : instances_it->second)
+	{
+		if (instance_method == base_name || instance_method.starts_with(pattern_with_at))
+		{
+			return instance_method;
+		}
+	}
+
+	return std::nullopt;
+}
+
 int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line)
 {
 	int import_slot = -1;
@@ -598,27 +627,27 @@ int CodeGenerator::EmitJump(OpCode op, int line)
 	EmitByte(op, line);
 	EmitByte(static_cast<OpCode>(BYTE_MASK), line);
 	EmitByte(static_cast<OpCode>(BYTE_MASK), line);
-	return m_procedures[m_current_procedure_index].GetByteCodeSize() - 2;
+	return m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 2;
 }
 
 void CodeGenerator::PatchJump(int offset, int line)
 {
-	int jump = m_procedures[m_current_procedure_index].GetByteCodeSize() - offset - 2;
+	int jump = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - offset - 2;
 	if (jump > MAX_JUMP_SIZE)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too much code to jump over (max {})", MAX_JUMP_SIZE + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 
-	m_procedures[m_current_procedure_index].SetByteCode(offset, static_cast<OpCode>(jump & BYTE_MASK));
-	m_procedures[m_current_procedure_index].SetByteCode(offset + 1, static_cast<OpCode>((jump >> SHIFT_8_BITS) & BYTE_MASK));
+	m_builder.m_procedures[m_builder.m_current_procedure_index].SetByteCode(offset, static_cast<OpCode>(jump & BYTE_MASK));
+	m_builder.m_procedures[m_builder.m_current_procedure_index].SetByteCode(offset + 1, static_cast<OpCode>((jump >> SHIFT_8_BITS) & BYTE_MASK));
 }
 
 void CodeGenerator::EmitLoop(int loop_start, int line)
 {
 	EmitByte(OpCode::JUMP_BACK, line);
 
-	int offset = m_procedures[m_current_procedure_index].GetByteCodeSize() - loop_start + 2;
+	int offset = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - loop_start + 2;
 	if (offset > MAX_JUMP_SIZE)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Loop body too large (max {})", MAX_JUMP_SIZE + 1), line, m_file_name, m_source_lines));
@@ -677,42 +706,42 @@ void CodeGenerator::EmitPopCount(int count, int line)
 	}
 }
 
+bool CodeGenerator::AreTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) const
+{
+	if (left.size() != right.size())
+	{
+		return false;
+	}
+	for (size_t i = 0u; i < left.size(); i += 1u)
+	{
+		if (*left[i] != *right[i])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void CodeGenerator::AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
+{
+	std::vector<std::vector<std::shared_ptr<MidoriType>>>& existing_args = m_class_instance_type_args[class_name];
+	const bool already_present = std::ranges::any_of
+	(
+		existing_args,
+		[this, &type_args](const std::vector<std::shared_ptr<MidoriType>>& candidate)
+		{
+			return AreTypeArgsEqual(candidate, type_args);
+		}
+	);
+
+	if (!already_present)
+	{
+		existing_args.push_back(type_args);
+	}
+}
+
 void CodeGenerator::EmitInstanceMethodDefinitions()
 {
-	auto type_args_equal = [](const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) -> bool
-		{
-			if (left.size() != right.size())
-			{
-				return false;
-			}
-			for (size_t i = 0u; i < left.size(); i += 1u)
-			{
-				if (*left[i] != *right[i])
-				{
-					return false;
-				}
-			}
-			return true;
-		};
-
-	auto add_instance_type_args = [this, &type_args_equal](const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
-		{
-			std::vector<std::vector<std::shared_ptr<MidoriType>>>& existing_args = m_class_instance_type_args[class_name];
-			bool already_present = std::ranges::any_of
-			(
-				existing_args,
-				[&type_args_equal, &type_args](const std::vector<std::shared_ptr<MidoriType>>& candidate)
-				{
-					return type_args_equal(candidate, type_args);
-				}
-			);
-
-			if (!already_present)
-			{
-				existing_args.push_back(type_args);
-			}
-		};
-
 	std::vector<std::unique_ptr<MidoriStatement>> rewritten;
 	rewritten.reserve(m_program_tree.size());
 
@@ -725,7 +754,7 @@ void CodeGenerator::EmitInstanceMethodDefinitions()
 		}
 
 		MidoriStatement::Instance& instance_stmt = statement->GetStatement<MidoriStatement::Instance>();
-		add_instance_type_args(instance_stmt.m_class_name.m_lexeme, instance_stmt.m_type_args);
+		AddInstanceTypeArgs(instance_stmt.m_class_name.m_lexeme, instance_stmt.m_type_args);
 
 		for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 		{
@@ -752,49 +781,46 @@ void CodeGenerator::EmitInstanceMethodDefinitions()
 
 int CodeGenerator::CountPatternBindings(const MidoriPattern& pattern) const
 {
-	std::function<int(const MidoriPattern&)> count = [&](const MidoriPattern& current) -> int
+	if (pattern.IsPattern<MidoriPattern::Binding>())
+	{
+		return 1;
+	}
+	if (pattern.IsPattern<MidoriPattern::Literal>())
+	{
+		return 0;
+	}
+	if (pattern.IsPattern<MidoriPattern::Tuple>())
+	{
+		int total = 0;
+		const MidoriPattern::Tuple& tuple = pattern.GetPattern<MidoriPattern::Tuple>();
+		for (const std::unique_ptr<MidoriPattern>& elem : tuple.m_elements)
 		{
-			return std::visit
-			(
-				[&](auto&& node) -> int
-				{
-					using T = std::decay_t<decltype(node)>;
-					if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
-					{
-						return 1;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
-					{
-						return 0;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
-					{
-						int total = 0;
-						for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
-						{
-							total += count(*elem);
-						}
-						return total;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
-					{
-						int total = 0;
-						for (const std::unique_ptr<MidoriPattern>& arg : node.m_args)
-						{
-							total += count(*arg);
-						}
-						return total;
-					}
-					else
-					{
-						return 0;
-					}
-				},
-				*current
-			);
-		};
+			total += CountPatternBindings(*elem);
+		}
+		return total;
+	}
+	if (pattern.IsPattern<MidoriPattern::Array>())
+	{
+		int total = 0;
+		const MidoriPattern::Array& array = pattern.GetPattern<MidoriPattern::Array>();
+		for (const std::unique_ptr<MidoriPattern>& elem : array.m_elements)
+		{
+			total += CountPatternBindings(*elem);
+		}
+		return total;
+	}
+	if (pattern.IsPattern<MidoriPattern::Constructor>())
+	{
+		int total = 0;
+		const MidoriPattern::Constructor& ctor = pattern.GetPattern<MidoriPattern::Constructor>();
+		for (const std::unique_ptr<MidoriPattern>& arg : ctor.m_args)
+		{
+			total += CountPatternBindings(*arg);
+		}
+		return total;
+	}
 
-	return count(pattern);
+	return 0;
 }
 
 void CodeGenerator::EmitPatternLiteralConstant(const MidoriPattern::Literal& literal)
@@ -891,201 +917,207 @@ void CodeGenerator::EmitPatternLiteralEquals(const MidoriPattern::Literal& liter
 
 void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<int>& failure_jumps, int extra_pops)
 {
-	std::visit
-	(
-		[this, &failure_jumps, extra_pops](auto&& node)
+	struct PatternCheckVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		std::vector<int>* m_failure_jumps = nullptr;
+		int m_extra_pops = 0;
+
+		void operator()(const MidoriPattern::Binding& node) const
 		{
-			using T = std::decay_t<decltype(node)>;
-			int line = 0;
-			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			m_self->EmitByte(OpCode::POP, node.m_name.m_line);
+		}
+
+		void operator()(const MidoriPattern::Literal& node) const
+		{
+			const int line = node.m_token.m_line;
+			if (node.m_kind == MidoriPattern::LiteralKind::Unit)
 			{
-				EmitByte(OpCode::POP, node.m_name.m_line);
+				m_self->EmitByte(OpCode::POP, line);
+				m_self->EmitByte(OpCode::OP_TRUE, line);
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			else
 			{
-				line = node.m_token.m_line;
-				if (node.m_kind == MidoriPattern::LiteralKind::Unit)
+				m_self->EmitPatternLiteralConstant(node);
+				m_self->EmitPatternLiteralEquals(node, line);
+			}
+
+			int jump_if_false = m_self->EmitJump(OpCode::JUMP_IF_FALSE, line);
+			m_self->EmitByte(OpCode::POP, line);
+			int jump_over_failure = m_self->EmitJump(OpCode::JUMP, line);
+			m_self->PatchJump(jump_if_false, line);
+			m_self->EmitByte(OpCode::POP, line);
+			m_self->EmitPopCount(m_extra_pops, line);
+			m_failure_jumps->emplace_back(m_self->EmitJump(OpCode::JUMP, line));
+			m_self->PatchJump(jump_over_failure, line);
+		}
+
+		void operator()(const MidoriPattern::Tuple& node) const
+		{
+			const int line = node.m_left_paren.m_line;
+			for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+			{
+				m_self->EmitByte(OpCode::DUP, line);
+				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(static_cast<OpCode>(1), line);
+				m_self->EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
+			}
+			m_self->EmitByte(OpCode::POP, line);
+		}
+
+		void operator()(const MidoriPattern::Array& node) const
+		{
+			const int line = node.m_left_bracket.m_line;
+			m_self->EmitByte(OpCode::DUP, line);
+			m_self->EmitByte(OpCode::GET_ARRAY_LENGTH, line);
+			m_self->EmitIntegerConstant(static_cast<MidoriInteger>(node.m_elements.size()), line);
+			m_self->EmitByte(OpCode::EQUAL_INTEGER, line);
+			int length_fail = m_self->EmitJump(OpCode::JUMP_IF_FALSE, line);
+			m_self->EmitByte(OpCode::POP, line);
+
+			for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+			{
+				m_self->EmitByte(OpCode::DUP, line);
+				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(static_cast<OpCode>(1), line);
+				m_self->EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
+			}
+			m_self->EmitByte(OpCode::POP, line);
+			int jump_over_failure = m_self->EmitJump(OpCode::JUMP, line);
+			m_self->PatchJump(length_fail, line);
+			m_self->EmitByte(OpCode::POP, line);
+			m_self->EmitPopCount(m_extra_pops + 1, line);
+			m_failure_jumps->emplace_back(m_self->EmitJump(OpCode::JUMP, line));
+			m_self->PatchJump(jump_over_failure, line);
+		}
+
+		void operator()(const MidoriPattern::Constructor& node) const
+		{
+			const int line = node.m_name_token.m_line;
+			if (node.m_is_union)
+			{
+				m_self->EmitByte(OpCode::DUP, line);
+				m_self->EmitByte(OpCode::GET_TAG, line);
+				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(node.m_tag), line);
+				m_self->EmitByte(OpCode::EQUAL_INTEGER, line);
+				int tag_fail = m_self->EmitJump(OpCode::JUMP_IF_FALSE, line);
+				m_self->EmitByte(OpCode::POP, line);
+
+				m_self->EmitByte(OpCode::LOAD_TAG, line);
+				m_self->EmitByte(OpCode::POP, line);
+
+				for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
 				{
-					EmitByte(OpCode::POP, line);
-					EmitByte(OpCode::OP_TRUE, line);
-				}
-				else
-				{
-					EmitPatternLiteralConstant(node);
-					EmitPatternLiteralEquals(node, line);
+					m_self->EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + i);
 				}
 
-				int jump_if_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
-				EmitByte(OpCode::POP, line);
-				int jump_over_failure = EmitJump(OpCode::JUMP, line);
-				PatchJump(jump_if_false, line);
-				EmitByte(OpCode::POP, line);
-				EmitPopCount(extra_pops, line);
-				failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-				PatchJump(jump_over_failure, line);
+				int jump_over_failure = m_self->EmitJump(OpCode::JUMP, line);
+				m_self->PatchJump(tag_fail, line);
+				m_self->EmitByte(OpCode::POP, line);
+				m_self->EmitByte(OpCode::POP, line);
+				m_self->EmitPopCount(m_extra_pops, line);
+				m_failure_jumps->emplace_back(m_self->EmitJump(OpCode::JUMP, line));
+				m_self->PatchJump(jump_over_failure, line);
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			else
 			{
-				line = node.m_left_paren.m_line;
-				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
 				{
-					EmitByte(OpCode::DUP, line);
-					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-					EmitByte(OpCode::GET_ARRAY, line);
-					EmitByte(static_cast<OpCode>(1), line);
-					EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
+					m_self->EmitByte(OpCode::DUP, line);
+					m_self->EmitByte(OpCode::GET_MEMBER, line);
+					m_self->EmitByte(static_cast<OpCode>(i), line);
+					m_self->EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
 				}
-				EmitByte(OpCode::POP, line);
+				m_self->EmitByte(OpCode::POP, line);
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
-			{
-				line = node.m_left_bracket.m_line;
-				EmitByte(OpCode::DUP, line);
-				EmitByte(OpCode::GET_ARRAY_LENGTH, line);
-				EmitIntegerConstant(static_cast<MidoriInteger>(node.m_elements.size()), line);
-				EmitByte(OpCode::EQUAL_INTEGER, line);
-				int length_fail = EmitJump(OpCode::JUMP_IF_FALSE, line);
-				EmitByte(OpCode::POP, line);
+		}
+	};
 
-				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
-				{
-					EmitByte(OpCode::DUP, line);
-					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-					EmitByte(OpCode::GET_ARRAY, line);
-					EmitByte(static_cast<OpCode>(1), line);
-					EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
-				}
-				EmitByte(OpCode::POP, line);
-				int jump_over_failure = EmitJump(OpCode::JUMP, line);
-				PatchJump(length_fail, line);
-				EmitByte(OpCode::POP, line);
-				EmitPopCount(extra_pops + 1, line);
-				failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-				PatchJump(jump_over_failure, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
-			{
-				line = node.m_name_token.m_line;
-				if (node.m_is_union)
-				{
-					EmitByte(OpCode::DUP, line);
-					EmitByte(OpCode::GET_TAG, line);
-					EmitIntegerConstant(static_cast<MidoriInteger>(node.m_tag), line);
-					EmitByte(OpCode::EQUAL_INTEGER, line);
-					int tag_fail = EmitJump(OpCode::JUMP_IF_FALSE, line);
-					EmitByte(OpCode::POP, line);
-
-					EmitByte(OpCode::LOAD_TAG, line);
-					EmitByte(OpCode::POP, line);
-
-					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
-					{
-						EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], failure_jumps, extra_pops + i);
-					}
-
-					int jump_over_failure = EmitJump(OpCode::JUMP, line);
-					PatchJump(tag_fail, line);
-					EmitByte(OpCode::POP, line);
-					EmitByte(OpCode::POP, line);
-					EmitPopCount(extra_pops, line);
-					failure_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
-					PatchJump(jump_over_failure, line);
-				}
-				else
-				{
-					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
-					{
-						EmitByte(OpCode::DUP, line);
-						EmitByte(OpCode::GET_MEMBER, line);
-						EmitByte(static_cast<OpCode>(i), line);
-						EmitPatternCheck(*node.m_args[static_cast<size_t>(i)], failure_jumps, extra_pops + 1);
-					}
-					EmitByte(OpCode::POP, line);
-				}
-			}
-		},
-		*pattern
-	);
+	std::visit(PatternCheckVisitor{ this, &failure_jumps, extra_pops }, *pattern);
 }
 
 void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
 {
-	std::visit
-	(
-		[this](auto&& node)
+	struct PatternBindVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+
+		void operator()(const MidoriPattern::Binding& node) const
 		{
-			using T = std::decay_t<decltype(node)>;
-			int line = 0;
-			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			const int line = node.m_name.m_line;
+			if (node.m_local_index.has_value())
 			{
-				line = node.m_name.m_line;
-				if (node.m_local_index.has_value())
+				m_self->EmitVariable(node.m_local_index.value(), OpCode::SET_LOCAL, line);
+				m_self->EmitByte(OpCode::POP, line);
+			}
+			else
+			{
+				m_self->EmitByte(OpCode::POP, line);
+			}
+		}
+
+		void operator()(const MidoriPattern::Literal& node) const
+		{
+			m_self->EmitByte(OpCode::POP, node.m_token.m_line);
+		}
+
+		void operator()(const MidoriPattern::Tuple& node) const
+		{
+			const int line = node.m_left_paren.m_line;
+			for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+			{
+				m_self->EmitByte(OpCode::DUP, line);
+				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(static_cast<OpCode>(1), line);
+				m_self->EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
+			}
+			m_self->EmitByte(OpCode::POP, line);
+		}
+
+		void operator()(const MidoriPattern::Array& node) const
+		{
+			const int line = node.m_left_bracket.m_line;
+			for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+			{
+				m_self->EmitByte(OpCode::DUP, line);
+				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
+				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(static_cast<OpCode>(1), line);
+				m_self->EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
+			}
+			m_self->EmitByte(OpCode::POP, line);
+		}
+
+		void operator()(const MidoriPattern::Constructor& node) const
+		{
+			const int line = node.m_name_token.m_line;
+			if (node.m_is_union)
+			{
+				m_self->EmitByte(OpCode::LOAD_TAG, line);
+				m_self->EmitByte(OpCode::POP, line);
+				for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
 				{
-					EmitVariable(node.m_local_index.value(), OpCode::SET_LOCAL, line);
-					EmitByte(OpCode::POP, line);
-				}
-				else
-				{
-					EmitByte(OpCode::POP, line);
+					m_self->EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
 				}
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			else
 			{
-				EmitByte(OpCode::POP, node.m_token.m_line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
-			{
-				line = node.m_left_paren.m_line;
-				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
+				for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
 				{
-					EmitByte(OpCode::DUP, line);
-					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-					EmitByte(OpCode::GET_ARRAY, line);
-					EmitByte(static_cast<OpCode>(1), line);
-					EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
+					m_self->EmitByte(OpCode::DUP, line);
+					m_self->EmitByte(OpCode::GET_MEMBER, line);
+					m_self->EmitByte(static_cast<OpCode>(i), line);
+					m_self->EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
 				}
-				EmitByte(OpCode::POP, line);
+				m_self->EmitByte(OpCode::POP, line);
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
-			{
-				line = node.m_left_bracket.m_line;
-				for (int i = static_cast<int>(node.m_elements.size()) - 1; i >= 0; i -= 1)
-				{
-					EmitByte(OpCode::DUP, line);
-					EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-					EmitByte(OpCode::GET_ARRAY, line);
-					EmitByte(static_cast<OpCode>(1), line);
-					EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
-				}
-				EmitByte(OpCode::POP, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
-			{
-				line = node.m_name_token.m_line;
-				if (node.m_is_union)
-				{
-					EmitByte(OpCode::LOAD_TAG, line);
-					EmitByte(OpCode::POP, line);
-					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
-					{
-						EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
-					}
-				}
-				else
-				{
-					for (int i = static_cast<int>(node.m_args.size()) - 1; i >= 0; i -= 1)
-					{
-						EmitByte(OpCode::DUP, line);
-						EmitByte(OpCode::GET_MEMBER, line);
-						EmitByte(static_cast<OpCode>(i), line);
-						EmitPatternBind(*node.m_args[static_cast<size_t>(i)]);
-					}
-					EmitByte(OpCode::POP, line);
-				}
-			}
-		},
-		*pattern
-	);
+		}
+	};
+
+	std::visit(PatternBindVisitor{ this }, *pattern);
 }
 
 void CodeGenerator::BeginLoop(int loop_start)
@@ -1106,17 +1138,91 @@ void CodeGenerator::EndLoop(int line)
 
 void CodeGenerator::Visit(const std::unique_ptr<MidoriStatement>& statement)
 {
-	VisitNode([this](auto&& arg) { (*this)(arg); }, statement);
+	DispatchStatement(*statement);
 }
 
 void CodeGenerator::Visit(const std::unique_ptr<MidoriExpression>& expression)
 {
-	VisitNode([this](auto&& arg) { (*this)(arg); }, expression);
+	DispatchExpression(*expression);
 }
 
 void CodeGenerator::Visit(const std::shared_ptr<MidoriExpression>& expression)
 {
-	VisitNode([this](auto&& arg) { (*this)(arg); }, *expression);
+	DispatchExpression(*expression);
+}
+
+void CodeGenerator::DispatchStatement(MidoriStatement& statement)
+{
+	struct StatementDispatcher
+	{
+		CodeGenerator* m_self = nullptr;
+
+		void operator()(MidoriStatement::ExpressionStatement& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::VariableDefinition& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::TupleDefinition& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::FunctionDefinition& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::Continue& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::ForeignDefinition& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::Struct& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::Union& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::Class& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::Instance& arg) const { (*m_self)(arg); }
+		void operator()(MidoriStatement::TypeAlias& arg) const { (*m_self)(arg); }
+	};
+
+	std::visit(StatementDispatcher{ this }, *statement);
+}
+
+void CodeGenerator::DispatchExpression(MidoriExpression& expression)
+{
+	struct ExpressionDispatcher
+	{
+		CodeGenerator* m_self = nullptr;
+
+		void operator()(MidoriExpression::As& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Binary& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Group& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Tuple& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::TextLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::BoolLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::FloatLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::IntegerLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::ByteLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::WordLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::UnitLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::UnaryPrefix& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::UnarySuffix& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Assignment& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::AppendAssign& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::ExtendAssign& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::PrependAssign& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::CompoundAssign& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::NameAccess& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Call& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Function& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Construct& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::IfElse& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::MemberAccess& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::MemberAssignment& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Array& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::IndexAccess& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::IndexAssignment& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::ArrayComprehension& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::RangeBinary& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::RangeTernary& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Block& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Match& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Case& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Default& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Loop& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::For& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Return& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Break& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Async& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Await& arg) const { (*m_self)(arg); }
+	};
+
+	std::visit(ExpressionDispatcher{ this }, *expression);
 }
 
 CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const TypeclassInstanceTypeMap& imported_class_instance_type_args, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions)
@@ -1125,18 +1231,109 @@ CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view 
 	m_source_lines(source_lines),
 	m_module_name(std::move(module_name)),
 	m_export_symbols(std::move(export_symbols)),
+	m_generic_functions(imported_generic_functions),
 	m_class_methods(imported_class_methods),
 	m_class_instances(imported_class_instances),
-	m_class_instance_type_args(imported_class_instance_type_args),
-	m_generic_functions(imported_generic_functions)
+	m_class_instance_type_args(imported_class_instance_type_args)
 {
 	std::string main_proc_name = std::string(MAIN_PROCEDURE_PREFIX) + "@"s + (m_module_name.has_value() ? m_module_name.value() : std::string(file_name));
-	m_procedure_names.emplace_back(main_proc_name.c_str());
+	m_builder.m_procedure_names.emplace_back(main_proc_name.c_str());
 }
 
-MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
+MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &
+{
+	return std::move(*this).GenerateModuleBytecode();
+}
+
+MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 {
 	EmitInstanceMethodDefinitions();
+
+	struct ExportTracker
+	{
+		CodeGenerator* m_self = nullptr;
+
+		void operator()(const MidoriStatement::FunctionDefinition& stmt) const
+		{
+			const std::string& function_name = stmt.m_name.m_lexeme;
+			if (m_self->m_export_symbols.contains(function_name))
+			{
+				const size_t procedure_index = m_self->m_builder.m_procedures.size() - 1u;
+				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[function_name]);
+
+				m_self->m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION);
+			}
+		}
+
+		void operator()(const MidoriStatement::Struct& stmt) const
+		{
+			const std::string& struct_name = stmt.m_name.m_lexeme;
+			if (m_self->m_export_symbols.contains(struct_name))
+			{
+				m_self->m_tracked_exports.emplace_back
+				(
+					struct_name,
+					0uz,
+					0uz,
+					BytecodeModule::SymbolType::STRUCT_TYPE
+				);
+			}
+		}
+
+		void operator()(const MidoriStatement::Union& stmt) const
+		{
+			const std::string& union_name = stmt.m_name.m_lexeme;
+			if (m_self->m_export_symbols.contains(union_name))
+			{
+				m_self->m_tracked_exports.emplace_back
+				(
+					union_name,
+					0uz,
+					0uz,
+					BytecodeModule::SymbolType::UNION_TYPE
+				);
+			}
+		}
+
+		void operator()(const MidoriStatement::ForeignDefinition& stmt) const
+		{
+			const std::string& foreign_name = stmt.m_function_name.m_lexeme;
+			if (m_self->m_export_symbols.contains(foreign_name))
+			{
+				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[foreign_name]);
+				m_self->m_tracked_exports.emplace_back
+				(
+					foreign_name,
+					0uz,
+					global_index,
+					BytecodeModule::SymbolType::FOREIGN_FUNCTION
+				);
+			}
+		}
+
+		void operator()(const MidoriStatement::VariableDefinition& stmt) const
+		{
+			const std::string& var_name = stmt.m_name.m_lexeme;
+			if (m_self->m_export_symbols.contains(var_name))
+			{
+				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[var_name]);
+				m_self->m_tracked_exports.emplace_back
+				(
+					var_name,
+					0uz,
+					global_index,
+					BytecodeModule::SymbolType::GLOBAL_VARIABLE
+				);
+			}
+		}
+
+		void operator()(const MidoriStatement::ExpressionStatement&) const {}
+		void operator()(const MidoriStatement::TupleDefinition&) const {}
+		void operator()(const MidoriStatement::Continue&) const {}
+		void operator()(const MidoriStatement::Class&) const {}
+		void operator()(const MidoriStatement::Instance&) const {}
+		void operator()(const MidoriStatement::TypeAlias&) const {}
+	};
 
 	std::ranges::for_each
 	(
@@ -1146,86 +1343,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 			Visit(statement);
 
 			// Track exports: after processing DefineFunction, check if it's exported
-			std::visit
-			(
-				[this](const auto& stmt)
-				{
-					using T = std::decay_t<decltype(stmt)>;
-					if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
-					{
-						const std::string& function_name = stmt.m_name.m_lexeme;
-						if (m_export_symbols.contains(function_name))
-						{
-							// After DefineFunction processing, m_current_procedure_index points AFTER the new procedure
-							// So the procedure we just added is at index m_procedures.size() - 1
-							const size_t procedure_index = m_procedures.size() - 1u;
-							const size_t global_index = static_cast<size_t>(m_global_variables[function_name]);
-
-							m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION);
-						}
-					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::Struct>)
-					{
-						const std::string& struct_name = stmt.m_name.m_lexeme;
-						if (m_export_symbols.contains(struct_name))
-						{
-							m_tracked_exports.emplace_back
-							(
-								struct_name,
-								0uz,  // Structs don't have procedure index
-								0uz,  // Structs don't have global index
-								BytecodeModule::SymbolType::STRUCT_TYPE
-							);
-						}
-					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
-					{
-						const std::string& union_name = stmt.m_name.m_lexeme;
-						if (m_export_symbols.contains(union_name))
-						{
-							m_tracked_exports.emplace_back
-							(
-								union_name,
-								0uz,  // Unions don't have procedure index
-								0uz,  // Unions don't have global index
-								BytecodeModule::SymbolType::UNION_TYPE
-							);
-						}
-					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
-					{
-						const std::string& foreign_name = stmt.m_function_name.m_lexeme;
-						if (m_export_symbols.contains(foreign_name))
-						{
-							// Foreign functions are stored as global variables containing the function name string
-							const size_t global_index = static_cast<size_t>(m_global_variables[foreign_name]);
-							m_tracked_exports.emplace_back
-							(
-								foreign_name,
-								0uz,  // Foreign functions don't have procedure index
-								global_index,
-								BytecodeModule::SymbolType::FOREIGN_FUNCTION
-							);
-						}
-					}
-					else if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
-					{
-						const std::string& var_name = stmt.m_name.m_lexeme;
-						if (m_export_symbols.contains(var_name))
-						{
-							const size_t global_index = static_cast<size_t>(m_global_variables[var_name]);
-							m_tracked_exports.emplace_back
-							(
-								var_name,
-								0uz,  // Global variables don't have procedure index
-								global_index,
-								BytecodeModule::SymbolType::GLOBAL_VARIABLE
-							);
-						}
-					}
-				},
-				**statement
-			);
+			std::visit(ExportTracker{ this }, **statement);
 		}
 	);
 
@@ -1241,9 +1359,9 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode()
 	}
 
 	BytecodeModule module(m_module_name.value_or(""s), std::filesystem::path(m_file_name));
-	module.m_procedures = std::move(m_procedures);
-	module.m_procedure_names = std::move(m_procedure_names);
-	module.m_string_pool = std::move(m_string_pool);
+	module.m_procedures = std::move(m_builder.m_procedures);
+	module.m_procedure_names = std::move(m_builder.m_procedure_names);
+	module.m_string_pool = std::move(m_builder.m_string_pool);
 	module.m_exports = std::move(m_tracked_exports);
 	module.m_imports = std::move(m_tracked_imports);
 	module.m_generic_functions = std::move(m_generic_functions);
@@ -1573,31 +1691,6 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 				return;
 			}
 
-			auto resolve_instance_name = [this](const std::string& base_name) -> std::optional<std::string>
-				{
-					if (m_global_variables.contains(base_name))
-					{
-						return base_name;
-					}
-
-					TypeclassInstanceMap::iterator instances_it = m_class_instances.find("Convertable");
-					if (instances_it == m_class_instances.end())
-					{
-						return std::nullopt;
-					}
-
-					std::string pattern_with_at = base_name + ModuleSeparator;
-					for (const std::string& instance_method : instances_it->second)
-					{
-						if (instance_method == base_name || instance_method.starts_with(pattern_with_at))
-						{
-							return instance_method;
-						}
-					}
-
-					return std::nullopt;
-				};
-
 			std::optional<std::string> resolved_name;
 			TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find("Convertable");
 			if (instance_args_it != m_class_instance_type_args.end())
@@ -1621,7 +1714,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 					}
 
 					std::string candidate_base = MidoriType::MangleInstanceMethodName("Convert", "Convertable", candidate_args);
-					std::optional<std::string> candidate_name = resolve_instance_name(candidate_base);
+					std::optional<std::string> candidate_name = ResolveInstanceName("Convertable", candidate_base);
 					if (!candidate_name.has_value())
 					{
 						continue;
@@ -2212,6 +2305,89 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 	EmitThreeBytes(size, size >> 8, size >> 16, line);
 }
 
+bool CodeGenerator::EmitGenericLengthCall(const std::string& function_name, const std::shared_ptr<MidoriType>& operand_type, int line)
+{
+	std::vector<std::shared_ptr<MidoriType>> arg_types;
+	arg_types.emplace_back(operand_type);
+	int specialized_proc_index = SpecializeGenericFunction(function_name, arg_types, line);
+	if (specialized_proc_index == -1)
+	{
+		return false;
+	}
+
+	GenericFunctionInfo& generic_info = m_generic_functions[function_name];
+	if (generic_info.m_captured_count == 0)
+	{
+		EmitCallProc(specialized_proc_index, 1, line);
+	}
+	else
+	{
+		EmitByte(OpCode::MAKE_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+		EmitByte(OpCode::BIND_CAPTURES, line);
+		EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
+		EmitCall(1, line);
+	}
+
+	return true;
+}
+
+bool CodeGenerator::EmitCountableCall(const MidoriExpression::UnaryPrefix& unary, const std::shared_ptr<MidoriType>& count_type, int line)
+{
+	std::string qualified_method_name = std::string(COUNTABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(COUNT_METHOD_NAME);
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
+
+	if (resolution_it != m_method_resolution_map.end())
+	{
+		std::shared_ptr<MidoriType> concrete_type = GetConcreteTypeForExpression(unary.m_expr);
+		std::string type_name = concrete_type->ToString();
+
+		std::string resolved_method;
+		bool found = false;
+		for (const ResolvedMethodCandidate& candidate : resolution_it->second)
+		{
+			if (candidate.m_first_type_name == type_name && candidate.m_has_instance)
+			{
+				resolved_method = candidate.m_resolved_name;
+				found = true;
+				break;
+			}
+		}
+
+		if (found)
+		{
+			if (EmitResolvedNameGetGlobal(resolved_method, line))
+			{
+				EmitCall(1, line);
+				return true;
+			}
+		}
+	}
+
+	if (!count_type->IsType<MidoriType::TypeVariable>())
+	{
+		std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COUNT_MANGLED_PREFIX) + count_type->ToString();
+		std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
+		if (it != m_global_variables.end())
+		{
+			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
+			EmitCall(1, line);
+			return true;
+		}
+
+		if (unary.m_uses_countable)
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Countable instance method '"s + mangled_name + "' not found"s, unary.m_op, m_file_name, m_source_lines));
+		}
+	}
+	else if (unary.m_uses_countable)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Cannot resolve Countable instance for type variables outside of specialization context"s, unary.m_op, m_file_name, m_source_lines));
+	}
+
+	return false;
+}
+
 void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 {
 	Visit(unary.m_expr);
@@ -2249,103 +2425,6 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 		int line = unary.m_op.m_line;
 		std::shared_ptr<MidoriType> operand_type = GetConcreteTypeForExpression(unary.m_expr);
 
-		auto has_name_suffix = [](const std::string& name, std::string_view suffix)
-		{
-			if (name == suffix)
-			{
-				return true;
-			}
-			if (!name.ends_with(suffix))
-			{
-				return false;
-			}
-			size_t pos = name.size() - suffix.size();
-			return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
-		};
-
-		auto emit_generic_length_call = [&](const std::string& function_name) -> bool
-		{
-			std::vector<std::shared_ptr<MidoriType>> arg_types;
-			arg_types.emplace_back(operand_type);
-			int specialized_proc_index = SpecializeGenericFunction(function_name, arg_types, line);
-			if (specialized_proc_index == -1)
-			{
-				return false;
-			}
-
-			GenericFunctionInfo& generic_info = m_generic_functions[function_name];
-			if (generic_info.m_captured_count == 0)
-			{
-				EmitCallProc(specialized_proc_index, 1, line);
-			}
-			else
-			{
-				EmitByte(OpCode::MAKE_CLOSURE, line);
-				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-				EmitByte(OpCode::BIND_CAPTURES, line);
-				EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
-				EmitCall(1, line);
-			}
-
-			return true;
-		};
-
-		auto emit_countable_call = [&](const std::shared_ptr<MidoriType>& count_type) -> bool
-		{
-			std::string qualified_method_name = std::string(COUNTABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(COUNT_METHOD_NAME);
-			std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
-
-			if (resolution_it != m_method_resolution_map.end())
-			{
-				std::shared_ptr<MidoriType> concrete_type = GetConcreteTypeForExpression(unary.m_expr);
-				std::string type_name = concrete_type->ToString();
-
-				std::string resolved_method;
-				bool found = false;
-				for (const ResolvedMethodCandidate& candidate : resolution_it->second)
-				{
-					if (candidate.m_first_type_name == type_name && candidate.m_has_instance)
-					{
-						resolved_method = candidate.m_resolved_name;
-						found = true;
-						break;
-					}
-				}
-
-				if (found)
-				{
-					if (EmitResolvedNameGetGlobal(resolved_method, line))
-					{
-						EmitCall(1, line);
-						return true;
-					}
-				}
-			}
-
-			if (!count_type->IsType<MidoriType::TypeVariable>())
-			{
-				std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COUNT_MANGLED_PREFIX) + count_type->ToString();
-				std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-				if (it != m_global_variables.end())
-				{
-					EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-					EmitCall(1, line);
-					return true;
-				}
-
-				if (unary.m_uses_countable)
-				{
-					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Countable instance method '"s + mangled_name + "' not found"s, unary.m_op, m_file_name, m_source_lines));
-				}
-			}
-			else if (unary.m_uses_countable)
-			{
-				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Cannot resolve Countable instance for type variables outside of specialization context"s, unary.m_op, m_file_name, m_source_lines));
-			}
-
-			return false;
-		};
-
 		if (operand_type->IsType<MidoriType::ArrayType>())
 		{
 			EmitByte(OpCode::GET_ARRAY_LENGTH, line);
@@ -2353,38 +2432,38 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 		}
 
 		const bool is_list_type = operand_type->IsType<MidoriType::UnionType>() &&
-			has_name_suffix(operand_type->GetType<MidoriType::UnionType>().m_name, "List");
+			HasNameSuffix(operand_type->GetType<MidoriType::UnionType>().m_name, "List");
 		const bool is_map_type = operand_type->IsType<MidoriType::StructType>() &&
 			(
-				has_name_suffix(operand_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
-				has_name_suffix(operand_type->GetType<MidoriType::StructType>().m_name, "Map")
+				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
+				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "Map")
 			);
 		const bool is_set_type = operand_type->IsType<MidoriType::StructType>() &&
 			(
-				has_name_suffix(operand_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
-				has_name_suffix(operand_type->GetType<MidoriType::StructType>().m_name, "Set")
+				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
+				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "Set")
 			);
 
 		if (!unary.m_uses_countable)
 		{
 			if (is_list_type)
 			{
-				emit_generic_length_call("ListLength");
+				EmitGenericLengthCall("ListLength", operand_type, line);
 				break;
 			}
 			if (is_map_type)
 			{
-				emit_generic_length_call("MapCount");
+				EmitGenericLengthCall("MapCount", operand_type, line);
 				break;
 			}
 			if (is_set_type)
 			{
-				emit_generic_length_call("SetCount");
+				EmitGenericLengthCall("SetCount", operand_type, line);
 				break;
 			}
 		}
 
-		if (emit_countable_call(operand_type))
+		if (EmitCountableCall(unary, operand_type, line))
 		{
 			break;
 		}
@@ -2620,98 +2699,97 @@ void CodeGenerator::operator()(MidoriExpression::MemberAssignment& set)
 
 void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 {
-	std::visit
-	(
-		[&variable, this](auto&& arg)
+	struct NameAccessVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::NameAccess* m_variable = nullptr;
+
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
 		{
-			using T = std::decay_t<decltype(arg)>;
-			int line = variable.m_name.m_line;
+			const int line = m_variable->m_name.m_line;
+			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
+		}
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = variable.m_name.m_lexeme;
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const int line = m_variable->m_name.m_line;
+			const std::string& name = m_variable->m_name.m_lexeme;
 
-				std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(name);
-				if (resolution_it != m_method_resolution_map.end())
+			std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_self->m_method_resolution_map.find(name);
+			if (resolution_it != m_self->m_method_resolution_map.end())
+			{
+				const std::vector<ResolvedMethodCandidate>& candidates = resolution_it->second;
+				if (candidates.size() != 1u)
 				{
-					const std::vector<ResolvedMethodCandidate>& candidates = resolution_it->second;
-					if (candidates.size() != 1u)
-					{
-						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name), line, m_file_name, m_source_lines));
-						return;
-					}
-					if (!candidates[0u].m_has_instance)
-					{
-						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found.", name), line, m_file_name, m_source_lines));
-						return;
-					}
-					EmitResolvedNameGetGlobal(candidates[0u].m_resolved_name, line);
+					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name), line, m_self->m_file_name, m_self->m_source_lines));
+					return;
+				}
+				if (!candidates[0u].m_has_instance)
+				{
+					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found.", name), line, m_self->m_file_name, m_self->m_source_lines));
+					return;
+				}
+				m_self->EmitResolvedNameGetGlobal(candidates[0u].m_resolved_name, line);
+				return;
+			}
+
+			if (name.find(NameSeparator) != std::string::npos)
+			{
+				size_t separator_pos = name.find(NameSeparator);
+				std::string module_name = name.substr(0u, separator_pos);
+				std::string symbol_name = name.substr(separator_pos + 2u);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, line);
+				if (import_placeholder < 0)
+				{
 					return;
 				}
 
-				if (name.find(NameSeparator) != std::string::npos)
-				{
-					// This is an imported symbol - assign a placeholder for linker patching
-					// Track this import for linker patching
-					size_t separator_pos = name.find(NameSeparator);
-					std::string module_name = name.substr(0u, separator_pos);
-					std::string symbol_name = name.substr(separator_pos + 2u);
-					int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
-					if (import_placeholder < 0)
-					{
-						return;
-					}
-
-					EmitVariable(import_placeholder, OpCode::GET_GLOBAL, line);
-				}
-				else
-				{
-					// Regular local global variable
-					EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
-				}
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+				m_self->EmitVariable(import_placeholder, OpCode::GET_GLOBAL, line);
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad name access expression", variable.m_name, m_file_name, m_source_lines));
-				return;
+				m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, line);
 			}
-		}, 
-		variable.m_name_ctx
-	);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			const int line = m_variable->m_name.m_line;
+			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+		}
+	};
+
+	std::visit(NameAccessVisitor{ this, &variable }, variable.m_name_ctx);
 }
 
 void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
 {
 	int line = append_assign.m_name.m_line;
 
-	std::visit([&append_assign, line, this](auto&& arg)
-		{
-			using T = std::decay_t<decltype(arg)>;
+	struct AppendAssignVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::AppendAssign* m_assign = nullptr;
+		int m_line = 0;
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = append_assign.m_name.m_lexeme;
-				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
-			}
-		},
-		append_assign.m_name_ctx
-	);
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_assign->m_name.m_lexeme;
+			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+		}
+	};
+
+	std::visit(AppendAssignVisitor{ this, &append_assign, line }, append_assign.m_name_ctx);
 
 	Visit(append_assign.m_value);
 
@@ -2729,26 +2807,30 @@ void CodeGenerator::operator()(MidoriExpression::ExtendAssign& extend_assign)
 {
 	int line = extend_assign.m_name.m_line;
 
-	std::visit([&extend_assign, line, this](auto&& arg)
-		{
-			using T = std::decay_t<decltype(arg)>;
+	struct ExtendAssignVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::ExtendAssign* m_assign = nullptr;
+		int m_line = 0;
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = extend_assign.m_name.m_lexeme;
-				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
-			}
-		},
-		extend_assign.m_name_ctx
-	);
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_assign->m_name.m_lexeme;
+			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+		}
+	};
+
+	std::visit(ExtendAssignVisitor{ this, &extend_assign, line }, extend_assign.m_name_ctx);
 
 	Visit(extend_assign.m_value);
 	EmitByte(OpCode::EXTEND_ARRAY, line);
@@ -2758,26 +2840,30 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
 	int line = prepend_assign.m_name.m_line;
 
-	std::visit([&prepend_assign, line, this](auto&& arg)
-		{
-			using T = std::decay_t<decltype(arg)>;
+	struct PrependAssignVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::PrependAssign* m_assign = nullptr;
+		int m_line = 0;
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = prepend_assign.m_name.m_lexeme;
-				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
-			}
-		},
-		prepend_assign.m_name_ctx
-	);
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_assign->m_name.m_lexeme;
+			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+		}
+	};
+
+	std::visit(PrependAssignVisitor{ this, &prepend_assign, line }, prepend_assign.m_name_ctx);
 
 	Visit(prepend_assign.m_value);
 
@@ -2795,26 +2881,30 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 {
 	int line = compound_assign.m_name.m_line;
 
-	std::visit([&compound_assign, line, this](auto&& arg)
-		{
-			using T = std::decay_t<decltype(arg)>;
+	struct CompoundAssignVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::CompoundAssign* m_assign = nullptr;
+		int m_line = 0;
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = compound_assign.m_name.m_lexeme;
-				EmitVariable(m_global_variables[name], OpCode::GET_GLOBAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::GET_CELL, line);
-			}
-		},
-		compound_assign.m_name_ctx
-	);
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_assign->m_name.m_lexeme;
+			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+		}
+	};
+
+	std::visit(CompoundAssignVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 
 	Visit(compound_assign.m_value);
 
@@ -2859,48 +2949,47 @@ void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 	int line = bind.m_name.m_line;
 	Visit(bind.m_value);
 
-	std::visit([&bind, line, this](auto&& arg)
+	struct AssignmentVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::Assignment* m_bind = nullptr;
+		int m_line = 0;
+
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
 		{
-			using T = std::decay_t<decltype(arg)>;
+			m_self->EmitVariable(arg.m_index, OpCode::SET_LOCAL, m_line);
+		}
 
-			if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Local>)
-			{
-				EmitVariable(arg.m_index, OpCode::SET_LOCAL, line);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Global>)
-			{
-				const std::string& name = bind.m_name.m_lexeme;
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_bind->m_name.m_lexeme;
 
-				if (name.find(NameSeparator) != std::string::npos)
+			if (name.find(NameSeparator) != std::string::npos)
+			{
+				size_t separator_pos = name.find(NameSeparator);
+				std::string module_name = name.substr(0u, separator_pos);
+				std::string symbol_name = name.substr(separator_pos + 2u);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				if (import_placeholder < 0)
 				{
-					// This is an imported symbol - assign a placeholder for linker patching
-					size_t separator_pos = name.find(NameSeparator);
-					std::string module_name = name.substr(0u, separator_pos);
-					std::string symbol_name = name.substr(separator_pos + 2u);
-					int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
-					if (import_placeholder < 0)
-					{
-						return;
-					}
+					return;
+				}
 
-					EmitVariable(import_placeholder, OpCode::SET_GLOBAL, line);
-				}
-				else
-				{
-					// Regular local global variable
-					EmitVariable(m_global_variables[name], OpCode::SET_GLOBAL, line);
-				}
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::NameContext::Cell>)
-			{
-				EmitVariable(arg.m_index, OpCode::SET_CELL, line);
+				m_self->EmitVariable(import_placeholder, OpCode::SET_GLOBAL, m_line);
 			}
 			else
 			{
-				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Bad Bind expression", bind.m_name, m_file_name, m_source_lines));
-				return;
+				m_self->EmitVariable(m_self->m_global_variables[name], OpCode::SET_GLOBAL, m_line);
 			}
-		}, bind.m_name_ctx);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::SET_CELL, m_line);
+		}
+	};
+
+	std::visit(AssignmentVisitor{ this, &bind, line }, bind.m_name_ctx);
 }
 
 void CodeGenerator::operator()(MidoriExpression::TextLiteral& text)
@@ -3212,7 +3301,7 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 	);
 
 	// Discard everything else when encountered "return"
-	if (!m_procedures[m_current_procedure_index].IsByteCodeEmpty() && m_procedures[m_current_procedure_index].ReadByteCode(m_procedures[m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
+	if (!m_builder.m_procedures[m_builder.m_current_procedure_index].IsByteCodeEmpty() && m_builder.m_procedures[m_builder.m_current_procedure_index].ReadByteCode(m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
 	{
 		return;
 	}
@@ -3341,7 +3430,7 @@ void CodeGenerator::operator()(MidoriExpression::Loop& loop)
 {
 	int line = loop.m_loop_keyword.m_line;
 
-	int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+	int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 	BeginLoop(loop_start);
 
 	Visit(loop.m_body);
@@ -3371,7 +3460,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitVariable(for_expr.m_hidden_array_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 
-		int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		BeginLoop(loop_start);
 		m_loop_contexts.top().m_continue_target = loop_start;
 
@@ -3461,7 +3550,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		int skip_first_increment = EmitJump(OpCode::JUMP, line);
 
 		// Continue target: Increment index
-		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int continue_target = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		EmitVariable(for_expr.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::INT_1, line);
 		EmitByte(OpCode::ADD_INTEGER, line);
@@ -3469,7 +3558,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitByte(OpCode::POP, line);
 
 		PatchJump(skip_first_increment, line);
-		int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		BeginLoop(loop_start);
 
 		m_loop_contexts.top().m_continue_target = continue_target;
@@ -3550,7 +3639,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		int skip_first_increment = EmitJump(OpCode::JUMP, line);
 
 		// Continue target: Increment loop variable before checking condition
-		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int continue_target = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		EmitVariable(for_expr.m_loop_variable_index, OpCode::GET_LOCAL, line);
 		EmitVariable(for_expr.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(is_float ? OpCode::ADD_FLOAT : OpCode::ADD_INTEGER, line);
@@ -3558,7 +3647,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitByte(OpCode::POP, line);
 
 		PatchJump(skip_first_increment, line);
-		int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		BeginLoop(loop_start);
 
 		m_loop_contexts.top().m_continue_target = continue_target;
@@ -3642,7 +3731,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		EmitVariable(comp.m_hidden_array_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 
-		int loop_start = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 
 		std::shared_ptr<MidoriType> iter_type = GetConcreteTypeForExpression(comp.m_range);
 		std::shared_ptr<MidoriType> item_type = comp.m_iterable_item_type;
@@ -3701,7 +3790,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		int skip_first_increment = EmitJump(OpCode::JUMP, line);
 
 		// Continue target: Increment index
-		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int continue_target = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::INT_1, line);
 		EmitByte(OpCode::ADD_INTEGER, line);
@@ -3760,7 +3849,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		int skip_first_increment = EmitJump(OpCode::JUMP, line);
 
 		// Continue target: Increment loop variable
-		int continue_target = m_procedures[m_current_procedure_index].GetByteCodeSize();
+		int continue_target = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
 		EmitVariable(comp.m_loop_variable_index, OpCode::GET_LOCAL, line);
 		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(is_float ? OpCode::ADD_FLOAT : OpCode::ADD_INTEGER, line);
@@ -3872,22 +3961,22 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 		return;
 	}
 
-	size_t prev_index = m_current_procedure_index;
-	m_current_procedure_index = m_procedures.size();
-	m_procedures.emplace_back();
+	size_t prev_index = m_builder.m_current_procedure_index;
+	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
+	m_builder.m_procedures.emplace_back();
 
 	Visit(async_expr.m_expr);
 
 	EmitByte(OpCode::ASYNC_RETURN, line);
 
-	size_t async_proc_index = m_current_procedure_index;
+	size_t async_proc_index = m_builder.m_current_procedure_index;
 
 	std::string full_name = "async_task@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
-	m_procedure_names.emplace_back(full_name.c_str());
+	m_builder.m_procedure_names.emplace_back(full_name.c_str());
 
-	m_current_procedure_index = prev_index;
+	m_builder.m_current_procedure_index = prev_index;
 
-	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
+	if (m_builder.m_current_procedure_index > MAX_FUNCTION_COUNT)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
 		return;
@@ -3915,7 +4004,7 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 	if (operand_type == MidoriExpression::ConditionOperandType::INTEGER)
 	{
 		PopByte(line);
-		switch (m_last_opcode)
+		switch (m_builder.m_last_opcode)
 		{
 		case OpCode::LESS_INTEGER:
 			if_jump = EmitJump(OpCode::IF_INTEGER_LESS, line);
@@ -3953,7 +4042,7 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 	else
 	{
 		PopByte(line);
-		switch (m_last_opcode)
+		switch (m_builder.m_last_opcode)
 		{
 		case OpCode::LESS_FLOAT:
 			if_jump = EmitJump(OpCode::IF_FLOAT_LESS, line);
@@ -3992,61 +4081,67 @@ void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperan
 
 bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 {
-	return std::visit
-	(
-		[this](auto&& type_variant) -> bool
-		{
-			using T = std::decay_t<decltype(type_variant)>;
+	struct GenericTypeVisitor
+	{
+		CodeGenerator* m_self = nullptr;
 
-			if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+		bool operator()(const MidoriType::TypeVariable&) const { return true; }
+		bool operator()(const MidoriType::FunctionType& type_variant) const
+		{
+			bool result = m_self->IsGenericType(type_variant.m_return_type);
+			for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
 			{
-				return true;
+				result = result || m_self->IsGenericType(param_type);
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+			return result;
+		}
+		bool operator()(const MidoriType::ArrayType& type_variant) const
+		{
+			return m_self->IsGenericType(type_variant.m_element_type);
+		}
+		bool operator()(const MidoriType::StructType& type_variant) const
+		{
+			for (const std::shared_ptr<MidoriType>& member_type : type_variant.m_member_types)
 			{
-				bool result = IsGenericType(type_variant.m_return_type);
-				for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
+				if (m_self->IsGenericType(member_type))
 				{
-					result = result || IsGenericType(param_type);
+					return true;
 				}
-				return result;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+			return false;
+		}
+		bool operator()(const MidoriType::UnionType& type_variant) const
+		{
+			for (const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::value_type& member_pair : type_variant.m_member_info)
 			{
-				return IsGenericType(type_variant.m_element_type);
-			}
-			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
-			{
-				for (const std::shared_ptr<MidoriType>& member_type : type_variant.m_member_types)
+				for (const std::shared_ptr<MidoriType>& member_type : member_pair.second.m_member_types)
 				{
-					if (IsGenericType(member_type))
+					if (m_self->IsGenericType(member_type))
 					{
 						return true;
 					}
 				}
-				return false;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
-			{
-				for (const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::value_type& member_pair : type_variant.m_member_info)
-				{
-					for (const std::shared_ptr<MidoriType>& member_type : member_pair.second.m_member_types)
-					{
-						if (IsGenericType(member_type))
-						{
-							return true;
-						}
-					}
-				}
-				return false;
-			}
-			else
-			{
-				return false;
-			}
-		},
-		type->m_type
-	);
+			return false;
+		}
+
+		bool operator()(const MidoriType::UndecidedType&) const { return false; }
+		bool operator()(const MidoriType::GenericParam&) const { return false; }
+		bool operator()(const MidoriType::FloatType&) const { return false; }
+		bool operator()(const MidoriType::IntegerType&) const { return false; }
+		bool operator()(const MidoriType::ByteType&) const { return false; }
+		bool operator()(const MidoriType::WordType&) const { return false; }
+		bool operator()(const MidoriType::TextType&) const { return false; }
+		bool operator()(const MidoriType::BoolType&) const { return false; }
+		bool operator()(const MidoriType::UnitType&) const { return false; }
+		bool operator()(const MidoriType::NeverType&) const { return false; }
+		bool operator()(const MidoriType::RangeType&) const { return false; }
+		bool operator()(const MidoriType::FutureType&) const { return false; }
+		bool operator()(const MidoriType::TupleType&) const { return false; }
+		bool operator()(const MidoriType::ClassConstraint&) const { return false; }
+	};
+
+	return std::visit(GenericTypeVisitor{ this }, type->m_type);
 }
 
 // Helper for type deduction
@@ -4066,94 +4161,115 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 	}
 	visited.insert({ param_type.get(), concrete_type.get() });
 
-	std::visit
-	(
-		[&param_type, &concrete_type, &map, &visited, this](auto&& p_var)
-		{
-			using T = std::decay_t<decltype(p_var)>;
+	struct DeduceGenericVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		const std::shared_ptr<MidoriType>& m_param_type;
+		const std::shared_ptr<MidoriType>& m_concrete_type;
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>>& m_map;
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& m_visited;
 
-			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+		void operator()(const MidoriType::GenericParam& p_var) const
+		{
+			m_map[p_var.m_name] = m_concrete_type;
+		}
+
+		void operator()(const MidoriType::TypeVariable&) const
+		{
+			m_map[m_param_type->ToString()] = m_concrete_type;
+		}
+
+		void operator()(const MidoriType::ArrayType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::ArrayType>())
 			{
-				map[p_var.m_name] = concrete_type;
+				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::ArrayType>().m_element_type, m_map, m_visited);
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
+		}
+
+		void operator()(const MidoriType::StructType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::StructType>())
 			{
-				map[param_type->ToString()] = concrete_type;
-			}
-			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
-			{
-				if (concrete_type->IsType<MidoriType::ArrayType>())
+				const MidoriType::StructType& c_struct = m_concrete_type->GetType<MidoriType::StructType>();
+				if (p_var.m_member_types.size() == c_struct.m_member_types.size())
 				{
-					DeduceGenericTypesRecursive(p_var.m_element_type, concrete_type->GetType<MidoriType::ArrayType>().m_element_type, map, visited);
-				}
-			}
-			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
-			{
-				if (concrete_type->IsType<MidoriType::StructType>())
-				{
-					const MidoriType::StructType& c_struct = concrete_type->GetType<MidoriType::StructType>();
-					if (p_var.m_member_types.size() == c_struct.m_member_types.size())
+					for (size_t i = 0uz; i < p_var.m_member_types.size(); i += 1uz)
 					{
-						for (size_t i = 0uz; i < p_var.m_member_types.size(); i += 1uz)
-						{
-							DeduceGenericTypesRecursive(p_var.m_member_types[i], c_struct.m_member_types[i], map, visited);
-						}
+						m_self->DeduceGenericTypesRecursive(p_var.m_member_types[i], c_struct.m_member_types[i], m_map, m_visited);
 					}
 				}
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+		}
+
+		void operator()(const MidoriType::FunctionType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::FunctionType>())
 			{
-				if (concrete_type->IsType<MidoriType::FunctionType>())
+				const MidoriType::FunctionType& c_func = m_concrete_type->GetType<MidoriType::FunctionType>();
+				m_self->DeduceGenericTypesRecursive(p_var.m_return_type, c_func.m_return_type, m_map, m_visited);
+				if (p_var.m_param_types.size() == c_func.m_param_types.size())
 				{
-					const MidoriType::FunctionType& c_func = concrete_type->GetType<MidoriType::FunctionType>();
-					DeduceGenericTypesRecursive(p_var.m_return_type, c_func.m_return_type, map, visited);
-					if (p_var.m_param_types.size() == c_func.m_param_types.size())
+					for (size_t i = 0uz; i < p_var.m_param_types.size(); i += 1uz)
 					{
-						for (size_t i = 0uz; i < p_var.m_param_types.size(); i += 1uz)
-						{
-							DeduceGenericTypesRecursive(p_var.m_param_types[i], c_func.m_param_types[i], map, visited);
-						}
+						m_self->DeduceGenericTypesRecursive(p_var.m_param_types[i], c_func.m_param_types[i], m_map, m_visited);
 					}
 				}
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
+		}
+
+		void operator()(const MidoriType::TupleType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::TupleType>())
 			{
-				if (concrete_type->IsType<MidoriType::TupleType>())
+				const MidoriType::TupleType& c_tuple = m_concrete_type->GetType<MidoriType::TupleType>();
+				if (p_var.m_element_types.size() == c_tuple.m_element_types.size())
 				{
-					const MidoriType::TupleType& c_tuple = concrete_type->GetType<MidoriType::TupleType>();
-					if (p_var.m_element_types.size() == c_tuple.m_element_types.size())
+					for (size_t i = 0uz; i < p_var.m_element_types.size(); i += 1uz)
 					{
-						for (size_t i = 0uz; i < p_var.m_element_types.size(); i += 1uz)
-						{
-							DeduceGenericTypesRecursive(p_var.m_element_types[i], c_tuple.m_element_types[i], map, visited);
-						}
+						m_self->DeduceGenericTypesRecursive(p_var.m_element_types[i], c_tuple.m_element_types[i], m_map, m_visited);
 					}
 				}
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
+		}
+
+		void operator()(const MidoriType::UnionType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::UnionType>())
 			{
-				if (concrete_type->IsType<MidoriType::UnionType>())
+				const MidoriType::UnionType& c_union = m_concrete_type->GetType<MidoriType::UnionType>();
+				for (const auto& [name, ctx] : p_var.m_member_info)
 				{
-					const MidoriType::UnionType& c_union = concrete_type->GetType<MidoriType::UnionType>();
-					for (const auto& [name, ctx] : p_var.m_member_info)
+					if (c_union.m_member_info.contains(name))
 					{
-						if (c_union.m_member_info.contains(name))
+						const MidoriType::UnionType::UnionMemberContext& c_ctx = c_union.m_member_info.at(name);
+						if (ctx.m_member_types.size() == c_ctx.m_member_types.size())
 						{
-							const MidoriType::UnionType::UnionMemberContext& c_ctx = c_union.m_member_info.at(name);
-							if (ctx.m_member_types.size() == c_ctx.m_member_types.size())
+							for (size_t i = 0uz; i < ctx.m_member_types.size(); i += 1uz)
 							{
-								for (size_t i = 0uz; i < ctx.m_member_types.size(); i += 1uz)
-								{
-									DeduceGenericTypesRecursive(ctx.m_member_types[i], c_ctx.m_member_types[i], map, visited);
-								}
+								m_self->DeduceGenericTypesRecursive(ctx.m_member_types[i], c_ctx.m_member_types[i], m_map, m_visited);
 							}
 						}
 					}
 				}
 			}
-		},
-		param_type->m_type
-	);
+		}
+
+		void operator()(const MidoriType::UndecidedType&) const {}
+		void operator()(const MidoriType::FloatType&) const {}
+		void operator()(const MidoriType::IntegerType&) const {}
+		void operator()(const MidoriType::ByteType&) const {}
+		void operator()(const MidoriType::WordType&) const {}
+		void operator()(const MidoriType::TextType&) const {}
+		void operator()(const MidoriType::BoolType&) const {}
+		void operator()(const MidoriType::UnitType&) const {}
+		void operator()(const MidoriType::NeverType&) const {}
+		void operator()(const MidoriType::RangeType&) const {}
+		void operator()(const MidoriType::FutureType&) const {}
+		void operator()(const MidoriType::ClassConstraint&) const {}
+	};
+
+	std::visit(DeduceGenericVisitor{ this, param_type, concrete_type, map, visited }, param_type->m_type);
 }
 
 int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line)
@@ -4272,19 +4388,19 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 		}
 	}
 
-	size_t prev_index = m_current_procedure_index;
-	m_current_procedure_index = m_procedures.size();
-	int specialized_proc_index = static_cast<int>(m_current_procedure_index);
-	m_procedures.emplace_back();
+	size_t prev_index = m_builder.m_current_procedure_index;
+	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
+	int specialized_proc_index = static_cast<int>(m_builder.m_current_procedure_index);
+	m_builder.m_procedures.emplace_back();
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	Visit(generic_info.m_body);
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
-	m_procedure_names.emplace_back(full_specialized_name.c_str());
+	m_builder.m_procedure_names.emplace_back(full_specialized_name.c_str());
 
-	m_current_procedure_index = prev_index;
+	m_builder.m_current_procedure_index = prev_index;
 
 	m_param_type_map = std::move(prev_param_map);
 	m_method_resolution_map = std::move(prev_resolution_map);
@@ -4457,156 +4573,175 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
 	std::unordered_set<const MidoriType*> visiting;
 
-	SubstituteFn substitute = [&generic_type_map, &cache, &visiting, &substitute](const std::shared_ptr<MidoriType>& current) -> std::shared_ptr<MidoriType>
+	SubstituteFn substitute;
+
+	struct SubstituteVisitor
+	{
+		const TypeEnvironment& m_generic_type_map;
+		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& m_cache;
+		SubstituteFn& m_substitute;
+		const std::shared_ptr<MidoriType>& m_current;
+
+		std::shared_ptr<MidoriType> operator()(const MidoriType::GenericParam& type_variant) const
 		{
-			if (!current)
+			TypeEnvironment::const_iterator it = m_generic_type_map.find(type_variant.m_name);
+			if (it != m_generic_type_map.end())
 			{
-				return current;
+				return it->second;
 			}
+			return m_current;
+		}
 
-			std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(current.get());
-			if (cache_it != cache.end())
+		std::shared_ptr<MidoriType> operator()(const MidoriType::TypeVariable&) const
+		{
+			TypeEnvironment::const_iterator it = m_generic_type_map.find(m_current->ToString());
+			if (it != m_generic_type_map.end())
 			{
-				return cache_it->second;
+				return it->second;
 			}
+			return m_current;
+		}
 
-			if (visiting.contains(current.get()))
+		std::shared_ptr<MidoriType> operator()(const MidoriType::ArrayType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_element = m_substitute(type_variant.m_element_type);
+			if (substituted_element != type_variant.m_element_type)
 			{
-				return current;
+				return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
 			}
+			return m_current;
+		}
 
-			visiting.insert(current.get());
-
-			std::shared_ptr<MidoriType> result = std::visit
-			(
-				[&generic_type_map, &cache, &visiting, &substitute, &current](auto&& type_variant) -> std::shared_ptr<MidoriType>
+		std::shared_ptr<MidoriType> operator()(const MidoriType::TupleType& type_variant) const
+		{
+			std::vector<std::shared_ptr<MidoriType>> substituted_elements;
+			bool changed = false;
+			for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
+			{
+				std::shared_ptr<MidoriType> substituted = m_substitute(elem_type);
+				substituted_elements.push_back(substituted);
+				if (substituted != elem_type)
 				{
-					using T = std::decay_t<decltype(type_variant)>;
+					changed = true;
+				}
+			}
+			if (changed)
+			{
+				return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
+			}
+			return m_current;
+		}
 
-					if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+		std::shared_ptr<MidoriType> operator()(const MidoriType::FunctionType& type_variant) const
+		{
+			std::vector<std::shared_ptr<MidoriType>> substituted_params;
+			bool changed = false;
+			for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
+			{
+				std::shared_ptr<MidoriType> substituted = m_substitute(param_type);
+				substituted_params.push_back(substituted);
+				if (substituted != param_type)
+				{
+					changed = true;
+				}
+			}
+			std::shared_ptr<MidoriType> substituted_return = m_substitute(type_variant.m_return_type);
+			if (substituted_return != type_variant.m_return_type)
+			{
+				changed = true;
+			}
+			if (changed)
+			{
+				return std::make_shared<MidoriType>
+				(
+					MidoriType::FunctionType
 					{
-						TypeEnvironment::const_iterator it = generic_type_map.find(type_variant.m_name);
-						if (it != generic_type_map.end())
-						{
-							return it->second;
-						}
-						return current;
+						.m_param_types = std::move(substituted_params),
+						.m_return_type = substituted_return,
+						.m_constraints = type_variant.m_constraints,
+						.m_is_foreign = type_variant.m_is_foreign
 					}
-					else if constexpr (std::is_same_v<T, MidoriType::TypeVariable>)
-					{
-						TypeEnvironment::const_iterator it = generic_type_map.find(current->ToString());
-						if (it != generic_type_map.end())
-						{
-							return it->second;
-						}
-						return current;
-					}
-					else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
-					{
-						std::shared_ptr<MidoriType> substituted_element = substitute(type_variant.m_element_type);
-						if (substituted_element != type_variant.m_element_type)
-						{
-							return std::make_shared<MidoriType>(MidoriType::ArrayType{ substituted_element });
-						}
-						return current;
-					}
-					else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
-					{
-						std::vector<std::shared_ptr<MidoriType>> substituted_elements;
-						bool changed = false;
-						for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
-						{
-							std::shared_ptr<MidoriType> substituted = substitute(elem_type);
-							substituted_elements.push_back(substituted);
-							if (substituted != elem_type)
-							{
-								changed = true;
-							}
-						}
-						if (changed)
-						{
-							return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
-						}
-						return current;
-					}
-					else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
-					{
-						std::vector<std::shared_ptr<MidoriType>> substituted_params;
-						bool changed = false;
-						for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
-						{
-							std::shared_ptr<MidoriType> substituted = substitute(param_type);
-							substituted_params.push_back(substituted);
-							if (substituted != param_type)
-							{
-								changed = true;
-							}
-						}
-						std::shared_ptr<MidoriType> substituted_return = substitute(type_variant.m_return_type);
-						if (substituted_return != type_variant.m_return_type)
-						{
-							changed = true;
-						}
-						if (changed)
-						{
-							return std::make_shared<MidoriType>
-							(
-								MidoriType::FunctionType
-								{
-									.m_param_types = std::move(substituted_params),
-									.m_return_type = substituted_return,
-									.m_constraints = type_variant.m_constraints,
-									.m_is_foreign = type_variant.m_is_foreign
-								}
-							);
-						}
-						return current;
-					}
-					else if constexpr (std::is_same_v<T, MidoriType::StructType>)
-					{
-						std::vector<std::shared_ptr<MidoriType>> empty_member_types;
-						std::vector<std::string> member_names_copy = type_variant.m_member_names;
-						std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
-						cache[current.get()] = new_struct;
+				);
+			}
+			return m_current;
+		}
 
-						std::vector<std::shared_ptr<MidoriType>> substituted_members;
-						std::ranges::transform(type_variant.m_member_types, std::back_inserter(substituted_members), substitute);
-						new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(substituted_members);
-						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
-						{
-							new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
-						}
-						return new_struct;
-					}
-					else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
-					{
-						std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, {});
-						cache[current.get()] = new_union;
-						MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
-						if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
-						{
-							new_union_ref.m_is_generic_instantiation = true;
-						}
+		std::shared_ptr<MidoriType> operator()(const MidoriType::StructType& type_variant) const
+		{
+			std::vector<std::shared_ptr<MidoriType>> empty_member_types;
+			std::vector<std::string> member_names_copy = type_variant.m_member_names;
+			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
+			m_cache[m_current.get()] = new_struct;
 
-						for (const auto& [member_name, member_ctx] : type_variant.m_member_info)
-						{
-							std::vector<std::shared_ptr<MidoriType>> substituted_members;
-							std::ranges::transform(member_ctx.m_member_types, std::back_inserter(substituted_members), substitute);
-							new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ std::move(substituted_members), member_ctx.m_tag });
-						}
-						return new_union;
-					}
-					else
-					{
-						return current;
-					}
-				},
-				current->m_type
-			);
+			std::vector<std::shared_ptr<MidoriType>> substituted_members;
+			std::ranges::transform(type_variant.m_member_types, std::back_inserter(substituted_members), m_substitute);
+			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(substituted_members);
+			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+			{
+				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+			}
+			return new_struct;
+		}
 
-			visiting.erase(current.get());
-			return result;
-		};
+		std::shared_ptr<MidoriType> operator()(const MidoriType::UnionType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, {});
+			m_cache[m_current.get()] = new_union;
+			MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
+			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+			{
+				new_union_ref.m_is_generic_instantiation = true;
+			}
+
+			for (const auto& [member_name, member_ctx] : type_variant.m_member_info)
+			{
+				std::vector<std::shared_ptr<MidoriType>> substituted_members;
+				std::ranges::transform(member_ctx.m_member_types, std::back_inserter(substituted_members), m_substitute);
+				new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ std::move(substituted_members), member_ctx.m_tag });
+			}
+			return new_union;
+		}
+
+		std::shared_ptr<MidoriType> operator()(const MidoriType::UndecidedType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::FloatType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::IntegerType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::ByteType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::WordType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::TextType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::BoolType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::UnitType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::NeverType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::RangeType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::FutureType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::ClassConstraint&) const { return m_current; }
+	};
+
+	substitute = [&generic_type_map, &cache, &visiting, &substitute](const std::shared_ptr<MidoriType>& current) -> std::shared_ptr<MidoriType>
+	{
+		if (!current)
+		{
+			return current;
+		}
+
+		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(current.get());
+		if (cache_it != cache.end())
+		{
+			return cache_it->second;
+		}
+
+		if (visiting.contains(current.get()))
+		{
+			return current;
+		}
+
+		visiting.insert(current.get());
+
+		SubstituteVisitor visitor{ generic_type_map, cache, substitute, current };
+		std::shared_ptr<MidoriType> result = std::visit(visitor, current->m_type);
+
+		visiting.erase(current.get());
+		return result;
+	};
 
 	return substitute(type);
 }
@@ -4625,21 +4760,21 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 		return;
 	}
 
-	size_t prev_index = m_current_procedure_index;
-	m_current_procedure_index = m_procedures.size();
-	m_procedures.emplace_back();
+	size_t prev_index = m_builder.m_current_procedure_index;
+	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
+	m_builder.m_procedures.emplace_back();
 	Visit(body);
 
 	EmitByte(OpCode::RETURN, line);
 
-	size_t closure_proc_index = m_current_procedure_index;
+	size_t closure_proc_index = m_builder.m_current_procedure_index;
 
 	std::string full_name = debug_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
-	m_procedure_names.emplace_back(full_name.c_str());
+	m_builder.m_procedure_names.emplace_back(full_name.c_str());
 
-	m_current_procedure_index = prev_index;
+	m_builder.m_current_procedure_index = prev_index;
 
-	if (m_current_procedure_index > MAX_FUNCTION_COUNT)
+	if (m_builder.m_current_procedure_index > MAX_FUNCTION_COUNT)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
 		return;

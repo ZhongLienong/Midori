@@ -51,18 +51,34 @@ private:
 		std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const;
 	};
 
+	struct BytecodeBuilder
+	{
+		MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
+		std::vector<MidoriText> m_procedure_names;
+		MidoriExecutable::StringPool m_string_pool;
+		size_t m_current_procedure_index = 0u;
+		int m_string_pool_index = 0;
+		OpCode m_last_opcode = OpCode::HALT;
+
+		BytecodeBuilder EmitByte(OpCode byte, int line) &&;
+		BytecodeBuilder PopByte(int line) &&;
+	};
+
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
 
-	MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
-	std::vector<MidoriText> m_procedure_names;
 	MidoriProgramTree m_program_tree;
-	std::string m_errors;
 	std::string m_file_name;
-	MidoriExecutable::StringPool m_string_pool;
-	std::stack<LoopContext> m_loop_contexts;
+	const std::vector<std::string>& m_source_lines;
+	std::optional<std::string> m_module_name;
+	std::unordered_set<std::string> m_export_symbols;
+
+	BytecodeBuilder m_builder;
+	std::vector<BytecodeModule::ExportedSymbol> m_tracked_exports;
+	std::vector<BytecodeModule::ImportedSymbol> m_tracked_imports;
+
 	std::unordered_map<std::string, int> m_global_variables;
 	std::unordered_map<std::string, int> m_local_variables;
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
@@ -76,23 +92,16 @@ private:
 	std::unordered_map<std::string, size_t> m_ffi_indices;
 
 	MidoriExecutable m_executable;
-	const std::vector<std::string>& m_source_lines;
-	size_t m_current_procedure_index = 0u;
-	int m_string_pool_index = 0;
+	std::stack<LoopContext> m_loop_contexts;
+	std::string m_errors;
 	int m_local_count = 0;
-	OpCode m_last_opcode = OpCode::HALT;
-
-	// Module-specific fields for per-module compilation
-	std::optional<std::string> m_module_name;
-	std::unordered_set<std::string> m_export_symbols;
-	std::vector<BytecodeModule::ExportedSymbol> m_tracked_exports;
-	std::vector<BytecodeModule::ImportedSymbol> m_tracked_imports;
 
 public:
 
 	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const TypeclassInstanceTypeMap& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
 
-	MidoriResult::CodeGeneratorResult GenerateModuleBytecode();
+	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &;
+	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &&;
 
 private:
 
@@ -163,6 +172,10 @@ private:
 	void Visit(const std::unique_ptr<MidoriExpression>& expression);
 
 	void Visit(const std::shared_ptr<MidoriExpression>& expression);
+
+	void DispatchStatement(MidoriStatement& statement);
+
+	void DispatchExpression(MidoriExpression& expression);
 
 	void operator()(MidoriStatement::ExpressionStatement& simple);
 
@@ -285,4 +298,14 @@ private:
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
 
 	bool EmitResolvedNameGetGlobal(const std::string& resolved_name, int line);
+
+	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
+
+	bool AreTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) const;
+
+	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
+
+	bool EmitGenericLengthCall(const std::string& function_name, const std::shared_ptr<MidoriType>& operand_type, int line);
+
+	bool EmitCountableCall(const MidoriExpression::UnaryPrefix& unary, const std::shared_ptr<MidoriType>& count_type, int line);
 };
