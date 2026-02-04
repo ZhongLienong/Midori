@@ -322,7 +322,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		int var_id = left_subst->GetType<MidoriType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, right_subst))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 		m_type_substitution[var_id] = right_subst;
 		*left = *right_subst;
@@ -333,7 +333,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		int var_id = right_subst->GetType<MidoriType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, left_subst))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 		m_type_substitution[var_id] = left_subst;
 		*right = *left_subst;
@@ -366,7 +366,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Function types must have the same number of parameters
 		if (left_func.m_param_types.size() != right_func.m_param_types.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify function types with different parameter counts", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify function types with different parameter counts", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
 		MidoriResult::TypeResult result;
@@ -395,7 +395,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Struct types must have the same name and same number of members
 		if (left_struct.m_name != right_struct.m_name || left_struct.m_member_types.size() != right_struct.m_member_types.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
 		// Unify each member type
@@ -418,7 +418,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Union types must have the same name and same members
 		if (left_union.m_name != right_union.m_name || left_union.m_member_info.size() != right_union.m_member_info.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
 		for (const auto& [member_name, left_ctx] : left_union.m_member_info)
@@ -426,13 +426,13 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
 			if (right_it == right_union.m_member_info.end())
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 			}
 
 			const MidoriType::UnionType::UnionMemberContext& right_ctx = right_it->second;
 			if (left_ctx.m_member_types.size() != right_ctx.m_member_types.size())
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 			}
 
 			for (size_t idx : std::views::iota(0u, left_ctx.m_member_types.size()))
@@ -457,7 +457,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Tuple types must have the same number of elements
 		if (left_tuple.m_element_types.size() != right_tuple.m_element_types.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify tuples with different element counts", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify tuples with different element counts", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
 		// Unify each element type
@@ -474,7 +474,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 	else
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 	}
 }
 
@@ -583,13 +583,13 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			{
 				if (!resolved_expected->IsType<MidoriType::TupleType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MidoriType::TupleType& tuple_type = resolved_expected->GetType<MidoriType::TupleType>();
 				if (tuple_type.m_element_types.size() != node.m_elements.size())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
@@ -597,7 +597,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					MidoriResult::TypeResult elem_result = CheckPattern(*node.m_elements[i], tuple_type.m_element_types[i]);
 					if (!elem_result.has_value())
 					{
-						return std::unexpected<std::string>(std::move(elem_result.error()));
+						return std::unexpected(std::move(elem_result.error()));
 					}
 				}
 
@@ -608,7 +608,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			{
 				if (!resolved_expected->IsType<MidoriType::ArrayType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MidoriType::ArrayType& array_type = resolved_expected->GetType<MidoriType::ArrayType>();
@@ -617,7 +617,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					MidoriResult::TypeResult elem_result = CheckPattern(*elem, array_type.m_element_type);
 					if (!elem_result.has_value())
 					{
-						return std::unexpected<std::string>(std::move(elem_result.error()));
+						return std::unexpected(std::move(elem_result.error()));
 					}
 				}
 
@@ -630,19 +630,19 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				{
 					if (!resolved_expected->IsType<MidoriType::UnionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 					}
 
 					MidoriType::UnionType& union_type = resolved_expected->GetType<MidoriType::UnionType>();
 					if (!union_type.m_member_info.contains(node.m_name))
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
 					}
 
 					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
 					if (member_ctx.m_member_types.size() != node.m_args.size())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
 					}
 
 					node.m_tag = member_ctx.m_tag;
@@ -651,7 +651,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 						MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], member_ctx.m_member_types[i]);
 						if (!arg_result.has_value())
 						{
-							return std::unexpected<std::string>(std::move(arg_result.error()));
+							return std::unexpected(std::move(arg_result.error()));
 						}
 					}
 
@@ -661,18 +661,18 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 
 				if (!resolved_expected->IsType<MidoriType::StructType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
 				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
 				if (struct_type.m_name != node.m_name)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				if (struct_type.m_member_types.size() != node.m_args.size())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
@@ -680,7 +680,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], struct_type.m_member_types[i]);
 					if (!arg_result.has_value())
 					{
-						return std::unexpected<std::string>(std::move(arg_result.error()));
+						return std::unexpected(std::move(arg_result.error()));
 					}
 				}
 
@@ -689,7 +689,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			}
 			else
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", Token(), m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", Token(), m_file_name, m_source_lines));
 			}
 		},
 		*pattern
@@ -1276,7 +1276,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			MidoriResult::TypeResult result = Evaluate(statement);
 			if (!result.has_value())
 			{
-				errors.append(result.error()).append("\n");
+				errors.append(result.error().Rendered()).append("\n");
 			}
 		}
 	);
@@ -1288,7 +1288,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 	}
 	else
 	{
-		return std::unexpected<std::string>(std::move(errors));
+		return std::unexpected(std::move(errors));
 	}
 }
 
@@ -1413,7 +1413,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
 			if (*annotated_type != *function_type)
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
 			}
 		}
 
@@ -1435,10 +1435,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			)
 			.or_else
 			(
-				[this](std::string&& error)->MidoriResult::TypeResult
+				[this](CompilerError&& error)->MidoriResult::TypeResult
 				{
 					EndScope();
-					return std::unexpected<std::string>(std::move(error));
+					return std::unexpected(std::move(error));
 				}
 			);
 	}
@@ -1465,7 +1465,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 					// They cannot be assigned to variables with concrete types
 					if (type->IsType<MidoriType::NeverType>() && !annotated_type->IsType<MidoriType::NeverType>())
 					{
-						return std::unexpected<std::string>(
+						return std::unexpected(
 							MidoriError::GenerateTypeCheckerErrorWithContext(
 								"Cannot assign a never-returning expression to a variable with type " + annotated_type->ToString(),
 								def.m_name,
@@ -1492,7 +1492,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 					const MidoriType::ArrayType& array_type = type->GetType<MidoriType::ArrayType>();
 					if (array_type.m_element_type->IsType<MidoriType::UndecidedType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
 					}
 				}
 
@@ -1511,7 +1511,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinitio
 			{
 				if (!type->IsType<MidoriType::TupleType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
 				}
 
 				const MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
@@ -1519,7 +1519,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinitio
 
 				if (def_tuple.m_names.size() != tuple_type.m_element_types.size())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
@@ -1543,7 +1543,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1552,7 +1552,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		{
 			if (generic_param_names.contains(param.m_lexeme))
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1561,14 +1561,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 	{
 		if (!m_classes.contains(constraint.m_class_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + constraint.m_class_name + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + constraint.m_class_name + "' in constraint", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 
 		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1656,11 +1656,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 			}
 		).or_else
 		(
-			[&saved_expected_return_type, prev_constraints_size, this](std::string&& error) -> MidoriResult::TypeResult
+			[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
 			{
 				m_expected_return_type = saved_expected_return_type; 
 				m_active_constraints.resize(prev_constraints_size);
-				return std::unexpected<std::string>(std::move(error));
+				return std::unexpected(std::move(error));
 			}
 		);
 }
@@ -1685,7 +1685,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1696,20 +1696,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 	{
 		if (struct_stmt.m_generic_params.empty())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		for (const MidoriType::ClassConstraint& constraint : struct_stmt.m_constraints)
 		{
 			if (!m_classes.contains(constraint.m_class_name))
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + constraint.m_class_name + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + constraint.m_class_name + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1730,7 +1730,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -1741,20 +1741,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 	{
 		if (union_stmt.m_generic_params.empty())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		for (const MidoriType::ClassConstraint& constraint : union_stmt.m_constraints)
 		{
 			if (!m_classes.contains(constraint.m_class_name))
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + constraint.m_class_name + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + constraint.m_class_name + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1778,13 +1778,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 	{
 		if (!type_param_names.insert(type_param.m_lexeme).second)
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
 		}
 	}
 
 	if (m_classes.contains(class_stmt.m_name.m_lexeme))
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
 	}
 
 	TypeEnvironment method_types;
@@ -1793,13 +1793,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 	{
 		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
 		}
 
 		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 		if (method_types.contains(defun.m_name.m_lexeme))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
@@ -1823,13 +1823,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(instance_stmt.m_class_name.m_lexeme);
 	if (tc_it == m_classes.end())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	const ClassInfo& tc_info = tc_it->second;
 	if (instance_stmt.m_type_args.size() != tc_info.m_type_param_names.size())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::vector<std::string> concrete_type_names;
@@ -1842,7 +1842,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 	if (m_instances.contains(instance_key))
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::unordered_set<std::string> implemented_methods;
@@ -1850,7 +1850,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	{
 		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
 		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
@@ -1859,12 +1859,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 		if (!tc_info.m_method_types.contains(method_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		if (implemented_methods.contains(method_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		implemented_methods.emplace(method_name);
@@ -1874,7 +1874,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	{
 		if (!implemented_methods.contains(method_name))
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -1892,13 +1892,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 		if (!defun.m_generic_params.empty())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		TypeEnvironment::const_iterator expected_it = tc_info.m_method_types.find(method_name);
 		if (expected_it == tc_info.m_method_types.cend())
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MidoriType> expected_signature = MidoriType::SubstituteTypeParams(expected_it->second, type_param_substitutions);
@@ -1913,7 +1913,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 				if (expected_type.m_param_types.size() != actual_type.m_param_types.size())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 				}
 
 				for (size_t i = 0u; i < expected_type.m_param_types.size(); i += 1u)
@@ -1922,17 +1922,17 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 					const std::shared_ptr<MidoriType>& actual_param = actual_type.m_param_types[i];
 					if (*expected_param != *actual_param)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
 					}
 				}
 
 				if (*expected_type.m_return_type != *actual_type.m_return_type)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
 				}
 			}
 
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 		}
 	}
 
@@ -1959,7 +1959,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& typ
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 	}
@@ -1995,7 +1995,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 				{
 					BeginScope();
-					std::string error;
+					std::optional<CompilerError> error;
 					MidoriResult::TypeResult case_result;
 
 					if (case_expr->IsExpression<MidoriExpression::Default>())
@@ -2024,20 +2024,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							expected_member_names.clear();
 						}
 
-						if (error.empty())
+						if (!error.has_value())
 						{
 							case_result = Evaluate(match_case.m_expr);
 						}
 					}
 
 					EndScope();
-					if (!error.empty())
+					if (error.has_value())
 					{
-						return std::unexpected<std::string>(std::move(error));
+						return std::unexpected(std::move(error.value()));
 					}
 					else if (!case_result.has_value())
 					{
-						return std::unexpected<std::string>(std::move(case_result.error()));
+						return std::unexpected(std::move(case_result.error()));
 					}
 					else
 					{
@@ -2047,7 +2047,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						}
 						else if (**prev_case_type != *case_result.value())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, *prev_case_type, case_result.value()));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, *prev_case_type, case_result.value()));
 						}
 					}
 				}
@@ -2056,7 +2056,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				{
 					if (!expected_member_names.empty() && !has_default_case)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Not all union members are matched", match.m_match_keyword, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Not all union members are matched", match.m_match_keyword, m_file_name, m_source_lines));
 					}
 				}
 				else
@@ -2068,7 +2068,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							&& IsIrrefutablePattern(*match.m_cases[0u]->GetExpression<MidoriExpression::Case>().m_pattern, resolved_arg_type);
 						if (!irrefutable)
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
 						}
 					}
 				}
@@ -2190,7 +2190,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 								std::shared_ptr<MidoriType> candidate_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
 								if (has_iterable_instance)
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: ambiguous Iterable instance for iterator type", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: ambiguous Iterable instance for iterator type", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 								}
 								iterable_item_type = candidate_item_type;
 								has_iterable_instance = true;
@@ -2213,19 +2213,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 
 					if (!has_iterable_instance && !has_iterable_constraint)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range, Array, or Iterable type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range, Array, or Iterable type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
 					}
 
 					std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
 					if (class_it == m_classes.end())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable class not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable class not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
 					if (method_it == class_it->second.m_method_types.end())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					TypeEnvironment substitutions;
@@ -2239,20 +2239,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 					std::shared_ptr<MidoriType> next_type = MidoriType::SubstituteTypeParams(method_it->second, substitutions);
 					if (!next_type->IsType<MidoriType::FunctionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must be a function", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must be a function", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
 					if (!next_return->IsType<MidoriType::UnionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must return an Option-like union", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must return an Option-like union", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
 					const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
 					std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
 					if (!option_union.m_member_info.contains(some_name))
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next return type is missing 'Some' constructor", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next return type is missing 'Some' constructor", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
 					iterable_some_tag = option_union.m_member_info.at(some_name).m_tag;
@@ -2350,7 +2350,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 								std::shared_ptr<MidoriType> candidate_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
 								if (has_iterable_instance)
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: ambiguous Iterable instance for iterator type", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: ambiguous Iterable instance for iterator type", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 								}
 								iterable_item_type = candidate_item_type;
 								has_iterable_instance = true;
@@ -2373,19 +2373,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 
 					if (!has_iterable_instance && !has_iterable_constraint)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: expected Range, Array, or Iterable type for iteration", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: expected Range, Array, or Iterable type for iteration", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
 					}
 
 					std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
 					if (class_it == m_classes.end())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable class not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable class not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
 					if (method_it == class_it->second.m_method_types.end())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					TypeEnvironment substitutions;
@@ -2399,20 +2399,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 					std::shared_ptr<MidoriType> next_type = MidoriType::SubstituteTypeParams(method_it->second, substitutions);
 					if (!next_type->IsType<MidoriType::FunctionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must be a function", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must be a function", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
 					}
 
 					std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
 					if (!next_return->IsType<MidoriType::UnionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must return an Option-like union", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must return an Option-like union", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
 					const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
 					std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
 					if (!option_union.m_member_info.contains(some_name))
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next return type is missing 'Some' constructor", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next return type is missing 'Some' constructor", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
 					iterable_some_tag = option_union.m_member_info.at(some_name).m_tag;
@@ -2487,14 +2487,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 						const MidoriType::StructType& to_struct_type = as.m_to_type->GetType<MidoriType::StructType>();
 						if (to_struct_type.m_member_types.size() != from_struct_type.m_member_types.size())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
 						}
 
 						for (size_t i : std::views::iota(0u, to_struct_type.m_member_types.size()))
 						{
 							if (*from_struct_type.m_member_types[i] != *to_struct_type.m_member_types[i])
 							{
-								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
 							}
 						}
 						is_builtin_conversion = true;
@@ -2502,7 +2502,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				}
 				else if (as.m_to_type->IsType<MidoriType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
 				}
 
 				// Check for built-in primitive conversions
@@ -2530,7 +2530,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion)
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext
 					(
 						std::format("No conversion from {} to {}. Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString(), expr_type->ToString(), as.m_to_type->ToString()), as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type)
 					);
@@ -2568,13 +2568,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 								// Right operand (shift amount) must be Int
 								if (!resolved_right->IsType<MidoriType::IntegerType>() && !resolved_right->IsType<MidoriType::TypeVariable>())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", binary.m_op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", binary.m_op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 								}
 
 								// Left operand must be Int, Byte, or Word
 								if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", binary.m_op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", binary.m_op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 								}
 
 								// Result type is the same as left operand type
@@ -2630,7 +2630,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 												if (!has_orderable_instance && !has_orderable_constraint)
 												{
-													return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Comparison operator requires numeric type or Orderable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+													return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Comparison operator requires numeric type or Orderable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
 												}
 
 												binary.m_uses_orderable = true;
@@ -2644,7 +2644,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
 											if (!resolved_self->IsNumericType() && !resolved_self->IsType<MidoriType::TypeVariable>())
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 											}
 										}
 										else if (std::ranges::contains(m_binary_bitwise_operators.cbegin(), m_binary_bitwise_operators.cend(), binary.m_op.m_token_name))
@@ -2652,7 +2652,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
 											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::ByteType>() && !resolved_self->IsType<MidoriType::WordType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 											}
 										}
 										else if (std::ranges::contains(m_binary_equality_operators.cbegin(), m_binary_equality_operators.cend(), binary.m_op.m_token_name))
@@ -2683,7 +2683,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 												if (!has_equatable_instance && !has_equatable_constraint)
 												{
-													return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Equality operator requires primitive type or Equatable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+													return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Equality operator requires primitive type or Equatable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
 												}
 
 												binary.m_uses_equatable = true;
@@ -2696,7 +2696,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 											std::shared_ptr<MidoriType> resolved_left_logical = ApplySubstitution(left_type);
 											if (!resolved_left_logical->IsType<MidoriType::BoolType>() && !resolved_left_logical->IsType<MidoriType::TypeVariable>())
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", binary.m_op, m_file_name, m_source_lines, resolved_left_logical, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", binary.m_op, m_file_name, m_source_lines, resolved_left_logical, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
 											}
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
@@ -2705,7 +2705,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										{
 											if (!resolved_left->IsType<MidoriType::TextType>() && !resolved_left->IsType<MidoriType::ArrayType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
 											{
-												return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected array or text", binary.m_op, m_file_name, m_source_lines, resolved_left));
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected array or text", binary.m_op, m_file_name, m_source_lines, resolved_left));
 											}
 										}
 
@@ -2769,21 +2769,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				{
 					if (!actual_type->IsNumericType())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unary operator requires numeric type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unary operator requires numeric type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::BANG)
 				{
 					if (!actual_type->IsType<MidoriType::BoolType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Logical NOT operator requires boolean type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Logical NOT operator requires boolean type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::TILDE)
 				{
 					if (!actual_type->IsType<MidoriType::IntegerType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires integer type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires integer type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::HASH)
@@ -2845,7 +2845,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 
 					if (!has_countable_instance && !has_countable_constraint)
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext(
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(
 							std::format("Count operator '#' requires array, list, map, set, or Countable<{}>", resolved_type->ToString()),
 							unary.m_op, m_file_name, m_source_lines, resolved_type));
 					}
@@ -2893,7 +2893,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(qualifier);
 				if (tc_it == m_classes.end())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: unknown class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: unknown class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
 				}
 
 				const ClassInfo& tc_info = tc_it->second;
@@ -2955,18 +2955,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					if (selected_constraints.empty())
 					{
 						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching class constraint for '" + qualifier + NameSeparator.data() + method_name + "' and argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching class constraint for '" + qualifier + NameSeparator.data() + method_name + "' and argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 					if (selected_constraints.size() != 1u)
 					{
 						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 
 					const MidoriType::ClassConstraint& selected_constraint = *selected_constraints[0u];
 					if (selected_constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: constraint type argument count mismatch for class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: constraint type argument count mismatch for class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 
 					TypeEnvironment class_substitutions;
@@ -2980,13 +2980,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(substituted_method_type);
 					if (!resolved_method_type->IsType<MidoriType::FunctionType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
 					}
 
 					MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
 					if (function_type.m_param_types.size() != arg_results.size())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 					}
 
 					std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
@@ -3018,13 +3018,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 				if (!resolved_type->IsType<MidoriType::FunctionType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
 				}
 
 				MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
 				if (function_type.m_param_types.size() != call.m_arguments.size())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 				}
 
 				std::vector<std::shared_ptr<MidoriType>> arg_results;
@@ -3071,7 +3071,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess&
 			{
 				if (!actual_type->IsType<MidoriType::StructType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Cannot access member on non-struct type", get.m_member_name, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Cannot access member on non-struct type", get.m_member_name, m_file_name, m_source_lines));
 				}
 
 				const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
@@ -3079,7 +3079,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess&
 				if (find_result == struct_type.m_member_names.cend())
 				{
 					std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, get.m_member_name.m_lexeme);
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member", get.m_member_name, m_file_name, m_source_lines, suggestion));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member", get.m_member_name, m_file_name, m_source_lines, suggestion));
 				}
 
 				get.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
@@ -3099,14 +3099,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignm
 			{
 				if (!actual_type->IsType<MidoriType::StructType>())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Set expression type error: not a struct", set.m_member_name, m_file_name, m_source_lines, actual_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Set expression type error: not a struct", set.m_member_name, m_file_name, m_source_lines, actual_type));
 				}
 
 				const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
 				std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), set.m_member_name.m_lexeme);
 				if (find_result == struct_type.m_member_names.cend())
 				{
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Set expression type error: struct does not have member", set.m_member_name, m_file_name, m_source_lines, actual_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Set expression type error: struct does not have member", set.m_member_name, m_file_name, m_source_lines, actual_type));
 				}
 
 				set.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
@@ -3200,7 +3200,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		}
 	}
 
-	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
+	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& bind)
@@ -3227,7 +3227,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& b
 					}
 				}
 
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Bind expression type error: variable not found", bind.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bind expression type error: variable not found", bind.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -3249,7 +3249,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 						    !target_type->IsType<MidoriType::TextType>() &&
 						    !target_type->IsType<MidoriType::TypeVariable>())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: expected array or text type", append_assign.m_name, m_file_name, m_source_lines, target_type));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: expected array or text type", append_assign.m_name, m_file_name, m_source_lines, target_type));
 						}
 
 						if (target_type->IsType<MidoriType::ArrayType>())
@@ -3288,7 +3288,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 					}
 				}
 
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: variable not found", append_assign.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: variable not found", append_assign.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -3308,7 +3308,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ExtendAssign&
 						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
 						if (!target_type->IsType<MidoriType::ArrayType>() && !target_type->IsType<MidoriType::TypeVariable>())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: expected array type", extend_assign.m_name, m_file_name, m_source_lines, target_type));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: expected array type", extend_assign.m_name, m_file_name, m_source_lines, target_type));
 						}
 
 						if (target_type->IsType<MidoriType::ArrayType>())
@@ -3329,7 +3329,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ExtendAssign&
 					}
 				}
 
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: variable not found", extend_assign.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: variable not found", extend_assign.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -3351,7 +3351,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 						    !target_type->IsType<MidoriType::TextType>() &&
 						    !target_type->IsType<MidoriType::TypeVariable>())
 						{
-							return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: expected array or text type", prepend_assign.m_name, m_file_name, m_source_lines, target_type));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: expected array or text type", prepend_assign.m_name, m_file_name, m_source_lines, target_type));
 						}
 
 						if (target_type->IsType<MidoriType::ArrayType>())
@@ -3390,7 +3390,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 					}
 				}
 
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: variable not found", prepend_assign.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: variable not found", prepend_assign.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -3421,7 +3421,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 							    !target_type->IsType<MidoriType::FloatType>() &&
 							    !target_type->IsType<MidoriType::TypeVariable>())
 							{
-								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected numeric type", compound_assign.m_op, m_file_name, m_source_lines, target_type));
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected numeric type", compound_assign.m_op, m_file_name, m_source_lines, target_type));
 							}
 						}
 						else if (compound_assign.m_op.m_token_name == Token::Name::AMPERSAND_EQUAL ||
@@ -3434,7 +3434,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 							if (!target_type->IsType<MidoriType::IntegerType>() &&
 							    !target_type->IsType<MidoriType::TypeVariable>())
 							{
-								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected integer type for bitwise operator", compound_assign.m_op, m_file_name, m_source_lines, target_type));
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected integer type for bitwise operator", compound_assign.m_op, m_file_name, m_source_lines, target_type));
 							}
 						}
 
@@ -3451,7 +3451,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 					}
 				}
 
-				return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -3503,7 +3503,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	// Lambda expressions (fn) cannot have generic parameters
 	if (!function.m_generic_params.empty())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: lambda expressions cannot have generic parameters. Use 'defun' instead.", function.m_function_keyword, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: lambda expressions cannot have generic parameters. Use 'defun' instead.", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
 	// Freshen any UndecidedType parameters to TypeVariables
@@ -3592,14 +3592,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (!constructor_type_shared.has_value())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	const MidoriType::FunctionType& constructor_type = constructor_type_shared.value()->GetType<MidoriType::FunctionType>();
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
-		return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: incorrect arity", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: incorrect arity", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))
@@ -3670,7 +3670,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 	{
 		if (*element_results[0u] != *element_results[idx])
 		{
-			return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, element_results[idx], element_results[0u]));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, element_results[idx], element_results[0u]));
 		}
 	}
 
@@ -3698,7 +3698,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 
 					if (!index_result.value()->IsType<MidoriType::IntegerType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 					}
 				}
 
@@ -3708,7 +3708,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 
 					if (!array_var_type->IsType<MidoriType::ArrayType>())
 					{
-						return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: expected array type", array_get.m_op, m_file_name, m_source_lines, array_var_type));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: expected array type", array_get.m_op, m_file_name, m_source_lines, array_var_type));
 					}
 
 					array_var_type = array_var_type->GetType<MidoriType::ArrayType>().m_element_type;
@@ -3746,7 +3746,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 								const std::shared_ptr<MidoriType>& actual_type = index_result.value();
 								if (!index_result.value()->IsType<MidoriType::IntegerType>())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array set expression type error: index must be integer", array_set.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array set expression type error: index must be integer", array_set.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 								}
 							}
 
@@ -3754,7 +3754,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 							{
 								if (!array_var_type->IsType<MidoriType::ArrayType>())
 								{
-									return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Array set expression type error: expected array type", array_set.m_op, m_file_name, m_source_lines, array_var_type));
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array set expression type error: expected array type", array_set.m_op, m_file_name, m_source_lines, array_var_type));
 								}
 
 								array_var_type = array_var_type->GetType<MidoriType::ArrayType>().m_element_type;
@@ -3796,7 +3796,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& 
 
 										if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
 										{
-											return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+											return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 										}
 
 										range_binary.m_type_data = MidoriType::MakeRangeType(start_type);
@@ -3840,7 +3840,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 
 																if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
 																{
-																	return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+																	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 																}
 
 																range_ternary.m_type_data = MidoriType::MakeRangeType(start_type);
@@ -3872,7 +3872,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 						{
 							if (!type->IsType<MidoriType::BoolType>())
 							{
-								return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
 							}
 
 							UpdateConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
@@ -4053,7 +4053,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Await& await_
 				if (!resolved->IsType<MidoriType::FutureType>())
 				{
 					std::shared_ptr<MidoriType> expected_type = MidoriType::MakeFutureType(FreshTypeVar());
-					return std::unexpected<std::string>(MidoriError::GenerateTypeCheckerErrorWithContext("'await' requires Future<T> type", await_expr.m_keyword, m_file_name, m_source_lines, expected_type, resolved));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("'await' requires Future<T> type", await_expr.m_keyword, m_file_name, m_source_lines, expected_type, resolved));
 				}
 
 				await_expr.m_type_data = resolved->GetType<MidoriType::FutureType>().m_element_type;
@@ -4061,3 +4061,4 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Await& await_
 			}
 		);
 }
+

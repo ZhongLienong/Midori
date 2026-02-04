@@ -96,7 +96,7 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 
 	if (!compile_result.has_value())
 	{
-		result.error = StripAnsiCodes(std::move(compile_result.error()));
+		result.error = StripAnsiCodes(std::string(compile_result.error().Rendered()));
 		result.output = StripAnsiCodes(g_output_stream.str());
 		StopCapture();
 		return result;

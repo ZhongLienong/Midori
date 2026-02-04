@@ -159,7 +159,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 {
 	if (m_modules.empty())
 	{
-		return std::unexpected("Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)");
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, "Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)"));
 	}
 
 	AssignModuleBaseOffsets();
@@ -241,7 +241,7 @@ MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 
 			if (m_global_symbol_to_procedure.contains(symbol_key))
 			{
-				return std::unexpected(std::format("Duplicate symbol export: {} from module {}", exp.m_name, module.m_module_name));
+				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Duplicate symbol export: {} from module {}", exp.m_name, module.m_module_name)));
 			}
 
 			m_global_symbol_to_procedure[symbol_key] = global_procedure_index;
@@ -516,14 +516,14 @@ MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 	const BytecodeModule* imported_module = FindModule(import.m_from_module);
 	if (imported_module == nullptr)
 	{
-		return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name));
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name)));
 	}
 
 	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
 	const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
 	if (!global_result.has_value())
 	{
-		return std::unexpected(std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name));
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name)));
 	}
 
 	return {};

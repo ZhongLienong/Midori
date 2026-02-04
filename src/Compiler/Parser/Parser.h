@@ -48,8 +48,6 @@ private:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
 
-	inline static constexpr std::string_view s_no_match_error = "__midori_no_match__";
-
 	struct ParseContext
 	{
 		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
@@ -102,6 +100,7 @@ private:
 
 	ParseContext m_context;
 	ParseState m_state;
+	std::vector<CompilerWarning> m_warnings;
 
 public:
 	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
@@ -109,6 +108,7 @@ public:
 	MidoriResult::ParserResult Parse();
 
 	const TypeclassMethodMap& GetTypeclassMethods() const;
+	const std::vector<CompilerWarning>& GetWarnings() const;
 
 	CompiledModule::TypeclassMetadataMap GetTypeclassMetadata() const;
 
@@ -141,7 +141,7 @@ private:
 						MidoriResult::ExpressionResult right = (this->*operand)();
 						if (!right.has_value())
 						{
-							return std::unexpected<std::string>(std::move(right.error()));
+							return std::unexpected(std::move(right.error()));
 						}
 
 						lower_expr = std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
@@ -153,13 +153,13 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<OutputType, std::string> TryParser(ParseFunc&& func)
+	std::expected<OutputType, CompilerError> TryParser(ParseFunc&& func)
 	{
 		ParseState checkpoint = m_state;
 		return func()
 			.or_else
 			(
-				[&checkpoint, this](std::string&& error) -> std::expected<OutputType, std::string> 
+				[&checkpoint, this](CompilerError&& error) -> std::expected<OutputType, CompilerError> 
 				{
 					m_state = std::move(checkpoint);
 					return std::unexpected(std::move(error));
@@ -168,13 +168,13 @@ private:
 	}
 
 	template<typename OutputType>
-	std::expected<OutputType, std::string> NoMatch()
+	std::expected<OutputType, CompilerError> NoMatch()
 	{
-		return std::unexpected<std::string>(std::string(s_no_match_error));
+		return std::unexpected(CompilerError::NoMatch());
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<OutputType, std::string> ParseWhen(ParseState& state, Token::Name token, ParseFunc&& func)
+	std::expected<OutputType, CompilerError> ParseWhen(ParseState& state, Token::Name token, ParseFunc&& func)
 	{
 		if (!Check(state, token, 0))
 		{
@@ -186,10 +186,10 @@ private:
 	}
 
 	template<typename OutputType, typename First, typename... Rest>
-	std::expected<OutputType, std::string> ParseChoice(ParseState& state, First&& first, Rest&&... rest)
+	std::expected<OutputType, CompilerError> ParseChoice(ParseState& state, First&& first, Rest&&... rest)
 	{
 		static_cast<void>(state);
-		std::expected<OutputType, std::string> result = first();
+		std::expected<OutputType, CompilerError> result = first();
 		if (result.has_value())
 		{
 			return result;
@@ -211,7 +211,7 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc, typename Delim, typename EndCond>
-	std::expected<std::vector<OutputType>, std::string> ParseDelimitedZeroOrMoreLimited(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
+	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedZeroOrMoreLimited(ParseFunc&& func, Delim&& delim, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -222,27 +222,27 @@ private:
 					return delim()
 						.and_then
 						(
-							[&func, &end_cond, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&func, &end_cond, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return ParseDelimitedZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::forward<EndCond>(end_cond), std::move(acc));
 							}
 						)
 						.or_else(
-							[&end_cond, &acc](std::string&& delim_error) -> std::expected<std::vector<OutputType>, std::string>
+							[&end_cond, &acc](CompilerError&& delim_error) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return end_cond()
 									.and_then
 									(
-										[&acc](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+										[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 										{
 											return std::move(acc);
 										}
 									)
 									.or_else
 									(
-										[&delim_error](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+										[&delim_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 										{
-											return std::unexpected<std::string>(std::move(delim_error));
+											return std::unexpected(std::move(delim_error));
 										}
 									);
 							}
@@ -251,19 +251,19 @@ private:
 			)
 			.or_else
 			(
-				[&acc, &end_cond, this](std::string&& try_parser_error)
+				[&acc, &end_cond, this](CompilerError&& try_parser_error)
 				{
 					return end_cond()
 						.and_then
 						(
-							[&acc](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return std::move(acc);
 							}
 						)
 						.or_else
 						(
-							[&try_parser_error, this](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&try_parser_error, this](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								Advance();
 								Synchronize();
@@ -275,7 +275,7 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc, typename Delim>
-	std::expected<std::vector<OutputType>, std::string> ParseDelimitedZeroOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
+	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedZeroOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -286,14 +286,14 @@ private:
 					return delim()
 						.and_then
 						(
-							[&func, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&func, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return ParseDelimitedZeroOrMoreUnlimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::move(acc));
 							}
 						)
 						.or_else
 						(
-							[&acc](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&acc](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return std::move(acc);
 							}
@@ -302,7 +302,7 @@ private:
 			)
 			.or_else
 			(
-				[&acc](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+				[&acc](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 				{
 					return std::move(acc);
 				}
@@ -310,7 +310,7 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc, typename EndCond>
-	std::expected<std::vector<OutputType>, std::string> ParseZeroOrMoreLimited(ParseFunc&& func, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
+	std::expected<std::vector<OutputType>, CompilerError> ParseZeroOrMoreLimited(ParseFunc&& func, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -321,21 +321,21 @@ private:
 					return ParseZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<EndCond>(end_cond), std::move(acc))
 						.or_else
 						(
-							[&end_cond, &acc](std::string&& error) -> std::expected<std::vector<OutputType>, std::string>
+							[&end_cond, &acc](CompilerError&& error) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return end_cond()
 									.and_then
 									(
-										[&acc](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+										[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 										{
 											return std::move(acc);
 										}
 									)
 									.or_else
 									(
-										[&error](std::string&&) ->std::expected<std::vector<OutputType>, std::string>
+										[&error](CompilerError&&) ->std::expected<std::vector<OutputType>, CompilerError>
 										{
-											return std::unexpected<std::string>(std::move(error));
+											return std::unexpected(std::move(error));
 										}
 									);
 							}
@@ -344,19 +344,19 @@ private:
 			)
 			.or_else
 			(
-				[&acc, &end_cond, this](std::string&& try_parser_error)
+				[&acc, &end_cond, this](CompilerError&& try_parser_error)
 				{
 					return end_cond()
 						.and_then
 						(
-							[&acc](Token&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								return std::move(acc);
 							}
 						)
 						.or_else
 						(
-							[&try_parser_error, this](std::string&&) -> std::expected<std::vector<OutputType>, std::string>
+							[&try_parser_error, this](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
 								Advance();
 								Synchronize();
@@ -368,7 +368,7 @@ private:
 	}
 
 	template<typename OutputType, typename ParseFunc>
-	std::expected<std::vector<OutputType>, std::string> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
+	std::expected<std::vector<OutputType>, CompilerError> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
 	{
 		return TryParser<OutputType>(std::forward<ParseFunc>(func))
 			.and_then
@@ -381,7 +381,7 @@ private:
 			)
 			.or_else
 			(
-				[&acc, this](std::string&&) mutable -> std::expected<std::vector<OutputType>, std::string>
+				[&acc, this](CompilerError&&) mutable -> std::expected<std::vector<OutputType>, CompilerError>
 				{
 					return std::move(acc);
 				}
@@ -394,9 +394,9 @@ private:
 	
 	void Synchronize();
 
-	bool IsNoMatchError(const std::string& error) const;
+	bool IsNoMatchError(const CompilerError& error) const;
 
-	std::string GenerateParserError(std::string&& message, const Token& token);
+	CompilerError GenerateParserError(std::string&& message, const Token& token);
 
 	bool IsAtEnd(ParseState& state);
 
@@ -558,7 +558,7 @@ private:
 
 	MidoriResult::StatementResult ParseForeignStatement();
 
-	std::expected<std::vector<MidoriType::ClassConstraint>, std::string> ParseClassConstraints(const Token& context_token);
+	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
 
 	MidoriResult::StatementResult ParseStatement();
 };

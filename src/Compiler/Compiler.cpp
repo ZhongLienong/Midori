@@ -55,6 +55,7 @@ namespace
 		MidoriProgramTree m_ast;
 		CompiledModule::TypeclassMetadataMap m_typeclass_metadata;
 		TypeChecker::TypeEnvironment m_type_signatures;
+		std::vector<CompilerWarning> m_warnings;
 	};
 
 	struct ModuleExportInfo
@@ -246,6 +247,41 @@ namespace
 		}
 	}
 
+	static void ReportWarnings(CompileEnv& env, const std::string& file_path, const std::vector<CompilerWarning>& warnings)
+	{
+		std::vector<const CompilerWarning*> unique_warnings;
+		unique_warnings.reserve(warnings.size());
+		std::unordered_set<std::string> seen;
+		seen.reserve(warnings.size());
+
+		for (const CompilerWarning& warning : warnings)
+		{
+			std::string rendered(warning.Rendered());
+			if (seen.insert(rendered).second)
+			{
+				unique_warnings.push_back(&warning);
+			}
+		}
+
+		if (unique_warnings.empty())
+		{
+			return;
+		}
+
+		std::lock_guard<std::mutex> lock(env.m_print_mutex);
+		std::string short_path = std::filesystem::path(file_path).filename().string();
+		Printer::PrintLabeled<Printer::Color::YELLOW, Printer::Color::WHITE>
+		(
+			"warning",
+			std::format("{} warning(s) in {}\n", unique_warnings.size(), short_path)
+		);
+
+		for (const CompilerWarning* warning : unique_warnings)
+		{
+			Printer::Print<Printer::Color::YELLOW>(std::format("{}", *warning));
+		}
+	}
+
 	static bool IsMainFile(const CompileEnv& env, const std::string& file_path)
 	{
 #ifndef __EMSCRIPTEN__
@@ -347,7 +383,7 @@ namespace
 	static MidoriResult::Result<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
 	{
 		Parser parser(std::move(tokens), file_path, module_source_lines, import_context.m_imported_symbols, import_context.m_imported_type_signatures, use_imports, module_decl, import_context.m_imported_typeclass_metadata);
-		std::expected<MidoriProgramTree, std::string> ast = parser.Parse();
+		MidoriResult::ParserResult ast = parser.Parse();
 		if (!ast.has_value())
 		{
 			return std::unexpected(ast.error());
@@ -364,11 +400,14 @@ namespace
 
 		TypeChecker::TypeEnvironment type_signatures = TypeChecker::ExtractTypeSignatures(ast.value(), module_decl ? &export_set_for_types : nullptr);
 
+		std::vector<CompilerWarning> warnings = parser.GetWarnings();
+
 		return ParsedModule
 		{
 			std::move(*ast),
 			parser.GetTypeclassMetadata(),
-			std::move(type_signatures)
+			std::move(type_signatures),
+			std::move(warnings)
 		};
 	}
 
@@ -486,7 +525,19 @@ namespace
 	static MidoriResult::Result<CompileState> WithParsedModule(CompileState state)
 	{
 		return ParseModule(std::move(state.m_node->m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_node->m_use_imports, state.m_module_decl)
-			.and_then(StateApplier<ParsedModule, ApplyParsedModule>{ std::move(state) });
+			.and_then
+			(
+				[state = std::move(state)](ParsedModule&& parsed_module) mutable -> MidoriResult::Result<CompileState>
+				{
+					if (state.m_env != nullptr)
+					{
+						ReportWarnings(*state.m_env, state.m_file_path, parsed_module.m_warnings);
+					}
+
+					ApplyParsedModule(state, std::move(parsed_module));
+					return std::move(state);
+				}
+			);
 	}
 
 	static MidoriResult::Result<CompileState> WithTypeCheckedAst(CompileState state)
@@ -664,7 +715,7 @@ namespace
 
 			if (pending.empty())
 			{
-				return std::unexpected("No modules are ready to compile. Check for circular dependencies.\n");
+				return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "No modules are ready to compile. Check for circular dependencies.\n"));
 			}
 
 			const size_t ready_idx = WaitForReadyModule(pending);
@@ -730,7 +781,7 @@ namespace
 
 		if (compiled_count != schedule.m_all_modules.size())
 		{
-			return std::unexpected("Incomplete compilation: some modules never became ready.\n");
+			return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "Incomplete compilation: some modules never became ready.\n"));
 		}
 
 		return {};
@@ -884,7 +935,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 							MidoriResult::VoidResult compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
 							if (!compile_result.has_value())
 							{
-								return std::unexpected<std::string>(compile_result.error());
+								return std::unexpected(compile_result.error());
 							}
 
 							// Collect all bytecode modules in dependency order
@@ -897,7 +948,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 									std::unordered_map<std::string, CompiledModule>::iterator it = compiled_modules.find(file_path);
 									if (it == compiled_modules.end())
 									{
-										return std::unexpected<std::string>(std::format("Missing compiled module for '{}'\n", file_path));
+										return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path)));
 									}
 									all_bytecode_modules.emplace_back(std::move(it->second.m_bytecode.value()));
 								}
@@ -941,3 +992,4 @@ MidoriResult::CompilerResult Compiler::Compile()
 			}
 		);
 }
+

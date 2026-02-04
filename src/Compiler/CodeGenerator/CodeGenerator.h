@@ -105,7 +105,7 @@ public:
 
 private:
 
-	void AddError(std::string&& error);
+	void AddError(const CompilerError& error);
 
 	void PopByte(int line);
 

@@ -164,7 +164,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str(), include_absolute_path_str).Lex();
 			if (!lex_result.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(lex_result.error(), line, m_main_file_name));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(lex_result.error().Rendered(), line, m_main_file_name));
 			}
 
 			TokenStream imported_token_stream = std::move(lex_result.value());
@@ -173,7 +173,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(nested_build_graph_result.error(), line, m_main_file_name));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(nested_build_graph_result.error().Rendered(), line, m_main_file_name));
 			}
 
 			BuildGraph& nested_build_graph = nested_build_graph_result.value();
@@ -519,8 +519,8 @@ std::tuple<std::string, std::vector<ModuleExport>> ModuleManager::ExtractModuleD
 
 			if (current < tokens.Size() && IsKeyword(tokens[current].m_token_name))
 			{
-				std::string error_message = MidoriError::GenerateModuleErrorWithContext("'" + tokens[current].m_lexeme + "' is a reserved keyword and cannot be used as a module name.", tokens[current].m_line, m_main_file_name);
-				Printer::Print<Printer::Color::RED>(error_message + "\n");
+				CompilerError error_message = MidoriError::GenerateModuleErrorWithContext("'" + tokens[current].m_lexeme + "' is a reserved keyword and cannot be used as a module name.", tokens[current].m_line, m_main_file_name);
+				Printer::Print<Printer::Color::RED>(std::string(error_message.Rendered()) + "\n");
 				std::exit(EXIT_FAILURE);
 			}
 

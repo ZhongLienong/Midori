@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "Common/Error/Error.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/CompiledModule.h"
@@ -15,8 +16,9 @@
 namespace MidoriResult
 {
 	template<typename ValueType>
-	using Result = std::expected<ValueType, std::string>;
+	using Result = std::expected<ValueType, CompilerError>;
 
+	using Error = CompilerError;
 	using TokenResult = Result<Token>;
 	using TokenListResult = Result<std::vector<Token>>;
 	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MidoriType>>>;

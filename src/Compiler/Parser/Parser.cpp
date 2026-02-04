@@ -185,7 +185,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			}
 			else
 			{
-				return std::unexpected<std::string>(GenerateParserError(std::format("Cannot access private symbol '{}' from module '{}'.", lookup_name, imported_module_name), name_token));
+				return std::unexpected(GenerateParserError(std::format("Cannot access private symbol '{}' from module '{}'.", lookup_name, imported_module_name), name_token));
 			}
 		}
 	}
@@ -204,7 +204,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	{
 		if (matching_typeclasses.size() == 1u)
 		{
-			return std::unexpected<std::string>
+			return std::unexpected
 			(
 				GenerateParserError
 				(
@@ -224,7 +224,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			candidates.append(matching_typeclasses[i]).append(NameSeparator).append(lookup_name);
 		}
 
-		return std::unexpected<std::string>
+		return std::unexpected
 		(
 			GenerateParserError
 			(
@@ -234,7 +234,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		);
 	}
 
-	return std::unexpected<std::string>(GenerateParserError("Undefined name.", name_token));
+	return std::unexpected(GenerateParserError("Undefined name.", name_token));
 }
 
 bool Parser::CanAccessSymbol(const std::string& symbol_name) const
@@ -347,7 +347,7 @@ bool Parser::IsAtGlobalScope() const
 	return m_state.m_scopes.size() == 1u;
 }
 
-std::string Parser::GenerateParserError(std::string&& message, const Token& token)
+CompilerError Parser::GenerateParserError(std::string&& message, const Token& token)
 {
 	Synchronize();
 	
@@ -370,9 +370,9 @@ std::string Parser::GenerateParserError(std::string&& message, const Token& toke
 	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, *m_context.m_source_lines);
 }
 
-bool Parser::IsNoMatchError(const std::string& error) const
+bool Parser::IsNoMatchError(const CompilerError& error) const
 {
-	return error == s_no_match_error;
+	return error.IsNoMatch();
 }
 
 bool Parser::IsAtEnd(ParseState& state)
@@ -509,7 +509,7 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-			return std::unexpected<std::string>(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
+			return std::unexpected(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
 	}
 }
 
@@ -574,12 +574,18 @@ std::string Parser::Mangle(std::string_view name)
 
 MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 {
+	std::string original_name = name.m_lexeme;
 	name.m_lexeme = Mangle(name.m_lexeme);
 
 	if (m_state.m_scopes.back().m_defined_names.contains(name.m_lexeme))
 	{
-		return std::unexpected<std::string>(GenerateParserError("Name already exists in the current scope", name));
+		return std::unexpected(GenerateParserError("Name already exists in the current scope", name));
 	}
+
+	bool shadows_struct = false;
+	bool shadows_variable = false;
+	bool shadows_union = false;
+	bool shadows_type = false;
 
 	// m_state.m_scopes.size() - 2 because the last scope is the current scope
 	for (int i = static_cast<int>(m_state.m_scopes.size()) - 2; i >= 0; --i)
@@ -587,24 +593,72 @@ MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 		size_t index = static_cast<size_t>(i);
 		if (m_state.m_scopes[index].m_struct_constructors.contains(name.m_lexeme))
 		{
-			// TODO: Warning
-			// Overshadowing a struct
+			shadows_struct = true;
 		}
 		if (m_state.m_scopes[index].m_variables.contains(name.m_lexeme))
 		{
-			// TODO: Warning
-			// Overshadowing a variable
+			shadows_variable = true;
 		}
 		if (m_state.m_scopes[index].m_union_constructors.contains(name.m_lexeme))
 		{
-			// TODO: Warning
-			// Overshadowing a union
+			shadows_union = true;
 		}
 		if (m_state.m_scopes[index].m_defined_types.contains(name.m_lexeme))
 		{
-			// TODO: Warning
-			// Overshadowing a type
+			shadows_type = true;
 		}
+	}
+
+	if (shadows_struct || shadows_variable || shadows_union || shadows_type)
+	{
+		std::vector<std::string_view> shadowed_kinds;
+		if (shadows_struct)
+		{
+			shadowed_kinds.push_back("a struct");
+		}
+		if (shadows_variable)
+		{
+			shadowed_kinds.push_back("a variable");
+		}
+		if (shadows_union)
+		{
+			shadowed_kinds.push_back("a union constructor");
+		}
+		if (shadows_type)
+		{
+			shadowed_kinds.push_back("a type");
+		}
+
+		auto join_kinds = [](const std::vector<std::string_view>& kinds) -> std::string
+		{
+			if (kinds.empty())
+			{
+				return {};
+			}
+			if (kinds.size() == 1u)
+			{
+				return std::string(kinds[0u]);
+			}
+
+			std::string joined;
+			for (size_t i = 0u; i < kinds.size(); i += 1u)
+			{
+				if (i > 0u)
+				{
+					joined.append(i + 1u == kinds.size() ? " and " : ", ");
+				}
+				joined.append(kinds[i]);
+			}
+			return joined;
+		};
+
+		Token warning_token = name;
+		warning_token.m_lexeme = original_name;
+		std::string kind_message = join_kinds(shadowed_kinds);
+		std::string warning_message = std::format("Name '{}' shadows {} from an outer scope.", original_name, kind_message);
+		CompilerWarning warning = CompilerWarning::WithToken(CompilerStage::Parser, warning_message, warning_token, m_context.m_file_name, *m_context.m_source_lines);
+		warning.m_code = CompilerWarningCode::NameShadowing;
+		m_warnings.emplace_back(std::move(warning));
 	}
 
 	m_state.m_scopes.back().m_defined_names.emplace(name.m_lexeme);
@@ -667,7 +721,7 @@ MidoriResult::ExpressionResult Parser::ParseRange()
 						{
 							if (!Match(Token::Name::DOUBLE_DOT))
 							{
-								return std::unexpected<std::string>(GenerateParserError("Expected '..' for step in range expression. Use 'start..step..end' syntax.", Peek(0)));
+								return std::unexpected(GenerateParserError("Expected '..' for step in range expression. Use 'start..step..end' syntax.", Peek(0)));
 							}
 
 							Token second_range_op = Previous();
@@ -755,7 +809,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
-									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
 								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
 								{
@@ -767,7 +821,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									MidoriExpression::IndexAccess& access_expr = left_expr->GetExpression<MidoriExpression::IndexAccess>();
 									return std::make_unique<MidoriExpression>(MidoriExpression::IndexAssignment(access_expr.m_op, std::move(access_expr.m_indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
 								}
-								return std::unexpected<std::string>(GenerateParserError("Invalid binding target.", equal));
+								return std::unexpected(GenerateParserError("Invalid binding target.", equal));
 							}
 						);
 				}
@@ -803,9 +857,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
-									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected<std::string>(GenerateParserError("Invalid append assignment target (must be a variable).", op));
+								return std::unexpected(GenerateParserError("Invalid append assignment target (must be a variable).", op));
 							}
 						);
 				}
@@ -841,9 +895,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
-									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected<std::string>(GenerateParserError("Invalid prepend assignment target (must be a variable).", op));
+								return std::unexpected(GenerateParserError("Invalid prepend assignment target (must be a variable).", op));
 							}
 						);
 				}
@@ -879,9 +933,9 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
 										}
 									}
-									return std::unexpected<std::string>(GenerateParserError("Unbound name.", variable_expr.m_name));
+									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected<std::string>(GenerateParserError("Invalid compound assignment target (must be a variable).", op));
+								return std::unexpected(GenerateParserError("Invalid compound assignment target (must be a variable).", op));
 							}
 						);
 				}
@@ -955,7 +1009,7 @@ MidoriResult::ExpressionResult Parser::ParseAs()
 					MidoriResult::TypeResult type = ParseType();
 					if (!type.has_value())
 					{
-						return std::unexpected<std::string>(type.error());
+						return std::unexpected(type.error());
 					}
 
 					expr = std::make_unique<MidoriExpression>(MidoriExpression::As(as, std::move(type.value()), std::move(expr)));
@@ -1077,7 +1131,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 			MidoriResult::TokenResult data_name_token = MatchNameResolution();
 			if (!data_name_token.has_value())
 			{
-				return std::unexpected<std::string>(data_name_token.error());
+				return std::unexpected(data_name_token.error());
 			}
 			std::vector<std::shared_ptr<MidoriType>> type_args;
 			if (Match(Token::Name::LEFT_ANGLE))
@@ -1091,7 +1145,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 
 				if (!type_args_result.has_value())
 				{
-					return std::unexpected<std::string>(type_args_result.error());
+					return std::unexpected(type_args_result.error());
 				}
 
 				type_args = std::move(type_args_result.value());
@@ -1212,7 +1266,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 
 			if (defined_type == std::nullopt)
 			{
-				return std::unexpected<std::string>(GenerateParserError("Undefined struct.", data_name_token_value));
+				return std::unexpected(GenerateParserError("Undefined struct.", data_name_token_value));
 			}
 
 			// If type arguments were provided, instantiate the generic type
@@ -1234,7 +1288,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				// Check argument count matches parameter count
 				if (type_args.size() != generic_params.size())
 				{
-					return std::unexpected<std::string>
+					return std::unexpected
 						(
 							GenerateParserError
 							(
@@ -1283,9 +1337,9 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 							)
 							.or_else
 							(
-								[&data_name_token_value, this](std::string&& original_error) ->MidoriResult::ExpressionResult
+								[&data_name_token_value, this](CompilerError&& original_error) ->MidoriResult::ExpressionResult
 								{
-									return std::unexpected<std::string>(std::move(original_error));
+									return std::unexpected(std::move(original_error));
 								}
 							);
 					}
@@ -1293,7 +1347,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 		}
 		else
 		{
-			return std::unexpected<std::string>(GenerateParserError("Expected struct name after 'new'.", Previous()));
+			return std::unexpected(GenerateParserError("Expected struct name after 'new'.", Previous()));
 		}
 	}
 	else
@@ -1419,7 +1473,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						}
 
 						error_msg += "\n  Hint: Use 'use "s + std::string(m_context.m_module_declarations != nullptr && std::ranges::any_of(*m_context.m_module_declarations, [&symbol_name](const auto& pair) { return pair.second.HasExport(symbol_name); }) ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
-						return std::unexpected<std::string>(GenerateParserError(std::move(error_msg), variable));
+						return std::unexpected(GenerateParserError(std::move(error_msg), variable));
 					}
 
 					// Check if this is a module-qualified name
@@ -1458,11 +1512,11 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_context.m_imported_symbols.find(qualifier);
 								if (it == m_context.m_imported_symbols.cend())
 								{
-									return std::unexpected<std::string>(GenerateParserError("Module '"s + qualifier + "' not found"s, variable));
+									return std::unexpected(GenerateParserError("Module '"s + qualifier + "' not found"s, variable));
 								}
 								else
 								{
-									return std::unexpected<std::string>(GenerateParserError("Symbol '"s + symbol_name + "' is not exported by module '"s + qualifier + "'"s, variable));
+									return std::unexpected(GenerateParserError("Symbol '"s + symbol_name + "' is not exported by module '"s + qualifier + "'"s, variable));
 								}
 							}
 						}
@@ -1568,7 +1622,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 									}
 									else
 									{
-										return std::unexpected<std::string>(GenerateParserError("Expected ']' for array expression.", Peek(0)));
+										return std::unexpected(GenerateParserError("Expected ']' for array expression.", Peek(0)));
 									}
 								}
 							)
@@ -1590,7 +1644,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					}
 					else
 					{
-						return std::unexpected<std::string>(GenerateParserError("Expected ',' or ']' after array element.", Peek(0)));
+						return std::unexpected(GenerateParserError("Expected ',' or ']' after array element.", Peek(0)));
 					}
 				}
 			);
@@ -1621,7 +1675,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else
 	{
-		return std::unexpected<std::string>(GenerateParserError("Expected expression.", Peek(0)));
+		return std::unexpected(GenerateParserError("Expected expression.", Peek(0)));
 	}
 }
 
@@ -1648,7 +1702,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					MidoriResult::ExpressionResult right = ParseLogicalOr();
 					if (!right.has_value())
 					{
-						return std::unexpected<std::string>(std::move(right.error()));
+						return std::unexpected(std::move(right.error()));
 					}
 
 					// Transform pipe into call expression
@@ -1703,7 +1757,7 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 							// Peek ahead: if next token is '}', do NOT try to parse an expression
 							if (Check(Token::Name::RIGHT_BRACE, 0))
 							{
-								return std::unexpected<std::string>("");  // Signal: no expression expected
+								return std::unexpected(CompilerError::NoMatch());  // Signal: no expression expected
 							}
 							else
 							{
@@ -1720,17 +1774,15 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 					)
 					.or_else
 					(
-						[&stmts, &build_block](std::string&& err) -> MidoriResult::ExpressionResult
+						[&stmts, &build_block](CompilerError&& err) -> MidoriResult::ExpressionResult
 						{
 							// Only fall back if this was an intentional absence
-							if (err.empty())
+							if (err.IsNoMatch())
 							{
 								return build_block(std::move(stmts), nullptr);
 							}
-							else
-							{
-								return std::unexpected<std::string>(std::move(err));
-							}
+
+							return std::unexpected(std::move(err));
 						}
 					);
 			}
@@ -1742,7 +1794,7 @@ MidoriResult::ExpressionResult Parser::ParseBreakExpression()
 	Token& keyword = Previous();
 	if (m_state.m_local_count_before_loop.empty())
 	{
-		return std::unexpected<std::string>(GenerateParserError("'break' must be used inside a loop.", keyword));
+		return std::unexpected(GenerateParserError("'break' must be used inside a loop.", keyword));
 	}
 	else
 	{
@@ -1762,7 +1814,7 @@ MidoriResult::ExpressionResult Parser::ParseReturnExpression()
 	Token& keyword = Previous();
 	if (m_state.m_function_depth == 0)
 	{
-		return std::unexpected<std::string>(GenerateParserError("'return' must be used inside a function.", keyword));
+		return std::unexpected(GenerateParserError("'return' must be used inside a function.", keyword));
 	}
 	else
 	{
@@ -1799,13 +1851,13 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 
 	if (!Match(Token::Name::IDENTIFIER_LITERAL))
 	{
-		return std::unexpected<std::string>(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
+		return std::unexpected(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
 	}
 	Token loop_variable = Previous();
 
 	if (!Match(Token::Name::IN))
 	{
-		return std::unexpected<std::string>(GenerateParserError("Expected 'in' after loop variable.", Peek(0)));
+		return std::unexpected(GenerateParserError("Expected 'in' after loop variable.", Peek(0)));
 	}
 	Token in_keyword = Previous();
 
@@ -1940,7 +1992,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 	std::optional<int> var_offset = DetectArrayComprehension();
 	if (!var_offset.has_value())
 	{
-		return std::unexpected<std::string>(GenerateParserError("Internal error: comprehension detection failed.", Peek(0)));
+		return std::unexpected(GenerateParserError("Internal error: comprehension detection failed.", Peek(0)));
 	}
 
 	Token loop_variable = Peek(var_offset.value());
@@ -1976,20 +2028,20 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 				if (!Match(Token::Name::FOR))
 				{
 					EndScope();
-					return std::unexpected<std::string>(GenerateParserError("Expected 'for' in array comprehension.", Peek(0)));
+					return std::unexpected(GenerateParserError("Expected 'for' in array comprehension.", Peek(0)));
 				}
 
 				if (!Match(Token::Name::IDENTIFIER_LITERAL))
 				{
 					EndScope();
-					return std::unexpected<std::string>(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
+					return std::unexpected(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
 				}
 				Token actual_loop_var = Previous();
 
 				if (!Match(Token::Name::IN))
 				{
 					EndScope();
-					return std::unexpected<std::string>(GenerateParserError("Expected 'in' after loop variable in array comprehension.", Peek(0)));
+					return std::unexpected(GenerateParserError("Expected 'in' after loop variable in array comprehension.", Peek(0)));
 				}
 				Token in_keyword = Previous();
 
@@ -2001,7 +2053,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 						if (!Match(Token::Name::RIGHT_BRACKET))
 						{
 							EndScope();
-							return std::unexpected<std::string>(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
+							return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
 						}
 
 							EndScope();
@@ -2176,7 +2228,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();  // Clean up scope on error
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								generic_params = std::move(generic_parse_result.value());
@@ -2208,7 +2260,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 												EndScope();
 											}
 
-											return std::unexpected<std::string>(params_parse_result.error());
+											return std::unexpected(params_parse_result.error());
 										}
 
 										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
@@ -2232,10 +2284,10 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																size_t prev_constraints_size = m_state.m_active_constraints.size();
 																if (Match(Token::Name::WHERE))
 																{
-																	std::expected<std::vector<MidoriType::ClassConstraint>, std::string> constraints_result = ParseClassConstraints(func_name);
+																std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(func_name);
 																	if (!constraints_result.has_value())
 																	{
-																		return std::unexpected<std::string>(constraints_result.error());
+																		return std::unexpected(constraints_result.error());
 																	}
 
 																	constraints = std::move(constraints_result.value());
@@ -2305,7 +2357,7 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 				struct_name.m_lexeme = Mangle(struct_name.m_lexeme);
 				if (struct_name.m_lexeme[0u] != std::toupper(struct_name.m_lexeme[0u]))
 				{
-					return std::unexpected<std::string>(GenerateParserError("Struct name must start with a capital letter.", struct_name));
+					return std::unexpected(GenerateParserError("Struct name must start with a capital letter.", struct_name));
 				}
 
 				constexpr bool is_variable = false;
@@ -2330,7 +2382,7 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();  // Clean up scope on error
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								generic_params = std::move(generic_parse_result.value());
@@ -2340,13 +2392,13 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 							{
 								if (!has_generic_params)
 								{
-									return std::unexpected<std::string>(GenerateParserError("Struct constraints require at least one type parameter.", struct_name));
+									return std::unexpected(GenerateParserError("Struct constraints require at least one type parameter.", struct_name));
 								}
 
-								std::expected<std::vector<MidoriType::ClassConstraint>, std::string> constraints_result = ParseClassConstraints(struct_name);
+								std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(struct_name);
 								if (!constraints_result.has_value())
 								{
-									return std::unexpected<std::string>(constraints_result.error());
+									return std::unexpected(constraints_result.error());
 								}
 
 								constraints = std::move(constraints_result.value());
@@ -2374,7 +2426,7 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 																			return ParseType()
 																				.and_then
 																				(
-																					[&struct_name, &identifier, this](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<std::shared_ptr<MidoriType>, std::string>, std::string>
+																					[&struct_name, &identifier, this](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<std::shared_ptr<MidoriType>, std::string>, CompilerError>
 																					{
 																						return std::make_tuple(std::move(type), identifier.m_lexeme);
 																					}
@@ -2442,7 +2494,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 
 				if (union_name.m_lexeme[0u] != std::toupper(union_name.m_lexeme[0u]))
 				{
-					return std::unexpected<std::string>(GenerateParserError("Union name must start with a capital letter.", union_name));
+					return std::unexpected(GenerateParserError("Union name must start with a capital letter.", union_name));
 				}
 
 				constexpr bool is_variable = false;
@@ -2466,7 +2518,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								generic_params = std::move(generic_parse_result.value());
@@ -2476,13 +2528,13 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							{
 								if (!has_generic_params)
 								{
-									return std::unexpected<std::string>(GenerateParserError("Union constraints require at least one type parameter.", union_name));
+									return std::unexpected(GenerateParserError("Union constraints require at least one type parameter.", union_name));
 								}
 
-								std::expected<std::vector<MidoriType::ClassConstraint>, std::string> constraints_result = ParseClassConstraints(union_name);
+								std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(union_name);
 								if (!constraints_result.has_value())
 								{
-									return std::unexpected<std::string>(constraints_result.error());
+									return std::unexpected(constraints_result.error());
 								}
 
 								constraints = std::move(constraints_result.value());
@@ -2528,18 +2580,18 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 
 												return ParseDelimitedZeroOrMoreUnlimited<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
 													(
-												[&tag, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+												[&tag, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 												{
 													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.")
 														.and_then
 														(
-															[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+															[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 															{
 																member_name.m_lexeme = Mangle(member_name.m_lexeme);
 																return DefineName(member_name, is_variable)
 																	.and_then
 																	(
-																		[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+																		[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 																		{
 																			if (Match(Token::Name::LEFT_PAREN))
 																			{
@@ -2551,7 +2603,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 																					)
 																					.and_then
 																					(
-																						[&tag, &member_name](std::vector<std::shared_ptr<MidoriType>>&& types) -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, std::string>
+																						[&tag, &member_name](std::vector<std::shared_ptr<MidoriType>>&& types) -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 																						{
 																							std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int> return_val = std::make_tuple(member_name.m_lexeme, std::move(types), tag);
 																							tag += 1;
@@ -2639,7 +2691,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 				typeclass_name.m_lexeme = Mangle(typeclass_name.m_lexeme);
 				if (typeclass_name.m_lexeme[0u] != std::toupper(typeclass_name.m_lexeme[0u]))
 				{
-					return std::unexpected<std::string>(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
+					return std::unexpected(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
 				}
 
 				constexpr bool is_variable = false;
@@ -2661,7 +2713,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								type_params = std::move(generic_parse_result.value());
@@ -2669,7 +2721,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 
 							if (!has_type_params)
 							{
-								return std::unexpected<std::string>(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
+								return std::unexpected(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
 							}
 
 							std::vector<std::string> type_param_names;
@@ -2709,22 +2761,22 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 																								{
 																									return ParseDelimitedZeroOrMoreLimited<std::tuple<Token, std::shared_ptr<MidoriType>>>
 																										(
-																											[this]() -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, std::string>
+																											[this]() -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
 																											{
 																												return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
 																													.and_then
 																													(
-																														[this](Token&& param_name) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, std::string>
+																														[this](Token&& param_name) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
 																														{
 																															return Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.")
 																																.and_then
 																																(
-																																	[&param_name, this](Token&&) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, std::string>
+																																	[&param_name, this](Token&&) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
 																																	{
 																																		return ParseType()
 																																			.and_then
 																																			(
-																																				[&param_name](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, std::string>
+																																				[&param_name](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
 																																				{
 																																					return std::make_tuple(std::move(param_name), std::move(type));
 																																				}
@@ -2817,19 +2869,19 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	MidoriResult::TokenResult class_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
 	if (!class_result.has_value())
 	{
-		return std::unexpected<std::string>(class_result.error());
+		return std::unexpected(class_result.error());
 	}
 
 	Token typeclass_name = std::move(class_result.value());
 	if (!m_state.m_class_methods.contains(typeclass_name.m_lexeme))
 	{
-		return std::unexpected<std::string>(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
+		return std::unexpected(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
 	}
 
 	MidoriResult::TokenResult angle_result = Consume(Token::Name::LEFT_ANGLE, "Expected '<' before type arguments.");
 	if (!angle_result.has_value())
 	{
-		return std::unexpected<std::string>(angle_result.error());
+		return std::unexpected(angle_result.error());
 	}
 
 	BeginScope();
@@ -2889,14 +2941,14 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			);
 		if (!type_args_result.has_value())
 		{
-			return std::unexpected<std::string>(type_args_result.error());
+			return std::unexpected(type_args_result.error());
 		}
 		type_args = std::move(type_args_result.value());
 	}
 
 	if (type_args.empty())
 	{
-		return std::unexpected<std::string>(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
+		return std::unexpected(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
 	}
 
 	std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
@@ -2905,7 +2957,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
 	{
-		return std::unexpected<std::string>(brace_result.error());
+		return std::unexpected(brace_result.error());
 	}
 
 	return ParseZeroOrMoreLimited<std::unique_ptr<MidoriStatement>>
@@ -2914,7 +2966,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			{
 				if (!Match(Token::Name::DEFUN))
 				{
-					return std::unexpected<std::string>("Expected 'defun' for method implementation.");
+					return std::unexpected("Expected 'defun' for method implementation.");
 				}
 
 				// Parse instance method manually to avoid DefineName() scope conflicts
@@ -2935,7 +2987,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								generic_params = std::move(generic_parse_result.value());
@@ -2966,7 +3018,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 												EndScope();
 											}
 
-											return std::unexpected<std::string>(params_parse_result.error());
+											return std::unexpected(params_parse_result.error());
 										}
 
 										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
@@ -3089,7 +3141,7 @@ MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
 				alias_name.m_lexeme = Mangle(alias_name.m_lexeme);
 				if (alias_name.m_lexeme[0u] != std::toupper(alias_name.m_lexeme[0u]))
 				{
-					return std::unexpected<std::string>(GenerateParserError("Type alias name must start with a capital letter.", alias_name));
+					return std::unexpected(GenerateParserError("Type alias name must start with a capital letter.", alias_name));
 				}
 
 				constexpr bool is_variable = false;
@@ -3111,7 +3163,7 @@ MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
 								if (!generic_parse_result.has_value())
 								{
 									EndScope();
-									return std::unexpected<std::string>(generic_parse_result.error());
+									return std::unexpected(generic_parse_result.error());
 								}
 
 								generic_params = std::move(generic_parse_result.value());
@@ -3158,7 +3210,7 @@ MidoriResult::StatementResult Parser::ParseContinueStatement()
 
 	if (m_state.m_local_count_before_loop.empty())
 	{
-		return std::unexpected<std::string>(GenerateParserError("'continue' must be used inside a loop.", keyword));
+		return std::unexpected(GenerateParserError("'continue' must be used inside a loop.", keyword));
 	}
 
 	return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after \"continue\".")
@@ -3225,7 +3277,7 @@ MidoriResult::StatementResult Parser::ParseForeignStatement()
 															{
 																if (!type->IsType<MidoriType::FunctionType>())
 																{
-																	return std::unexpected<std::string>(GenerateParserError("'foreign' only applies to function types.", function_name));
+																	return std::unexpected(GenerateParserError("'foreign' only applies to function types.", function_name));
 																}
 
 																return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
@@ -3278,7 +3330,7 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 									MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
 									if (!case_result.has_value())
 									{
-										return std::unexpected<std::string>(std::move(case_result.error()));
+										return std::unexpected(std::move(case_result.error()));
 									}
 									cases.emplace_back(std::move(case_result.value()));
 								}
@@ -3288,7 +3340,7 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 									MidoriResult::ExpressionResult default_result = ParseDefaultExpression(default_visited, default_keyword);
 									if (!default_result.has_value())
 									{
-										return std::unexpected<std::string>(std::move(default_result.error()));
+										return std::unexpected(std::move(default_result.error()));
 									}
 									cases.emplace_back(std::move(default_result.value()));
 								}
@@ -3296,7 +3348,7 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpression()
 
 							if (cases.empty())
 							{
-								return std::unexpected<std::string>(GenerateParserError("Expected at least one case.", match_keyword));
+								return std::unexpected(GenerateParserError("Expected at least one case.", match_keyword));
 							}
 
 							std::unique_ptr<MidoriExpression> match_expr = std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
@@ -3377,7 +3429,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 					m_state.m_total_locals_in_curr_scope = prev_total_locals;
 					m_state.m_function_base_variable_index.pop_back();
 					m_state.m_function_depth -= 1;
-					return std::unexpected<std::string>(params_parse_result.error());
+					return std::unexpected(params_parse_result.error());
 				}
 				else
 				{
@@ -3537,7 +3589,7 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 	if (!pattern_result.has_value())
 	{
 		EndScope();
-		return std::unexpected<std::string>(std::move(pattern_result.error()));
+		return std::unexpected(std::move(pattern_result.error()));
 	}
 
 	std::unique_ptr<MidoriPattern> pattern = std::move(pattern_result.value());
@@ -3549,7 +3601,7 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 			if (visited_members.contains(constructor.m_name))
 			{
 				EndScope();
-				return std::unexpected<std::string>(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
+				return std::unexpected(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
 			}
 			visited_members.emplace(constructor.m_name);
 		}
@@ -3630,7 +3682,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 							MidoriResult::PatternResult elem_result = ParsePattern();
 							if (!elem_result)
 							{
-								return std::unexpected<std::string>(elem_result.error());
+								return std::unexpected(elem_result.error());
 							}
 							elements.push_back(std::move(elem_result.value()));
 						} while (Match(Token::Name::COMMA));
@@ -3678,7 +3730,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 						MidoriResult::PatternResult elem_result = ParsePattern();
 						if (!elem_result)
 						{
-							return std::unexpected<std::string>(elem_result.error());
+							return std::unexpected(elem_result.error());
 						}
 						elements.push_back(std::move(elem_result.value()));
 					}
@@ -3732,7 +3784,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Integer));
 		}
 
-		return std::unexpected<std::string>(GenerateParserError("Expected numeric literal after unary sign in pattern.", sign_token));
+		return std::unexpected(GenerateParserError("Expected numeric literal after unary sign in pattern.", sign_token));
 	}
 
 	if (Match(Token::Name::IDENTIFIER_LITERAL))
@@ -3852,14 +3904,14 @@ MidoriResult::PatternResult Parser::ParsePattern()
 									MidoriResult::PatternResult arg_result = ParsePattern();
 									if (!arg_result)
 									{
-										return std::unexpected<std::string>(arg_result.error());
+										return std::unexpected(arg_result.error());
 									}
 									args.push_back(std::move(arg_result.value()));
 								} while (Match(Token::Name::COMMA));
 
 								if (!Match(Token::Name::RIGHT_PAREN))
 								{
-									return std::unexpected<std::string>(GenerateParserError("Expected ')' after constructor pattern.", Peek(0)));
+									return std::unexpected(GenerateParserError("Expected ')' after constructor pattern.", Peek(0)));
 								}
 							}
 
@@ -3871,7 +3923,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 
 					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)
 					{
-						return std::unexpected<std::string>(GenerateParserError("Unknown constructor in pattern.", resolved));
+						return std::unexpected(GenerateParserError("Unknown constructor in pattern.", resolved));
 					}
 
 					Token binding_name = std::move(identifier);
@@ -3889,14 +3941,14 @@ MidoriResult::PatternResult Parser::ParsePattern()
 			);
 	}
 
-	return std::unexpected<std::string>(GenerateParserError("Expected pattern.", Peek(0)));
+	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
 }
 
 MidoriResult::ExpressionResult Parser::ParseDefaultExpression(bool& default_visited, Token& keyword)
 {
 	if (default_visited)
 	{
-		return std::unexpected<std::string>(GenerateParserError("Cannot have more than one default case.", Previous()));
+		return std::unexpected(GenerateParserError("Cannot have more than one default case.", Previous()));
 	}
 	else
 	{
@@ -4252,7 +4304,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 													std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator symbols_it = m_context.m_imported_symbols.find(qualifier);
 													if (symbols_it != m_context.m_imported_symbols.cend())
 													{
-														return std::unexpected<std::string>(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
+														return std::unexpected(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
 													}
 												}
 											}
@@ -4281,7 +4333,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										}
 										else
 										{
-											return std::unexpected<std::string>(GenerateParserError("Undefined struct or union.", type_name));
+											return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
 										}
 									}
 								}
@@ -4297,7 +4349,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (!type_args_result.has_value())
 									{
-										return std::unexpected<std::string>(type_args_result.error());
+										return std::unexpected(type_args_result.error());
 									}
 
 									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
@@ -4314,7 +4366,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (type_args.size() != generic_params.size())
 									{
-										return std::unexpected<std::string>(GenerateParserError(
+										return std::unexpected(GenerateParserError(
 											"Type argument count mismatch: expected " + std::to_string(generic_params.size()) +
 											", got " + std::to_string(type_args.size()), type_name));
 									}
@@ -4374,7 +4426,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 		},
 		[this]() -> MidoriResult::TypeResult
 		{
-			return std::unexpected<std::string>(GenerateParserError("Expected type token.", Peek(0)));
+			return std::unexpected(GenerateParserError("Expected type token.", Peek(0)));
 		}
 	);
 }
@@ -4472,7 +4524,7 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 MidoriResult::ParserResult Parser::Parse()
 {
 	MidoriProgramTree programTree;
-	std::string errors;
+std::string errors;
 
 	while (!IsAtEnd())
 	{
@@ -4483,14 +4535,14 @@ MidoriResult::ParserResult Parser::Parse()
 		}
 		else
 		{
-			errors.append(result.error()).push_back('\n');
+			errors.append(result.error().Rendered()).push_back('\n');
 			break;
 		}
 	}
 
 	return errors.empty()
 		? MidoriResult::ParserResult(std::move(programTree))
-		: std::unexpected<std::string>(std::move(errors));
+		: std::unexpected(std::move(errors));
 }
 
 MidoriResult::TokenResult Parser::MatchNameResolution()
@@ -4503,7 +4555,7 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 		// We found the separator, now we must have an identifier
 		if (!Match(Token::Name::IDENTIFIER_LITERAL))
 		{
-			return std::unexpected<std::string>(GenerateParserError(std::format("Expected identifier after '{}'.", NameSeparator), Previous()));
+			return std::unexpected(GenerateParserError(std::format("Expected identifier after '{}'.", NameSeparator), Previous()));
 		}
 
 		resolved_name_str.append(NameSeparator).append(Previous().m_lexeme);
@@ -4549,20 +4601,20 @@ MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 		);
 }
 
-std::expected<std::vector<MidoriType::ClassConstraint>, std::string> Parser::ParseClassConstraints(const Token& context_token)
+std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)
 {
-	std::function<std::expected<MidoriType::ClassConstraint, std::string>()> parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, std::string>
+	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
 		{
 			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
 				.and_then
 				(
-					[this](Token&& first_token) -> std::expected<MidoriType::ClassConstraint, std::string>
+					[this](Token&& first_token) -> std::expected<MidoriType::ClassConstraint, CompilerError>
 					{
 						Token typeclass_name = std::move(first_token);
 						return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after class name in constraint (e.g., 'Show<T>').")
 							.and_then
 							(
-								[&typeclass_name, this](Token&&) -> std::expected<MidoriType::ClassConstraint, std::string>
+								[&typeclass_name, this](Token&&) -> std::expected<MidoriType::ClassConstraint, CompilerError>
 								{
 									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
 										(
@@ -4572,7 +4624,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, std::string> Parser::Par
 										)
 										.and_then
 										(
-											[&typeclass_name](std::vector<std::shared_ptr<MidoriType>>&& type_args) -> std::expected<MidoriType::ClassConstraint, std::string>
+											[&typeclass_name](std::vector<std::shared_ptr<MidoriType>>&& type_args) -> std::expected<MidoriType::ClassConstraint, CompilerError>
 											{
 												return MidoriType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
 											}
@@ -4583,21 +4635,21 @@ std::expected<std::vector<MidoriType::ClassConstraint>, std::string> Parser::Par
 				);
 		};
 
-	std::expected<std::vector<MidoriType::ClassConstraint>, std::string> constraints_result = ParseDelimitedZeroOrMoreUnlimited<MidoriType::ClassConstraint>
-		(
-			parse_constraint,
-			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
-		);
+	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedZeroOrMoreUnlimited<MidoriType::ClassConstraint>
+	(
+		parse_constraint,
+		[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
+	);
 
 	if (!constraints_result.has_value())
 	{
-		return std::unexpected<std::string>(constraints_result.error());
+		return std::unexpected(std::move(constraints_result.error()));
 	}
 
 	std::vector<MidoriType::ClassConstraint> constraints = std::move(constraints_result.value());
 	if (constraints.empty())
 	{
-		return std::unexpected<std::string>(GenerateParserError("Expected at least one constraint after 'where' keyword.", context_token));
+		return std::unexpected(GenerateParserError("Expected at least one constraint after 'where' keyword.", context_token));
 	}
 
 	return constraints;
@@ -4678,6 +4730,11 @@ const Parser::TypeclassMethodMap& Parser::GetTypeclassMethods() const
 	return m_state.m_class_methods;
 }
 
+const std::vector<CompilerWarning>& Parser::GetWarnings() const
+{
+	return m_warnings;
+}
+
 CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 {
 	CompiledModule::TypeclassMetadataMap result;
@@ -4705,3 +4762,4 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 	}
 	return result;
 }
+

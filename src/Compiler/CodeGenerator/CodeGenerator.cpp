@@ -47,9 +47,9 @@ void CodeGenerator::EmitByte(OpCode byte, int line)
 	m_builder = std::move(m_builder).EmitByte(byte, line);
 }
 
-void CodeGenerator::AddError(std::string&& error)
+void CodeGenerator::AddError(const CompilerError& error)
 {
-	m_errors.append(error);
+	m_errors.append(error.Rendered());
 	m_errors.push_back('\n');
 }
 
@@ -1355,7 +1355,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 
 	if (!m_errors.empty())
 	{
-		return std::unexpected<std::string>(std::move(m_errors));
+		return std::unexpected(std::move(m_errors));
 	}
 
 	BytecodeModule module(m_module_name.value_or(""s), std::filesystem::path(m_file_name));
@@ -4818,3 +4818,4 @@ std::size_t CodeGenerator::TypePairHash::operator()(const std::pair<MidoriType*,
 	std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
 	return h1 ^ (h2 << 1);
 }
+

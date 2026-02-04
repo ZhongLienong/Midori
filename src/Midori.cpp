@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
         .Compile()
         .and_then
         (
-            [](MidoriExecutable&& executable) -> std::expected<int, std::string>
+            [](MidoriExecutable&& executable) -> std::expected<int, CompilerError>
             {
                 MidoriRuntime runtime(std::move(executable));
                 VirtualMachine vm(runtime);
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
         )
         .or_else
         (
-            [](std::string&& compilation_error) -> std::expected<int, std::string>
+            [](CompilerError&& compilation_error) -> std::expected<int, CompilerError>
             {
                 Printer::Print<Printer::Color::RED>("Compilation failed :( \n");
                 Printer::Print<Printer::Color::RED>(std::format("{}", compilation_error));
