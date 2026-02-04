@@ -12,6 +12,46 @@ using namespace std::string_literals;
 
 namespace
 {
+	template <typename>
+	inline constexpr bool AlwaysFalse = false;
+
+	const Token& GetPatternToken(const MidoriPattern& pattern)
+	{
+		return std::visit
+		(
+			[](const auto& node) -> const Token&
+			{
+				using T = std::decay_t<decltype(node)>;
+				if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+				{
+					return node.m_name;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+				{
+					return node.m_token;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+				{
+					return node.m_left_paren;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+				{
+					return node.m_left_bracket;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+				{
+					return node.m_name_token;
+				}
+				else
+				{
+					static_assert(AlwaysFalse<T>, "Unhandled pattern type.");
+					return node.m_name_token;
+				}
+			},
+			*pattern
+		);
+	}
+
 	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
 	{
 		if (visited.contains(type.get()))
@@ -689,7 +729,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			}
 			else
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", Token(), m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
 			}
 		},
 		*pattern
