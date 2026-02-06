@@ -69,52 +69,76 @@ int Lexer::ConsumeWhile(Predicate&& pred)
 
 bool Lexer::IsAtEnd(int offset) const
 {
-	return static_cast<size_t>(m_current + offset) >= m_source_code.size();
+	return static_cast<size_t>(m_cursor.m_current + offset) >= m_source.m_code.size();
 }
 
-bool Lexer::IsDigit(char c) const
+bool Lexer::IsDigit(char c)
 {
 	return c >= '0' && c <= '9';
 }
 
-bool Lexer::IsAlpha(char c) const
+bool Lexer::IsAlpha(char c)
 {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
 }
 
-bool Lexer::IsAlphaNumeric(char c) const
+bool Lexer::IsAlphaNumeric(char c)
 {
 	return IsDigit(c) || IsAlpha(c);
 }
 
 char Lexer::Advance()
 {
-	return m_source_code[m_current++];
+	return m_source.m_code[m_cursor.m_current++];
 }
 
 char Lexer::LookAhead(int offset) const
 {
-	return IsAtEnd(offset) ? '\0' : m_source_code[static_cast<size_t>(m_current + offset)];
+	return IsAtEnd(offset) ? '\0' : m_source.m_code[static_cast<size_t>(m_cursor.m_current + offset)];
 }
 
 bool Lexer::MatchNext(char expected)
 {
-	if (!IsAtEnd(0) && m_source_code[m_current] == expected)
+	if (!IsAtEnd(0) && m_source.m_code[m_cursor.m_current] == expected)
 	{
-		m_current += 1;
+		m_cursor.m_current += 1;
 		return true;
 	}
 	return false;
 }
 
+Lexer& Lexer::BeginToken()
+{
+	m_cursor.m_begin = m_cursor.m_current;
+	return *this;
+}
+
+Lexer& Lexer::AdvanceLine()
+{
+	m_cursor.m_line += 1;
+	Advance();
+	m_cursor.m_line_start = m_cursor.m_current;
+	return *this;
+}
+
+int Lexer::CurrentColumn() const
+{
+	return m_cursor.m_current - m_cursor.m_line_start;
+}
+
+int Lexer::BeginColumn() const
+{
+	return m_cursor.m_begin - m_cursor.m_line_start;
+}
+
 Token Lexer::MakeToken(Token::Name type) const
 {
-	return Token(m_source_code.substr(m_begin, m_current - m_begin), type, m_line, m_file_name);
+	return Token(m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin), type, m_cursor.m_line, m_source.m_file_name);
 }
 
 Token Lexer::MakeToken(Token::Name type, std::string&& lexeme) const
 {
-	return Token(std::move(lexeme), type, m_line, m_file_name);
+	return Token(std::move(lexeme), type, m_cursor.m_line, m_source.m_file_name);
 }
 
 MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
@@ -129,12 +153,12 @@ MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type, std::string&&
 
 int Lexer::ConsumeDigits()
 {
-	return ConsumeWhile([this](char c) { return IsDigit(c); });
+	return ConsumeWhile(IsDigit);
 }
 
 int Lexer::ConsumeAlphaNumeric()
 {
-	return ConsumeWhile([this](char c) { return IsAlphaNumeric(c); });
+	return ConsumeWhile(IsAlphaNumeric);
 }
 
 MidoriResult::VoidResult Lexer::SkipLineComment()
@@ -156,14 +180,14 @@ MidoriResult::VoidResult Lexer::SkipBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			int column = m_current - m_line_start;
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_line, column, m_file_name, m_source_lines));
+			const int column = CurrentColumn();
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
 		{
-			m_line += 1;
-			m_line_start = m_current + 1;
+			AdvanceLine();
+			continue;
 		}
 
 		Advance();
@@ -179,7 +203,7 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 			return {};
 		}
 
-		char c = LookAhead(0);
+		const char c = LookAhead(0);
 
 		switch (c)
 		{
@@ -189,11 +213,10 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 			Advance();
 			continue;
 		case '\n':
-			m_line += 1;
-			Advance();
-			m_line_start = m_current;
+			AdvanceLine();
 			continue;
 		case '/':
+		{
 			if (LookAhead(1) == '/')
 			{
 				Advance(); // '/'
@@ -209,6 +232,7 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 					.and_then([this]() -> MidoriResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			return {};
+		}
 		default:
 			return {};
 		}
@@ -221,8 +245,8 @@ MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 	{
 		if (IsAtEnd(0))
 		{
-			int column = m_begin - m_line_start;
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_line, column, m_file_name, m_source_lines));
+			const int column = BeginColumn();
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '"')
@@ -233,12 +257,12 @@ MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 
 		if (LookAhead(0) == '\n')
 		{
-			m_line += 1;
+			m_cursor.m_line += 1;
 		}
 
 		if (LookAhead(0) == '\\' && !IsAtEnd(1))
 		{
-			char escape_char = LookAhead(1);
+			const char escape_char = LookAhead(1);
 			char escaped_value;
 			bool add_backslash = false;
 
@@ -290,37 +314,67 @@ MidoriResult::TokenResult Lexer::MatchString()
 
 MidoriResult::TokenResult Lexer::MatchNumber()
 {
-	if (LookAhead(-1) == '0' && (LookAhead(0) == 'x' || LookAhead(0) == 'X'))
+	if (IsHexPrefix())
 	{
-		Advance();
-		ConsumeWhile([](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'); });
+		return MatchPrefixedInteger(IsHexDigit);
+	}
+
+	if (IsBinaryPrefix())
+	{
+		return MatchPrefixedInteger(IsBinaryDigit);
+	}
+
+	return MatchDecimalNumber();
+}
+
+MidoriResult::TokenResult Lexer::MatchDecimalNumber()
+{
+	ConsumeDigits();
+
+	const bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
+
+	if (!is_float)
+	{
 		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
 	}
-	else if (LookAhead(-1) == '0' && (LookAhead(0) == 'b' || LookAhead(0) == 'B'))
-	{
-		Advance(); 
-		ConsumeWhile([](char c) { return c == '0' || c == '1'; });
-		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
-	}
-	else
-	{
-		// Normal decimal number
-		ConsumeDigits();
 
-		// Look for a decimal part.
-		bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
+	Advance();
+	ConsumeDigits();
+	return MakeTokenResult(Token::Name::FLOAT_LITERAL);
+}
 
-		return (is_float
-			? (Advance(), ConsumeDigits(), MakeTokenResult(Token::Name::FLOAT_LITERAL))
-			: MakeTokenResult(Token::Name::INTEGER_LITERAL));
-	}
+MidoriResult::TokenResult Lexer::MatchPrefixedInteger(bool (*predicate)(char))
+{
+	Advance();
+	ConsumeWhile(predicate);
+	return MakeTokenResult(Token::Name::INTEGER_LITERAL);
+}
+
+bool Lexer::IsHexPrefix() const
+{
+	return LookAhead(-1) == '0' && (LookAhead(0) == 'x' || LookAhead(0) == 'X');
+}
+
+bool Lexer::IsBinaryPrefix() const
+{
+	return LookAhead(-1) == '0' && (LookAhead(0) == 'b' || LookAhead(0) == 'B');
+}
+
+bool Lexer::IsHexDigit(char c)
+{
+	return IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+bool Lexer::IsBinaryDigit(char c)
+{
+	return c == '0' || c == '1';
 }
 
 MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
 {
 	ConsumeAlphaNumeric();
 
-	std::string identifier = m_source_code.substr(m_begin, m_current - m_begin);
+	std::string identifier = m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin);
 
 	return s_keywords.contains(identifier)
 		? MakeTokenResult(s_keywords.at(identifier))
@@ -329,16 +383,9 @@ MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
 
 MidoriResult::TokenResult Lexer::LexTokenAfterWhitespace()
 {
-	if (IsAtEnd(0))
-	{
-		m_begin = m_current;
-		return MakeTokenResult(Token::Name::END_OF_FILE);
-	}
-	else
-	{
-		m_begin = m_current;
-		return LexTokenFrom(Advance());
-	}
+	return IsAtEnd(0)
+		? BeginToken().MakeTokenResult(Token::Name::END_OF_FILE)
+		: BeginToken().LexTokenFrom(Advance());
 }
 
 MidoriResult::TokenResult Lexer::LexTokenFrom(char next_char)
@@ -538,7 +585,7 @@ MidoriResult::TokenResult Lexer::MatchEqualPlusPlus()
 {
 	return MatchNext('+')
 		? MakeTokenResult(Token::Name::EQUAL_PLUS_PLUS)
-		: std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_line, m_begin - m_line_start, m_file_name, m_source_lines));
+		: std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 }
 
 MidoriResult::TokenResult Lexer::MatchGreater()
@@ -603,7 +650,28 @@ MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 
 MidoriResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
 {
-	return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_line, m_current - m_line_start, m_file_name, m_source_lines));
+	return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, CurrentColumn(), m_source.m_file_name, m_source.m_lines));
+}
+
+MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
+{
+	return LexOneToken()
+		.transform
+		(
+			[state = std::move(state)](Token&& token) mutable -> LexState
+			{
+				state.m_tokens.AddToken(std::move(token));
+				return std::move(state);
+			}
+		)
+		.or_else
+		(
+			[state = std::move(state)](CompilerError&& error) mutable -> MidoriResult::Result<LexState>
+			{
+				state.m_errors.append(error.Rendered()).append("\n");
+				return std::move(state);
+			}
+		);
 }
 
 MidoriResult::TokenResult Lexer::LexOneToken()
@@ -618,7 +686,7 @@ std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
 	std::vector<std::string> lines;
 	std::string line;
 
-	for (; std::getline(iss, line); )
+	while (std::getline(iss, line))
 	{
 		lines.emplace_back(std::move(line));
 	}
@@ -626,54 +694,56 @@ std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
 	return lines;
 }
 
+Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view file_name)
+{
+	std::vector<std::string> lines = SplitIntoLines(source_code);
+	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
+}
+
 Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
-	: m_source_code(std::move(source_code)),
-	m_file_name(file_name),
-	m_source_lines(SplitIntoLines(m_source_code))
+	: m_source(BuildSource(std::move(source_code), file_name))
 {
 }
 
-MidoriResult::LexerResult Lexer::LexRecursive(TokenStream&& tokens, std::string&& errors)
+MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
 {
 	while (!IsAtEnd(0))
 	{
-		static_cast<void>
-		(
-			LexOneToken()
-				.and_then
-				(
-					[&tokens](Token&& token) -> MidoriResult::VoidResult
-					{
-						tokens.AddToken(std::move(token));
-						return {};
-					}
-				)
-				.or_else
-				(
-					[&errors](CompilerError&& error) -> MidoriResult::VoidResult
-					{
-						errors.append(error.Rendered()).append("\n");
-						return {};
-					}
-				)
-		);
+		MidoriResult::VoidResult step = RecordTokenOrError(std::move(state))
+			.and_then
+			(
+				[&state](LexState&& next_state) -> MidoriResult::VoidResult
+				{
+					state = std::move(next_state);
+					return {};
+				}
+			);
+		if (!step)
+		{
+			return std::unexpected(step.error());
+		}
 	}
 
-	if (!errors.empty())
+	if (!state.m_errors.empty())
 	{
-		return std::unexpected(std::move(errors));
+		return std::unexpected(std::move(state.m_errors));
 	}
 
-	if (tokens.Size() == 0 || (std::prev(tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
+	if (state.m_tokens.Size() == 0 || (std::prev(state.m_tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
 	{
-		tokens.AddToken(MakeToken(Token::Name::END_OF_FILE));
+		state.m_tokens.AddToken(MakeToken(Token::Name::END_OF_FILE));
 	}
 
-	return std::move(tokens);
+	return std::move(state.m_tokens);
 }
 
-MidoriResult::LexerResult Lexer::Lex()
+MidoriResult::LexerResult Lexer::Lex() &
 {
-	return LexRecursive(TokenStream{}, std::string{});
+	return LexRecursive(LexState{ TokenStream{}, std::string{} });
+}
+
+MidoriResult::LexerResult Lexer::Lex() &&
+{
+	return LexRecursive(LexState{ TokenStream{}, std::string{} });
 }
 

@@ -4,42 +4,69 @@
 #include "Compiler/Result/Result.h"
 
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 class Lexer
 {
 private:
-	const std::string m_source_code;
-	const std::string m_file_name;
-	const std::vector<std::string> m_source_lines;
+	struct Source
+	{
+		const std::string m_code;
+		const std::string m_file_name;
+		const std::vector<std::string> m_lines;
+	};
+
+	struct Cursor
+	{
+		int m_current = 0;
+		int m_begin = 0;
+		int m_line_start = 0;
+		int m_line = 1;
+	};
+
+	struct LexState
+	{
+		TokenStream m_tokens;
+		std::string m_errors;
+	};
+
+	Source m_source;
+	Cursor m_cursor;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
-	int m_current = 0;
-	int m_begin = 0;
-	int m_line_start = 0;
-	int m_line = 1;
 
 public:
 
 	Lexer(std::string&& source_code, std::string_view file_name) noexcept;
 
-	MidoriResult::LexerResult Lex();
+	MidoriResult::LexerResult Lex() &;
+
+	MidoriResult::LexerResult Lex() &&;
 
 private:
 
 	bool IsAtEnd(int offset) const;
 
-	bool IsDigit(char c) const;
+	static bool IsDigit(char c);
 
-	bool IsAlpha(char c) const;
+	static bool IsAlpha(char c);
 
-	bool IsAlphaNumeric(char c) const;
+	static bool IsAlphaNumeric(char c);
 
 	char Advance();
 
 	char LookAhead(int offset) const;
 
 	bool MatchNext(char expected);
+
+	Lexer& BeginToken();
+
+	Lexer& AdvanceLine();
+
+	int CurrentColumn() const;
+
+	int BeginColumn() const;
 
 	Token MakeToken(Token::Name type) const;
 
@@ -48,6 +75,8 @@ private:
 	MidoriResult::TokenResult MakeTokenResult(Token::Name type) const;
 
 	MidoriResult::TokenResult MakeTokenResult(Token::Name type, std::string&& lexeme) const;
+
+	MidoriResult::Result<LexState> RecordTokenOrError(LexState state);
 
 	MidoriResult::TokenResult LexOneToken();
 
@@ -101,6 +130,18 @@ private:
 
 	MidoriResult::TokenResult MatchNumber();
 
+	MidoriResult::TokenResult MatchDecimalNumber();
+
+	MidoriResult::TokenResult MatchPrefixedInteger(bool (*predicate)(char));
+
+	bool IsHexPrefix() const;
+
+	bool IsBinaryPrefix() const;
+
+	static bool IsHexDigit(char c);
+
+	static bool IsBinaryDigit(char c);
+
 	MidoriResult::TokenResult MatchIdentifierOrReserved();
 
 	template<typename Predicate>
@@ -116,7 +157,9 @@ private:
 
 	int ConsumeAlphaNumeric();
 
-	MidoriResult::LexerResult LexRecursive(TokenStream&& tokens, std::string&& errors);
+	MidoriResult::LexerResult LexRecursive(LexState state);
 
-	std::vector<std::string> SplitIntoLines(const std::string& source);
+	static Source BuildSource(std::string&& source_code, std::string_view file_name);
+
+	static std::vector<std::string> SplitIntoLines(const std::string& source);
 };

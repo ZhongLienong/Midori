@@ -12,6 +12,7 @@
 #include <cstring>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 class MidoriRuntime;
 
@@ -85,6 +86,7 @@ private:
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
+    std::vector<InstructionPointer> m_proc_entry_cache;
     std::vector<MidoriTraceable*> m_string_literal_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
     std::unordered_map<int, MidoriTraceable*> m_static_closure_cache;
@@ -216,6 +218,11 @@ private:
 
 	int GetLineFromIP(InstructionPointer ip, int proc_index) noexcept;
 
+	MIDORI_FORCE_INLINE InstructionPointer GetProcEntry(int proc_index) const noexcept
+	{
+		return m_proc_entry_cache[static_cast<size_t>(proc_index)];
+	}
+
 	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr) noexcept
 	{
 		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_ptr};
@@ -243,6 +250,8 @@ private:
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 
 	void InitializeStacks() noexcept;
+
+	void InitializeProcEntryCache() noexcept;
 
 	template<typename T>
         requires MidoriValueConstructible<T>

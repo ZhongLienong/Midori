@@ -42,10 +42,11 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime) noexcept
 	m_global_vars = runtime.GetGlobalsPtr();
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
+	InitializeProcEntryCache();
 	InitializeStacks();
 
 	constexpr int runtime_startup_proc_index = 0;
-	m_instruction_pointer = &*m_executable->GetBytecodeStream(runtime_startup_proc_index).cbegin();
+	m_instruction_pointer = GetProcEntry(runtime_startup_proc_index);
 }
 
 VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entry_closure) noexcept
@@ -55,13 +56,30 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 	m_global_vars = runtime.GetGlobalsPtr();
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
+	InitializeProcEntryCache();
 	InitializeStacks();
 
 	MidoriTraceable* closure_traceable = AllocateTraceable(MidoriClosure{.m_cell_values = entry_closure.m_cell_values, .m_proc_index = entry_closure.m_proc_index});
 	m_curr_closure_traceable = closure_traceable;
 	m_curr_environment = &closure_traceable->GetTraceable<MidoriClosure>().m_cell_values;
 
-	m_instruction_pointer = &*m_executable->GetBytecodeStream(entry_closure.m_proc_index).cbegin();
+	m_instruction_pointer = GetProcEntry(entry_closure.m_proc_index);
+}
+
+void VirtualMachine::InitializeProcEntryCache() noexcept
+{
+	if (!m_executable)
+	{
+		return;
+	}
+
+	int count = m_executable->GetProcedureCount();
+	m_proc_entry_cache.resize(static_cast<size_t>(count));
+	for (int i = 0; i < count; i += 1)
+	{
+		const BytecodeStream& bytecode = m_executable->GetBytecodeStream(i);
+		m_proc_entry_cache[static_cast<size_t>(i)] = bytecode[0u];
+	}
 }
 
 
@@ -2062,7 +2080,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
 
-			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
+			m_instruction_pointer = GetProcEntry(closure.m_proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2088,7 +2106,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
 
-			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
+			m_instruction_pointer = GetProcEntry(closure.m_proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2102,7 +2120,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			// Static functions have no captures, so no environment needed
 			m_curr_environment = nullptr;
-			m_instruction_pointer = m_executable->GetBytecodeStream(proc_index)[0u];
+			m_instruction_pointer = GetProcEntry(proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2119,7 +2137,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			// Static functions have no captures, so no environment needed
 			m_curr_environment = nullptr;
-			m_instruction_pointer = m_executable->GetBytecodeStream(proc_index)[0u];
+			m_instruction_pointer = GetProcEntry(proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2138,14 +2156,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			// Move arguments down to base pointer
 			MidoriValue* args_source = m_value_stack_pointer - arity;
-			std::memmove(m_value_stack_base_pointer, args_source, arity * sizeof(MidoriValue));
+			if (arity > 0 && args_source != m_value_stack_base_pointer)
+			{
+				std::memmove(m_value_stack_base_pointer, args_source, arity * sizeof(MidoriValue));
+			}
 			m_value_stack_pointer = m_value_stack_base_pointer + arity;
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
 
 			// Jump to the start of the function without creating a new call frame
-			m_instruction_pointer = m_executable->GetBytecodeStream(closure.m_proc_index)[0u];
+			m_instruction_pointer = GetProcEntry(closure.m_proc_index);
 
 			break;
 		}
