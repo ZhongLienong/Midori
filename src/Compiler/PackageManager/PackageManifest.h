@@ -9,12 +9,12 @@
 struct PackageInfo
 {
 	std::string m_name;
-	std::string m_version;
+	std::string m_version = "0.0.0";
 	std::vector<std::string> m_authors;
 	std::string m_description;
 	std::string m_license;
 	std::string m_repository;
-	std::string m_midoriVersion;
+	std::string m_midori_version = ">=1.0.0";
 };
 
 struct PackageModules
@@ -30,15 +30,15 @@ struct PackageDependencies
 
 struct PackageFFI
 {
-	bool m_enabled;
 	std::string m_libraryName;
 	std::unordered_map<std::string, std::string> m_functions;
+	bool m_enabled = false;
 };
 
 struct PackageBuild
 {
-	std::string m_cmakeMinimumVersion;
-	std::string m_cppStandard;
+	std::string m_cmakeMinimumVersion = "3.24";
+	std::string m_cppStandard = "23";
 };
 
 struct PrebuiltBinary
@@ -59,6 +59,14 @@ class PackageManifest
 {
 public:
 	static std::optional<PackageManifest> Load(const std::filesystem::path& packageDirectory);
+	static PackageManifest Create(std::filesystem::path packageDirectory);
+
+	PackageManifest WithInfo(PackageInfo info) &&;
+	PackageManifest WithModules(PackageModules modules) &&;
+	PackageManifest WithDependencies(PackageDependencies dependencies) &&;
+	PackageManifest WithFFI(PackageFFI ffi) &&;
+	PackageManifest WithBuild(PackageBuild build) &&;
+	PackageManifest WithPrebuilt(PackagePrebuilt prebuilt) &&;
 
 	const PackageInfo& GetInfo() const;
 	const PackageModules& GetModules() const;
