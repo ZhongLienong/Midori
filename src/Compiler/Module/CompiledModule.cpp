@@ -12,6 +12,43 @@ CompiledModule::CompiledModule(std::string module_name, std::filesystem::path fi
 {
 }
 
+const std::string& CompiledModule::ModuleName() const
+{
+	return m_module_name;
+}
+
+const std::filesystem::path& CompiledModule::FilePath() const
+{
+	return m_file_path;
+}
+
+const CompiledModule::SymbolTable& CompiledModule::Symbols() const
+{
+	return m_symbols;
+}
+
+const CompiledModule::TypeEnvironment& CompiledModule::TypeSignatures() const
+{
+	return m_type_signatures;
+}
+
+const CompiledModule::TypeclassMetadataMap& CompiledModule::TypeclassMetadataByName() const
+{
+	return m_typeclass_metadata;
+}
+
+const std::optional<BytecodeModule>& CompiledModule::Bytecode() const &
+{
+	return m_bytecode;
+}
+
+BytecodeModule CompiledModule::TakeBytecode() &&
+{
+	BytecodeModule bytecode = std::move(m_bytecode).value();
+	m_bytecode.reset();
+	return bytecode;
+}
+
 bool CompiledModule::SymbolTable::HasExport(std::string_view name) const
 {
 	return m_exports.contains(std::string(name));

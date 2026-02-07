@@ -77,9 +77,9 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 		bool has_module_decl = std::ranges::any_of(spans, [](const StatementSpan& span) { return span.m_type == StatementType::MODULE; });
 
-		ModuleDeclaration module_decl(module_name, m_main_file_name);
-		module_decl.m_has_module_declaration = has_module_decl;
-		module_decl.m_exports = std::move(exports);
+		ModuleDeclaration module_decl = ModuleDeclaration(module_name, m_main_file_name)
+			.WithHasModuleDeclaration(has_module_decl)
+			.WithExports(std::move(exports));
 		m_module_declarations[m_main_file_name] = std::move(module_decl);
 
 		std::vector<std::pair<std::string, int>> import_paths = ExtractImports(m_main_token_stream, spans);

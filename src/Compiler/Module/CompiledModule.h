@@ -19,9 +19,6 @@ struct CompiledModule
 
 	struct SymbolTable
 	{
-		ExportSet m_exports;
-		ExportVisibilityMap m_export_visibility;
-
 		[[nodiscard]] const VisibilityLevel* FindExportVisibility(std::string_view name) const;
 
 		bool HasExport(std::string_view name) const;
@@ -31,6 +28,10 @@ struct CompiledModule
 		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) const &;
 
 		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) &&;
+
+	private:
+		ExportSet m_exports;
+		ExportVisibilityMap m_export_visibility;
 	};
 
 	struct TypeclassMetadata
@@ -45,19 +46,26 @@ struct CompiledModule
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassMetadataMap = std::unordered_map<std::string, TypeclassMetadata>;
 
-	std::string m_module_name;
-	std::filesystem::path m_file_path;
-	SymbolTable m_symbols;
-	TypeEnvironment m_type_signatures;
-	TypeclassMetadataMap m_typeclass_metadata;
-	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
-
 	CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures = {}, TypeclassMetadataMap typeclass_metadata = {});
 
 	CompiledModule(const CompiledModule&) = delete;
 	CompiledModule& operator=(const CompiledModule&) = delete;
 	CompiledModule(CompiledModule&&) noexcept = default;
 	CompiledModule& operator=(CompiledModule&&) noexcept = default;
+
+	[[nodiscard]] const std::string& ModuleName() const;
+
+	[[nodiscard]] const std::filesystem::path& FilePath() const;
+
+	[[nodiscard]] const SymbolTable& Symbols() const;
+
+	[[nodiscard]] const TypeEnvironment& TypeSignatures() const;
+
+	[[nodiscard]] const TypeclassMetadataMap& TypeclassMetadataByName() const;
+
+	[[nodiscard]] const std::optional<BytecodeModule>& Bytecode() const &;
+
+	[[nodiscard]] BytecodeModule TakeBytecode() &&;
 
 	[[nodiscard]] CompiledModule WithSymbols(SymbolTable symbols) &&;
 
@@ -66,4 +74,12 @@ struct CompiledModule
 	[[nodiscard]] CompiledModule WithTypeclassMetadata(TypeclassMetadataMap typeclass_metadata) &&;
 
 	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
+
+private:
+	std::string m_module_name;
+	std::filesystem::path m_file_path;
+	SymbolTable m_symbols;
+	TypeEnvironment m_type_signatures;
+	TypeclassMetadataMap m_typeclass_metadata;
+	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 };

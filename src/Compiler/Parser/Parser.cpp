@@ -168,9 +168,9 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			else if (visibility == VisibilityLevel::Private)
 			{
 				// Private exports only accessible to modules in same namespace
-				if (m_context.m_current_module != nullptr && m_context.m_current_module->m_has_module_declaration)
+				if (m_context.m_current_module != nullptr && m_context.m_current_module->HasModuleDeclaration())
 				{
-					if (SharesNamespace(m_context.m_current_module->m_module_name, imported_module_name))
+					if (SharesNamespace(m_context.m_current_module->ModuleName(), imported_module_name))
 					{
 						can_access = true;
 					}
@@ -1457,14 +1457,15 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								if (module_decl.HasExport(symbol_name))
 								{
 									VisibilityLevel visibility = module_decl.GetExportVisibility(symbol_name);
+									const std::string& module_name = module_decl.ModuleName();
 									if (visibility == VisibilityLevel::Private)
 									{
-										error_msg += "\n  Note: '"s + symbol_name + "' is marked as 'private export' in module "s + module_decl.m_module_name;
-										error_msg += "\n  Note: Only modules in the "s + module_decl.m_module_name.substr(0, module_decl.m_module_name.find_last_of('.')) + " namespace can access it"s;
+										error_msg += "\n  Note: '"s + symbol_name + "' is marked as 'private export' in module "s + module_name;
+										error_msg += "\n  Note: Only modules in the "s + module_name.substr(0, module_name.find_last_of('.')) + " namespace can access it"s;
 									}
 									else if (visibility == VisibilityLevel::Internal)
 									{
-										error_msg += "\n  Note: '"s + symbol_name + "' is not exported from module "s + module_decl.m_module_name;
+										error_msg += "\n  Note: '"s + symbol_name + "' is not exported from module "s + module_name;
 										error_msg += "\n  Suggestion: Add it to a 'public export' or 'private export' block"s;
 									}
 									break;
@@ -3113,9 +3114,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 
 									// Track the mangled instance method WITH module suffix for cross-module resolution
 									std::string mangled_name_with_module = mangled_name;
-									if (m_context.m_current_module && m_context.m_current_module->m_has_module_declaration)
+									if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
 									{
-										mangled_name_with_module += ModuleSeparator + m_context.m_current_module->m_module_name;
+										mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
 									}
 									m_state.m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
 

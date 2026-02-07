@@ -33,6 +33,31 @@ ModuleDeclaration::ModuleDeclaration(std::string_view module_name, const std::fi
 {
 }
 
+const std::string& ModuleDeclaration::ModuleName() const
+{
+	return m_module_name;
+}
+
+const std::filesystem::path& ModuleDeclaration::FilePath() const
+{
+	return m_file_path;
+}
+
+const ModuleDeclaration::ExportList& ModuleDeclaration::Exports() const
+{
+	return m_exports;
+}
+
+const ModuleDeclaration::ImportList& ModuleDeclaration::Imports() const
+{
+	return m_imports;
+}
+
+bool ModuleDeclaration::HasModuleDeclaration() const
+{
+	return m_has_module_declaration;
+}
+
 bool ModuleDeclaration::HasExport(std::string_view symbol_name) const
 {
 	return FindExport(symbol_name) != nullptr;

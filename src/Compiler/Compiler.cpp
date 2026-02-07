@@ -328,17 +328,18 @@ namespace
 			for (const std::string& dep_path : node.m_dependencies)
 			{
 				const CompiledModule& dep = env.m_compiled_modules.at(dep_path);
-				context.m_imported_symbols[dep.m_module_name] = dep.m_symbols;
-				context.m_imported_type_signatures[dep.m_module_name] = dep.m_type_signatures;
+				const std::string& dep_module_name = dep.ModuleName();
+				context.m_imported_symbols[dep_module_name] = dep.Symbols();
+				context.m_imported_type_signatures[dep_module_name] = dep.TypeSignatures();
 
-				for (const auto& [tc_name, metadata] : dep.m_typeclass_metadata)
+				for (const auto& [tc_name, metadata] : dep.TypeclassMetadataByName())
 				{
 					std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
 					if (existing_it != context.m_imported_typeclass_metadata.end())
 					{
 						if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
 						{
-							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep.m_module_name), 0, file_path));
+							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), 0, file_path));
 						}
 
 						CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
@@ -347,22 +348,23 @@ namespace
 					else
 					{
 						context.m_imported_typeclass_metadata[tc_name] = metadata;
-						imported_typeclass_sources[tc_name] = dep.m_module_name;
+						imported_typeclass_sources[tc_name] = dep_module_name;
 					}
 				}
 
-				for (const auto& [name, type] : dep.m_type_signatures)
+				for (const auto& [name, type] : dep.TypeSignatures())
 				{
 					context.m_imported_types[name] = type;
-					context.m_imported_types[dep.m_module_name + NameSeparator.data() + name] = type;
+					context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
 				}
 
-				if (dep.m_bytecode.has_value())
+				const std::optional<BytecodeModule>& dep_bytecode = dep.Bytecode();
+				if (dep_bytecode.has_value())
 				{
-					for (const auto& [name, info] : dep.m_bytecode.value().m_generic_functions)
+					for (const auto& [name, info] : dep_bytecode.value().m_generic_functions)
 					{
 						context.m_imported_generic_functions[name] = info;
-						context.m_imported_generic_functions[dep.m_module_name + "::" + name] = info;
+						context.m_imported_generic_functions[dep_module_name + "::" + name] = info;
 					}
 				}
 			}
@@ -392,7 +394,7 @@ namespace
 		std::unordered_set<std::string> export_set_for_types;
 		if (module_decl)
 		{
-			for (const ModuleExport& exp : module_decl->m_exports)
+			for (const ModuleExport& exp : module_decl->Exports())
 			{
 				export_set_for_types.insert(exp.m_symbol_name);
 			}
@@ -434,10 +436,9 @@ namespace
 		ModuleExportInfo export_info;
 		if (module_decl)
 		{
-			for (const ModuleExport& exp : module_decl->m_exports)
+			for (const ModuleExport& exp : module_decl->Exports())
 			{
-				export_info.m_symbols.m_exports.insert(exp.m_symbol_name);
-				export_info.m_symbols.m_export_visibility[exp.m_symbol_name] = exp.m_visibility;
+				export_info.m_symbols = std::move(export_info.m_symbols).WithExport(exp.m_symbol_name, exp.m_visibility);
 				export_info.m_export_set.insert(exp.m_symbol_name);
 
 				if (typeclass_metadata.contains(exp.m_symbol_name))
@@ -445,8 +446,7 @@ namespace
 					const CompiledModule::TypeclassMetadata& tc_metadata = typeclass_metadata.at(exp.m_symbol_name);
 					for (const std::string& instance_method : tc_metadata.m_instance_methods)
 					{
-						export_info.m_symbols.m_exports.insert(instance_method);
-						export_info.m_symbols.m_export_visibility[instance_method] = exp.m_visibility;
+						export_info.m_symbols = std::move(export_info.m_symbols).WithExport(instance_method, exp.m_visibility);
 						export_info.m_export_set.insert(instance_method);
 					}
 				}
@@ -559,7 +559,7 @@ namespace
 	static MidoriResult::Result<CompileState> WithBytecode(CompileState state)
 	{
 		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
-		state.m_module_name = state.m_module_decl ? state.m_module_decl->m_module_name : std::filesystem::path(state.m_file_path).stem().string();
+		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
 
 		return GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context)
 			.and_then(StateApplier<BytecodeModule, ApplyBytecode>{ std::move(state) });
@@ -571,8 +571,10 @@ namespace
 
 		MidoriResult::CompiledModuleResult operator()()
 		{
-			CompiledModule compiled_module(m_state.m_module_name, m_state.m_file_path, std::move(m_state.m_export_info.m_symbols), std::move(m_state.m_parsed_module.m_type_signatures), std::move(m_state.m_parsed_module.m_typeclass_metadata));
-			compiled_module.m_bytecode = std::move(m_state.m_bytecode);
+			CompiledModule compiled_module = CompiledModule(m_state.m_module_name, m_state.m_file_path, std::move(m_state.m_export_info.m_symbols))
+				.WithTypeSignatures(std::move(m_state.m_parsed_module.m_type_signatures))
+				.WithTypeclassMetadata(std::move(m_state.m_parsed_module.m_typeclass_metadata))
+				.WithBytecode(std::move(m_state.m_bytecode));
 
 			ReportCompiled
 			(
@@ -950,7 +952,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 									{
 										return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path)));
 									}
-									all_bytecode_modules.emplace_back(std::move(it->second.m_bytecode.value()));
+									all_bytecode_modules.emplace_back(std::move(it->second).TakeBytecode());
 								}
 							}
 

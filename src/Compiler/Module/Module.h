@@ -40,15 +40,19 @@ struct ModuleDeclaration
 	using ExportList = std::vector<ModuleExport>;
 	using ImportList = std::vector<std::string>;
 
-	std::string m_module_name;
-	std::filesystem::path m_file_path;
-	ExportList m_exports;
-	ImportList m_imports;
-	bool m_has_module_declaration;          // True if file has explicit "module X" declaration
-
 	ModuleDeclaration();
 
 	ModuleDeclaration(std::string_view module_name, const std::filesystem::path& file_path);
+
+	[[nodiscard]] const std::string& ModuleName() const;
+
+	[[nodiscard]] const std::filesystem::path& FilePath() const;
+
+	[[nodiscard]] const ExportList& Exports() const;
+
+	[[nodiscard]] const ImportList& Imports() const;
+
+	[[nodiscard]] bool HasModuleDeclaration() const;
 
 	[[nodiscard]] const ModuleExport* FindExport(std::string_view symbol_name) const;
 
@@ -75,4 +79,11 @@ struct ModuleDeclaration
 	[[nodiscard]] ModuleDeclaration WithHasModuleDeclaration(bool has_module_declaration) const &;
 
 	[[nodiscard]] ModuleDeclaration WithHasModuleDeclaration(bool has_module_declaration) &&;
+
+private:
+	std::string m_module_name;
+	std::filesystem::path m_file_path;
+	ExportList m_exports;
+	ImportList m_imports;
+	bool m_has_module_declaration;          // True if file has explicit "module X" declaration
 };
