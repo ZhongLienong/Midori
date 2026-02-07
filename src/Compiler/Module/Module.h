@@ -1,16 +1,16 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <unordered_map>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
-
-struct Token;
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
 
-enum class VisibilityLevel
+enum class VisibilityLevel : std::uint8_t
 {
 	Public,      // Exported publicly (accessible to all importers)
 	Private,     // Exported privately (accessible only to same namespace modules)
@@ -37,17 +37,42 @@ struct UseImport
 
 struct ModuleDeclaration
 {
-	std::string m_module_name;         
-	std::filesystem::path m_file_path; 
-	std::vector<ModuleExport> m_exports;  
-	std::vector<std::string> m_imports;  
+	using ExportList = std::vector<ModuleExport>;
+	using ImportList = std::vector<std::string>;
+
+	std::string m_module_name;
+	std::filesystem::path m_file_path;
+	ExportList m_exports;
+	ImportList m_imports;
 	bool m_has_module_declaration;          // True if file has explicit "module X" declaration
 
 	ModuleDeclaration();
 
 	ModuleDeclaration(std::string_view module_name, const std::filesystem::path& file_path);
 
+	[[nodiscard]] const ModuleExport* FindExport(std::string_view symbol_name) const;
+
 	bool HasExport(std::string_view symbol_name) const;
 
 	VisibilityLevel GetExportVisibility(std::string_view symbol_name) const;
+
+	[[nodiscard]] ModuleDeclaration WithExport(ModuleExport export_entry) const &;
+
+	[[nodiscard]] ModuleDeclaration WithExport(ModuleExport export_entry) &&;
+
+	[[nodiscard]] ModuleDeclaration WithExports(ExportList exports) const &;
+
+	[[nodiscard]] ModuleDeclaration WithExports(ExportList exports) &&;
+
+	[[nodiscard]] ModuleDeclaration WithImport(std::string import_name) const &;
+
+	[[nodiscard]] ModuleDeclaration WithImport(std::string import_name) &&;
+
+	[[nodiscard]] ModuleDeclaration WithImports(ImportList imports) const &;
+
+	[[nodiscard]] ModuleDeclaration WithImports(ImportList imports) &&;
+
+	[[nodiscard]] ModuleDeclaration WithHasModuleDeclaration(bool has_module_declaration) const &;
+
+	[[nodiscard]] ModuleDeclaration WithHasModuleDeclaration(bool has_module_declaration) &&;
 };

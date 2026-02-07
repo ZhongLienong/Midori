@@ -14,18 +14,23 @@
 struct CompiledModule
 {
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-
-	std::string m_module_name;
-	std::filesystem::path m_file_path;
+	using ExportSet = std::unordered_set<std::string>;
+	using ExportVisibilityMap = std::unordered_map<std::string, VisibilityLevel>;
 
 	struct SymbolTable
 	{
-		std::unordered_set<std::string> m_exports;
-		std::unordered_map<std::string, VisibilityLevel> m_export_visibility;
+		ExportSet m_exports;
+		ExportVisibilityMap m_export_visibility;
+
+		[[nodiscard]] const VisibilityLevel* FindExportVisibility(std::string_view name) const;
 
 		bool HasExport(std::string_view name) const;
 
 		VisibilityLevel GetExportVisibility(std::string_view name) const;
+
+		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) const &;
+
+		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) &&;
 	};
 
 	struct TypeclassMetadata
@@ -40,10 +45,12 @@ struct CompiledModule
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassMetadataMap = std::unordered_map<std::string, TypeclassMetadata>;
 
+	std::string m_module_name;
+	std::filesystem::path m_file_path;
 	SymbolTable m_symbols;
 	TypeEnvironment m_type_signatures;
-	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 	TypeclassMetadataMap m_typeclass_metadata;
+	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 
 	CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures = {}, TypeclassMetadataMap typeclass_metadata = {});
 
@@ -51,4 +58,12 @@ struct CompiledModule
 	CompiledModule& operator=(const CompiledModule&) = delete;
 	CompiledModule(CompiledModule&&) noexcept = default;
 	CompiledModule& operator=(CompiledModule&&) noexcept = default;
+
+	[[nodiscard]] CompiledModule WithSymbols(SymbolTable symbols) &&;
+
+	[[nodiscard]] CompiledModule WithTypeSignatures(TypeEnvironment type_signatures) &&;
+
+	[[nodiscard]] CompiledModule WithTypeclassMetadata(TypeclassMetadataMap typeclass_metadata) &&;
+
+	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
 };
