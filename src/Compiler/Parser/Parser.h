@@ -76,11 +76,11 @@ private:
 		std::vector<std::string> m_namespaces;
 		std::vector<MidoriType::ClassConstraint> m_active_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_active_union_types;
-		bool m_allow_implicit_generic_params = false;
 		int m_function_depth = 0;
 		int m_current_token_index = 0;
 		int m_total_locals_in_curr_scope = 0;
 		int m_total_variables = 0;
+		bool m_allow_implicit_generic_params = false;
 
 		ParseState(const std::vector<UseImport>& use_imports);
 	};
@@ -392,7 +392,9 @@ private:
 
 	bool IsLocalName(const Scope::VariableTable::const_iterator& found_scope_it) const;
 	
-	void Synchronize();
+	Parser& Synchronize() &;
+
+	Parser&& Synchronize() &&;
 
 	bool IsNoMatchError(const CompilerError& error) const;
 
@@ -446,7 +448,9 @@ private:
 
 	MidoriResult::FunctionParamsResult ParseFunctionParameters();
 
-	void BeginScope();
+	Parser& BeginScope() &;
+
+	Parser&& BeginScope() &&;
 
 	int EndScope();
 

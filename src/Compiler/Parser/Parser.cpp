@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <fstream>
+#include <limits>
 #include <queue>
 #include <sstream>
 
@@ -8,6 +9,184 @@
 #include "Parser.h"
 
 using namespace std::string_literals;
+
+namespace
+{
+	using ParamTuple = std::pair<Token, std::shared_ptr<MidoriType>>;
+	using StructMemberTuple = std::tuple<std::shared_ptr<MidoriType>, std::string>;
+	using UnionMemberTuple = std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>;
+	using UnionMemberInfo = std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>;
+
+	struct ParamSplit
+	{
+		std::vector<Token> m_params;
+		std::vector<std::shared_ptr<MidoriType>> m_types;
+	};
+
+	struct StructMemberSplit
+	{
+		std::vector<std::shared_ptr<MidoriType>> m_types;
+		std::vector<std::string> m_names;
+	};
+
+	ParamSplit SplitParamTuples(std::vector<ParamTuple>&& tuples)
+	{
+		ParamSplit result;
+		result.m_params.reserve(tuples.size());
+		result.m_types.reserve(tuples.size());
+		for (ParamTuple& tuple : tuples)
+		{
+			result.m_params.emplace_back(std::move(tuple.first));
+			result.m_types.emplace_back(std::move(tuple.second));
+		}
+		return result;
+	}
+
+	StructMemberSplit SplitStructMemberTuples(std::vector<StructMemberTuple>&& tuples)
+	{
+		StructMemberSplit result;
+		result.m_types.reserve(tuples.size());
+		result.m_names.reserve(tuples.size());
+		for (StructMemberTuple& tuple : tuples)
+		{
+			result.m_types.emplace_back(std::move(std::get<0>(tuple)));
+			result.m_names.emplace_back(std::move(std::get<1>(tuple)));
+		}
+		return result;
+	}
+
+	UnionMemberInfo BuildUnionMemberInfo(std::vector<UnionMemberTuple>&& members)
+	{
+		UnionMemberInfo info;
+		info.reserve(members.size());
+		for (UnionMemberTuple& member : members)
+		{
+			std::string& name = std::get<0>(member);
+			std::vector<std::shared_ptr<MidoriType>>& types = std::get<1>(member);
+			int tag = std::get<2>(member);
+			info.emplace(std::move(name), MidoriType::UnionType::UnionMemberContext{ std::move(types), tag });
+		}
+		return info;
+	}
+
+	std::string_view TopLevelNamespace(std::string_view full_name)
+	{
+		size_t pos = full_name.find('.');
+		if (pos != std::string_view::npos)
+		{
+			return full_name.substr(0u, pos);
+		}
+		return full_name;
+	}
+
+	std::string JoinKinds(const std::vector<std::string_view>& kinds)
+	{
+		if (kinds.empty())
+		{
+			return {};
+		}
+		if (kinds.size() == 1u)
+		{
+			return std::string(kinds[0u]);
+		}
+
+		std::string joined;
+		for (size_t i = 0u; i < kinds.size(); i += 1u)
+		{
+			if (i > 0u)
+			{
+				joined.append(i + 1u == kinds.size() ? " and " : ", ");
+			}
+			joined.append(kinds[i]);
+		}
+		return joined;
+	}
+
+	bool IsExportedInAnyModule(const std::unordered_map<std::string, ModuleDeclaration>& modules, const std::string& symbol_name)
+	{
+		for (const std::pair<const std::string, ModuleDeclaration>& entry : modules)
+		{
+			if (entry.second.HasExport(symbol_name))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	struct PatternBindingCounter
+	{
+		static int Count(const MidoriPattern& pattern)
+		{
+			return std::visit(PatternBindingCounter{}, *pattern);
+		}
+
+		int operator()(const MidoriPattern::Binding&) const
+		{
+			return 1;
+		}
+
+		int operator()(const MidoriPattern::Literal&) const
+		{
+			return 0;
+		}
+
+		int operator()(const MidoriPattern::Tuple& tuple) const
+		{
+			return CountElements(tuple.m_elements);
+		}
+
+		int operator()(const MidoriPattern::Array& array) const
+		{
+			return CountElements(array.m_elements);
+		}
+
+		int operator()(const MidoriPattern::Constructor& constructor) const
+		{
+			return CountElements(constructor.m_args);
+		}
+
+	private:
+		static int CountElements(const std::vector<std::unique_ptr<MidoriPattern>>& elements)
+		{
+			int total = 0;
+			for (const std::unique_ptr<MidoriPattern>& elem : elements)
+			{
+				total += Count(*elem);
+			}
+			return total;
+		}
+	};
+
+	std::unique_ptr<MidoriPattern> MakeNumericLiteralPattern(Token token)
+	{
+		const std::string& lexeme = token.m_lexeme;
+		if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+		{
+			uint64_t value = 0u;
+			if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
+			{
+				value = std::stoull(lexeme, nullptr, 16);
+			}
+			else
+			{
+				value = std::stoull(lexeme, nullptr, 2);
+			}
+
+			if (value <= 0xFF)
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Byte));
+			}
+			if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+			}
+			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Word));
+		}
+
+		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+	}
+}
 
 Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl)
 	: m_imported_symbols(imports),
@@ -22,8 +201,8 @@ Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_n
 }
 
 Parser::ParseState::ParseState(const std::vector<UseImport>& use_imports)
+	: m_current_use_imports(use_imports)
 {
-	m_current_use_imports = use_imports;
 }
 
 Parser::ActiveConstraintGuard::ActiveConstraintGuard(Parser* parser, size_t prev_size)
@@ -56,19 +235,8 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 
 bool Parser::SharesNamespace(const std::string& namespace1, const std::string& namespace2) const
 {
-	// Extract top-level namespace (everything before first '.')
-	std::function<std::string(const std::string&)> get_top_level_namespace = [](const std::string& full_name) -> std::string
-		{
-			size_t pos = full_name.find('.');
-			if (pos != std::string::npos)
-			{
-				return full_name.substr(0u, pos);
-			}
-			return full_name;
-		};
-
-	std::string top_ns1 = get_top_level_namespace(namespace1);
-	std::string top_ns2 = get_top_level_namespace(namespace2);
+	std::string_view top_ns1 = TopLevelNamespace(namespace1);
+	std::string_view top_ns2 = TopLevelNamespace(namespace2);
 
 	// Both in global namespace (empty module names)
 	if (top_ns1.empty() && top_ns2.empty())
@@ -509,13 +677,20 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-			return std::unexpected(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
+		return std::unexpected(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
 	}
 }
 
-void Parser::BeginScope()
+Parser& Parser::BeginScope() &
 {
 	m_state.m_scopes.emplace_back();
+	return *this;
+}
+
+Parser&& Parser::BeginScope() &&
+{
+	m_state.m_scopes.emplace_back();
+	return std::move(*this);
 }
 
 int Parser::EndScope()
@@ -629,32 +804,9 @@ MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 			shadowed_kinds.push_back("a type");
 		}
 
-		auto join_kinds = [](const std::vector<std::string_view>& kinds) -> std::string
-		{
-			if (kinds.empty())
-			{
-				return {};
-			}
-			if (kinds.size() == 1u)
-			{
-				return std::string(kinds[0u]);
-			}
-
-			std::string joined;
-			for (size_t i = 0u; i < kinds.size(); i += 1u)
-			{
-				if (i > 0u)
-				{
-					joined.append(i + 1u == kinds.size() ? " and " : ", ");
-				}
-				joined.append(kinds[i]);
-			}
-			return joined;
-		};
-
 		Token warning_token = name;
 		warning_token.m_lexeme = original_name;
-		std::string kind_message = join_kinds(shadowed_kinds);
+		std::string kind_message = JoinKinds(shadowed_kinds);
 		std::string warning_message = std::format("Name '{}' shadows {} from an outer scope.", original_name, kind_message);
 		CompilerWarning warning = CompilerWarning::WithToken(CompilerStage::Parser, warning_message, warning_token, m_context.m_file_name, *m_context.m_source_lines);
 		warning.m_code = CompilerWarningCode::NameShadowing;
@@ -1473,7 +1625,8 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							}
 						}
 
-						error_msg += "\n  Hint: Use 'use "s + std::string(m_context.m_module_declarations != nullptr && std::ranges::any_of(*m_context.m_module_declarations, [&symbol_name](const auto& pair) { return pair.second.HasExport(symbol_name); }) ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
+						const bool has_matching_export = (m_context.m_module_declarations != nullptr) && IsExportedInAnyModule(*m_context.m_module_declarations, symbol_name);
+						error_msg += "\n  Hint: Use 'use "s + std::string(has_matching_export ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
 						return std::unexpected(GenerateParserError(std::move(error_msg), variable));
 					}
 
@@ -2265,11 +2418,9 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 										}
 
 										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
-										std::vector<Token> params;
-										std::vector<std::shared_ptr<MidoriType>> param_types;
-
-										std::ranges::transform(param_tuples, std::back_inserter(params), [](auto&& tuple) { return std::move(std::get<0>(tuple)); });
-										std::ranges::transform(param_tuples, std::back_inserter(param_types), [](auto&& tuple) { return std::move(std::get<1>(tuple)); });
+										ParamSplit split = SplitParamTuples(std::move(param_tuples));
+										std::vector<Token> params = std::move(split.m_params);
+										std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
 										return Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.")
 											.and_then
@@ -2449,11 +2600,9 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 														(
 															[&tuples, &struct_name, &generic_params, &constraints, has_generic_params, this](Token&&) ->MidoriResult::StatementResult
 															{
-																std::vector<std::shared_ptr<MidoriType>> member_types;
-																std::vector<std::string> member_names;
-
-																std::ranges::transform(tuples, std::back_inserter(member_types), [](auto&& tuple) { return std::move(std::get<0>(tuple)); });
-																std::ranges::transform(tuples, std::back_inserter(member_names), [](auto&& tuple) { return std::move(std::get<1>(tuple)); });
+																StructMemberSplit member_split = SplitStructMemberTuples(std::move(tuples));
+																std::vector<std::shared_ptr<MidoriType>> member_types = std::move(member_split.m_types);
+																std::vector<std::string> member_names = std::move(member_split.m_names);
 
 																// Extract generic param names
 																std::vector<std::string> generic_param_names;
@@ -2629,33 +2778,19 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 											(
 											[&union_type_ref, &union_type, &union_name, &constraints, &generic_params, has_generic_params, this](std::vector<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>&& result)
 												{
-													std::ranges::for_each
-													(
-														result,
-														[&union_type_ref](auto&& elem)
-														{
-															auto&& [name, types, tag] = elem;
-															union_type_ref.m_member_info.emplace(std::move(name), MidoriType::UnionType::UnionMemberContext(std::move(types), tag));
-														}
-													);
+													UnionMemberInfo member_info = BuildUnionMemberInfo(std::move(result));
+													union_type_ref.m_member_info = std::move(member_info);
 
-													std::ranges::for_each
-													(
-														union_type_ref.m_member_info,
-														[union_type, has_generic_params, this](const auto& member_info_entry)
-														{
-															// Store constructors in the parent scope (where the union is declared)
-															// If we have generic params, we're one scope level deeper, so go back one
-															if (has_generic_params)
-															{
-																m_state.m_scopes[m_state.m_scopes.size() - 2].m_union_constructors[member_info_entry.first] = union_type;
-															}
-															else
-															{
-																m_state.m_scopes.back().m_union_constructors[member_info_entry.first] = union_type;
-															}
-														}
-													);
+													// Store constructors in the parent scope (where the union is declared)
+													// If we have generic params, we're one scope level deeper, so go back one
+													Scope& constructor_scope = has_generic_params
+														? m_state.m_scopes[m_state.m_scopes.size() - 2]
+														: m_state.m_scopes.back();
+
+													for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member_info_entry : union_type_ref.m_member_info)
+													{
+														constructor_scope.m_union_constructors[member_info_entry.first] = union_type;
+													}
 
 													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.")
 														.and_then
@@ -3023,11 +3158,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 										}
 
 										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
-										std::vector<Token> params;
-										std::vector<std::shared_ptr<MidoriType>> param_types;
-
-										std::ranges::transform(param_tuples, std::back_inserter(params), [](auto&& tuple) { return std::move(std::get<0>(tuple)); });
-										std::ranges::transform(param_tuples, std::back_inserter(param_types), [](auto&& tuple) { return std::move(std::get<1>(tuple)); });
+										ParamSplit split = SplitParamTuples(std::move(param_tuples));
+										std::vector<Token> params = std::move(split.m_params);
+										std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
 										return Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.")
 											.and_then
@@ -3435,11 +3568,9 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 				else
 				{
 					std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
-
-					std::vector<Token> params;
-					std::vector<std::shared_ptr<MidoriType>> param_types;
-					std::ranges::transform(param_tuples, std::back_inserter(params), [](auto&& tuple) { return std::move(std::get<0>(tuple)); });
-					std::ranges::transform(param_tuples, std::back_inserter(param_types), [](auto&& tuple) { return std::move(std::get<1>(tuple)); });
+					ParamSplit split = SplitParamTuples(std::move(param_tuples));
+					std::vector<Token> params = std::move(split.m_params);
+					std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
 					return Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.")
 						.and_then
@@ -3543,48 +3674,6 @@ MidoriResult::ExpressionResult Parser::ParseAwaitExpression()
 
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
-	std::function<int(const MidoriPattern&)> count_bindings = [&](const MidoriPattern& current) -> int
-		{
-			return std::visit
-			(
-				[&](auto&& node) -> int
-				{
-					using T = std::decay_t<decltype(node)>;
-					if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
-					{
-						return 1;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
-					{
-						return 0;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
-					{
-						int total = 0;
-						for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
-						{
-							total += count_bindings(*elem);
-						}
-						return total;
-					}
-					else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
-					{
-						int total = 0;
-						for (const std::unique_ptr<MidoriPattern>& arg : node.m_args)
-						{
-							total += count_bindings(*arg);
-						}
-						return total;
-					}
-					else
-					{
-						return 0;
-					}
-				},
-				*current
-			);
-		};
-
 	BeginScope();
 	MidoriResult::PatternResult pattern_result = ParsePattern();
 	if (!pattern_result.has_value())
@@ -3608,7 +3697,7 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 		}
 	}
 
-	int binding_count = count_bindings(*pattern);
+	int binding_count = PatternBindingCounter::Count(*pattern);
 
 	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then
@@ -3630,35 +3719,6 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 
 MidoriResult::PatternResult Parser::ParsePattern()
 {
-	auto make_numeric_literal = [](Token token) -> std::unique_ptr<MidoriPattern>
-		{
-			const std::string& lexeme = token.m_lexeme;
-			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-			{
-				uint64_t value = 0u;
-				if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
-				{
-					value = std::stoull(lexeme, nullptr, 16);
-				}
-				else
-				{
-					value = std::stoull(lexeme, nullptr, 2);
-				}
-
-				if (value <= 0xFF)
-				{
-					return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Byte));
-				}
-				if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-				{
-					return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
-				}
-				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Word));
-			}
-
-			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
-		};
-
 	if (Match(Token::Name::LEFT_PAREN))
 	{
 		Token left_paren = Previous();
@@ -3760,7 +3820,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 
 	if (Match(Token::Name::INTEGER_LITERAL))
 	{
-		return make_numeric_literal(Previous());
+		return MakeNumericLiteralPattern(Previous());
 	}
 
 	if (Match(Token::Name::TEXT_LITERAL))
@@ -3782,7 +3842,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 		{
 			Token literal = Previous();
 			literal.m_lexeme = (is_negative ? "-"s : ""s) + literal.m_lexeme;
-			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Integer));
+			return MakeNumericLiteralPattern(std::move(literal));
 		}
 
 		return std::unexpected(GenerateParserError("Expected numeric literal after unary sign in pattern.", sign_token));
@@ -3800,7 +3860,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 
 					bool is_union = false;
 					bool is_constructor = false;
-					for (auto it = m_state.m_scopes.rbegin(); it != m_state.m_scopes.rend(); ++it)
+					for (Parser::Scopes::reverse_iterator it = m_state.m_scopes.rbegin(); it != m_state.m_scopes.rend(); ++it)
 					{
 						if (it->m_union_constructors.contains(resolved.m_lexeme))
 						{
@@ -3826,7 +3886,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 							lookup_base = raw_name.substr(0, separator_pos);
 						}
 
-						auto resolve_imported_constructor = [&](const TypeEnvironment& env) -> bool
+						const std::function<bool(const TypeEnvironment&)> resolve_imported_constructor = [&](const TypeEnvironment& env) -> bool
 						{
 							std::string type_name = lookup_base;
 							if (!env.contains(type_name))
@@ -4698,25 +4758,29 @@ MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters()
 		);
 }
 
-void Parser::Synchronize()
+Parser& Parser::Synchronize() &
 {
-	if (IsAtEnd())
-	{
-		return;
-	}
-	else
+	while (!IsAtEnd())
 	{
 		switch (Peek(0).m_token_name)
 		{
 			case Token::Name::DEF:
 			case Token::Name::STRUCT:
 			case Token::Name::UNION:
-				return;
+				return *this;
 			default:
 				Advance();
-				Synchronize();
+				break;
 		}
 	}
+
+	return *this;
+}
+
+Parser&& Parser::Synchronize() &&
+{
+	Synchronize();
+	return std::move(*this);
 }
 
 Parser::VariableContext::VariableContext(int relative_index, int absolute_index, int function_depth)
@@ -4763,4 +4827,3 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 	}
 	return result;
 }
-
