@@ -11,12 +11,7 @@ class ExpectedTypeGuard;
 
 struct TypePairHash
 {
-	std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const noexcept
-	{
-		std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
-		std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
-		return h1 ^ (h2 << 1);
-	}
+	std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const noexcept;
 };
 
 class TypeChecker
@@ -75,29 +70,30 @@ private:
 		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
+	class ScopeSession;
+
 	MidoriProgramTree m_program_tree;
-	std::string m_file_name;
 	TypeEnvironmentStack m_name_type_table;
 	TypeSubstitution m_type_substitution;
+	std::unordered_map<std::string, ClassInfo> m_classes;
+	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
+	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> m_unify_visited;
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
-	std::unordered_map<std::string, ClassInfo> m_classes;
-	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
 	std::vector<MidoriType::ClassConstraint> m_active_constraints;
+	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
-	int m_next_type_var_id;
 	std::shared_ptr<MidoriType> m_expected_return_type;
 	std::shared_ptr<MidoriType> m_expected_break_type;
 	std::shared_ptr<MidoriType> m_expected_expr_type; 
-	const std::array<Token::Name, 5u> m_binary_arithmetic_operators{ Token::Name::SINGLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT };
-	const std::array<Token::Name, 1u> m_binary_concatenation_operators{ Token::Name::DOUBLE_PLUS };
-	const std::array<Token::Name, 4u> m_binary_partial_order_comparison_operators{ Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL };
-	const std::array<Token::Name, 2u> m_binary_equality_operators{ Token::Name::DOUBLE_EQUAL, Token::Name::BANG_EQUAL };
-	const std::array<Token::Name, 2u> m_binary_logical_operators{ Token::Name::DOUBLE_AMPERSAND, Token::Name::DOUBLE_BAR };
-	const std::array<Token::Name, 5u> m_binary_bitwise_operators{ Token::Name::CARET, Token::Name::SINGLE_AMPERSAND, Token::Name::SINGLE_BAR, Token::Name::RIGHT_SHIFT, Token::Name::LEFT_SHIFT };
-
-	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> m_unify_visited;
+	int m_next_type_var_id;
+	static const std::array<Token::Name, 5u> kBinaryArithmeticOperators;
+	static const std::array<Token::Name, 1u> kBinaryConcatenationOperators;
+	static const std::array<Token::Name, 4u> kBinaryPartialOrderComparisonOperators;
+	static const std::array<Token::Name, 2u> kBinaryEqualityOperators;
+	static const std::array<Token::Name, 2u> kBinaryLogicalOperators;
+	static const std::array<Token::Name, 5u> kBinaryBitwiseOperators;
 
 public:
 
@@ -114,15 +110,19 @@ private:
 
 	MidoriResult::TypeResult Evaluate(const std::unique_ptr<MidoriExpression>& expression);
 
-	void BeginScope();
+	TypeChecker& BeginScope();
 
-	void EndScope();
+	TypeChecker& EndScope();
 
-	void UpdateConditionOperandType(MidoriExpression::ConditionOperandType& op_type, const std::unique_ptr<MidoriExpression>& expr);
+	static MidoriExpression::ConditionOperandType ResolveConditionOperandType(MidoriExpression::ConditionOperandType fallback, const std::unique_ptr<MidoriExpression>& expr);
 
 	MidoriResult::TypeResult CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 
 	bool IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
+
+	std::shared_ptr<MidoriType>* FindNameType(const std::string& name);
+
+	const std::shared_ptr<MidoriType>* FindNameType(const std::string& name) const;
 
 	std::shared_ptr<MidoriType> FreshTypeVar();
 

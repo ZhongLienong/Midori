@@ -3,6 +3,7 @@
 #include <iterator>
 #include <ranges>
 #include <unordered_set>
+#include <type_traits>
 
 #include "Common/Constant/Constant.h"
 #include "Common/Error/Error.h"
@@ -19,32 +20,32 @@ namespace
 	{
 		return std::visit
 		(
-			[](const auto& node) -> const Token&
+			[]<typename T>(const T& node) -> const Token&
 			{
-				using T = std::decay_t<decltype(node)>;
-				if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+				using Node = std::decay_t<T>;
+				if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
 				{
 					return node.m_name;
 				}
-				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 				{
 					return node.m_token;
 				}
-				else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
 				{
 					return node.m_left_paren;
 				}
-				else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
 				{
 					return node.m_left_bracket;
 				}
-				else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
 				{
 					return node.m_name_token;
 				}
 				else
 				{
-					static_assert(AlwaysFalse<T>, "Unhandled pattern type.");
+					static_assert(AlwaysFalse<Node>, "Unhandled pattern type.");
 					return node.m_name_token;
 				}
 			},
@@ -121,7 +122,7 @@ namespace
 		if (pattern->IsType<MidoriType::GenericParam>())
 		{
 			const std::string& param_name = pattern->GetType<MidoriType::GenericParam>().m_name;
-			auto it = substitutions.find(param_name);
+			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = substitutions.find(param_name);
 			if (it != substitutions.end())
 			{
 				return *it->second == *concrete;
@@ -245,7 +246,8 @@ namespace
 
 			for (const auto& [member_name, pattern_ctx] : pattern_union.m_member_info)
 			{
-				auto concrete_it = concrete_union.m_member_info.find(member_name);
+				std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::const_iterator concrete_it =
+					concrete_union.m_member_info.find(member_name);
 				if (concrete_it == concrete_union.m_member_info.end())
 				{
 					return false;
@@ -269,7 +271,54 @@ namespace
 		return *pattern == *concrete;
 	}
 
+	bool HasNameSuffix(const std::string& name, std::string_view suffix)
+	{
+		if (name == suffix)
+		{
+			return true;
+		}
+		if (!name.ends_with(suffix))
+		{
+			return false;
+		}
+		size_t pos = name.size() - suffix.size();
+		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
+	}
+
 }
+
+class TypeChecker::ScopeSession
+{
+public:
+	explicit ScopeSession(TypeChecker& checker)
+		: m_checker(&checker)
+	{
+		m_checker->BeginScope();
+	}
+
+	ScopeSession(const ScopeSession&) = delete;
+	ScopeSession& operator=(const ScopeSession&) = delete;
+
+	ScopeSession(ScopeSession&& other) noexcept
+		: m_checker(other.m_checker)
+	{
+		other.m_checker = nullptr;
+	}
+
+	~ScopeSession()
+	{
+		if (m_checker)
+		{
+			m_checker->EndScope();
+		}
+	}
+
+	template <typename Fn>
+	std::invoke_result_t<Fn&> Then(Fn&& fn) && { return fn(); }
+
+private:
+	TypeChecker* m_checker;
+};
 
 class ExpectedTypeGuard
 {
@@ -291,6 +340,43 @@ public:
 
 	ExpectedTypeGuard(const ExpectedTypeGuard&) = delete;
 	ExpectedTypeGuard& operator=(const ExpectedTypeGuard&) = delete;
+};
+
+std::size_t TypePairHash::operator()(const std::pair<MidoriType*, MidoriType*>& pair) const noexcept
+{
+	std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
+	std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
+	return h1 ^ (h2 << 1);
+}
+
+const std::array<Token::Name, 5u> TypeChecker::kBinaryArithmeticOperators{
+	Token::Name::SINGLE_PLUS,
+	Token::Name::SINGLE_MINUS,
+	Token::Name::STAR,
+	Token::Name::SLASH,
+	Token::Name::PERCENT
+};
+const std::array<Token::Name, 1u> TypeChecker::kBinaryConcatenationOperators{ Token::Name::DOUBLE_PLUS };
+const std::array<Token::Name, 4u> TypeChecker::kBinaryPartialOrderComparisonOperators{
+	Token::Name::LEFT_ANGLE,
+	Token::Name::LESS_EQUAL,
+	Token::Name::RIGHT_ANGLE,
+	Token::Name::GREATER_EQUAL
+};
+const std::array<Token::Name, 2u> TypeChecker::kBinaryEqualityOperators{
+	Token::Name::DOUBLE_EQUAL,
+	Token::Name::BANG_EQUAL
+};
+const std::array<Token::Name, 2u> TypeChecker::kBinaryLogicalOperators{
+	Token::Name::DOUBLE_AMPERSAND,
+	Token::Name::DOUBLE_BAR
+};
+const std::array<Token::Name, 5u> TypeChecker::kBinaryBitwiseOperators{
+	Token::Name::CARET,
+	Token::Name::SINGLE_AMPERSAND,
+	Token::Name::SINGLE_BAR,
+	Token::Name::RIGHT_SHIFT,
+	Token::Name::LEFT_SHIFT
 };
 
 MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right)
@@ -518,14 +604,42 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 }
 
-void TypeChecker::BeginScope()
+TypeChecker& TypeChecker::BeginScope()
 {
 	m_name_type_table.emplace_back();
+	return *this;
 }
 
-void TypeChecker::EndScope()
+TypeChecker& TypeChecker::EndScope()
 {
 	m_name_type_table.pop_back();
+	return *this;
+}
+
+std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& name)
+{
+	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+	{
+		TypeEnvironment::iterator found = it->find(name);
+		if (found != it->end())
+		{
+			return &found->second;
+		}
+	}
+	return nullptr;
+}
+
+const std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& name) const
+{
+	for (TypeChecker::TypeEnvironmentStack::const_reverse_iterator it = m_name_type_table.crbegin(); it != m_name_type_table.crend(); ++it)
+	{
+		TypeEnvironment::const_iterator found = it->find(name);
+		if (found != it->cend())
+		{
+			return &found->second;
+		}
+	}
+	return nullptr;
 }
 
 MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriStatement>& statement)
@@ -552,26 +666,25 @@ MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriExpre
 	);
 }
 
-void TypeChecker::UpdateConditionOperandType(MidoriExpression::ConditionOperandType& op_type, const std::unique_ptr<MidoriExpression>& expr)
+MidoriExpression::ConditionOperandType TypeChecker::ResolveConditionOperandType(MidoriExpression::ConditionOperandType fallback, const std::unique_ptr<MidoriExpression>& expr)
 {
-	if (expr->IsExpression<MidoriExpression::Binary>())
+	if (!expr->IsExpression<MidoriExpression::Binary>())
 	{
-		const MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
-		const std::shared_ptr<MidoriType>& left_type = binary.m_left->GetType();
-
-		if (left_type->IsType<MidoriType::IntegerType>())
-		{
-			op_type = MidoriExpression::ConditionOperandType::INTEGER;
-		}
-		else if (left_type->IsType<MidoriType::FloatType>())
-		{
-			op_type = MidoriExpression::ConditionOperandType::FLOAT;
-		}
-		else
-		{
-			op_type = MidoriExpression::ConditionOperandType::OTHER;
-		}
+		return fallback;
 	}
+
+	const MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
+	const std::shared_ptr<MidoriType>& left_type = binary.m_left->GetType();
+
+	if (left_type->IsType<MidoriType::IntegerType>())
+	{
+		return MidoriExpression::ConditionOperandType::INTEGER;
+	}
+	if (left_type->IsType<MidoriType::FloatType>())
+	{
+		return MidoriExpression::ConditionOperandType::FLOAT;
+	}
+	return MidoriExpression::ConditionOperandType::OTHER;
 }
 
 MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
@@ -580,16 +693,16 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 
 	return std::visit
 	(
-		[&](auto&& node) -> MidoriResult::TypeResult
+		[&]<typename T>(T&& node) -> MidoriResult::TypeResult
 		{
-			using T = std::decay_t<decltype(node)>;
-			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			using Node = std::decay_t<T>;
+			if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
 			{
 				node.m_type_data = resolved_expected;
 				m_name_type_table.back()[node.m_name.m_lexeme] = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 			{
 				switch (node.m_kind)
 				{
@@ -619,7 +732,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				return Unify(node.m_token, node.m_type_data, resolved_expected)
 					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
 			{
 				if (!resolved_expected->IsType<MidoriType::TupleType>())
 				{
@@ -644,7 +757,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
 			{
 				if (!resolved_expected->IsType<MidoriType::ArrayType>())
 				{
@@ -664,7 +777,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
 			{
 				if (node.m_is_union)
 				{
@@ -742,18 +855,18 @@ bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::
 
 	return std::visit
 	(
-		[&](auto&& node) -> bool
+		[&]<typename T>(T&& node) -> bool
 		{
-			using T = std::decay_t<decltype(node)>;
-			if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+			using Node = std::decay_t<T>;
+			if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
 			{
 				return true;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 			{
 				return false;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
 			{
 				if (!resolved_expected->IsType<MidoriType::TupleType>())
 				{
@@ -773,11 +886,11 @@ bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::
 				}
 				return true;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
 			{
 				return false;
 			}
-			else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
 			{
 				if (node.m_is_union)
 				{
@@ -1243,10 +1356,10 @@ TypeChecker::TypeChecker(
 	TypeclassInstanceTypeMap imported_instance_types
 )
 	: m_program_tree(std::move(parser_result)),
-	m_source_lines(source_lines),
-	m_next_type_var_id(0),
+	m_classes(imported_typeclasses),
 	m_file_name(file_name),
-	m_classes(imported_typeclasses)
+	m_source_lines(source_lines),
+	m_next_type_var_id(0)
 {
 	// Pre-populate type environment with imported types
 	if (!imported_types.empty())
@@ -1305,31 +1418,29 @@ TypeChecker::TypeChecker(
 
 MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
-	std::string errors;
+	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeCheckerResult
+	{
+		std::string errors;
 
-	BeginScope();
-	std::ranges::for_each
-	(
-		m_program_tree,
-		[&errors, this](std::unique_ptr<MidoriStatement>& statement)
-		{
-			MidoriResult::TypeResult result = Evaluate(statement);
-			if (!result.has_value())
+		std::ranges::for_each
+		(
+			m_program_tree,
+			[&errors, this](std::unique_ptr<MidoriStatement>& statement)
 			{
-				errors.append(result.error().Rendered()).append("\n");
+				MidoriResult::TypeResult result = Evaluate(statement);
+				if (!result.has_value())
+				{
+					errors.append(result.error().Rendered()).append("\n");
+				}
 			}
-		}
-	);
-	EndScope();
+		);
 
-	if (errors.empty())
-	{
-		return std::move(m_program_tree);
-	}
-	else
-	{
+		if (errors.empty())
+		{
+			return std::move(m_program_tree);
+		}
 		return std::unexpected(std::move(errors));
-	}
+	});
 }
 
 // Extract type signatures from parsed AST without full type checking
@@ -1341,10 +1452,10 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 	for (const std::unique_ptr<MidoriStatement>& statement : ast)
 	{
 		std::visit(
-			[&signatures, exported_symbols](const auto& stmt) {
-				using T = std::decay_t<decltype(stmt)>;
+			[&signatures, exported_symbols]<typename T>(const T& stmt) {
+				using Node = std::decay_t<T>;
 
-				if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
+				if constexpr (std::is_same_v<Node, MidoriStatement::FunctionDefinition>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
@@ -1354,14 +1465,14 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 						);
 					}
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::Struct>)
+				else if constexpr (std::is_same_v<Node, MidoriStatement::Struct>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
 						signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
 					}
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::Union>)
+				else if constexpr (std::is_same_v<Node, MidoriStatement::Union>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
@@ -1379,21 +1490,21 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 						}
 					}
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
+				else if constexpr (std::is_same_v<Node, MidoriStatement::ForeignDefinition>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_function_name.m_lexeme))
 					{
 						signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
 					}
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::TypeAlias>)
+				else if constexpr (std::is_same_v<Node, MidoriStatement::TypeAlias>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
 						signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
 					}
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
+				else if constexpr (std::is_same_v<Node, MidoriStatement::VariableDefinition>)
 				{
 					if ((exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme)) && stmt.m_annotated_type.has_value())
 					{
@@ -1457,30 +1568,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			}
 		}
 
-		BeginScope();
-		std::ranges::for_each
-		(
-			std::views::iota(0u, function_type_ref.m_param_types.size()),
-			[&function, &function_type_ref, this](size_t idx) { m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function_type_ref.m_param_types[idx]); }
-		);
-
-		return Evaluate(def.m_value)
-			.and_then
+		return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+		{
+			std::ranges::for_each
 			(
-				[this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-				{
-					EndScope();
-					return MidoriType::MakeUndecidedType();
-				}
-			)
-			.or_else
-			(
-				[this](CompilerError&& error)->MidoriResult::TypeResult
-				{
-					EndScope();
-					return std::unexpected(std::move(error));
-				}
+				std::views::iota(0u, function_type_ref.m_param_types.size()),
+				[&function, &function_type_ref, this](size_t idx) { m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function_type_ref.m_param_types[idx]); }
 			);
+
+			return Evaluate(def.m_value)
+				.and_then
+				(
+					[](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+					{
+						return MidoriType::MakeUndecidedType();
+					}
+				);
+		});
 	}
 
 	// Set expected type from annotation if present
@@ -1626,83 +1730,83 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		m_generic_functions.insert(defun.m_name.m_lexeme);
 	}
 
-	BeginScope();
-
-	for (const Token& generic_param : defun.m_generic_params)
+	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 	{
-		const std::string& param_name = generic_param.m_lexeme;
-		TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
-		if (it == freshening_context.m_generic_params.end())
+		for (const Token& generic_param : defun.m_generic_params)
 		{
-			std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
-			it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
-		}
-		m_name_type_table.back().emplace(param_name, it->second);
-	}
-	std::ranges::for_each
-	(
-		std::views::iota(0u, defun.m_params.size()),
-		[&defun, this](size_t idx) 
-		{
-			m_name_type_table.back().emplace(defun.m_params[idx].m_lexeme, defun.m_param_types[idx]);
-		}
-	);
-
-	std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
-	m_expected_return_type = defun.m_return_type;
-
-	size_t prev_constraints_size = m_active_constraints.size();
-
-	for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
-	{
-		MidoriType::ClassConstraint freshened_constraint;
-		freshened_constraint.m_class_name = constraint.m_class_name;
-		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-		{
-			type_arg = Freshen(type_arg, freshening_context);
-			freshened_constraint.m_type_args.push_back(type_arg);
-		}
-		m_active_constraints.push_back(std::move(freshened_constraint));
-	}
-
-	return Evaluate(defun.m_body)
-		.and_then
-		(
-			[&defun, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+			const std::string& param_name = generic_param.m_lexeme;
+			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
+			if (it == freshening_context.m_generic_params.end())
 			{
-				EndScope();
-				m_expected_return_type = saved_expected_return_type;
-				m_active_constraints.resize(prev_constraints_size);
-
-				// If the body contains a return statement, the return statement itself
-				// validates the return type, so we don't need to check the body's natural type
-				bool body_contains_return = defun.m_body->Contains<MidoriExpression::Return>();
-
-				if (body_contains_return)
-				{
-					return defun.m_return_type;
-				}
-				else
-				{
-					return Unify(defun.m_name, defun.m_return_type, function_return_value_type)
-						.and_then
-						(
-							[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-							{
-								return defun.m_return_type;
-							}
-						);
-				}
+				std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
 			}
-		).or_else
+			m_name_type_table.back().emplace(param_name, it->second);
+		}
+		std::ranges::for_each
 		(
-			[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+			std::views::iota(0u, defun.m_params.size()),
+			[&defun, this](size_t idx) 
 			{
-				m_expected_return_type = saved_expected_return_type; 
-				m_active_constraints.resize(prev_constraints_size);
-				return std::unexpected(std::move(error));
+				m_name_type_table.back().emplace(defun.m_params[idx].m_lexeme, defun.m_param_types[idx]);
 			}
 		);
+
+		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		m_expected_return_type = defun.m_return_type;
+
+		size_t prev_constraints_size = m_active_constraints.size();
+
+		for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
+		{
+			MidoriType::ClassConstraint freshened_constraint;
+			freshened_constraint.m_class_name = constraint.m_class_name;
+			for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				type_arg = Freshen(type_arg, freshening_context);
+				freshened_constraint.m_type_args.push_back(type_arg);
+			}
+			m_active_constraints.push_back(std::move(freshened_constraint));
+		}
+
+		return Evaluate(defun.m_body)
+			.and_then
+			(
+				[&defun, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				{
+					m_expected_return_type = saved_expected_return_type;
+					m_active_constraints.resize(prev_constraints_size);
+
+					// If the body contains a return statement, the return statement itself
+					// validates the return type, so we don't need to check the body's natural type
+					bool body_contains_return = defun.m_body->Contains<MidoriExpression::Return>();
+
+					if (body_contains_return)
+					{
+						return defun.m_return_type;
+					}
+					else
+					{
+						return Unify(defun.m_name, defun.m_return_type, function_return_value_type)
+							.and_then
+							(
+								[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+								{
+									return defun.m_return_type;
+								}
+							);
+					}
+				}
+			).or_else
+			(
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				{
+					m_expected_return_type = saved_expected_return_type; 
+					m_active_constraints.resize(prev_constraints_size);
+					return std::unexpected(std::move(error));
+				}
+			);
+	});
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Continue&)
@@ -2023,9 +2127,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				if (is_union)
 				{
 					const MidoriType::UnionType& union_type = resolved_arg_type->GetType<MidoriType::UnionType>();
-					for (const auto& pair : union_type.m_member_info)
+					for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 					{
-						expected_member_names.insert(pair.first);
+						expected_member_names.insert(member_name);
 					}
 				}
 
@@ -2034,7 +2138,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 				{
-					BeginScope();
+					ScopeSession scope(*this);
 					std::optional<CompilerError> error;
 					MidoriResult::TypeResult case_result;
 
@@ -2070,7 +2174,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						}
 					}
 
-					EndScope();
 					if (error.has_value())
 					{
 						return std::unexpected(std::move(error.value()));
@@ -2303,7 +2406,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 					for_expr.m_iterable_some_tag = iterable_some_tag;
 				}
 
-				BeginScope();
+				ScopeSession scope(*this);
 
 				std::string var_name(for_expr.m_loop_variable.m_lexeme);
 				m_name_type_table.back()[var_name] = element_type;
@@ -2315,7 +2418,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 				return Evaluate(for_expr.m_body)
 					.and_then
 					(
-						[&for_expr, outer_break_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+						[&for_expr, outer_break_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 						{
 							// The for loop's type is determined by the expected break type
 							// If no breaks occurred, the loop completes normally and returns Unit
@@ -2328,11 +2431,17 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 								for_expr.m_type_data = m_expected_break_type;
 							}
 
-							EndScope();
-
 							m_expected_break_type = outer_break_type;
 
 							return for_expr.m_type_data;
+						}
+					)
+					.or_else
+					(
+						[outer_break_type, this](CompilerError&& error) -> MidoriResult::TypeResult
+						{
+							m_expected_break_type = outer_break_type;
+							return std::unexpected(std::move(error));
 						}
 					);
 			}
@@ -2463,7 +2572,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 					comp.m_iterable_some_tag = iterable_some_tag;
 				}
 
-				BeginScope();
+				ScopeSession scope(*this);
 
 				// Add loop variable to scope with element type
 				std::string var_name(comp.m_loop_variable.m_lexeme);
@@ -2472,13 +2581,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 				// Type check the transform expression
 				return std::visit
 				(
-					[this](auto&& arg) { return (*this)(arg); }, **comp.m_transform_expr)
+					[this]<typename T>(T&& arg) -> MidoriResult::TypeResult { return (*this)(arg); }, **comp.m_transform_expr)
 					.and_then
 					(
 						[&comp, this](std::shared_ptr<MidoriType>&& transform_type) -> MidoriResult::TypeResult
 						{
-							EndScope();
-
 							// Result type is Array<T> where T is the type of the transform expression
 							comp.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(transform_type));
 							return comp.m_type_data;
@@ -2642,7 +2749,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 										self_type = left_type;
 
-										if (std::ranges::contains(m_binary_partial_order_comparison_operators.cbegin(), m_binary_partial_order_comparison_operators.cend(), binary.m_op.m_token_name))
+										if (std::ranges::contains(kBinaryPartialOrderComparisonOperators.cbegin(), kBinaryPartialOrderComparisonOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
 											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TypeVariable>();
@@ -2678,7 +2785,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
 										}
-										else if (std::ranges::contains(m_binary_arithmetic_operators.cbegin(), m_binary_arithmetic_operators.cend(), binary.m_op.m_token_name))
+										else if (std::ranges::contains(kBinaryArithmeticOperators.cbegin(), kBinaryArithmeticOperators.cend(), binary.m_op.m_token_name))
 										{
 											// Allow type variables (will be constrained by usage) or concrete numeric types
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
@@ -2687,7 +2794,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 											}
 										}
-										else if (std::ranges::contains(m_binary_bitwise_operators.cbegin(), m_binary_bitwise_operators.cend(), binary.m_op.m_token_name))
+										else if (std::ranges::contains(kBinaryBitwiseOperators.cbegin(), kBinaryBitwiseOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
 											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::ByteType>() && !resolved_self->IsType<MidoriType::WordType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
@@ -2695,7 +2802,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 											}
 										}
-										else if (std::ranges::contains(m_binary_equality_operators.cbegin(), m_binary_equality_operators.cend(), binary.m_op.m_token_name))
+										else if (std::ranges::contains(kBinaryEqualityOperators.cbegin(), kBinaryEqualityOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
 											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TextType>() || resolved_self->IsType<MidoriType::BoolType>() || resolved_self->IsType<MidoriType::TypeVariable>();
@@ -2731,7 +2838,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
 										}
-										else if (std::ranges::contains(m_binary_logical_operators.cbegin(), m_binary_logical_operators.cend(), binary.m_op.m_token_name))
+										else if (std::ranges::contains(kBinaryLogicalOperators.cbegin(), kBinaryLogicalOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_left_logical = ApplySubstitution(left_type);
 											if (!resolved_left_logical->IsType<MidoriType::BoolType>() && !resolved_left_logical->IsType<MidoriType::TypeVariable>())
@@ -2741,7 +2848,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
 										}
-										else if (std::ranges::contains(m_binary_concatenation_operators.cbegin(), m_binary_concatenation_operators.cend(), binary.m_op.m_token_name))
+										else if (std::ranges::contains(kBinaryConcatenationOperators.cbegin(), kBinaryConcatenationOperators.cend(), binary.m_op.m_token_name))
 										{
 											if (!resolved_left->IsType<MidoriType::TextType>() && !resolved_left->IsType<MidoriType::ArrayType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
 											{
@@ -2830,31 +2937,17 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				{
 					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
 
-					auto has_name_suffix = [](const std::string& name, std::string_view suffix)
-					{
-						if (name == suffix)
-						{
-							return true;
-						}
-						if (!name.ends_with(suffix))
-						{
-							return false;
-						}
-						size_t pos = name.size() - suffix.size();
-						return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
-					};
-
 					const bool is_list_type = resolved_type->IsType<MidoriType::UnionType>() &&
-						has_name_suffix(resolved_type->GetType<MidoriType::UnionType>().m_name, "List");
+						HasNameSuffix(resolved_type->GetType<MidoriType::UnionType>().m_name, "List");
 					const bool is_map_type = resolved_type->IsType<MidoriType::StructType>() &&
 						(
-							has_name_suffix(resolved_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
-							has_name_suffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Map")
+							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
+							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Map")
 						);
 					const bool is_set_type = resolved_type->IsType<MidoriType::StructType>() &&
 						(
-							has_name_suffix(resolved_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
-							has_name_suffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Set")
+							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
+							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Set")
 						);
 
 					if (resolved_type->IsType<MidoriType::ArrayType>() || is_list_type || is_map_type || is_set_type)
@@ -3204,23 +3297,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		}
 	}
 
-	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+	const std::shared_ptr<MidoriType>* binding = FindNameType(variable.m_name.m_lexeme);
+	if (binding != nullptr)
 	{
-		TypeEnvironment::const_iterator var = it->find(variable.m_name.m_lexeme);
-		if (var != it->end())
+		if (m_generic_functions.contains(variable.m_name.m_lexeme) || variable.m_name.m_lexeme.find("::") != std::string::npos)
 		{
-			if (m_generic_functions.contains(variable.m_name.m_lexeme) || variable.m_name.m_lexeme.find("::") != std::string::npos)
-			{
-				variable.m_type_data = Freshen(var->second);
-			}
-			else
-			{
-				// Apply substitution to get the most up-to-date type
-				// This handles cases where the type contains type variables that have been unified
-				variable.m_type_data = ApplySubstitution(var->second);
-			}
-			return variable.m_type_data;
+			variable.m_type_data = Freshen(*binding);
 		}
+		else
+		{
+			// Apply substitution to get the most up-to-date type
+			// This handles cases where the type contains type variables that have been unified
+			variable.m_type_data = ApplySubstitution(*binding);
+		}
+		return variable.m_type_data;
 	}
 
 	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
@@ -3250,21 +3340,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& b
 		(
 			[&bind, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
 			{
-				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				std::shared_ptr<MidoriType>* binding = FindNameType(bind.m_name.m_lexeme);
+				if (binding != nullptr)
 				{
-					TypeEnvironment::iterator var = it->find(bind.m_name.m_lexeme);
-					if (var != it->end())
-					{
-						return Unify(bind.m_name, var->second, actual_type)
-							.and_then
-							(
-								[&bind, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
-								{
-									bind.m_type_data = type;
-									return bind.m_type_data;
-								}
-							);
-					}
+					return Unify(bind.m_name, *binding, actual_type)
+						.and_then
+						(
+							[&bind, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+							{
+								bind.m_type_data = type;
+								return bind.m_type_data;
+							}
+						);
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bind expression type error: variable not found", bind.m_name, m_file_name, m_source_lines));
@@ -3279,53 +3366,48 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 		(
 			[&append_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				std::shared_ptr<MidoriType>* binding = FindNameType(append_assign.m_name.m_lexeme);
+				if (binding != nullptr)
 				{
-					TypeEnvironment::iterator var = it->find(append_assign.m_name.m_lexeme);
-					if (var != it->end())
+					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
+					if (!target_type->IsType<MidoriType::ArrayType>() &&
+					    !target_type->IsType<MidoriType::TextType>() &&
+					    !target_type->IsType<MidoriType::TypeVariable>())
 					{
-						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
-						if (!target_type->IsType<MidoriType::ArrayType>() &&
-						    !target_type->IsType<MidoriType::TextType>() &&
-						    !target_type->IsType<MidoriType::TypeVariable>())
-						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: expected array or text type", append_assign.m_name, m_file_name, m_source_lines, target_type));
-						}
-
-						if (target_type->IsType<MidoriType::ArrayType>())
-						{
-							std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
-							return Unify(append_assign.m_name, element_type, value_type)
-								.and_then
-								(
-									[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-									{
-										append_assign.m_type_data = target_type;
-										return append_assign.m_type_data;
-									}
-								);
-						}
-						else if (target_type->IsType<MidoriType::TextType>())
-						{
-							// Text can only be appended with Text
-							std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
-							return Unify(append_assign.m_name, text_type, value_type)
-								.and_then
-								(
-									[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-									{
-										append_assign.m_type_data = target_type;
-										return append_assign.m_type_data;
-									}
-								);
-						}
-						else
-						{
-							// TypeVariable - create constraints
-							append_assign.m_type_data = target_type;
-							return append_assign.m_type_data;
-						}
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: expected array or text type", append_assign.m_name, m_file_name, m_source_lines, target_type));
 					}
+
+					if (target_type->IsType<MidoriType::ArrayType>())
+					{
+						std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+						return Unify(append_assign.m_name, element_type, value_type)
+							.and_then
+							(
+								[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+								{
+									append_assign.m_type_data = target_type;
+									return append_assign.m_type_data;
+								}
+							);
+					}
+					else if (target_type->IsType<MidoriType::TextType>())
+					{
+						// Text can only be appended with Text
+						std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
+						return Unify(append_assign.m_name, text_type, value_type)
+							.and_then
+							(
+								[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+								{
+									append_assign.m_type_data = target_type;
+									return append_assign.m_type_data;
+								}
+							);
+					}
+
+					// TypeVariable - create constraints
+					append_assign.m_type_data = target_type;
+					return append_assign.m_type_data;
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: variable not found", append_assign.m_name, m_file_name, m_source_lines));
@@ -3340,33 +3422,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ExtendAssign&
 		(
 			[&extend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				std::shared_ptr<MidoriType>* binding = FindNameType(extend_assign.m_name.m_lexeme);
+				if (binding != nullptr)
 				{
-					TypeEnvironment::iterator var = it->find(extend_assign.m_name.m_lexeme);
-					if (var != it->end())
+					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
+					if (!target_type->IsType<MidoriType::ArrayType>() && !target_type->IsType<MidoriType::TypeVariable>())
 					{
-						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
-						if (!target_type->IsType<MidoriType::ArrayType>() && !target_type->IsType<MidoriType::TypeVariable>())
-						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: expected array type", extend_assign.m_name, m_file_name, m_source_lines, target_type));
-						}
-
-						if (target_type->IsType<MidoriType::ArrayType>())
-						{
-							return Unify(extend_assign.m_name, target_type, value_type)
-								.and_then
-								(
-									[&extend_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-									{
-										extend_assign.m_type_data = target_type;
-										return extend_assign.m_type_data;
-									}
-								);
-						}
-
-						extend_assign.m_type_data = target_type;
-						return extend_assign.m_type_data;
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: expected array type", extend_assign.m_name, m_file_name, m_source_lines, target_type));
 					}
+
+					if (target_type->IsType<MidoriType::ArrayType>())
+					{
+						return Unify(extend_assign.m_name, target_type, value_type)
+							.and_then
+							(
+								[&extend_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+								{
+									extend_assign.m_type_data = target_type;
+									return extend_assign.m_type_data;
+								}
+							);
+					}
+
+					extend_assign.m_type_data = target_type;
+					return extend_assign.m_type_data;
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Extend assignment type error: variable not found", extend_assign.m_name, m_file_name, m_source_lines));
@@ -3381,53 +3460,48 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 		(
 			[&prepend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				std::shared_ptr<MidoriType>* binding = FindNameType(prepend_assign.m_name.m_lexeme);
+				if (binding != nullptr)
 				{
-					TypeEnvironment::iterator var = it->find(prepend_assign.m_name.m_lexeme);
-					if (var != it->end())
+					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
+					if (!target_type->IsType<MidoriType::ArrayType>() &&
+					    !target_type->IsType<MidoriType::TextType>() &&
+					    !target_type->IsType<MidoriType::TypeVariable>())
 					{
-						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
-						if (!target_type->IsType<MidoriType::ArrayType>() &&
-						    !target_type->IsType<MidoriType::TextType>() &&
-						    !target_type->IsType<MidoriType::TypeVariable>())
-						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: expected array or text type", prepend_assign.m_name, m_file_name, m_source_lines, target_type));
-						}
-
-						if (target_type->IsType<MidoriType::ArrayType>())
-						{
-							std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
-							return Unify(prepend_assign.m_name, element_type, value_type)
-								.and_then
-								(
-									[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-									{
-										prepend_assign.m_type_data = target_type;
-										return prepend_assign.m_type_data;
-									}
-								);
-						}
-						else if (target_type->IsType<MidoriType::TextType>())
-						{
-							// Text can only be prepended with Text
-							std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
-							return Unify(prepend_assign.m_name, text_type, value_type)
-								.and_then
-								(
-									[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-									{
-										prepend_assign.m_type_data = target_type;
-										return prepend_assign.m_type_data;
-									}
-								);
-						}
-						else
-						{
-							// TypeVariable - create constraints
-							prepend_assign.m_type_data = target_type;
-							return prepend_assign.m_type_data;
-						}
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: expected array or text type", prepend_assign.m_name, m_file_name, m_source_lines, target_type));
 					}
+
+					if (target_type->IsType<MidoriType::ArrayType>())
+					{
+						std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+						return Unify(prepend_assign.m_name, element_type, value_type)
+							.and_then
+							(
+								[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+								{
+									prepend_assign.m_type_data = target_type;
+									return prepend_assign.m_type_data;
+								}
+							);
+					}
+					else if (target_type->IsType<MidoriType::TextType>())
+					{
+						// Text can only be prepended with Text
+						std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
+						return Unify(prepend_assign.m_name, text_type, value_type)
+							.and_then
+							(
+								[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+								{
+									prepend_assign.m_type_data = target_type;
+									return prepend_assign.m_type_data;
+								}
+							);
+					}
+
+					// TypeVariable - create constraints
+					prepend_assign.m_type_data = target_type;
+					return prepend_assign.m_type_data;
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: variable not found", prepend_assign.m_name, m_file_name, m_source_lines));
@@ -3442,53 +3516,50 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 		(
 			[&compound_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+				std::shared_ptr<MidoriType>* binding = FindNameType(compound_assign.m_name.m_lexeme);
+				if (binding != nullptr)
 				{
-					TypeEnvironment::iterator var = it->find(compound_assign.m_name.m_lexeme);
-					if (var != it->end())
+					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
+
+					// Check if operator is arithmetic
+					if (compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL ||
+					    compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ||
+					    compound_assign.m_op.m_token_name == Token::Name::STAR_EQUAL ||
+					    compound_assign.m_op.m_token_name == Token::Name::SLASH_EQUAL ||
+					    compound_assign.m_op.m_token_name == Token::Name::PERCENT_EQUAL)
 					{
-						std::shared_ptr<MidoriType> target_type = ApplySubstitution(var->second);
-
-						// Check if operator is arithmetic
-						if (compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL ||
-						    compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ||
-						    compound_assign.m_op.m_token_name == Token::Name::STAR_EQUAL ||
-						    compound_assign.m_op.m_token_name == Token::Name::SLASH_EQUAL ||
-						    compound_assign.m_op.m_token_name == Token::Name::PERCENT_EQUAL)
+						// Must be numeric type
+						if (!target_type->IsType<MidoriType::IntegerType>() &&
+						    !target_type->IsType<MidoriType::FloatType>() &&
+						    !target_type->IsType<MidoriType::TypeVariable>())
 						{
-							// Must be numeric type
-							if (!target_type->IsType<MidoriType::IntegerType>() &&
-							    !target_type->IsType<MidoriType::FloatType>() &&
-							    !target_type->IsType<MidoriType::TypeVariable>())
-							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected numeric type", compound_assign.m_op, m_file_name, m_source_lines, target_type));
-							}
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected numeric type", compound_assign.m_op, m_file_name, m_source_lines, target_type));
 						}
-						else if (compound_assign.m_op.m_token_name == Token::Name::AMPERSAND_EQUAL ||
-						         compound_assign.m_op.m_token_name == Token::Name::BAR_EQUAL ||
-						         compound_assign.m_op.m_token_name == Token::Name::CARET_EQUAL ||
-						         compound_assign.m_op.m_token_name == Token::Name::LEFT_SHIFT_EQUAL ||
-						         compound_assign.m_op.m_token_name == Token::Name::RIGHT_SHIFT_EQUAL)
-						{
-							// Must be integer type
-							if (!target_type->IsType<MidoriType::IntegerType>() &&
-							    !target_type->IsType<MidoriType::TypeVariable>())
-							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected integer type for bitwise operator", compound_assign.m_op, m_file_name, m_source_lines, target_type));
-							}
-						}
-
-						// Unify value type with target type
-						return Unify(compound_assign.m_op, target_type, value_type)
-							.and_then
-							(
-								[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-								{
-									compound_assign.m_type_data = target_type;
-									return compound_assign.m_type_data;
-								}
-							);
 					}
+					else if (compound_assign.m_op.m_token_name == Token::Name::AMPERSAND_EQUAL ||
+					         compound_assign.m_op.m_token_name == Token::Name::BAR_EQUAL ||
+					         compound_assign.m_op.m_token_name == Token::Name::CARET_EQUAL ||
+					         compound_assign.m_op.m_token_name == Token::Name::LEFT_SHIFT_EQUAL ||
+					         compound_assign.m_op.m_token_name == Token::Name::RIGHT_SHIFT_EQUAL)
+					{
+						// Must be integer type
+						if (!target_type->IsType<MidoriType::IntegerType>() &&
+						    !target_type->IsType<MidoriType::TypeVariable>())
+						{
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: expected integer type for bitwise operator", compound_assign.m_op, m_file_name, m_source_lines, target_type));
+						}
+					}
+
+					// Unify value type with target type
+					return Unify(compound_assign.m_op, target_type, value_type)
+						.and_then
+						(
+							[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
+							{
+								compound_assign.m_type_data = target_type;
+								return compound_assign.m_type_data;
+							}
+						);
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
@@ -3557,85 +3628,68 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
 	function.m_type_data = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 
-	BeginScope();
-	std::ranges::for_each
-	(
-		std::views::iota(0u, function.m_params.size()),
-		[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
-	);
-
-	return Evaluate(function.m_body)
-		.and_then
+	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	{
+		std::ranges::for_each
 		(
-			[&function, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
-			{
-				EndScope();
-
-				return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type)
-					.and_then
-					(
-						[&function](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-						{
-							return function.m_type_data;
-						}
-					);
-			}
+			std::views::iota(0u, function.m_params.size()),
+			[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
 		);
+
+		return Evaluate(function.m_body)
+			.and_then
+			(
+				[&function, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				{
+					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type)
+						.and_then
+						(
+							[&function](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							{
+								return function.m_type_data;
+							}
+						);
+				}
+			);
+	});
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& construct)
 {
 	const std::shared_ptr<MidoriType>& return_type = construct.m_return_type;
-	std::optional<std::shared_ptr<MidoriType>> constructor_type_shared = std::nullopt;
 	std::string constructor_name;
 	std::string actual_type_name; 
 
-	for (TypeChecker::TypeEnvironmentStack::const_reverse_iterator it = m_name_type_table.crbegin(); it != m_name_type_table.crend(); ++it)
+	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
 	{
-		const TypeEnvironment& env = *it;
-		TypeEnvironment::const_iterator var;
-		if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
-		{
-			actual_type_name = return_type->GetType<MidoriType::StructType>().m_name;
-			constructor_name = actual_type_name;
-			var = env.find(constructor_name);
-		}
-		else
-		{
-			constructor_name = construct.m_data_name.m_lexeme;
-			actual_type_name = return_type->GetType<MidoriType::UnionType>().m_name;
-			var = env.find(constructor_name);
-		}
-		if (var != env.end())
-		{
-			bool is_generic = false;
-			if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
-			{
-				is_generic = m_generic_structs.contains(actual_type_name);
-			}
-			else
-			{
-				is_generic = m_generic_unions.contains(actual_type_name);
-			}
-
-			if (is_generic)
-			{
-				constructor_type_shared = Freshen(var->second);
-			}
-			else
-			{
-				constructor_type_shared = var->second;
-			}
-			break;
-		}
+		actual_type_name = return_type->GetType<MidoriType::StructType>().m_name;
+		constructor_name = actual_type_name;
+	}
+	else
+	{
+		constructor_name = construct.m_data_name.m_lexeme;
+		actual_type_name = return_type->GetType<MidoriType::UnionType>().m_name;
 	}
 
-	if (!constructor_type_shared.has_value())
+	const std::shared_ptr<MidoriType>* constructor_type_ptr = FindNameType(constructor_name);
+	if (constructor_type_ptr == nullptr)
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
-	const MidoriType::FunctionType& constructor_type = constructor_type_shared.value()->GetType<MidoriType::FunctionType>();
+	bool is_generic = false;
+	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
+	{
+		is_generic = m_generic_structs.contains(actual_type_name);
+	}
+	else
+	{
+		is_generic = m_generic_unions.contains(actual_type_name);
+	}
+
+	std::shared_ptr<MidoriType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
+
+	const MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
@@ -3915,7 +3969,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
 							}
 
-							UpdateConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
+							if_else.m_condition_operand_type = ResolveConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
 
 							return Evaluate(if_else.m_true_branch)
 								.and_then
@@ -3948,36 +4002,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 {
-	BeginScope();
-
-	for (const std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
+	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 	{
-		MidoriResult::TypeResult result = Evaluate(stmt);
-		if (!result.has_value())
+		for (const std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
 		{
-			EndScope();
-			return result;
+			MidoriResult::TypeResult result = Evaluate(stmt);
+			if (!result.has_value())
+			{
+				return result;
+			}
+			// Note: Statement types are checked but do NOT contribute to the block's type
+			// Only the final expression (if present) determines the block type
 		}
-		// Note: Statement types are checked but do NOT contribute to the block's type
-		// Only the final expression (if present) determines the block type
-	}
 
-	if (block.m_final_expr.has_value())
-	{
-		return Evaluate(*block.m_final_expr)
-			.and_then
-			(
-				[&block, this](std::shared_ptr<MidoriType>&& final_value)->MidoriResult::TypeResult
-				{
-					EndScope();
-
-					return Unify(block.m_right_brace, block.m_type_data, final_value);
-				}
-			);
-	}
-	else
-	{
-		EndScope();
+		if (block.m_final_expr.has_value())
+		{
+			return Evaluate(*block.m_final_expr)
+				.and_then
+				(
+					[&block, this](std::shared_ptr<MidoriType>&& final_value) -> MidoriResult::TypeResult
+					{
+						return Unify(block.m_right_brace, block.m_type_data, final_value);
+					}
+				);
+		}
 
 		// Check if the last statement is a break or return (which have NeverType)
 		// If so, the block should have NeverType rather than Unit
@@ -4003,7 +4051,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 			block.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
 		}
 		return block.m_type_data;
-	}
+	});
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_expr)
