@@ -1,0 +1,10 @@
+- Try not to use `auto`
+- Use `c++23` features
+- use prefix `m_` for class members, `s_` for static values
+- favor function chaining and the functional programming paradigm
+- define and use constructor
+- Dont write comments for self-explanatory code
+- Dont write docs unless told so
+- Try to put implementations inside `cpp` files
+- Try to use `{}` for `for`, `if` etc, never do oneline.
+- Use Pascal style for class/struct/function names
