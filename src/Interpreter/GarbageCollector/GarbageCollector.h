@@ -24,6 +24,7 @@ private:
 	size_t m_total_bytes_allocated = 0uz;
 	size_t m_gc_threshold = INITIAL_GC_THRESHOLD;
 	std::vector<MidoriTraceable*> m_traceables;
+	std::vector<MidoriTraceable*> m_mark_stack;
 
 public:
 	GarbageCollector() = default;
@@ -47,7 +48,8 @@ public:
 	bool Contains(MidoriTraceable* ptr) const;
 
 private:
-	void Trace(MidoriTraceable* ptr);
+	void Trace(const GarbageCollectionRoots& roots);
+	void TryMark(MidoriTraceable* child_ptr);
 
 	const MidoriAllocator* m_allocator = nullptr;
 };

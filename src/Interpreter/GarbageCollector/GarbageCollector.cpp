@@ -106,102 +106,90 @@ void GarbageCollector::RegisterObject(MidoriTraceable* traceable)
 	m_traceables.emplace_back(traceable);
 }
 
-void GarbageCollector::Trace(MidoriTraceable* ptr)
+void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 {
-	if (ptr->IsMarked())
+	if (child_ptr == nullptr || !Contains(child_ptr) || child_ptr->IsMarked())
 	{
 		return;
 	}
 #if MIDORI_DEBUG_FULL
-	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(ptr)));
+	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
 #endif
-	ptr->Mark();
+	child_ptr->Mark();
+	m_mark_stack.emplace_back(child_ptr);
+}
 
-	if (ptr->IsTraceable<MidoriArray>())
+void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
+{
+	m_mark_stack.clear();
+	if (roots.empty())
 	{
-		MidoriArray& arr = ptr->GetTraceable<MidoriArray>();
-		int length = arr.GetLength();
-		for (int idx = 0; idx < length; idx += 1)
-		{
-			MidoriValue& value = arr[idx];
-			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && Contains(child_ptr))
-			{
-				Trace(child_ptr);
-			}
-		}
+		return;
 	}
-	else if (ptr->IsTraceable<MidoriClosure>())
-	{
-		MidoriTuple& cell_values = ptr->GetTraceable<MidoriClosure>().m_cell_values;
-		int length = cell_values.GetLength();
-		for (int i = 0; i < length; i += 1)
-		{
-			MidoriValue& value = cell_values[i];
-			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && Contains(child_ptr))
-			{
-				Trace(child_ptr);
-			}
-		}
-	}
-	else if (ptr->IsTraceable<MidoriCellValue>())
-	{
-		MidoriValue cell_value = ptr->GetTraceable<MidoriCellValue>().GetValue();
-		MidoriTraceable* child_ptr = cell_value.GetPointer();
-		if (child_ptr != nullptr && Contains(child_ptr))
-		{
-			Trace(child_ptr);
-		}
-	}
-	else if (ptr->IsTraceable<MidoriStruct>())
-	{
-		MidoriTuple& arr = ptr->GetTraceable<MidoriStruct>().m_values;
-		int length = arr.GetLength();
-		for (int idx = 0; idx < length; idx += 1)
-		{
-			MidoriValue& value = arr[idx];
-			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && Contains(child_ptr))
-			{
-				Trace(child_ptr);
-			}
-		}
-	}
-	else if (ptr->IsTraceable<MidoriUnion>())
-	{
-		MidoriTuple& arr = ptr->GetTraceable<MidoriUnion>().m_values;
-		int length = arr.GetLength();
-		for (int idx = 0; idx < length; idx += 1)
-		{
-			MidoriValue& value = arr[idx];
-			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && Contains(child_ptr))
-			{
-				Trace(child_ptr);
-			}
-		}
-	}
-	else if (ptr->IsTraceable<MidoriFuture>())
-	{
-		MidoriFuture& future = ptr->GetTraceable<MidoriFuture>();
-		MidoriTraceable* result_ptr = future.m_result.GetPointer();
-		if (result_ptr != nullptr && Contains(result_ptr))
-		{
-			Trace(result_ptr);
-		}
 
-		if (future.m_closure)
+	for (MidoriTraceable* root : roots)
+	{
+		TryMark(root);
+	}
+
+	while (!m_mark_stack.empty())
+	{
+		MidoriTraceable* current = m_mark_stack.back();
+		m_mark_stack.pop_back();
+
+		if (current->IsTraceable<MidoriArray>())
 		{
-			MidoriTuple& cell_values = future.m_closure->m_cell_values;
+			MidoriArray& arr = current->GetTraceable<MidoriArray>();
+			int length = arr.GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				TryMark(arr[idx].GetPointer());
+			}
+		}
+		else if (current->IsTraceable<MidoriClosure>())
+		{
+			MidoriTuple& cell_values = current->GetTraceable<MidoriClosure>().m_cell_values;
 			int length = cell_values.GetLength();
 			for (int i = 0; i < length; i += 1)
 			{
-				MidoriValue& value = cell_values[i];
-				MidoriTraceable* child_ptr = value.GetPointer();
-				if (child_ptr != nullptr && Contains(child_ptr))
+				TryMark(cell_values[i].GetPointer());
+			}
+		}
+		else if (current->IsTraceable<MidoriCellValue>())
+		{
+			MidoriValue cell_value = current->GetTraceable<MidoriCellValue>().GetValue();
+			TryMark(cell_value.GetPointer());
+		}
+		else if (current->IsTraceable<MidoriStruct>())
+		{
+			MidoriTuple& arr = current->GetTraceable<MidoriStruct>().m_values;
+			int length = arr.GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				TryMark(arr[idx].GetPointer());
+			}
+		}
+		else if (current->IsTraceable<MidoriUnion>())
+		{
+			MidoriTuple& arr = current->GetTraceable<MidoriUnion>().m_values;
+			int length = arr.GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				TryMark(arr[idx].GetPointer());
+			}
+		}
+		else if (current->IsTraceable<MidoriFuture>())
+		{
+			MidoriFuture& future = current->GetTraceable<MidoriFuture>();
+			TryMark(future.m_result.GetPointer());
+
+			if (future.m_closure)
+			{
+				MidoriTuple& cell_values = future.m_closure->m_cell_values;
+				int length = cell_values.GetLength();
+				for (int i = 0; i < length; i += 1)
 				{
-					Trace(child_ptr);
+					TryMark(cell_values[i].GetPointer());
 				}
 			}
 		}
@@ -228,10 +216,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	TimePoint t_mark_start = Clock::now();
 #endif
 	// Mark
-	for (MidoriTraceable* root : roots)
-	{
-		Trace(root);
-	}
+	Trace(roots);
 #if MIDORI_DEBUG_INFO
 	TimePoint t_mark_end = Clock::now();
 #endif
