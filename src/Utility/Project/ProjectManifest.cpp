@@ -332,6 +332,48 @@ namespace
 		return "MidoriProject";
 	}
 
+	std::string DerivePackageName(const std::filesystem::path& root)
+	{
+		const std::string name = root.filename().string();
+		if (!name.empty())
+		{
+			return name;
+		}
+		return "MidoriPackage";
+	}
+
+	std::string SanitizeModuleName(std::string_view name)
+	{
+		std::string result;
+		result.reserve(name.size());
+
+		for (char c : name)
+		{
+			const unsigned char uc = static_cast<unsigned char>(c);
+			if (std::isalnum(uc) != 0 || c == '_')
+			{
+				result.push_back(c);
+			}
+			else
+			{
+				result.push_back('_');
+			}
+		}
+
+		if (result.empty())
+		{
+			result = "Package";
+		}
+
+		const unsigned char first = static_cast<unsigned char>(result.front());
+		if (std::isalpha(first) == 0 && result.front() != '_')
+		{
+			result.insert(0, "Package");
+		}
+
+		return result;
+	}
+
 	std::string EscapeTomlString(std::string_view value)
 	{
 		std::string result;
@@ -531,6 +573,112 @@ namespace MidoriProject
 			"defun main(): Int => 0;\n";
 
 		if (!WriteFile(main_path, main_contents, error_message))
+		{
+			return false;
+		}
+
+		return true;
+	}
+}
+
+namespace MidoriPackage
+{
+	bool InitializePackage(const std::filesystem::path& target_dir, std::string_view package_name, std::string& error_message)
+	{
+		std::error_code ec;
+		std::filesystem::path root = target_dir;
+		if (root.empty())
+		{
+			root = std::filesystem::current_path(ec);
+			if (ec)
+			{
+				error_message = "Failed to resolve current directory.";
+				return false;
+			}
+		}
+
+		if (!root.is_absolute())
+		{
+			root = std::filesystem::absolute(root, ec);
+			if (ec)
+			{
+				error_message = "Failed to resolve package path.";
+				return false;
+			}
+		}
+
+		if (std::filesystem::exists(root, ec))
+		{
+			if (!std::filesystem::is_directory(root, ec))
+			{
+				error_message = std::format("Path is not a directory: {}", root.string());
+				return false;
+			}
+		}
+		else
+		{
+			if (!std::filesystem::create_directories(root, ec))
+			{
+				error_message = std::format("Failed to create directory: {}", root.string());
+				return false;
+			}
+		}
+
+		const std::filesystem::path manifest_path = root / PackageManifestFileName;
+		if (std::filesystem::exists(manifest_path, ec))
+		{
+			error_message = std::format("package.midori already exists at {}", manifest_path.string());
+			return false;
+		}
+
+		const std::string resolved_name = package_name.empty() ? DerivePackageName(root) : std::string(package_name);
+		const std::string module_name = SanitizeModuleName(resolved_name);
+		const std::string module_file = module_name + ".mdr";
+		const std::filesystem::path module_path = root / module_file;
+
+		if (std::filesystem::exists(module_path, ec))
+		{
+			error_message = std::format("Package module already exists at {}", module_path.string());
+			return false;
+		}
+
+		const std::string escaped_package_name = EscapeTomlString(resolved_name);
+		const std::string escaped_module_file = EscapeTomlString(module_file);
+		const std::string escaped_export = EscapeTomlString(module_name);
+		const std::string manifest_contents = std::format
+		(
+			"[package]\n"
+			"name = \"{}\"\n"
+			"version = \"0.1.0\"\n"
+			"authors = []\n"
+			"description = \"\"\n"
+			"license = \"MIT\"\n"
+			"midori_version = \">=1.0.0\"\n"
+			"\n"
+			"[package.modules]\n"
+			"main = \"{}\"\n"
+			"exports = [\"{}\"]\n",
+			escaped_package_name,
+			escaped_module_file,
+			escaped_export
+		);
+
+		if (!WriteFile(manifest_path, manifest_contents, error_message))
+		{
+			return false;
+		}
+
+		const std::string module_contents = std::format
+		(
+			"module {}\n"
+			"public export {{ Hello }}\n"
+			"\n"
+			"defun Hello(): Text => \"Hello from {}\";\n",
+			module_name,
+			module_name
+		);
+
+		if (!WriteFile(module_path, module_contents, error_message))
 		{
 			return false;
 		}

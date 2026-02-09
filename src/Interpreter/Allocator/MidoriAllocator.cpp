@@ -25,8 +25,9 @@ void* MidoriAllocator::Allocate(size_t size)
 	return ptr;
 }
 
-MidoriAllocator& MidoriAllocator::Free(void* ptr, size_t)
+MidoriAllocator& MidoriAllocator::Free(void* ptr, size_t size) &
 {
+	(void)size;
 	if (ptr != nullptr)
 	{
 		m_allocated.erase(ptr);

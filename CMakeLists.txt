@@ -17,8 +17,21 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Define custom build configurations
-set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release" CACHE STRING "" FORCE)
+# Define build configurations (multi-config) or default build type (single-config)
+if(CMAKE_GENERATOR_MULTI_CONFIG)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release;Experimental" CACHE STRING "" FORCE)
+else()
+    if(NOT CMAKE_BUILD_TYPE)
+        set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    endif()
+endif()
+
+# Performance tuning options (Experimental is an aggressive, non-portable speed profile)
+option(MIDORI_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
+
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "Use static MSVC runtime (/MT, /MTd in Debug)" FORCE)
+endif()
 
 # Output directories for build artifacts
 set(MIDORI_OUTPUT_DIR "${CMAKE_BINARY_DIR}/out")
@@ -118,6 +131,7 @@ if(EMSCRIPTEN)
         -fexceptions
         -O3
         -Wno-deprecated-literal-operator
+        $<$<BOOL:${MIDORI_ENABLE_LTO}>:-flto>
         ${MIDORI_WASM64_FLAGS}
     )
 
@@ -136,6 +150,7 @@ if(EMSCRIPTEN)
         -sFORCE_FILESYSTEM=1
         -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile,wasmTable
         -sEXPORTED_FUNCTIONS=_malloc,_free
+        $<$<BOOL:${MIDORI_ENABLE_LTO}>:-flto>
         ${MIDORI_WASM64_FLAGS}
         --no-entry
     )
@@ -165,21 +180,55 @@ else()
         ${LIBRARY_SOURCES}
         "src/Midori.cpp"
     )
+    set(MIDORI_NATIVE_TARGETS Midori)
 
-    midori_configure_target(Midori)
+    # Detect AVX2 compiler flag for Experimental configuration
+    set(MIDORI_HAS_AVX2_FLAG FALSE)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        set(MIDORI_AVX2_FLAG "-mavx2")
+    elseif(MSVC)
+        set(MIDORI_AVX2_FLAG "/arch:AVX2")
+    else()
+        set(MIDORI_AVX2_FLAG "-mavx2")
+    endif()
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("${MIDORI_AVX2_FLAG}" MIDORI_HAS_AVX2_FLAG)
+
+    set(MIDORI_HAS_AVX2_CONFIG FALSE)
+    if(CMAKE_GENERATOR_MULTI_CONFIG)
+        list(FIND CMAKE_CONFIGURATION_TYPES "Experimental" MIDORI_AVX2_CONFIG_INDEX)
+        if(NOT MIDORI_AVX2_CONFIG_INDEX EQUAL -1)
+            set(MIDORI_HAS_AVX2_CONFIG TRUE)
+        endif()
+    else()
+        if(CMAKE_BUILD_TYPE STREQUAL "Experimental")
+            set(MIDORI_HAS_AVX2_CONFIG TRUE)
+        endif()
+    endif()
+    if(MIDORI_HAS_AVX2_CONFIG AND NOT MIDORI_HAS_AVX2_FLAG)
+        message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
+    endif()
+
+    foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+        midori_configure_target(${target_name})
+    endforeach()
 
     # Link platform-specific dynamic loading libraries
     if(WIN32)
     elseif(UNIX)
-        target_link_libraries(Midori PRIVATE ${CMAKE_DL_LIBS})
+        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+            target_link_libraries(${target_name} PRIVATE ${CMAKE_DL_LIBS})
+        endforeach()
     endif()
 
     # Target-specific compile definitions
-    target_compile_definitions(Midori PRIVATE
-        $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
-        $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
-        $<$<CONFIG:Release>:NDEBUG>
-    )
+    foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+        target_compile_definitions(${target_name} PRIVATE
+            $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
+            $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
+            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:NDEBUG>
+        )
+    endforeach()
 
     # ========================================================================
     # MSVC-Specific Configuration
@@ -197,7 +246,8 @@ else()
         endforeach()
 
         # Common MSVC flags for Midori executable
-        target_compile_options(Midori PRIVATE
+        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+            target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
             /W4             # Warning level 4
@@ -213,24 +263,48 @@ else()
             $<$<CONFIG:Development>:/O2>    # Maximize speed
             $<$<CONFIG:Development>:/Zi>    # Full debug info
 
-            # Release configuration - maximum speed
-            $<$<CONFIG:Release>:/O2>    # Maximize speed
-            $<$<CONFIG:Release>:/GL>    # Whole program optimization (LTCG)
-            $<$<CONFIG:Release>:/Gw>    # Optimize global data
-            $<$<CONFIG:Release>:/MT>    # Static runtime library
-        )
+            # Release/Experimental configuration - maximum speed
+            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/O2>    # Maximize speed
+            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:/GL>    # Whole program optimization (LTCG)
+            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/Gw>    # Optimize global data
+            $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
+            $<$<CONFIG:Experimental>:/Gy>   # Function-level linking
+            $<$<CONFIG:Experimental>:/GF>   # String pooling
+            $<$<CONFIG:Experimental>:/fp:fast>   # Fast-math
+            )
+        endforeach()
 
         # MSVC linker flags
-        target_link_options(Midori PRIVATE
-            $<$<CONFIG:Development>:/DEBUG>
-            $<$<CONFIG:Development>:/OPT:REF>
-            $<$<CONFIG:Development>:/OPT:ICF>
+        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+            target_link_options(${target_name} PRIVATE
+                $<$<CONFIG:Development>:/DEBUG>
+                $<$<CONFIG:Development>:/OPT:REF>
+                $<$<CONFIG:Development>:/OPT:ICF>
 
-            $<$<CONFIG:Release>:/LTCG>
-            $<$<CONFIG:Release>:/OPT:REF>
-            $<$<CONFIG:Release>:/OPT:ICF>
-            $<$<CONFIG:Release>:/RELEASE>
-        )
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:/LTCG>
+                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:REF>
+                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:ICF>
+                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/RELEASE>
+            )
+        endforeach()
+    endif()
+
+    if(NOT MSVC)
+        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+            target_compile_options(${target_name} PRIVATE
+                $<$<CONFIG:Development>:-O2>
+                $<$<CONFIG:Development>:-g>
+                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:-O3>
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+                $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
+                $<$<CONFIG:Experimental>:-fomit-frame-pointer>
+                $<$<CONFIG:Experimental>:-funroll-loops>
+                $<$<CONFIG:Experimental>:-ffast-math>
+            )
+            target_link_options(${target_name} PRIVATE
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+            )
+        endforeach()
     endif()
 
 endif()

@@ -21,12 +21,14 @@ namespace
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("Usage:\n");
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe <source_file_path>\n");
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe init [path] [--name <project_name>]\n");
+		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe init --package [path] [--name <package_name>]\n");
 	}
 
 	int HandleInit(int argc, char* argv[])
 	{
 		std::filesystem::path target_dir;
-		std::string project_name;
+		std::string init_name;
+		bool init_package = false;
 
 		for (int i = 2; i < argc; i += 1)
 		{
@@ -39,7 +41,13 @@ namespace
 					PrintUsage();
 					return EXIT_FAILURE;
 				}
-				project_name = argv[++i];
+				init_name = argv[++i];
+				continue;
+			}
+
+			if (arg == "--package")
+			{
+				init_package = true;
 				continue;
 			}
 
@@ -67,7 +75,15 @@ namespace
 		}
 
 		std::string error_message;
-		if (!MidoriProject::InitializeProject(target_dir, project_name, error_message))
+		if (init_package)
+		{
+			if (!MidoriPackage::InitializePackage(target_dir, init_name, error_message))
+			{
+				Printer::Print<Printer::Color::RED>(std::format("Package init failed: {}\n", error_message));
+				return EXIT_FAILURE;
+			}
+		}
+		else if (!MidoriProject::InitializeProject(target_dir, init_name, error_message))
 		{
 			Printer::Print<Printer::Color::RED>(std::format("Project init failed: {}\n", error_message));
 			return EXIT_FAILURE;
@@ -84,8 +100,9 @@ namespace
 			}
 		}
 
+		const char* init_label = init_package ? "package" : "project";
 		Printer::Print<Printer::Color::GREEN>(
-			std::format("Initialized Midori project at {}\n", resolved_target.string()));
+			std::format("Initialized Midori {} at {}\n", init_label, resolved_target.string()));
 		return EXIT_SUCCESS;
 	}
 }

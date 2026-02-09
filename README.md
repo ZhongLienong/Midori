@@ -676,5 +676,6 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
+- [Project Standard](docs/project-standard.md) - Standard project layout and manifest
 - [Async/Await](docs/async-await.md) - Concurrent execution with per-VM isolation
 - [Runtime Architecture](docs/runtime-architecture.md) - Memory model, garbage collection, and concurrency
