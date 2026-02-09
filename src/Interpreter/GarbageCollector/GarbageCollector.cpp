@@ -85,15 +85,25 @@ namespace
 
 bool GarbageCollector::Contains(MidoriTraceable* ptr) const
 {
-	return m_traceable_set.contains(ptr);
+	return m_allocator != nullptr && m_allocator->Contains(ptr);
 }
 
 void GarbageCollector::RegisterObject(MidoriTraceable* traceable)
 {
-	size_t object_size = traceable->GetSize();
-	m_total_bytes_allocated += object_size;
+	const size_t next_size = m_traceables.size() + 1uz;
+	if (next_size > m_traceables.capacity())
+	{
+		const size_t current_capacity = m_traceables.capacity();
+		size_t new_capacity = current_capacity == 0uz ? 64uz : current_capacity * 2uz;
+		if (new_capacity < next_size)
+		{
+			new_capacity = next_size;
+		}
+		m_traceables.reserve(new_capacity);
+	}
+
+	m_total_bytes_allocated += traceable->GetSize();
 	m_traceables.emplace_back(traceable);
-	m_traceable_set.emplace(traceable);
 }
 
 void GarbageCollector::Trace(MidoriTraceable* ptr)
@@ -115,7 +125,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+			if (child_ptr != nullptr && Contains(child_ptr))
 			{
 				Trace(child_ptr);
 			}
@@ -129,7 +139,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		{
 			MidoriValue& value = cell_values[i];
 			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+			if (child_ptr != nullptr && Contains(child_ptr))
 			{
 				Trace(child_ptr);
 			}
@@ -139,7 +149,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	{
 		MidoriValue cell_value = ptr->GetTraceable<MidoriCellValue>().GetValue();
 		MidoriTraceable* child_ptr = cell_value.GetPointer();
-		if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+		if (child_ptr != nullptr && Contains(child_ptr))
 		{
 			Trace(child_ptr);
 		}
@@ -152,7 +162,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+			if (child_ptr != nullptr && Contains(child_ptr))
 			{
 				Trace(child_ptr);
 			}
@@ -166,7 +176,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 		{
 			MidoriValue& value = arr[idx];
 			MidoriTraceable* child_ptr = value.GetPointer();
-			if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+			if (child_ptr != nullptr && Contains(child_ptr))
 			{
 				Trace(child_ptr);
 			}
@@ -176,7 +186,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 	{
 		MidoriFuture& future = ptr->GetTraceable<MidoriFuture>();
 		MidoriTraceable* result_ptr = future.m_result.GetPointer();
-		if (result_ptr != nullptr && m_traceable_set.contains(result_ptr))
+		if (result_ptr != nullptr && Contains(result_ptr))
 		{
 			Trace(result_ptr);
 		}
@@ -189,7 +199,7 @@ void GarbageCollector::Trace(MidoriTraceable* ptr)
 			{
 				MidoriValue& value = cell_values[i];
 				MidoriTraceable* child_ptr = value.GetPointer();
-				if (child_ptr != nullptr && m_traceable_set.contains(child_ptr))
+				if (child_ptr != nullptr && Contains(child_ptr))
 				{
 					Trace(child_ptr);
 				}
@@ -255,7 +265,6 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 			{
 				m_total_bytes_allocated = 0uz;
 			}
-			m_traceable_set.erase(ptr);
 			ptr->~MidoriTraceable();
 			allocator.Free(ptr, sizeof(MidoriTraceable));
 		}

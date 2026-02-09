@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <unordered_map>
 #include <vector>
 
@@ -41,20 +42,26 @@ public:
     }
 
 private:
+	using ValueStackPointer = MidoriValue*;
+	using InstructionPointer = const OpCode*;
+
+	struct CallFrame
+	{
+		ValueStackPointer m_return_bp;
+		InstructionPointer m_return_ip;
+		MidoriTuple* m_closure_ptr;
+	};
+	using CallStackPointer = CallFrame*;
+
+#if defined(__cpp_lib_hardware_interference_size)
+	static constexpr size_t s_cache_line_size = std::hardware_destructive_interference_size;
+#else
+	static constexpr size_t s_cache_line_size = 64uz;
+#endif
+
     static constexpr size_t s_value_stack_size = 10000u;
     static constexpr size_t s_call_stack_size = 10000u;
     static constexpr int s_max_stack_trace_depth = 20;
-
-    using ValueStackPointer = MidoriValue*;
-    using InstructionPointer = const OpCode*;
-
-    struct CallFrame
-	{
-        ValueStackPointer return_bp;
-        InstructionPointer return_ip;
-        MidoriTuple* closure_ptr;
-    };
-    using CallStackPointer = CallFrame*;
 
     struct FFIArrayArgument
     {
@@ -62,34 +69,38 @@ private:
         int length;
     };
 
-    // Hot Pointers
-    InstructionPointer m_instruction_pointer = nullptr;
-    ValueStackPointer m_value_stack_pointer = nullptr;
-    ValueStackPointer m_value_stack_base_pointer = nullptr;
-    ValueStackPointer m_value_stack_begin = nullptr;
-    CallStackPointer m_call_stack_pointer = nullptr;
-    CallStackPointer m_call_stack_begin = nullptr;
-    MidoriTraceable* m_curr_closure_traceable = nullptr;
-    MidoriTuple* m_curr_environment = nullptr;
+	// Hot Pointers (cache-line aligned for the dispatch loop)
+	alignas(s_cache_line_size) InstructionPointer m_instruction_pointer = nullptr;
+	ValueStackPointer m_value_stack_pointer = nullptr;
+	ValueStackPointer m_value_stack_base_pointer = nullptr;
+	ValueStackPointer m_value_stack_begin = nullptr;
+	CallStackPointer m_call_stack_pointer = nullptr;
+	CallStackPointer m_call_stack_begin = nullptr;
+	MidoriTraceable* m_curr_closure_traceable = nullptr;
+	MidoriTuple* m_curr_environment = nullptr;
 
-    // Infrastructure & Cold Data
+    // Warm VM State
+    MidoriRuntime* m_runtime = nullptr;
+    const MidoriExecutable* m_executable = nullptr;
+    GlobalVariables* m_global_vars = nullptr;
+    std::vector<InstructionPointer> m_proc_entry_cache;
+    std::vector<MidoriTraceable*> m_string_literal_cache;
+
+    // Allocation & GC
     MidoriAllocator m_allocator;
     GarbageCollector m_gc;
     GarbageCollector::GarbageCollectionRoots m_gc_roots_scratch;
 
-    MidoriRuntime* m_runtime = nullptr;
-    const MidoriExecutable* m_executable = nullptr;
-    GlobalVariables* m_global_vars = nullptr;
-    std::vector<MidoriCellValue*> m_cells_to_promote;
-
-    MidoriValue m_async_result;
+    // FFI State
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
-    std::vector<InstructionPointer> m_proc_entry_cache;
-    std::vector<MidoriTraceable*> m_string_literal_cache;
+
+    // Cold Caches & Results
+    std::vector<MidoriCellValue*> m_cells_to_promote;
+	std::vector<MidoriTraceable*> m_static_closure_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
-    std::unordered_map<int, MidoriTraceable*> m_static_closure_cache;
+    MidoriValue m_async_result;
 
 #ifdef _WIN32
     void* m_value_stack_region = nullptr;
@@ -125,6 +136,11 @@ private:
 		return *m_instruction_pointer++;
 	}
 
+	static MIDORI_FORCE_INLINE OpCode ReadByte(InstructionPointer& ip) noexcept
+	{
+		return *ip++;
+	}
+
 #if defined(MIDORI_LITTLE_ENDIAN)
 	MIDORI_FORCE_INLINE int ReadShort() noexcept
 	{
@@ -132,6 +148,15 @@ private:
 		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
 		int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
 		m_instruction_pointer += 2;
+		return value;
+	}
+
+	static MIDORI_FORCE_INLINE int ReadShort(InstructionPointer& ip) noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
+		int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
+		ip += 2;
 		return value;
 	}
 
@@ -144,6 +169,16 @@ private:
 		m_instruction_pointer += 3;
 		return value;
 	}
+
+	static MIDORI_FORCE_INLINE int ReadThreeBytes(InstructionPointer& ip) noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
+		const uint8_t b2 = static_cast<uint8_t>(ip[2u]);
+		int value = static_cast<int>(static_cast<uint32_t>(b0) | (static_cast<uint32_t>(b1) << 8) | (static_cast<uint32_t>(b2) << 16));
+		ip += 3;
+		return value;
+	}
 #elif defined(MIDORI_BIG_ENDIAN)
 	MIDORI_FORCE_INLINE int ReadShort() noexcept
 	{
@@ -154,6 +189,15 @@ private:
 		return value;
 	}
 
+	static MIDORI_FORCE_INLINE int ReadShort(InstructionPointer& ip) noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
+		int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
+		ip += 2;
+		return value;
+	}
+
 	MIDORI_FORCE_INLINE int ReadThreeBytes() noexcept
 	{
 		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
@@ -161,6 +205,16 @@ private:
 		const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
 		int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
 		m_instruction_pointer += 3;
+		return value;
+	}
+
+	static MIDORI_FORCE_INLINE int ReadThreeBytes(InstructionPointer& ip) noexcept
+	{
+		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
+		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
+		const uint8_t b2 = static_cast<uint8_t>(ip[2u]);
+		int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
+		ip += 3;
 		return value;
 	}
 #endif
@@ -176,6 +230,17 @@ private:
 		return static_cast<MidoriInteger>(bits);
 	}
 
+	static MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant(InstructionPointer& ip) noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, ip, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		ip += sizeof(MidoriInteger);
+		return static_cast<MidoriInteger>(bits);
+	}
+
 	MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant() noexcept
 	{
 		uint64_t bits = 0u;
@@ -187,10 +252,28 @@ private:
 		return std::bit_cast<MidoriFloat>(bits);
 	}
 
+	static MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant(InstructionPointer& ip) noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, ip, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		ip += sizeof(MidoriFloat);
+		return std::bit_cast<MidoriFloat>(bits);
+	}
+
 	MIDORI_FORCE_INLINE MidoriByte ReadByteConstant() noexcept
 	{
 		MidoriByte value = static_cast<MidoriByte>(*m_instruction_pointer);
 		m_instruction_pointer += sizeof(MidoriByte);
+		return value;
+	}
+
+	static MIDORI_FORCE_INLINE MidoriByte ReadByteConstant(InstructionPointer& ip) noexcept
+	{
+		MidoriByte value = static_cast<MidoriByte>(*ip);
+		ip += sizeof(MidoriByte);
 		return value;
 	}
 
@@ -205,9 +288,25 @@ private:
 		return bits;
 	}
 
+	static MIDORI_FORCE_INLINE MidoriWord ReadWordConstant(InstructionPointer& ip) noexcept
+	{
+		uint64_t bits = 0u;
+		std::memcpy(&bits, ip, sizeof(bits));
+#if defined(MIDORI_BIG_ENDIAN)
+		bits = std::byteswap(bits);
+#endif
+		ip += sizeof(MidoriWord);
+		return bits;
+	}
+
 	MIDORI_FORCE_INLINE int ReadGlobalVariable() noexcept
 	{
 		return static_cast<int>(ReadByte());
+	}
+
+	static MIDORI_FORCE_INLINE int ReadGlobalVariable(InstructionPointer& ip) noexcept
+	{
+		return static_cast<int>(ReadByte(ip));
 	}
 
 	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;
@@ -223,9 +322,9 @@ private:
 		return m_proc_entry_cache[static_cast<size_t>(proc_index)];
 	}
 
-	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriTuple* m_closure_ptr) noexcept
 	{
-		*m_call_stack_pointer = CallFrame{return_bp, return_ip, closure_ptr};
+		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_closure_ptr};
 		++m_call_stack_pointer;
 	}
 

@@ -5,7 +5,7 @@
 
 #include <functional>
 #include <vector>
-#include <unordered_set>
+#include <cstddef>
 
 class MidoriAllocator;
 
@@ -24,7 +24,6 @@ private:
 	size_t m_total_bytes_allocated = 0uz;
 	size_t m_gc_threshold = INITIAL_GC_THRESHOLD;
 	std::vector<MidoriTraceable*> m_traceables;
-	std::unordered_set<MidoriTraceable*> m_traceable_set;
 
 public:
 	GarbageCollector() = default;
@@ -37,6 +36,8 @@ public:
 
 	bool ShouldCollect() const;
 
+	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
+
 	void RegisterObject(MidoriTraceable* traceable);
 
 #if MIDORI_DEBUG_INFO
@@ -47,4 +48,6 @@ public:
 
 private:
 	void Trace(MidoriTraceable* ptr);
+
+	const MidoriAllocator* m_allocator = nullptr;
 };

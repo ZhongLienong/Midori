@@ -408,23 +408,10 @@ def test_binary_search(array_size: int, num_searches: int) -> None:
 # ---
 
 if __name__ == "__main__":
-    print("=== MidoriText Benchmarks ===")
-    test_text_concatenation(10000)
-    test_text_append(10000)
-    test_text_building(5000)
-
-    print("")
-    print("=== MidoriArray<Int> Benchmarks ===")
-    test_array_append(10000)
-    test_array_concatenation(5000)
-    test_array_access(10000, 100000)
-    test_array_iteration(50000)
-
-    print("")
-    print("=== MidoriArray<Text> Benchmarks ===")
-    test_array_of_text(5000)
-
-    print("")
-    print("=== Complex Operations ===")
-    test_nested_arrays(100, 100)
-    test_array_filter(20000)
+    test_fib(35)
+    test_prime_numbers()
+    test_string_manipulation()
+    test_parenthesis_generation(8)
+    test_ackermann(3, 5)
+    test_sorting(5000)
+    test_binary_search(100000, 10000)

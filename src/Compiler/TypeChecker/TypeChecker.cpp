@@ -3380,6 +3380,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 					if (target_type->IsType<MidoriType::ArrayType>())
 					{
 						std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+						std::shared_ptr<MidoriType> resolved_element = ApplySubstitution(element_type);
+						std::shared_ptr<MidoriType> resolved_value = ApplySubstitution(value_type);
+						if (resolved_value->IsType<MidoriType::ArrayType>() && !resolved_element->IsType<MidoriType::ArrayType>() && !resolved_element->IsType<MidoriType::TypeVariable>())
+						{
+							std::string message = std::format
+							(
+								"Append assignment expects element type {}, but got {}. Use x = x ++ y to concatenate arrays.",
+								resolved_element->ToString(),
+								resolved_value->ToString()
+							);
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, append_assign.m_name, m_file_name, m_source_lines));
+						}
+
 						return Unify(append_assign.m_name, element_type, value_type)
 							.and_then
 							(
@@ -3474,6 +3487,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 					if (target_type->IsType<MidoriType::ArrayType>())
 					{
 						std::shared_ptr<MidoriType> element_type = target_type->GetType<MidoriType::ArrayType>().m_element_type;
+						std::shared_ptr<MidoriType> resolved_element = ApplySubstitution(element_type);
+						std::shared_ptr<MidoriType> resolved_value = ApplySubstitution(value_type);
+						if (resolved_value->IsType<MidoriType::ArrayType>() && !resolved_element->IsType<MidoriType::ArrayType>() && !resolved_element->IsType<MidoriType::TypeVariable>())
+						{
+							std::string message = std::format
+							(
+								"Prepend assignment expects element type {}, but got {}. Use x = y ++ x to concatenate arrays.",
+								resolved_element->ToString(),
+								resolved_value->ToString()
+							);
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, prepend_assign.m_name, m_file_name, m_source_lines));
+						}
+
 						return Unify(prepend_assign.m_name, element_type, value_type)
 							.and_then
 							(
