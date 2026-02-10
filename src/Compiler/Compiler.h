@@ -18,8 +18,8 @@ private:
 	static bool InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right);
 
 protected:
-	static void MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming);
-	static void MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming);
+	static std::vector<std::string>& MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming);
+	static std::vector<std::vector<std::shared_ptr<MidoriType>>>& MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming);
 	static bool TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right);
 
 public:

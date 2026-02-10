@@ -41,8 +41,8 @@ namespace
 	{
 		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
 		std::unordered_map<std::string, TypeChecker::TypeEnvironment> m_imported_type_signatures;
-		CompiledModule::TypeclassMetadataMap m_imported_typeclass_metadata;
 		TypeChecker::TypeEnvironment m_imported_types;
+		CompiledModule::TypeclassMetadataMap m_imported_typeclass_metadata;
 		std::unordered_map<std::string, TypeChecker::ClassInfo> m_imported_typeclass_infos;
 		CompiledModule::TypeclassMethodMap m_imported_typeclass_methods;
 		std::unordered_map<std::string, std::vector<std::string>> m_imported_typeclass_instances;
@@ -53,8 +53,8 @@ namespace
 	struct ParsedModule
 	{
 		MidoriProgramTree m_ast;
-		CompiledModule::TypeclassMetadataMap m_typeclass_metadata;
 		TypeChecker::TypeEnvironment m_type_signatures;
+		CompiledModule::TypeclassMetadataMap m_typeclass_metadata;
 		std::vector<CompilerWarning> m_warnings;
 	};
 
@@ -80,29 +80,37 @@ namespace
 	struct CompileState
 	{
 		CompileEnv* m_env = nullptr;
-		std::string m_file_path;
-		size_t m_tier_idx = 0u;
 		BuildGraph::BuildNode* m_node = nullptr;
 		const ModuleDeclaration* m_module_decl = nullptr;
+		size_t m_tier_idx = 0u;
+		std::string m_file_path;
+		std::string m_module_name;
 		ImportContext m_import_context;
 		std::vector<std::string> m_source_lines;
 		ParsedModule m_parsed_module;
 		MidoriProgramTree m_ast;
 		ModuleExportInfo m_export_info;
-		std::string m_module_name;
 		BytecodeModule m_bytecode;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 		OptimizerLog m_optimizer_log;
 #endif
+
+		MidoriResult::Result<CompileState> WithImportContext() &&;
+		MidoriResult::Result<CompileState> WithSourceLines() &&;
+		MidoriResult::Result<CompileState> WithParsedModule() &&;
+		MidoriResult::Result<CompileState> WithTypeCheckedAst() &&;
+		MidoriResult::Result<CompileState> WithOptimizedAst() &&;
+		MidoriResult::Result<CompileState> WithBytecode() &&;
+		MidoriResult::CompiledModuleResult Finalize() &&;
 	};
 
 	struct CompilationSchedule
 	{
 		std::vector<std::vector<std::string>> m_tiers;
+		std::vector<std::string> m_all_modules;
 		std::unordered_map<std::string, size_t> m_tier_indices;
 		std::unordered_map<std::string, size_t> m_remaining_deps;
 		std::unordered_map<std::string, std::vector<std::string>> m_dependents;
-		std::vector<std::string> m_all_modules;
 	};
 
 	struct CompilerAccess : Compiler
@@ -112,42 +120,47 @@ namespace
 		using Compiler::TypeclassDefinitionsMatch;
 	};
 
-	template <typename T, void (*Apply)(CompileState&, T&&)>
-	struct StateApplier
+	template <typename T, CompileState (*Apply)(CompileState, T&&)>
+	static MidoriResult::Result<CompileState> ApplyToState(MidoriResult::Result<T>&& result, CompileState&& state)
 	{
-		CompileState m_state;
+		return std::move(result).and_then
+		(
+			[state = std::move(state)](T&& value) mutable -> MidoriResult::Result<CompileState>
+			{
+				return Apply(std::move(state), std::move(value));
+			}
+		);
+	}
 
-		MidoriResult::Result<CompileState> operator()(T&& value)
-		{
-			Apply(m_state, std::move(value));
-			return std::move(m_state);
-		}
-	};
-
-	static void ApplyImportContext(CompileState& state, ImportContext&& import_context)
+	static CompileState ApplyImportContext(CompileState state, ImportContext&& import_context)
 	{
 		state.m_import_context = std::move(import_context);
+		return std::move(state);
 	}
 
-	static void ApplySourceLines(CompileState& state, std::vector<std::string>&& source_lines)
+	static CompileState ApplySourceLines(CompileState state, std::vector<std::string>&& source_lines)
 	{
 		state.m_source_lines = std::move(source_lines);
+		return std::move(state);
 	}
 
-	static void ApplyParsedModule(CompileState& state, ParsedModule&& parsed_module)
+	static CompileState ApplyParsedModule(CompileState state, ParsedModule&& parsed_module)
 	{
 		state.m_parsed_module = std::move(parsed_module);
 		state.m_ast = std::move(state.m_parsed_module.m_ast);
+		return std::move(state);
 	}
 
-	static void ApplyAst(CompileState& state, MidoriProgramTree&& ast)
+	static CompileState ApplyAst(CompileState state, MidoriProgramTree&& ast)
 	{
 		state.m_ast = std::move(ast);
+		return std::move(state);
 	}
 
-	static void ApplyBytecode(CompileState& state, BytecodeModule&& bytecode)
+	static CompileState ApplyBytecode(CompileState state, BytecodeModule&& bytecode)
 	{
 		state.m_bytecode = std::move(bytecode);
+		return std::move(state);
 	}
 
 	static CompilationSchedule BuildCompilationSchedule(const BuildGraph& build_graph)
@@ -161,7 +174,7 @@ namespace
 			schedule.m_all_modules.push_back(file_path);
 		}
 
-		std::sort(schedule.m_all_modules.begin(), schedule.m_all_modules.end());
+		std::ranges::sort(schedule.m_all_modules);
 
 		schedule.m_tier_indices.reserve(schedule.m_all_modules.size());
 		for (size_t tier_idx = 0u; tier_idx < schedule.m_tiers.size(); tier_idx += 1u)
@@ -197,19 +210,19 @@ namespace
 
 		for (auto& [_, dependents] : schedule.m_dependents)
 		{
-			std::sort(dependents.begin(), dependents.end());
+			std::ranges::sort(dependents);
 		}
 
 		return schedule;
 	}
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-	static void ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx, const OptimizerLog* optimizer_log)
+	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx, const OptimizerLog* optimizer_log)
 #else
-	static void ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx)
+	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx)
 #endif
 	{
-		size_t current_module;
+		size_t current_module = 0u;
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
 			current_module = ++env.m_completed_modules;
@@ -245,9 +258,11 @@ namespace
 			}
 #endif
 		}
+
+		return current_module;
 	}
 
-	static void ReportWarnings(CompileEnv& env, const std::string& file_path, const std::vector<CompilerWarning>& warnings)
+	static size_t ReportWarnings(CompileEnv& env, const std::string& file_path, const std::vector<CompilerWarning>& warnings)
 	{
 		std::vector<const CompilerWarning*> unique_warnings;
 		unique_warnings.reserve(warnings.size());
@@ -265,7 +280,7 @@ namespace
 
 		if (unique_warnings.empty())
 		{
-			return;
+			return 0u;
 		}
 
 		std::lock_guard<std::mutex> lock(env.m_print_mutex);
@@ -280,6 +295,8 @@ namespace
 		{
 			Printer::Print<Printer::Color::YELLOW>(std::format("{}", *warning));
 		}
+
+		return unique_warnings.size();
 	}
 
 	static bool IsMainFile(const CompileEnv& env, const std::string& file_path)
@@ -407,8 +424,8 @@ namespace
 		return ParsedModule
 		{
 			std::move(*ast),
-			parser.GetTypeclassMetadata(),
 			std::move(type_signatures),
+			parser.GetTypeclassMetadata(),
 			std::move(warnings)
 		};
 	}
@@ -461,8 +478,99 @@ namespace
 		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions).GenerateModuleBytecode();
 	}
 
-	static MidoriResult::VoidResult ValidateExports(const std::unordered_set<std::string>& export_set, const BytecodeModule& module_bytecode, const CompiledModule::TypeclassMetadataMap& typeclass_metadata, const TypeChecker::TypeEnvironment& type_signatures, const std::string& module_name, const std::string& file_path)
+	static MidoriResult::Result<CompileState> ValidateExports(CompileState state);
+	static MidoriResult::CompiledModuleResult BuildCompiledModule(CompileState state);
+
+	MidoriResult::Result<CompileState> CompileState::WithImportContext() &&
 	{
+		CompileState state = std::move(*this);
+		return ApplyToState<ImportContext, ApplyImportContext>
+		(
+			BuildImportContext(*state.m_env, *state.m_node, state.m_file_path),
+			std::move(state)
+		);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithSourceLines() &&
+	{
+		CompileState state = std::move(*this);
+		return ApplyToState<std::vector<std::string>, ApplySourceLines>
+		(
+			LoadModuleSourceLines(*state.m_env, state.m_file_path),
+			std::move(state)
+		);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithParsedModule() &&
+	{
+		CompileState state = std::move(*this);
+		return ParseModule(std::move(state.m_node->m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_node->m_use_imports, state.m_module_decl)
+			.and_then
+			(
+				[state = std::move(state)](ParsedModule&& parsed_module) mutable -> MidoriResult::Result<CompileState>
+				{
+					if (state.m_env != nullptr)
+					{
+						ReportWarnings(*state.m_env, state.m_file_path, parsed_module.m_warnings);
+					}
+
+					return ApplyParsedModule(std::move(state), std::move(parsed_module));
+				}
+			);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithTypeCheckedAst() &&
+	{
+		CompileState state = std::move(*this);
+		return ApplyToState<MidoriProgramTree, ApplyAst>
+		(
+			TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_import_context),
+			std::move(state)
+		);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithOptimizedAst() &&
+	{
+		CompileState state = std::move(*this);
+		return ApplyToState<MidoriProgramTree, ApplyAst>
+		(
+			OptimizeModule(std::move(state.m_ast)
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+				, &state.m_optimizer_log, state.m_env ? &state.m_env->m_print_mutex : nullptr
+#endif
+			),
+			std::move(state)
+		);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithBytecode() &&
+	{
+		CompileState state = std::move(*this);
+		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
+		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
+
+		return ApplyToState<BytecodeModule, ApplyBytecode>
+		(
+			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context),
+			std::move(state)
+		);
+	}
+
+	MidoriResult::CompiledModuleResult CompileState::Finalize() &&
+	{
+		return ValidateExports(std::move(*this))
+			.and_then(BuildCompiledModule);
+	}
+
+	static MidoriResult::Result<CompileState> ValidateExports(CompileState state)
+	{
+		const std::unordered_set<std::string>& export_set = state.m_export_info.m_export_set;
+		const BytecodeModule& module_bytecode = state.m_bytecode;
+		const CompiledModule::TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
+		const TypeChecker::TypeEnvironment& type_signatures = state.m_parsed_module.m_type_signatures;
+		const std::string& module_name = state.m_module_name;
+		const std::string& file_path = state.m_file_path;
+
 		std::unordered_set<std::string> defined_exports;
 		for (const BytecodeModule::ExportedSymbol& exported_symbol : module_bytecode.m_exports)
 		{
@@ -492,7 +600,27 @@ namespace
 			}
 		}
 
-		return {};
+		return state;
+	}
+
+	static MidoriResult::CompiledModuleResult BuildCompiledModule(CompileState state)
+	{
+		CompiledModule compiled_module = CompiledModule(state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols))
+			.WithTypeSignatures(std::move(state.m_parsed_module.m_type_signatures))
+			.WithTypeclassMetadata(std::move(state.m_parsed_module.m_typeclass_metadata))
+			.WithBytecode(std::move(state.m_bytecode));
+
+		ReportCompiled
+		(
+			*state.m_env,
+			state.m_file_path,
+			state.m_tier_idx
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+			, &state.m_optimizer_log
+#endif
+		);
+
+		return compiled_module;
 	}
 
 	static MidoriResult::Result<CompileState> MakeCompileState(CompileEnv& env, const std::string& file_path, size_t tier_idx)
@@ -510,90 +638,34 @@ namespace
 		return state;
 	}
 
-	static MidoriResult::Result<CompileState> WithImportContext(CompileState state)
+	static MidoriResult::Result<CompileState> StageImportContext(CompileState state)
 	{
-		return BuildImportContext(*state.m_env, *state.m_node, state.m_file_path)
-			.and_then(StateApplier<ImportContext, ApplyImportContext>{ std::move(state) });
+		return std::move(state).WithImportContext();
 	}
 
-	static MidoriResult::Result<CompileState> WithSourceLines(CompileState state)
+	static MidoriResult::Result<CompileState> StageSourceLines(CompileState state)
 	{
-		return LoadModuleSourceLines(*state.m_env, state.m_file_path)
-			.and_then(StateApplier<std::vector<std::string>, ApplySourceLines>{ std::move(state) });
+		return std::move(state).WithSourceLines();
 	}
 
-	static MidoriResult::Result<CompileState> WithParsedModule(CompileState state)
+	static MidoriResult::Result<CompileState> StageParsedModule(CompileState state)
 	{
-		return ParseModule(std::move(state.m_node->m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_node->m_use_imports, state.m_module_decl)
-			.and_then
-			(
-				[state = std::move(state)](ParsedModule&& parsed_module) mutable -> MidoriResult::Result<CompileState>
-				{
-					if (state.m_env != nullptr)
-					{
-						ReportWarnings(*state.m_env, state.m_file_path, parsed_module.m_warnings);
-					}
-
-					ApplyParsedModule(state, std::move(parsed_module));
-					return std::move(state);
-				}
-			);
+		return std::move(state).WithParsedModule();
 	}
 
-	static MidoriResult::Result<CompileState> WithTypeCheckedAst(CompileState state)
+	static MidoriResult::Result<CompileState> StageTypeCheckedAst(CompileState state)
 	{
-		return TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_import_context)
-			.and_then(StateApplier<MidoriProgramTree, ApplyAst>{ std::move(state) });
+		return std::move(state).WithTypeCheckedAst();
 	}
 
-	static MidoriResult::Result<CompileState> WithOptimizedAst(CompileState state)
+	static MidoriResult::Result<CompileState> StageOptimizedAst(CompileState state)
 	{
-		return OptimizeModule(std::move(state.m_ast)
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-			, &state.m_optimizer_log, state.m_env ? &state.m_env->m_print_mutex : nullptr
-#endif
-			)
-			.and_then(StateApplier<MidoriProgramTree, ApplyAst>{ std::move(state) });
+		return std::move(state).WithOptimizedAst();
 	}
 
-	static MidoriResult::Result<CompileState> WithBytecode(CompileState state)
+	static MidoriResult::Result<CompileState> StageBytecode(CompileState state)
 	{
-		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
-		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
-
-		return GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context)
-			.and_then(StateApplier<BytecodeModule, ApplyBytecode>{ std::move(state) });
-	}
-
-	struct CompiledModuleBuilder
-	{
-		CompileState m_state;
-
-		MidoriResult::CompiledModuleResult operator()()
-		{
-			CompiledModule compiled_module = CompiledModule(m_state.m_module_name, m_state.m_file_path, std::move(m_state.m_export_info.m_symbols))
-				.WithTypeSignatures(std::move(m_state.m_parsed_module.m_type_signatures))
-				.WithTypeclassMetadata(std::move(m_state.m_parsed_module.m_typeclass_metadata))
-				.WithBytecode(std::move(m_state.m_bytecode));
-
-			ReportCompiled
-			(
-				*m_state.m_env, 
-				m_state.m_file_path, 
-				m_state.m_tier_idx
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-				,&m_state.m_optimizer_log
-#endif
-			);
-
-			return compiled_module;
-		}
-	};
-
-	static MidoriResult::CompiledModuleResult FinalizeModule(CompileState state)
-	{
-		return ValidateExports(state.m_export_info.m_export_set, state.m_bytecode, state.m_parsed_module.m_typeclass_metadata, state.m_parsed_module.m_type_signatures, state.m_module_name, state.m_file_path)
-			.and_then(CompiledModuleBuilder{ std::move(state) });
+		return std::move(state).WithBytecode();
 	}
 
 	class ModuleCompiler
@@ -601,19 +673,15 @@ namespace
 	public:
 		MidoriResult::CompiledModuleResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx) const
 		{
-			MidoriResult::Result<CompileState> state_result = MakeCompileState(env, file_path, tier_idx);
-			if (!state_result.has_value())
-			{
-				return std::unexpected(state_result.error());
-			}
-
-			MidoriResult::Result<CompileState> pipeline_result = RunStages(std::move(state_result).value());
-			if (!pipeline_result.has_value())
-			{
-				return std::unexpected(pipeline_result.error());
-			}
-
-			return FinalizeModule(std::move(pipeline_result).value());
+			return MakeCompileState(env, file_path, tier_idx)
+				.and_then(RunStages)
+				.and_then
+				(
+					[](CompileState state) -> MidoriResult::CompiledModuleResult
+					{
+						return std::move(state).Finalize();
+					}
+				);
 		}
 
 	private:
@@ -623,12 +691,12 @@ namespace
 		{
 			static const std::array<Stage, 6u> stages =
 			{
-				WithImportContext,
-				WithSourceLines,
-				WithParsedModule,
-				WithTypeCheckedAst,
-				WithOptimizedAst,
-				WithBytecode
+				StageImportContext,
+				StageSourceLines,
+				StageParsedModule,
+				StageTypeCheckedAst,
+				StageOptimizedAst,
+				StageBytecode
 			};
 
 			for (Stage stage : stages)
@@ -669,7 +737,7 @@ namespace
 		}
 	}
 
-	static MidoriResult::VoidResult CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule)
+	static MidoriResult::Result<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule)
 	{
 		std::set<std::string> ready;
 		for (const std::string& file_path : schedule.m_all_modules)
@@ -786,11 +854,148 @@ namespace
 			return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "Incomplete compilation: some modules never became ready.\n"));
 		}
 
-		return {};
+		return compiled_count;
+	}
+
+	static bool ShouldReportCompilation(const CompilationSchedule& schedule)
+	{
+		if (schedule.m_tiers.empty())
+		{
+			return false;
+		}
+
+		if (schedule.m_tiers.size() > 1u)
+		{
+			return true;
+		}
+
+		return schedule.m_tiers[0u].size() > 1u;
+	}
+
+	static size_t ReportCompilationStart(std::mutex& print_mutex, const CompilationSchedule& schedule, size_t total_modules)
+	{
+		const size_t tier_count = schedule.m_tiers.size();
+		std::lock_guard<std::mutex> lock(print_mutex);
+		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		Printer::PrintLabeled<Printer::Color::BRIGHT_CYAN, Printer::Color::WHITE>
+		(
+			"COMPILING",
+			std::format
+			(
+				"{} module{} in {} tier{}\n",
+				total_modules,
+				total_modules == 1 ? "" : "s",
+				tier_count,
+				tier_count == 1u ? "" : "s"
+			)
+		);
+		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		return total_modules;
+	}
+
+	static std::chrono::milliseconds ReportCompilationSuccess(std::mutex& print_mutex, size_t total_modules, std::chrono::milliseconds duration)
+	{
+		std::lock_guard<std::mutex> lock(print_mutex);
+		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		Printer::PrintLabeled<Printer::Color::BRIGHT_GREEN, Printer::Color::WHITE>
+		(
+			"SUCCESS",
+			std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", duration.count())
+		);
+		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		return duration;
+	}
+
+	static CompileEnv MakeCompileEnv(const std::string& main_file_name, const std::vector<std::string>& main_source_lines, BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules)
+	{
+		return CompileEnv{ main_file_name, main_source_lines, build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules };
+	}
+
+	static MidoriResult::Result<std::vector<BytecodeModule>> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
+	{
+		std::vector<BytecodeModule> all_bytecode_modules;
+		all_bytecode_modules.reserve(schedule.m_all_modules.size());
+		for (const std::vector<std::string>& tier : schedule.m_tiers)
+		{
+			for (const std::string& file_path : tier)
+			{
+				std::unordered_map<std::string, CompiledModule>::iterator it = compiled_modules.find(file_path);
+				if (it == compiled_modules.end())
+				{
+					return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path)));
+				}
+				all_bytecode_modules.emplace_back(std::move(it->second).TakeBytecode());
+			}
+		}
+
+		return all_bytecode_modules;
+	}
+
+	static MidoriResult::Result<std::vector<BytecodeModule>> CompileBuildGraph(const std::string& main_file_name, const std::vector<std::string>& main_source_lines, BuildGraph&& build_graph)
+	{
+		std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
+		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
+		const size_t total_modules = schedule.m_all_modules.size();
+		std::unordered_map<std::string, CompiledModule> compiled_modules;
+		compiled_modules.reserve(total_modules);
+		std::mutex modules_mutex;
+		std::mutex print_mutex;
+		std::atomic<size_t> completed_modules{ 0u };
+
+		const bool should_report = ShouldReportCompilation(schedule);
+		if (should_report)
+		{
+			ReportCompilationStart(print_mutex, schedule, total_modules);
+		}
+
+		CompileEnv env = MakeCompileEnv(main_file_name, main_source_lines, build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules);
+		ModuleCompiler module_compiler;
+		MidoriResult::Result<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
+		if (!compile_result.has_value())
+		{
+			return std::unexpected(compile_result.error());
+		}
+
+		MidoriResult::Result<std::vector<BytecodeModule>> bytecode_result = CollectBytecodeModules(schedule, compiled_modules);
+		if (!bytecode_result.has_value())
+		{
+			return std::unexpected(bytecode_result.error());
+		}
+
+		std::chrono::high_resolution_clock::time_point compile_end = std::chrono::high_resolution_clock::now();
+		std::chrono::milliseconds compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(compile_end - compile_start);
+
+		if (should_report)
+		{
+			ReportCompilationSuccess(print_mutex, total_modules, compile_duration);
+		}
+
+		return bytecode_result;
+	}
+
+	static MidoriResult::CompilerResult LinkBytecodeModules(std::vector<BytecodeModule>&& all_bytecode_modules, const std::string& entry_file_name)
+	{
+		const std::string entry_module_name = std::filesystem::path(entry_file_name).stem().string();
+		return BytecodeLinker(std::move(all_bytecode_modules), entry_module_name)
+			.Link()
+			.and_then
+			(
+				[](MidoriExecutable&& linked_executable) -> MidoriResult::CompilerResult
+				{
+#if MIDORI_ENABLE_DISASSEMBLY
+					for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
+					{
+						MidoriText variable_name = linked_executable.m_procedure_names[i];
+						Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.GetCString());
+					}
+#endif
+					return linked_executable;
+				}
+			);
 	}
 }
 
-void Compiler::MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming)
+std::vector<std::string>& Compiler::MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming)
 {
 	for (const std::string& method_name : incoming)
 	{
@@ -799,6 +1004,8 @@ void Compiler::MergeInstanceMethods(std::vector<std::string>& target, const std:
 			target.emplace_back(method_name);
 		}
 	}
+
+	return target;
 }
 
 bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right)
@@ -819,7 +1026,7 @@ bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriTyp
 	return true;
 }
 
-void Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming)
+std::vector<std::vector<std::shared_ptr<MidoriType>>>& Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming)
 {
 	for (const std::vector<std::shared_ptr<MidoriType>>& incoming_args : incoming)
 	{
@@ -838,6 +1045,8 @@ void Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<Mid
 			target.push_back(incoming_args);
 		}
 	}
+
+	return target;
 }
 
 bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right)
@@ -854,9 +1063,10 @@ bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata
 	{
 		return false;
 	}
+	using MethodTypeMap = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	for (const auto& [method_name, method_type] : left.m_method_types)
 	{
-		auto it = right.m_method_types.find(method_name);
+		MethodTypeMap::const_iterator it = right.m_method_types.find(method_name);
 		if (it == right.m_method_types.end())
 		{
 			return false;
@@ -896,101 +1106,23 @@ MidoriResult::CompilerResult Compiler::Compile()
 		.Lex()
 		.and_then
 		(
-			[this](TokenStream&& lexer_result) -> MidoriResult::CompilerResult
+			[this](TokenStream&& lexer_result) -> MidoriResult::ModuleManagerResult
 			{
-				return ModuleManager(std::move(lexer_result), m_file_name)
-					.GenerateBuildGraph()
-					.and_then
-					(
-						[this](BuildGraph&& build_graph) -> MidoriResult::CompilerResult
-						{
-							std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
-							CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
-							const size_t total_modules = schedule.m_all_modules.size();
-							std::unordered_map<std::string, CompiledModule> compiled_modules;
-							compiled_modules.reserve(total_modules);
-							std::mutex modules_mutex;
-							std::mutex print_mutex;
-							std::atomic<size_t> completed_modules{ 0u };
-
-							if (schedule.m_tiers.size() > 1u || (schedule.m_tiers.size() == 1u && schedule.m_tiers[0u].size() > 1u))
-							{
-								std::lock_guard<std::mutex> lock(print_mutex);
-								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-								Printer::PrintLabeled<Printer::Color::BRIGHT_CYAN, Printer::Color::WHITE>
-								(
-									"COMPILING",
-									std::format
-									(
-										"{} module{} in {} tier{}\n",
-										total_modules,
-										total_modules == 1 ? "" : "s",
-										schedule.m_tiers.size(),
-										schedule.m_tiers.size() == 1u ? "" : "s"
-									)
-								);
-								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-							}
-
-							CompileEnv env{ m_file_name, m_source_lines, build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules };
-							ModuleCompiler module_compiler;
-							MidoriResult::VoidResult compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
-							if (!compile_result.has_value())
-							{
-								return std::unexpected(compile_result.error());
-							}
-
-							// Collect all bytecode modules in dependency order
-							std::vector<BytecodeModule> all_bytecode_modules;
-							all_bytecode_modules.reserve(total_modules);
-							for (const std::vector<std::string>& tier : schedule.m_tiers)
-							{
-								for (const std::string& file_path : tier)
-								{
-									std::unordered_map<std::string, CompiledModule>::iterator it = compiled_modules.find(file_path);
-									if (it == compiled_modules.end())
-									{
-										return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path)));
-									}
-									all_bytecode_modules.emplace_back(std::move(it->second).TakeBytecode());
-								}
-							}
-
-							std::chrono::high_resolution_clock::time_point compile_end = std::chrono::high_resolution_clock::now();
-							std::chrono::milliseconds compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(compile_end - compile_start);
-
-							if (schedule.m_tiers.size() > 1u || (schedule.m_tiers.size() == 1u && schedule.m_tiers[0u].size() > 1u))
-							{
-								std::lock_guard<std::mutex> lock(print_mutex);
-								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-								Printer::PrintLabeled<Printer::Color::BRIGHT_GREEN, Printer::Color::WHITE>
-								(
-									"SUCCESS",
-									std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", compile_duration.count())
-								);
-								Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-							}
-
-							// Link all module bytecode into final executable
-							const std::string entry_module_name = std::filesystem::path(m_file_name).stem().string();
-							return BytecodeLinker(std::move(all_bytecode_modules), entry_module_name)
-								.Link()
-								.and_then
-								(
-									[](MidoriExecutable&& linked_executable) -> MidoriResult::CompilerResult
-									{
-#if MIDORI_ENABLE_DISASSEMBLY
-										for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
-										{
-											MidoriText variable_name = linked_executable.m_procedure_names[i];
-											Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.GetCString());
-										}
-#endif
-										return linked_executable;
-									}
-								);
-						}
-					);
+				return ModuleManager(std::move(lexer_result), m_file_name).GenerateBuildGraph();
+			}
+		)
+		.and_then
+		(
+			[this](BuildGraph&& build_graph) -> MidoriResult::Result<std::vector<BytecodeModule>>
+			{
+				return CompileBuildGraph(m_file_name, m_source_lines, std::move(build_graph));
+			}
+		)
+		.and_then
+		(
+			[this](std::vector<BytecodeModule>&& all_bytecode_modules) -> MidoriResult::CompilerResult
+			{
+				return LinkBytecodeModules(std::move(all_bytecode_modules), m_file_name);
 			}
 		);
 }
