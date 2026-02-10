@@ -1951,9 +1951,23 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			{
 				EmitByte(OpCode::CONCAT_TEXT, line);
 			}
-			else
+			else if (operand_type->IsType<MidoriType::ArrayType>())
 			{
 				EmitByte(OpCode::CONCAT_ARRAY, line);
+			}
+			else
+			{
+				const std::string actual_type = operand_type ? operand_type->ToString() : "Unknown";
+				AddError
+				(
+					MidoriError::GenerateCodeGeneratorErrorWithContext
+					(
+						std::format("Concatenation operator '++' requires Text or Array type (got {})", actual_type),
+						binary.m_op,
+						m_file_name,
+						m_source_lines
+					)
+				);
 			}
 			break;
 		}
@@ -1995,9 +2009,23 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			{
 				EmitByte(OpCode::MULTIPLY_WORD, line);
 			}
-			else
+			else if (operand_type->IsType<MidoriType::ArrayType>())
 			{
 				EmitByte(OpCode::DUP_ARRAY, line);
+			}
+			else
+			{
+				const std::string actual_type = operand_type ? operand_type->ToString() : "Unknown";
+				AddError
+				(
+					MidoriError::GenerateCodeGeneratorErrorWithContext
+					(
+						std::format("Binary '*' requires numeric or array type (got {})", actual_type),
+						binary.m_op,
+						m_file_name,
+						m_source_lines
+					)
+				);
 			}
 			break;
 		}
@@ -2547,6 +2575,26 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			return;
 		}
 
+		// Update the call expression type with the concrete return type for this specialization.
+		GenericFunctionInfo& generic_info = m_generic_functions[function_name];
+		if (generic_info.m_generic_return_type)
+		{
+			TypeEnvironment local_type_map;
+			std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+			for (size_t i = 0u; i < generic_info.m_param_types.size() && i < concrete_arg_types.size(); i += 1u)
+			{
+				DeduceGenericTypesRecursive(generic_info.m_param_types[i], concrete_arg_types[i], local_type_map, visited);
+			}
+			if (!local_type_map.empty())
+			{
+				call.m_type_data = SubstituteGenericTypes(generic_info.m_generic_return_type, local_type_map);
+			}
+			else
+			{
+				call.m_type_data = generic_info.m_generic_return_type;
+			}
+		}
+
 		std::ranges::for_each
 		(
 			call.m_arguments,
@@ -2557,7 +2605,6 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		);
 
 
-		GenericFunctionInfo& generic_info = m_generic_functions[function_name];
 		if (generic_info.m_captured_count == 0)
 		{
 			if (call.m_is_tail_call)

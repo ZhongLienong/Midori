@@ -945,7 +945,17 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 	if (type->IsType<MidoriType::UndecidedType>() || type->IsType<MidoriType::TypeVariable>())
 	{
-		return FreshTypeVar();
+		// Preserve identity within the same freshening context so linked types
+		// (e.g., generic param used in both param and return positions) stay linked.
+		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = context.m_type_cache.find(type.get());
+		if (cache_it != context.m_type_cache.end())
+		{
+			return cache_it->second;
+		}
+
+		std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+		context.m_type_cache[type.get()] = fresh_var;
+		return fresh_var;
 	}
 	else if (type->IsType<MidoriType::GenericParam>())
 	{
@@ -993,7 +1003,9 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		// Create fresh struct and add to cache BEFORE recursing to handle cycles
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy));
+		std::vector<std::string> generic_params_copy = struct_type.m_generic_params;
+		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
+		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation;
 		context.m_type_cache[type.get()] = fresh_struct;
 
 		// Now freshen members
@@ -1017,9 +1029,11 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 
 		// Create fresh union and add to cache BEFORE recursing to handle cycles
-		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name);
+		std::vector<std::string> generic_params_copy = union_type.m_generic_params;
+		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, std::move(generic_params_copy));
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
+		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation;
 
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
