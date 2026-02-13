@@ -95,6 +95,7 @@ private:
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
+	bool m_ffi_table_initialized = false;
 
     // Cold Caches & Results
     std::vector<MidoriCellValue*> m_cells_to_promote;
@@ -110,6 +111,8 @@ private:
 
 public:
     int Execute() noexcept;
+
+	int ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept;
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 

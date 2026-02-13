@@ -5,11 +5,11 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 class VirtualMachine;
@@ -19,7 +19,13 @@ class MidoriRuntime
 {
 public:
 	using GlobalVariables = std::vector<MidoriValue>;
-	using Task = std::function<void()>;
+	using DeepCopyCache = std::unordered_map<MidoriTraceable*, MidoriTraceable*>;
+
+	struct Task
+	{
+		MidoriFuture* m_future = nullptr;
+		MidoriClosure m_closure;
+	};
 
 private:
 	std::shared_ptr<const MidoriExecutable> m_executable;
@@ -57,5 +63,7 @@ private:
 	void WorkerLoop();
 	void Shutdown();
 
-	MidoriTraceable* DeepCopyTraceable(MidoriTraceable* src, const GarbageCollector& gc);
+	MidoriValue DeepCopyForCrossVM(MidoriValue value, const GarbageCollector& gc, DeepCopyCache& copied_map, std::vector<MidoriTraceable*>& new_objects);
+
+	MidoriTraceable* DeepCopyTraceable(MidoriTraceable* src, const GarbageCollector& gc, DeepCopyCache& copied_map, std::vector<MidoriTraceable*>& new_objects);
 };

@@ -68,6 +68,42 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 	m_instruction_pointer = GetProcEntry(entry_closure.m_proc_index);
 }
 
+int VirtualMachine::ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept
+{
+	m_value_stack_base_pointer = m_value_stack_begin;
+	m_value_stack_pointer = m_value_stack_base_pointer;
+	m_call_stack_pointer = m_call_stack_begin;
+
+	m_curr_closure_traceable = nullptr;
+	m_curr_environment = nullptr;
+	m_async_result = MidoriValue();
+
+	m_cells_to_promote.clear();
+	m_gc_roots_scratch.clear();
+	m_ffi_array_args.clear();
+	m_small_string_pool.clear();
+
+	std::fill(m_string_literal_cache.begin(), m_string_literal_cache.end(), nullptr);
+	std::fill(m_static_closure_cache.begin(), m_static_closure_cache.end(), nullptr);
+
+	m_gc.ReclaimMemory(m_gc_roots_scratch, m_allocator, true);
+
+	MidoriTraceable* closure_traceable = AllocateTraceable
+	(
+		MidoriClosure
+		{
+			.m_cell_values = entry_closure.m_cell_values,
+			.m_proc_index = entry_closure.m_proc_index
+		}
+	);
+
+	m_curr_closure_traceable = closure_traceable;
+	m_curr_environment = &closure_traceable->GetTraceable<MidoriClosure>().m_cell_values;
+	m_instruction_pointer = GetProcEntry(entry_closure.m_proc_index);
+
+	return Execute();
+}
+
 void VirtualMachine::InitializeProcEntryCache() noexcept
 {
 	if (!m_executable)
@@ -2636,11 +2672,15 @@ static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* ou
 
 int VirtualMachine::Execute() noexcept
 {
-	// Initialize FFI table with statically linked functions
-	const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& registry = MidoriFFIRegistry::GetTable();
-	for (size_t i = 0u; i < MidoriFFIRegistry::BUILTIN_COUNT; i += 1u)
+	if (!m_ffi_table_initialized)
 	{
-		m_ffi_table[i] = registry[i].m_function;
+		// Initialize FFI table with statically linked functions once per VM.
+		const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& registry = MidoriFFIRegistry::GetTable();
+		for (size_t i = 0u; i < MidoriFFIRegistry::BUILTIN_COUNT; i += 1u)
+		{
+			m_ffi_table[i] = registry[i].m_function;
+		}
+		m_ffi_table_initialized = true;
 	}
 
 #ifdef _WIN32

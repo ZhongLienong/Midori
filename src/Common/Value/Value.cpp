@@ -1840,20 +1840,33 @@ void MidoriFuture::SetResult(MidoriValue value)
 {
 	m_result = value;
 	m_completed.store(true, std::memory_order_release);
+#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
+	m_completed.notify_all();
+#endif
 }
 
 void MidoriFuture::SetError()
 {
 	m_has_error.store(true, std::memory_order_release);
 	m_completed.store(true, std::memory_order_release);
+#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
+	m_completed.notify_all();
+#endif
 }
 
 MidoriValue MidoriFuture::Get()
 {
+#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
+	while (!m_completed.load(std::memory_order_acquire))
+	{
+		m_completed.wait(false, std::memory_order_acquire);
+	}
+#else
 	while (!m_completed.load(std::memory_order_acquire))
 	{
 		std::this_thread::yield();
 	}
+#endif
 	return m_result;
 }
 

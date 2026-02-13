@@ -8,7 +8,12 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 
 #ifndef __EMSCRIPTEN__
 	unsigned int thread_count = std::thread::hardware_concurrency();
-	if (thread_count == 0u)
+	if (thread_count > 1u)
+	{
+		// Keep one core for the main VM thread to reduce oversubscription.
+		thread_count -= 1u;
+	}
+	else if (thread_count == 0u)
 	{
 		thread_count = 4u;
 	}
@@ -56,25 +61,28 @@ MidoriRuntime::GlobalVariables* MidoriRuntime::GetGlobalsPtr()
 
 void MidoriRuntime::SpawnTask(MidoriFuture* future, const MidoriClosure& closure)
 {
-	std::function<void()> task = [this, future, closure]()
+	Task task;
+	task.m_future = future;
+	task.m_closure = MidoriClosure
 	{
-		VirtualMachine vm(*this, closure);
-		int exit_code = vm.Execute();
-
-		if (exit_code == EXIT_SUCCESS)
-		{
-			MidoriValue result = DeepCopyForCrossVM(vm.GetAsyncResult(), vm.GetGC());
-			future->SetResult(result);
-		}
-		else
-		{
-			future->SetError();
-		}
+		.m_cell_values = closure.m_cell_values,
+		.m_proc_index = closure.m_proc_index
 	};
 
 #ifdef __EMSCRIPTEN__
 	// WASM: Run synchronously (no thread support)
-	task();
+	VirtualMachine vm(*this);
+	int exit_code = vm.ExecuteAsyncTask(task.m_closure);
+
+	if (exit_code == EXIT_SUCCESS)
+	{
+		MidoriValue result = DeepCopyForCrossVM(vm.GetAsyncResult(), vm.GetGC());
+		future->SetResult(result);
+	}
+	else
+	{
+		future->SetError();
+	}
 #else
 	{
 		std::lock_guard<std::mutex> lock(m_task_mutex);
@@ -96,96 +104,158 @@ std::shared_ptr<const MidoriExecutable> MidoriRuntime::GetExecutablePtr() const
 
 MidoriValue MidoriRuntime::DeepCopyForCrossVM(MidoriValue value, const GarbageCollector& gc)
 {
+	DeepCopyCache copied_map;
+	copied_map.reserve(64u);
+	std::vector<MidoriTraceable*> new_objects;
+	new_objects.reserve(64u);
+
+	MidoriValue copied_value = DeepCopyForCrossVM(value, gc, copied_map, new_objects);
+
+	if (!new_objects.empty())
+	{
+		std::lock_guard<std::mutex> lock(m_cross_vm_mutex);
+		m_cross_vm_objects.reserve(m_cross_vm_objects.size() + new_objects.size());
+		m_cross_vm_objects.insert(m_cross_vm_objects.end(), new_objects.begin(), new_objects.end());
+	}
+
+	return copied_value;
+}
+
+MidoriValue MidoriRuntime::DeepCopyForCrossVM
+(
+	MidoriValue value,
+	const GarbageCollector& gc,
+	DeepCopyCache& copied_map,
+	std::vector<MidoriTraceable*>& new_objects
+)
+{
 	MidoriTraceable* ptr = value.GetPointer();
 	if (ptr == nullptr || !gc.Contains(ptr))
 	{
 		return value;
 	}
 
-	MidoriTraceable* copied = DeepCopyTraceable(ptr, gc);
+	std::unordered_map<MidoriTraceable*, MidoriTraceable*>::iterator it = copied_map.find(ptr);
+	if (it != copied_map.end())
+	{
+		return MidoriValue(it->second);
+	}
+
+	MidoriTraceable* copied = DeepCopyTraceable(ptr, gc, copied_map, new_objects);
 	return MidoriValue(copied);
 }
 
-MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const GarbageCollector& gc)
+MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const GarbageCollector& gc, DeepCopyCache& copied_map, std::vector<MidoriTraceable*>& new_objects)
 {
+	std::unordered_map<MidoriTraceable*, MidoriTraceable*>::iterator copied_it = copied_map.find(src);
+	if (copied_it != copied_map.end())
+	{
+		return copied_it->second;
+	}
+
 	MidoriTraceable* result = nullptr;
 
 	if (src->IsTraceable<MidoriText>())
 	{
 		MidoriText& original = src->GetTraceable<MidoriText>();
 		result = new MidoriTraceable(MidoriText(original));
+		copied_map.emplace(src, result);
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriArray>())
 	{
 		MidoriArray& original = src->GetTraceable<MidoriArray>();
-		MidoriArray copied(original.GetLength());
-		for (int i = 0; i < original.GetLength(); i += 1)
-		{
-			MidoriValue elem = original[i];
-			copied[i] = DeepCopyForCrossVM(elem, gc);
-		}
+		const int length = original.GetLength();
+		MidoriArray copied(length);
 		result = new MidoriTraceable(std::move(copied));
+		copied_map.emplace(src, result);
+
+		MidoriArray& copied_array = result->GetTraceable<MidoriArray>();
+		for (int i = 0; i < length; i += 1)
+		{
+			copied_array[i] = DeepCopyForCrossVM(original[i], gc, copied_map, new_objects);
+		}
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriStruct>())
 	{
 		MidoriStruct& original = src->GetTraceable<MidoriStruct>();
+		const int length = original.m_values.GetLength();
 		MidoriStruct copied;
-		copied.m_values = MidoriTuple(original.m_values.GetLength());
-		for (int i = 0; i < original.m_values.GetLength(); i += 1)
-		{
-			copied.m_values[i] = DeepCopyForCrossVM(original.m_values[i], gc);
-		}
+		copied.m_values = MidoriTuple(length);
 		result = new MidoriTraceable(std::move(copied));
+		copied_map.emplace(src, result);
+
+		MidoriStruct& copied_struct = result->GetTraceable<MidoriStruct>();
+		for (int i = 0; i < length; i += 1)
+		{
+			copied_struct.m_values[i] = DeepCopyForCrossVM(original.m_values[i], gc, copied_map, new_objects);
+		}
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriUnion>())
 	{
 		MidoriUnion& original = src->GetTraceable<MidoriUnion>();
+		const int length = original.m_values.GetLength();
 		MidoriUnion copied;
 		copied.m_index = original.m_index;
-		copied.m_values = MidoriTuple(original.m_values.GetLength());
-		for (int i = 0; i < original.m_values.GetLength(); i += 1)
-		{
-			copied.m_values[i] = DeepCopyForCrossVM(original.m_values[i], gc);
-		}
+		copied.m_values = MidoriTuple(length);
 		result = new MidoriTraceable(std::move(copied));
+		copied_map.emplace(src, result);
+
+		MidoriUnion& copied_union = result->GetTraceable<MidoriUnion>();
+		for (int i = 0; i < length; i += 1)
+		{
+			copied_union.m_values[i] = DeepCopyForCrossVM(original.m_values[i], gc, copied_map, new_objects);
+		}
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriIntRange>())
 	{
 		MidoriIntRange& original = src->GetTraceable<MidoriIntRange>();
 		result = new MidoriTraceable(MidoriIntRange(original.GetStart(), original.GetEnd(), original.GetStep()));
+		copied_map.emplace(src, result);
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriFloatRange>())
 	{
 		MidoriFloatRange& original = src->GetTraceable<MidoriFloatRange>();
 		result = new MidoriTraceable(MidoriFloatRange(original.GetStart(), original.GetEnd(), original.GetStep()));
+		copied_map.emplace(src, result);
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriCellValue>())
 	{
 		MidoriCellValue& original = src->GetTraceable<MidoriCellValue>();
-		MidoriValue copiedVal = DeepCopyForCrossVM(original.GetValue(), gc);
-		result = new MidoriTraceable(MidoriCellValue(copiedVal));
+		result = new MidoriTraceable(MidoriCellValue(MidoriValue()));
+		copied_map.emplace(src, result);
+
+		MidoriCellValue& copied_cell = result->GetTraceable<MidoriCellValue>();
+		copied_cell.m_data = DeepCopyForCrossVM(original.GetValue(), gc, copied_map, new_objects);
+		copied_cell.m_is_on_heap = true;
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriClosure>())
 	{
 		MidoriClosure& original = src->GetTraceable<MidoriClosure>();
+		const int length = original.m_cell_values.GetLength();
 		MidoriClosure copied;
 		copied.m_proc_index = original.m_proc_index;
-		copied.m_cell_values = MidoriTuple(original.m_cell_values.GetLength());
-		for (int i = 0; i < original.m_cell_values.GetLength(); i += 1)
-		{
-			copied.m_cell_values[i] = DeepCopyForCrossVM(original.m_cell_values[i], gc);
-		}
+		copied.m_cell_values = MidoriTuple(length);
 		result = new MidoriTraceable(std::move(copied));
+		copied_map.emplace(src, result);
+
+		MidoriClosure& copied_closure = result->GetTraceable<MidoriClosure>();
+		for (int i = 0; i < length; i += 1)
+		{
+			copied_closure.m_cell_values[i] = DeepCopyForCrossVM(original.m_cell_values[i], gc, copied_map, new_objects);
+		}
+		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriFuture>())
 	{
+		copied_map.emplace(src, src);
 		return src;
-	}
-
-	if (result)
-	{
-		std::lock_guard<std::mutex> lock(m_cross_vm_mutex);
-		m_cross_vm_objects.emplace_back(result);
 	}
 
 	return result;
@@ -193,6 +263,8 @@ MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const Ga
 
 void MidoriRuntime::WorkerLoop()
 {
+	VirtualMachine worker_vm(*this);
+
 	while (true)
 	{
 		Task task;
@@ -219,9 +291,19 @@ void MidoriRuntime::WorkerLoop()
 			}
 		}
 
-		if (task)
+		if (task.m_future != nullptr)
 		{
-			task();
+			int exit_code = worker_vm.ExecuteAsyncTask(task.m_closure);
+
+			if (exit_code == EXIT_SUCCESS)
+			{
+				MidoriValue result = DeepCopyForCrossVM(worker_vm.GetAsyncResult(), worker_vm.GetGC());
+				task.m_future->SetResult(result);
+			}
+			else
+			{
+				task.m_future->SetError();
+			}
 		}
 	}
 }
