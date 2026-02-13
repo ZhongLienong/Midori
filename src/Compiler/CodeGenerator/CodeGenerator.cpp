@@ -1398,37 +1398,21 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		m_global_variables[def.m_name.m_lexeme] = index.value();
 	}
 
-	// Put a placeholder value for block expression
-	bool need_placeholder =
-		(
-			def.m_value->IsExpression<MidoriExpression::Block>()
-			&& def.m_value->GetExpression<MidoriExpression::Block>().HasDefine()
-		)
-		||
-		(
-			def.m_value->IsExpression<MidoriExpression::Match>()
-			&& std::ranges::any_of(def.m_value->GetExpression<MidoriExpression::Match>().m_cases, [](const std::unique_ptr<MidoriExpression>& case_expr) { return case_expr->IsExpression<MidoriExpression::Case>() && case_expr->GetExpression<MidoriExpression::Case>().m_binding_count > 0; })
-		);
-	if (need_placeholder)
-	{
-		EmitByte(OpCode::PUSH_PLACEHOLDER, line);
-	}
-
-	Visit(def.m_value);
-
-	if (need_placeholder)
-	{
-		EmitByte(OpCode::UPDATE_PLACEHOLDER, line);
-	}
-
 	if (is_global)
 	{
+		Visit(def.m_value);
 		EmitVariable(index.value(), OpCode::DEFINE_GLOBAL, line);
 	}
 	else
 	{
-		// For local variables, emit SET_LOCAL to properly store the value
+		// Reserve the local slot before evaluating the initializer so nested scopes
+		// (e.g., comprehensions) align with local indices.
+		EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+
+		Visit(def.m_value);
+
 		EmitVariable(def.m_local_index.value(), OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
 	}
 }
 
