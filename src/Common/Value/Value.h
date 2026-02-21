@@ -4,6 +4,7 @@
 #include <cassert>
 #include <functional>
 #include <list>
+#include <memory>
 #include <optional>
 #include <thread>
 #include <unordered_set>
@@ -398,10 +399,23 @@ struct MidoriUnion
 
 struct MidoriFuture
 {
-	MidoriValue m_result;
+	struct FutureState
+	{
+		MidoriValue m_result;
+		std::atomic<bool> m_completed{ false };
+		std::atomic<bool> m_has_error{ false };
+
+		void SetResult(MidoriValue value);
+		void SetError();
+		MidoriValue Get();
+		bool IsReady() const;
+		bool HasError() const;
+	};
+
+	using FutureStateHandle = std::shared_ptr<FutureState>;
+
 	std::unique_ptr<MidoriClosure> m_closure;
-	std::atomic<bool> m_completed{false};
-	std::atomic<bool> m_has_error{false};
+	FutureStateHandle m_state;
 
 	MidoriFuture(MidoriClosure&& closure);
 
@@ -415,6 +429,8 @@ struct MidoriFuture
 	void SetError();
 	MidoriValue Get();
 	bool IsReady() const;
+	bool HasError() const;
+	FutureStateHandle GetState() const;
 };
 
 class MidoriTraceable

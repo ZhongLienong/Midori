@@ -64,10 +64,15 @@ MidoriRuntime::GlobalVariables* MidoriRuntime::GetGlobalsPtr()
 	return &m_globals;
 }
 
-void MidoriRuntime::SpawnTask(MidoriFuture* future, const MidoriClosure& closure)
+void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure)
 {
+	if (!future_state)
+	{
+		return;
+	}
+
 	Task task;
-	task.m_future = future;
+	task.m_future_state = std::move(future_state);
 	task.m_closure = MidoriClosure
 	{
 		.m_cell_values = closure.m_cell_values,
@@ -82,11 +87,11 @@ void MidoriRuntime::SpawnTask(MidoriFuture* future, const MidoriClosure& closure
 	if (exit_code == EXIT_SUCCESS)
 	{
 		MidoriValue result = DeepCopyForCrossVM(vm.GetAsyncResult(), vm.GetGC());
-		future->SetResult(result);
+		task.m_future_state->SetResult(result);
 	}
 	else
 	{
-		future->SetError();
+		task.m_future_state->SetError();
 	}
 #else
 	{
@@ -296,18 +301,18 @@ void MidoriRuntime::WorkerLoop()
 			}
 		}
 
-		if (task.m_future != nullptr)
+		if (task.m_future_state)
 		{
 			int exit_code = worker_vm.ExecuteAsyncTask(task.m_closure);
 
 			if (exit_code == EXIT_SUCCESS)
 			{
 				MidoriValue result = DeepCopyForCrossVM(worker_vm.GetAsyncResult(), worker_vm.GetGC());
-				task.m_future->SetResult(result);
+				task.m_future_state->SetResult(result);
 			}
 			else
 			{
-				task.m_future->SetError();
+				task.m_future_state->SetError();
 			}
 		}
 	}

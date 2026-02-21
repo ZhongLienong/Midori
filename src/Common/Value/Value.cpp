@@ -1811,32 +1811,7 @@ MidoriValue* MidoriCellValue::GetStackPointer()
 	return ptr;
 }
 
-MidoriFuture::MidoriFuture(MidoriClosure&& closure)
-	: m_closure(std::make_unique<MidoriClosure>(std::move(closure)))
-{
-}
-
-MidoriFuture::MidoriFuture(MidoriFuture&& other) noexcept
-	: m_closure(std::move(other.m_closure)),
-	m_result(other.m_result),
-	m_completed(other.m_completed.load(std::memory_order_acquire)),
-	m_has_error(other.m_has_error.load(std::memory_order_acquire))
-{
-}
-
-MidoriFuture& MidoriFuture::operator=(MidoriFuture&& other) noexcept
-{
-	if (this != &other)
-	{
-		m_closure = std::move(other.m_closure);
-		m_result = other.m_result;
-		m_completed.store(other.m_completed.load(std::memory_order_acquire), std::memory_order_release);
-		m_has_error.store(other.m_has_error.load(std::memory_order_acquire), std::memory_order_release);
-	}
-	return *this;
-}
-
-void MidoriFuture::SetResult(MidoriValue value)
+void MidoriFuture::FutureState::SetResult(MidoriValue value)
 {
 	m_result = value;
 	m_completed.store(true, std::memory_order_release);
@@ -1845,7 +1820,7 @@ void MidoriFuture::SetResult(MidoriValue value)
 #endif
 }
 
-void MidoriFuture::SetError()
+void MidoriFuture::FutureState::SetError()
 {
 	m_has_error.store(true, std::memory_order_release);
 	m_completed.store(true, std::memory_order_release);
@@ -1854,7 +1829,7 @@ void MidoriFuture::SetError()
 #endif
 }
 
-MidoriValue MidoriFuture::Get()
+MidoriValue MidoriFuture::FutureState::Get()
 {
 #if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
 	while (!m_completed.load(std::memory_order_acquire))
@@ -1870,7 +1845,75 @@ MidoriValue MidoriFuture::Get()
 	return m_result;
 }
 
-bool MidoriFuture::IsReady() const
+bool MidoriFuture::FutureState::IsReady() const
 {
 	return m_completed.load(std::memory_order_acquire);
+}
+
+bool MidoriFuture::FutureState::HasError() const
+{
+	return m_has_error.load(std::memory_order_acquire);
+}
+
+MidoriFuture::MidoriFuture(MidoriClosure&& closure)
+	: m_closure(std::make_unique<MidoriClosure>(std::move(closure))),
+	m_state(std::make_shared<FutureState>())
+{
+}
+
+MidoriFuture::MidoriFuture(MidoriFuture&& other) noexcept
+	: m_closure(std::move(other.m_closure)),
+	m_state(std::move(other.m_state))
+{
+}
+
+MidoriFuture& MidoriFuture::operator=(MidoriFuture&& other) noexcept
+{
+	if (this != &other)
+	{
+		m_closure = std::move(other.m_closure);
+		m_state = std::move(other.m_state);
+	}
+	return *this;
+}
+
+void MidoriFuture::SetResult(MidoriValue value)
+{
+	if (m_state)
+	{
+		m_state->SetResult(value);
+	}
+}
+
+void MidoriFuture::SetError()
+{
+	if (m_state)
+	{
+		m_state->SetError();
+	}
+}
+
+MidoriValue MidoriFuture::Get()
+{
+	if (!m_state)
+	{
+		return MidoriValue();
+	}
+
+	return m_state->Get();
+}
+
+bool MidoriFuture::IsReady() const
+{
+	return m_state != nullptr && m_state->IsReady();
+}
+
+bool MidoriFuture::HasError() const
+{
+	return m_state != nullptr && m_state->HasError();
+}
+
+MidoriFuture::FutureStateHandle MidoriFuture::GetState() const
+{
+	return m_state;
 }

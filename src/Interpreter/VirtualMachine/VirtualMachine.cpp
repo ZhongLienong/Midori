@@ -2617,11 +2617,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriFuture future_val(MidoriClosure{.m_cell_values = closure.m_cell_values, .m_proc_index = closure.m_proc_index});
 			MidoriTraceable* future_ptr = AllocateTraceable(std::move(future_val));
-			MidoriFuture* future = &future_ptr->GetTraceable<MidoriFuture>();
+			MidoriFuture& future = future_ptr->GetTraceable<MidoriFuture>();
 
 			if (m_runtime)
 			{
-				m_runtime->SpawnTask(future, closure);
+				m_runtime->SpawnTask(future.GetState(), closure);
 			}
 			else
 			{
@@ -2640,7 +2640,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriValue result = future.Get();
 
-			if (future.m_has_error.load(std::memory_order_acquire))
+			if (future.HasError())
 			{
 				m_instruction_pointer = ip;
 				return TerminateExecution(GenerateRuntimeError("Async task error", GetLine()));

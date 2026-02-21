@@ -181,7 +181,10 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		else if (current->IsTraceable<MidoriFuture>())
 		{
 			MidoriFuture& future = current->GetTraceable<MidoriFuture>();
-			TryMark(future.m_result.GetPointer());
+			if (future.m_state)
+			{
+				TryMark(future.m_state->m_result.GetPointer());
+			}
 
 			if (future.m_closure)
 			{

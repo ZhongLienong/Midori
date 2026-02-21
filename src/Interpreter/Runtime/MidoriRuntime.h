@@ -23,7 +23,7 @@ public:
 
 	struct Task
 	{
-		MidoriFuture* m_future = nullptr;
+		MidoriFuture::FutureStateHandle m_future_state;
 		MidoriClosure m_closure;
 	};
 
@@ -52,7 +52,7 @@ public:
 	int GetGlobalCount() const;
 	GlobalVariables* GetGlobalsPtr();
 
-	void SpawnTask(MidoriFuture* future, const MidoriClosure& closure);
+	void SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure);
 
 	const MidoriExecutable& GetExecutable() const;
 	std::shared_ptr<const MidoriExecutable> GetExecutablePtr() const;
