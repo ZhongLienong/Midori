@@ -95,6 +95,7 @@ private:
 	std::stack<LoopContext> m_loop_contexts;
 	std::string m_errors;
 	int m_local_count = 0;
+	bool m_has_async = false;
 
 public:
 

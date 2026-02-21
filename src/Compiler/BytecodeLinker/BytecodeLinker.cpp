@@ -182,6 +182,15 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 	ConcatenateBytecode();
 
+	const bool has_async = std::ranges::any_of
+	(
+		m_modules,
+		[](const BytecodeModule& module)
+		{
+			return module.m_has_async;
+		}
+	);
+
 	m_global_procedures.insert(m_global_procedures.begin(), BytecodeStream());
 
 	// Create bootstrap name with entry module context for debugging
@@ -197,6 +206,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	executable.AttachProcedureNames(std::move(m_global_procedure_names));
 	executable.AddStringPool(std::move(m_global_string_pool));
 	executable.SetFileName(std::string(m_entry_module_name));
+	executable.SetExecutionMode(has_async ? ExecutionMode::AsyncEnabled : ExecutionMode::SyncOnly);
 
 	std::ranges::for_each
 	(

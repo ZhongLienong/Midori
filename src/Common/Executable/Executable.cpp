@@ -155,6 +155,28 @@ std::string_view MidoriExecutable::GetFileName() const
 	return m_file_name;
 }
 
+void MidoriExecutable::SetHasAsync(bool has_async)
+{
+	m_has_async = has_async;
+	m_execution_mode = has_async ? ExecutionMode::AsyncEnabled : ExecutionMode::SyncOnly;
+}
+
+bool MidoriExecutable::HasAsync() const
+{
+	return m_has_async;
+}
+
+void MidoriExecutable::SetExecutionMode(ExecutionMode execution_mode)
+{
+	m_execution_mode = execution_mode;
+	m_has_async = execution_mode == ExecutionMode::AsyncEnabled;
+}
+
+ExecutionMode MidoriExecutable::GetExecutionMode() const
+{
+	return m_execution_mode;
+}
+
 int MidoriExecutable::GetLine(int instr_index, int proc_index) const
 {
 	return m_procedures[static_cast<size_t>(proc_index)].GetLine(instr_index);

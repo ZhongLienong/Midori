@@ -35,6 +35,22 @@ namespace
 	}
 }
 
+VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept
+	: m_owned_executable(std::make_shared<MidoriExecutable>(std::move(executable)))
+{
+	m_gc.SetAllocator(&m_allocator);
+	m_executable = m_owned_executable.get();
+	m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
+	m_global_vars = &m_owned_globals;
+	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
+
+	InitializeProcEntryCache();
+	InitializeStacks();
+
+	constexpr int runtime_startup_proc_index = 0;
+	m_instruction_pointer = GetProcEntry(runtime_startup_proc_index);
+}
+
 VirtualMachine::VirtualMachine(MidoriRuntime& runtime) noexcept
 	: m_runtime(&runtime)
 {

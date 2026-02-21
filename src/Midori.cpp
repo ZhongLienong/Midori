@@ -163,6 +163,12 @@ int main(int argc, char* argv[])
 		(
 			[](MidoriExecutable&& executable) -> std::expected<int, CompilerError>
 			{
+				if (executable.GetExecutionMode() == ExecutionMode::SyncOnly)
+				{
+					VirtualMachine vm(std::move(executable));
+					return vm.Execute();
+				}
+
 				MidoriRuntime runtime(std::move(executable));
 				VirtualMachine vm(runtime);
 				return vm.Execute();

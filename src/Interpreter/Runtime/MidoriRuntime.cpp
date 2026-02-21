@@ -6,6 +6,11 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 {
 	m_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
 
+	if (m_executable->GetExecutionMode() != ExecutionMode::AsyncEnabled)
+	{
+		return;
+	}
+
 #ifndef __EMSCRIPTEN__
 	unsigned int thread_count = std::thread::hardware_concurrency();
 	if (thread_count > 1u)

@@ -258,6 +258,12 @@ enum class OpCode : uint8_t
 	UPDATE_PLACEHOLDER,
 };
 
+enum class ExecutionMode : uint8_t
+{
+	SyncOnly,
+	AsyncEnabled
+};
+
 class BytecodeStream
 {
 public:
@@ -313,6 +319,8 @@ private:
 	GlobalNames m_globals;
 	Procedures m_procedures;
 	StringPool m_string_pool;
+	bool m_has_async = false;
+	ExecutionMode m_execution_mode = ExecutionMode::SyncOnly;
 
 public:
 
@@ -329,6 +337,14 @@ public:
 	void SetFileName(std::string&& file_name);
 
 	std::string_view GetFileName() const;
+
+	void SetHasAsync(bool has_async);
+
+	bool HasAsync() const;
+
+	void SetExecutionMode(ExecutionMode execution_mode);
+
+	ExecutionMode GetExecutionMode() const;
 
 	int GetLine(int instr_index, int proc_index) const;
 

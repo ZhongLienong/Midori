@@ -58,6 +58,7 @@ struct BytecodeModule
 	ProcedureNameList m_procedure_names;
 	GlobalVariableList m_global_variables;
 	GenericFunctionMap m_generic_functions;
+	bool m_has_async = false;
 
 	BytecodeModule() = default;
 	BytecodeModule(std::string module_name, std::filesystem::path source_path);

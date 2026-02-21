@@ -1365,6 +1365,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 	module.m_exports = std::move(m_tracked_exports);
 	module.m_imports = std::move(m_tracked_imports);
 	module.m_generic_functions = std::move(m_generic_functions);
+	module.m_has_async = m_has_async;
 
 	std::vector<std::pair<std::string, int>> sorted_globals(m_global_variables.begin(), m_global_variables.end());
 	std::ranges::sort(sorted_globals, [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) { return a.second < b.second; });
@@ -3985,6 +3986,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 {
 	int line = async_expr.m_keyword.m_line;
 	int captured_count = async_expr.m_captured_count;
+	m_has_async = true;
 
 	if (captured_count > MAX_CAPTURED_COUNT)
 	{
@@ -4025,6 +4027,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 void CodeGenerator::operator()(MidoriExpression::Await& await_expr)
 {
 	int line = await_expr.m_keyword.m_line;
+	m_has_async = true;
 	Visit(await_expr.m_expr);
 	EmitByte(OpCode::AWAIT_FUTURE, line);
 }

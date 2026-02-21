@@ -22,6 +22,8 @@ class VirtualMachine
 public:
     using GlobalVariables = std::vector<MidoriValue>;
 
+	VirtualMachine(MidoriExecutable&& executable) noexcept;
+
     VirtualMachine(MidoriRuntime& runtime) noexcept;
 
     VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entry_closure) noexcept;
@@ -81,7 +83,9 @@ private:
 
     // Warm VM State
     MidoriRuntime* m_runtime = nullptr;
+	std::shared_ptr<const MidoriExecutable> m_owned_executable;
     const MidoriExecutable* m_executable = nullptr;
+	GlobalVariables m_owned_globals;
     GlobalVariables* m_global_vars = nullptr;
     std::vector<InstructionPointer> m_proc_entry_cache;
     std::vector<MidoriTraceable*> m_string_literal_cache;

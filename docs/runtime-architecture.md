@@ -30,6 +30,21 @@ This document describes the architecture of the Midori interpreter runtime.
 
 ## Components
 
+### Execution modes
+
+Midori now has two explicit runtime modes selected at compile time and stored in `MidoriExecutable`:
+
+| Mode | Executable metadata | Startup path |
+|------|---------------------|--------------|
+| Sync-only | `ExecutionMode::SyncOnly` (`m_has_async == false`) | `Midori.cpp` runs `VirtualMachine` directly with no `MidoriRuntime` scheduler setup |
+| Async-enabled | `ExecutionMode::AsyncEnabled` (`m_has_async == true`) | `Midori.cpp` creates `MidoriRuntime`, then runs the VM with async worker support |
+
+#### Why this split exists
+
+- Sync programs avoid async runtime startup costs (no worker pool startup).
+- Existing sync opcode handlers stay on the same fast path.
+- Async programs still use the existing runtime scheduler behavior.
+
 ### MidoriRuntime
 
 The central coordinator for async task execution.
