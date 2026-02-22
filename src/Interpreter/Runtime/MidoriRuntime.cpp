@@ -194,6 +194,43 @@ void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, cons
 #endif
 }
 
+MidoriValue MidoriRuntime::AwaitFuture(const MidoriFuture::FutureStateHandle& future_state)
+{
+	if (!future_state)
+	{
+		return MidoriValue();
+	}
+
+#ifdef __EMSCRIPTEN__
+	return future_state->Get();
+#else
+	if (future_state->IsReady())
+	{
+		return future_state->Get();
+	}
+
+	VirtualMachine helper_vm(*this);
+
+	// Cooperative waiting: while this worker awaits one future, it executes other runnable tasks.
+	while (!future_state->IsReady())
+	{
+		Task task;
+		if (!WaitForTaskOrFuture(task, future_state))
+		{
+			if (m_shutdown.load(std::memory_order_acquire) && !future_state->IsReady())
+			{
+				future_state->SetError();
+			}
+			continue;
+		}
+
+		ExecuteQueuedTask(task, helper_vm);
+	}
+
+	return future_state->Get();
+#endif
+}
+
 const MidoriExecutable& MidoriRuntime::GetExecutable() const
 {
 	return *m_executable;
@@ -391,6 +428,65 @@ bool MidoriRuntime::TryEnqueueTask(Task&& task)
 #endif
 }
 
+bool MidoriRuntime::WaitForTaskOrFuture(Task& task, const MidoriFuture::FutureStateHandle& awaited_future)
+{
+#ifdef __EMSCRIPTEN__
+	(void)task;
+	(void)awaited_future;
+	return false;
+#else
+	std::unique_lock<std::mutex> lock(m_task_mutex);
+	m_task_condition.wait
+	(
+		lock,
+		[this, &awaited_future]()
+		{
+			return m_shutdown.load(std::memory_order_acquire) || !m_task_queue.empty() || (awaited_future && awaited_future->IsReady());
+		}
+	);
+
+	if (awaited_future && awaited_future->IsReady())
+	{
+		return false;
+	}
+
+	if (m_shutdown.load(std::memory_order_acquire) && m_task_queue.empty())
+	{
+		return false;
+	}
+
+	if (m_task_queue.empty())
+	{
+		return false;
+	}
+
+	task = std::move(m_task_queue.front());
+	m_task_queue.pop();
+	return true;
+#endif
+}
+
+void MidoriRuntime::ExecuteQueuedTask(Task& task, VirtualMachine& vm)
+{
+	if (!task.m_future_state)
+	{
+		return;
+	}
+
+	const int exit_code = vm.ExecuteTask(task.m_closure);
+	if (exit_code == EXIT_SUCCESS)
+	{
+		MidoriValue result = DeepCopyForCrossVM(vm.GetAsyncResult(), vm.GetGC());
+		task.m_future_state->SetResult(result);
+	}
+	else
+	{
+		task.m_future_state->SetError();
+	}
+
+	m_task_condition.notify_all();
+}
+
 void MidoriRuntime::WorkerLoop()
 {
 	VirtualMachine worker_vm(*this);
@@ -398,43 +494,16 @@ void MidoriRuntime::WorkerLoop()
 	while (true)
 	{
 		Task task;
+		if (!WaitForTaskOrFuture(task, nullptr))
 		{
-			std::unique_lock<std::mutex> lock(m_task_mutex);
-			m_task_condition.wait
-			(
-				lock, 
-				[this]()
-				{
-					return m_shutdown.load(std::memory_order_acquire) || !m_task_queue.empty();
-				}
-			);
-
-			if (m_shutdown.load(std::memory_order_acquire) && m_task_queue.empty())
+			if (m_shutdown.load(std::memory_order_acquire))
 			{
 				return;
 			}
-
-			if (!m_task_queue.empty())
-			{
-				task = std::move(m_task_queue.front());
-				m_task_queue.pop();
-			}
+			continue;
 		}
 
-		if (task.m_future_state)
-		{
-			int exit_code = worker_vm.ExecuteTask(task.m_closure);
-
-			if (exit_code == EXIT_SUCCESS)
-			{
-				MidoriValue result = DeepCopyForCrossVM(worker_vm.GetAsyncResult(), worker_vm.GetGC());
-				task.m_future_state->SetResult(result);
-			}
-			else
-			{
-				task.m_future_state->SetError();
-			}
-		}
+		ExecuteQueuedTask(task, worker_vm);
 	}
 }
 

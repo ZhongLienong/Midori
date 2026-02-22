@@ -61,6 +61,7 @@ public:
 	int RunRootTask();
 
 	void SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure, const GarbageCollector& gc);
+	MidoriValue AwaitFuture(const MidoriFuture::FutureStateHandle& future_state);
 
 	const MidoriExecutable& GetExecutable() const;
 	std::shared_ptr<const MidoriExecutable> GetExecutablePtr() const;
@@ -69,6 +70,8 @@ public:
 
 private:
 	bool TryEnqueueTask(Task&& task);
+	bool WaitForTaskOrFuture(Task& task, const MidoriFuture::FutureStateHandle& awaited_future);
+	void ExecuteQueuedTask(Task& task, VirtualMachine& vm);
 	void WorkerLoop();
 	void Shutdown();
 

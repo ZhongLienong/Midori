@@ -2841,7 +2841,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue future_val = Pop();
 			MidoriFuture& future = future_val.GetPointer()->GetTraceable<MidoriFuture>();
 
-			MidoriValue result = future.Get();
+			MidoriValue result;
+			if (m_runtime)
+			{
+				result = m_runtime->AwaitFuture(future.GetState());
+			}
+			else
+			{
+				result = future.Get();
+			}
 
 			if (future.HasError())
 			{

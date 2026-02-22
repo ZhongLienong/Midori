@@ -1,0 +1,26 @@
+module AwaitDeadlockNestedFanout
+
+import { <IO> }
+
+defun nested(value: Int) : Int => {
+    def child: Future<Int> = async (value + 1);
+    await child
+};
+
+def parents: Array<Future<Int>> = [];
+def i = 0;
+loop {
+    parents ++= async nested(i);
+    i = i + 1;
+    if i >= 256 then break () else ();
+};
+
+def total = 0;
+i = 0;
+loop {
+    total = total + await parents[i];
+    i = i + 1;
+    if i >= 256 then break () else ();
+};
+
+IO::PrintLine(total as Text);

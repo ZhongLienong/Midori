@@ -1,0 +1,30 @@
+module AwaitDeadlockFanin
+
+import { <IO> }
+
+defun combine(seed: Int) : Int => {
+    def left: Future<Int> = async (seed + 1);
+    def right: Future<Int> = async (seed + 2);
+
+    def left_value = await left;
+    def right_value = await right;
+    left_value + right_value
+};
+
+def parents: Array<Future<Int>> = [];
+def i = 0;
+loop {
+    parents ++= async combine(i);
+    i = i + 1;
+    if i >= 128 then break () else ();
+};
+
+def total = 0;
+i = 0;
+loop {
+    total = total + await parents[i];
+    i = i + 1;
+    if i >= 128 then break () else ();
+};
+
+IO::PrintLine(total as Text);
