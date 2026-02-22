@@ -104,8 +104,17 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 
 	try
 	{
-		MidoriRuntime runtime(std::move(compile_result.value()));
-		int exit_code = VirtualMachine(runtime).Execute();
+		MidoriExecutable executable = std::move(compile_result.value());
+		int exit_code;
+		if (executable.GetExecutionMode() == ExecutionMode::SyncOnly)
+		{
+			exit_code = VirtualMachine(std::move(executable)).Execute();
+		}
+		else
+		{
+			MidoriRuntime runtime(std::move(executable));
+			exit_code = runtime.RunRootTask();
+		}
 
 		result.success = (exit_code == EXIT_SUCCESS);
 		result.exit_code = exit_code;

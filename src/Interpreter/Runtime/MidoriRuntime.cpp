@@ -19,16 +19,13 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 		return;
 	}
 
+	m_accepting_tasks.store(true, std::memory_order_release);
+
 #ifndef __EMSCRIPTEN__
 	unsigned int thread_count = std::thread::hardware_concurrency();
-	if (thread_count > 1u)
+	if (thread_count == 0u)
 	{
-		// Keep one core for the main VM thread to reduce oversubscription.
-		thread_count -= 1u;
-	}
-	else if (thread_count == 0u)
-	{
-		thread_count = 4u;
+		thread_count = 1u;
 	}
 
 	m_workers.reserve(thread_count);
@@ -114,6 +111,43 @@ MidoriTraceable* MidoriRuntime::CreateManagedFuture(const MidoriClosure& closure
 	return future_ptr;
 }
 
+int MidoriRuntime::RunRootTask()
+{
+	if (m_executable->GetExecutionMode() != ExecutionMode::AsyncEnabled)
+	{
+		VirtualMachine vm(*this);
+		return vm.Execute();
+	}
+
+	MidoriFuture::FutureStateHandle root_future_state = std::make_shared<MidoriFuture::FutureState>();
+	Task root_task;
+	root_task.m_future_state = root_future_state;
+	root_task.m_closure.m_proc_index = 0;
+	root_task.m_closure.m_cell_values = MidoriTuple();
+
+#ifdef __EMSCRIPTEN__
+	VirtualMachine vm(*this);
+	int exit_code = vm.ExecuteTask(root_task.m_closure);
+
+	if (exit_code == EXIT_SUCCESS)
+	{
+		root_future_state->SetResult(MidoriValue());
+	}
+	else
+	{
+		root_future_state->SetError();
+	}
+#else
+	if (!TryEnqueueTask(std::move(root_task)))
+	{
+		root_future_state->SetError();
+	}
+#endif
+
+	root_future_state->Get();
+	return root_future_state->HasError() ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+
 void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure, const GarbageCollector& gc)
 {
 	if (!future_state)
@@ -121,8 +155,14 @@ void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, cons
 		return;
 	}
 
+	if (!m_accepting_tasks.load(std::memory_order_acquire))
+	{
+		future_state->SetError();
+		return;
+	}
+
 	Task task;
-	task.m_future_state = std::move(future_state);
+	task.m_future_state = future_state;
 	task.m_closure.m_proc_index = closure.m_proc_index;
 
 	const int length = closure.m_cell_values.GetLength();
@@ -135,7 +175,7 @@ void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, cons
 #ifdef __EMSCRIPTEN__
 	// WASM: Run synchronously (no thread support)
 	VirtualMachine vm(*this);
-	int exit_code = vm.ExecuteAsyncTask(task.m_closure);
+	int exit_code = vm.ExecuteTask(task.m_closure);
 
 	if (exit_code == EXIT_SUCCESS)
 	{
@@ -147,11 +187,10 @@ void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, cons
 		task.m_future_state->SetError();
 	}
 #else
+	if (!TryEnqueueTask(std::move(task)))
 	{
-		std::lock_guard<std::mutex> lock(m_task_mutex);
-		m_task_queue.emplace(std::move(task));
+		future_state->SetError();
 	}
-	m_task_condition.notify_one();
 #endif
 }
 
@@ -331,6 +370,27 @@ MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const Ga
 	return result;
 }
 
+bool MidoriRuntime::TryEnqueueTask(Task&& task)
+{
+#ifdef __EMSCRIPTEN__
+	(void)task;
+	return false;
+#else
+	{
+		std::lock_guard<std::mutex> lock(m_task_mutex);
+		if (!m_accepting_tasks.load(std::memory_order_acquire) || m_shutdown.load(std::memory_order_acquire))
+		{
+			return false;
+		}
+
+		m_task_queue.emplace(std::move(task));
+	}
+
+	m_task_condition.notify_one();
+	return true;
+#endif
+}
+
 void MidoriRuntime::WorkerLoop()
 {
 	VirtualMachine worker_vm(*this);
@@ -363,7 +423,7 @@ void MidoriRuntime::WorkerLoop()
 
 		if (task.m_future_state)
 		{
-			int exit_code = worker_vm.ExecuteAsyncTask(task.m_closure);
+			int exit_code = worker_vm.ExecuteTask(task.m_closure);
 
 			if (exit_code == EXIT_SUCCESS)
 			{
@@ -381,7 +441,14 @@ void MidoriRuntime::WorkerLoop()
 void MidoriRuntime::Shutdown()
 {
 #ifndef __EMSCRIPTEN__
-	m_shutdown.store(true, std::memory_order_release);
+	m_accepting_tasks.store(false, std::memory_order_release);
+
+	bool expected = false;
+	if (!m_shutdown.compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_acquire))
+	{
+		return;
+	}
+
 	m_task_condition.notify_all();
 
 	for (std::jthread& worker : m_workers)

@@ -84,7 +84,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 	m_instruction_pointer = GetProcEntry(entry_closure.m_proc_index);
 }
 
-int VirtualMachine::ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept
+int VirtualMachine::ExecuteTask(const MidoriClosure& entry_closure) noexcept
 {
 	m_value_stack_base_pointer = m_value_stack_begin;
 	m_value_stack_pointer = m_value_stack_base_pointer;
@@ -119,6 +119,11 @@ int VirtualMachine::ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcep
 	m_instruction_pointer = GetProcEntry(entry_closure.m_proc_index);
 
 	return Execute();
+}
+
+int VirtualMachine::ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept
+{
+	return ExecuteTask(entry_closure);
 }
 
 void VirtualMachine::InitializeProcEntryCache() noexcept

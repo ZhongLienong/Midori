@@ -170,8 +170,7 @@ int main(int argc, char* argv[])
 				}
 
 				MidoriRuntime runtime(std::move(executable));
-				VirtualMachine vm(runtime);
-				return vm.Execute();
+				return runtime.RunRootTask();
 			}
 		)
 		.or_else

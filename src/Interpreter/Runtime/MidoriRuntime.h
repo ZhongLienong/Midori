@@ -36,6 +36,7 @@ private:
 	std::queue<Task> m_task_queue;
 	std::mutex m_task_mutex;
 	std::condition_variable m_task_condition;
+	std::atomic<bool> m_accepting_tasks{false};
 	std::atomic<bool> m_shutdown{false};
 
 	std::vector<MidoriTraceable*> m_cross_vm_objects;
@@ -57,6 +58,8 @@ public:
 	void SetSharedGlobal(int index, MidoriValue value, const GarbageCollector& gc);
 	MidoriTraceable* CreateManagedFuture(const MidoriClosure& closure);
 
+	int RunRootTask();
+
 	void SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure, const GarbageCollector& gc);
 
 	const MidoriExecutable& GetExecutable() const;
@@ -65,6 +68,7 @@ public:
 	MidoriValue DeepCopyForCrossVM(MidoriValue value, const GarbageCollector& gc);
 
 private:
+	bool TryEnqueueTask(Task&& task);
 	void WorkerLoop();
 	void Shutdown();
 
