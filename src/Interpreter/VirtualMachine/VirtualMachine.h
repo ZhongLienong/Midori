@@ -119,8 +119,6 @@ public:
 
 	int ExecuteTask(const MidoriClosure& entry_closure) noexcept;
 
-	int ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept;
-
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 
     MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;

@@ -90,6 +90,9 @@ public:
 
 	const void* GetRawDataPtr() const noexcept;
 
+	MidoriWord GetRawBits() const noexcept;
+	static MidoriValue FromRawBits(MidoriWord bits) noexcept;
+
 #if MIDORI_DEBUG_FULL
 	MidoriText ToText() const;
 
@@ -417,10 +420,9 @@ struct MidoriFuture
 
 	using FutureStateHandle = std::shared_ptr<FutureState>;
 
-	std::unique_ptr<MidoriClosure> m_closure;
 	FutureStateHandle m_state;
 
-	MidoriFuture(MidoriClosure&& closure);
+	MidoriFuture();
 
 	MidoriFuture(const MidoriFuture&) = delete;
 	MidoriFuture& operator=(const MidoriFuture&) = delete;
@@ -438,8 +440,12 @@ struct MidoriFuture
 
 struct MidoriSharedCellState
 {
+#if MIDORI_DEBUG_FULL
 	mutable std::mutex m_mutex;
 	MidoriValue m_value;
+#else
+	std::atomic<MidoriWord> m_value_bits;
+#endif
 
 	MidoriSharedCellState();
 	explicit MidoriSharedCellState(MidoriValue value);

@@ -1,6 +1,73 @@
 #include "MidoriRuntime.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <limits>
+
+namespace
+{
+constexpr unsigned int MAX_WORKER_COUNT = 1024u;
+
+unsigned int GetDefaultWorkerCount()
+{
+	unsigned int thread_count = std::thread::hardware_concurrency();
+	if (thread_count == 0u)
+	{
+		thread_count = 1u;
+	}
+
+	return thread_count;
+}
+
+unsigned int GetConfiguredWorkerCount()
+{
+	const unsigned int default_count = GetDefaultWorkerCount();
+#if defined(_MSC_VER)
+	char* env_value = nullptr;
+	size_t env_size = 0u;
+	if (_dupenv_s(&env_value, &env_size, "MIDORI_ASYNC_WORKERS") != 0 || env_value == nullptr || env_value[0] == '\0')
+	{
+		if (env_value != nullptr)
+		{
+			free(env_value);
+		}
+		return default_count;
+	}
+
+	char* parse_end = nullptr;
+	const unsigned long configured = std::strtoul(env_value, &parse_end, 10);
+	const bool invalid_value = (parse_end == env_value) || (*parse_end != '\0') || (configured == 0ul);
+	free(env_value);
+	if (invalid_value)
+	{
+		return default_count;
+	}
+#else
+	const char* env_value = std::getenv("MIDORI_ASYNC_WORKERS");
+	if (env_value == nullptr || env_value[0] == '\0')
+	{
+		return default_count;
+	}
+
+	char* parse_end = nullptr;
+	const unsigned long configured = std::strtoul(env_value, &parse_end, 10);
+	if (parse_end == env_value || *parse_end != '\0' || configured == 0ul)
+	{
+		return default_count;
+	}
+#endif
+
+	if (configured > static_cast<unsigned long>(std::numeric_limits<unsigned int>::max()))
+	{
+		return MAX_WORKER_COUNT;
+	}
+
+	return std::clamp(static_cast<unsigned int>(configured), 1u, MAX_WORKER_COUNT);
+}
+}
+
 MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 	: m_executable(std::make_shared<MidoriExecutable>(std::move(executable)))
 {
@@ -22,11 +89,7 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 	m_accepting_tasks.store(true, std::memory_order_release);
 
 #ifndef __EMSCRIPTEN__
-	unsigned int thread_count = std::thread::hardware_concurrency();
-	if (thread_count == 0u)
-	{
-		thread_count = 1u;
-	}
+	const unsigned int thread_count = GetConfiguredWorkerCount();
 
 	m_workers.reserve(thread_count);
 	for (unsigned int i = 0u; i < thread_count; i += 1u)
@@ -77,8 +140,12 @@ MidoriValue MidoriRuntime::GetSharedGlobal(int index) const
 		return MidoriValue();
 	}
 
+#if MIDORI_DEBUG_FULL
 	std::lock_guard<std::mutex> lock(shared_cell->m_mutex);
 	return shared_cell->m_value;
+#else
+	return MidoriValue::FromRawBits(shared_cell->m_value_bits.load(std::memory_order_acquire));
+#endif
 }
 
 void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value)
@@ -89,8 +156,12 @@ void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value)
 		return;
 	}
 
+#if MIDORI_DEBUG_FULL
 	std::lock_guard<std::mutex> lock(shared_cell->m_mutex);
 	shared_cell->m_value = value;
+#else
+	shared_cell->m_value_bits.store(value.GetRawBits(), std::memory_order_release);
+#endif
 }
 
 void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value, const GarbageCollector& gc)
@@ -98,9 +169,9 @@ void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value, const GarbageC
 	SetSharedGlobal(index, DeepCopyForCrossVM(value, gc));
 }
 
-MidoriTraceable* MidoriRuntime::CreateManagedFuture(const MidoriClosure& closure)
+MidoriTraceable* MidoriRuntime::CreateManagedFuture()
 {
-	MidoriFuture future_val(MidoriClosure{ .m_cell_values = closure.m_cell_values, .m_proc_index = closure.m_proc_index });
+	MidoriFuture future_val;
 	MidoriTraceable* future_ptr = new MidoriTraceable(std::move(future_val));
 
 	{
@@ -436,33 +507,47 @@ bool MidoriRuntime::WaitForTaskOrFuture(Task& task, const MidoriFuture::FutureSt
 	return false;
 #else
 	std::unique_lock<std::mutex> lock(m_task_mutex);
-	m_task_condition.wait
-	(
-		lock,
-		[this, &awaited_future]()
+	using ClockDuration = std::chrono::steady_clock::duration;
+	const ClockDuration wait_step_min = std::chrono::microseconds(50);
+	const ClockDuration wait_step_max = std::chrono::milliseconds(2);
+	ClockDuration wait_step = wait_step_min;
+
+	for (;;)
+	{
+		if (awaited_future && awaited_future->IsReady())
 		{
-			return m_shutdown.load(std::memory_order_acquire) || !m_task_queue.empty() || (awaited_future && awaited_future->IsReady());
+			return false;
 		}
-	);
 
-	if (awaited_future && awaited_future->IsReady())
-	{
-		return false;
+		if (!m_task_queue.empty())
+		{
+			task = std::move(m_task_queue.front());
+			m_task_queue.pop();
+			return true;
+		}
+
+		if (m_shutdown.load(std::memory_order_acquire))
+		{
+			return false;
+		}
+
+		if (awaited_future)
+		{
+			m_task_condition.wait_for(lock, wait_step);
+			wait_step = std::min(wait_step * 2, wait_step_max);
+		}
+		else
+		{
+			m_task_condition.wait
+			(
+				lock,
+				[this]()
+				{
+					return m_shutdown.load(std::memory_order_acquire) || !m_task_queue.empty();
+				}
+			);
+		}
 	}
-
-	if (m_shutdown.load(std::memory_order_acquire) && m_task_queue.empty())
-	{
-		return false;
-	}
-
-	if (m_task_queue.empty())
-	{
-		return false;
-	}
-
-	task = std::move(m_task_queue.front());
-	m_task_queue.pop();
-	return true;
 #endif
 }
 
@@ -483,8 +568,6 @@ void MidoriRuntime::ExecuteQueuedTask(Task& task, VirtualMachine& vm)
 	{
 		task.m_future_state->SetError();
 	}
-
-	m_task_condition.notify_all();
 }
 
 void MidoriRuntime::WorkerLoop()

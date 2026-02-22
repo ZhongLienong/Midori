@@ -190,16 +190,6 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			{
 				TryMark(future.m_state->PeekResult().GetPointer());
 			}
-
-			if (future.m_closure)
-			{
-				MidoriTuple& cell_values = future.m_closure->m_cell_values;
-				int length = cell_values.GetLength();
-				for (int i = 0; i < length; i += 1)
-				{
-					TryMark(cell_values[i].GetPointer());
-				}
-			}
 		}
 	}
 }

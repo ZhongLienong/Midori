@@ -113,7 +113,8 @@ def result : Int = await task;
 - `async expr` spawns a concurrent task and returns `Future<T>` where `T` is the type of `expr`
 - `await future` blocks until the future completes and returns the unwrapped value of type `T`
 - Multiple futures can execute concurrently
-- Each async task runs in an isolated VM with its own stack and garbage collector
+- The type-level rules are unchanged across runtime modes (`SyncOnly` vs `AsyncEnabled`)
+- In async-enabled execution, futures are backed by shared runtime state with safe handle ownership
 
 See [Async/Await](async-await.md) for detailed documentation on concurrent execution.
 

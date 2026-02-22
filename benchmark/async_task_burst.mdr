@@ -1,0 +1,50 @@
+module AsyncTaskBurst
+
+import
+{
+    "../MidoriPrelude/DateTime.mdr",
+    "../MidoriPrelude/IO.mdr"
+}
+
+def task_count = 2000;
+
+defun do_work(seed : Int) : Int =>
+{
+    def value = seed;
+    def i = 0;
+    loop
+    {
+        if i >= 200
+        then break ()
+        else
+        {
+            value = value + i;
+            i = i + 1;
+        }
+    };
+    value
+};
+
+def start = DateTime::GetTime();
+
+def tasks : Array<Future<Int>> = [];
+def j = 0;
+loop
+{
+    def j_copy = j;
+    tasks ++= async do_work(j_copy);
+    j = j + 1;
+    if j >= task_count then break () else ();
+};
+
+def checksum = 0;
+def k = 0;
+loop
+{
+    checksum = checksum + await tasks[k];
+    k = k + 1;
+    if k >= task_count then break () else ();
+};
+
+def elapsed = DateTime::GetTime() - start;
+IO::PrintLine("Async task burst (" ++ (task_count as Text) ++ " tasks) checksum=" ++ (checksum as Text) ++ " elapsed=" ++ (elapsed as Text) ++ " ms");

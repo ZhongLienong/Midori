@@ -56,7 +56,7 @@ public:
 	MidoriValue GetSharedGlobal(int index) const;
 	void SetSharedGlobal(int index, MidoriValue value);
 	void SetSharedGlobal(int index, MidoriValue value, const GarbageCollector& gc);
-	MidoriTraceable* CreateManagedFuture(const MidoriClosure& closure);
+	MidoriTraceable* CreateManagedFuture();
 
 	int RunRootTask();
 

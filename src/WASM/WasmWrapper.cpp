@@ -132,8 +132,6 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 		result.error = "Unknown runtime error";
 	}
 	result.output = StripAnsiCodes(g_output_stream.str());
-	// Capture output first
-	result.output = StripAnsiCodes(g_output_stream.str());
 	std::string captured_error = StripAnsiCodes(g_error_stream.str());
 
 	// If we have an exception message, append captured error to it

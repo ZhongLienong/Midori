@@ -1,191 +1,88 @@
 # Runtime Architecture
 
-This document describes the architecture of the Midori interpreter runtime.
+This document describes the current Midori runtime architecture after the concurrency redesign rollout.
 
-## Overview
+## Execution Modes
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          MidoriRuntime                              │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │
-│  │  GlobalVariables │  │   Thread Pool    │  │ Cross-VM Objects │   │
-│  │                  │  │                  │  │  (deep-copied)   │   │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   VirtualMachine    │  │   VirtualMachine    │  │   VirtualMachine    │
-│  ┌───────────────┐  │  │  ┌───────────────┐  │  │  ┌───────────────┐  │
-│  │ MidoriAllocator│  │  │  │ MidoriAllocator│  │  │  │ MidoriAllocator│  │
-│  │ (malloc/free) │  │  │  │ (malloc/free) │  │  │  │ (malloc/free) │  │
-│  └───────────────┘  │  │  └───────────────┘  │  │  └───────────────┘  │
-│  ┌───────────────┐  │  │  ┌───────────────┐  │  │  ┌───────────────┐  │
-│  │GarbageCollector│  │  │  │GarbageCollector│  │  │  │GarbageCollector│  │
-│  │ (Mark-Sweep)  │  │  │  │ (Mark-Sweep)  │  │  │  │ (Mark-Sweep)  │  │
-│  └───────────────┘  │  │  └───────────────┘  │  │  └───────────────┘  │
-└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
-      VM 1                         VM2                VM3
-```
+`MidoriExecutable` carries a runtime mode:
 
-## Components
+- `ExecutionMode::SyncOnly`
+  - Starts no async runtime infrastructure.
+  - Runs directly on `VirtualMachine(MidoriExecutable&&)`.
+- `ExecutionMode::AsyncEnabled`
+  - Starts `MidoriRuntime` workers and shared async state.
+  - Runs the root program as a scheduled task.
 
-### Execution modes
+## Main Components
 
-Midori now has two explicit runtime modes selected at compile time and stored in `MidoriExecutable`:
+### `VirtualMachine`
 
-| Mode | Executable metadata | Startup path |
-|------|---------------------|--------------|
-| Sync-only | `ExecutionMode::SyncOnly` (`m_has_async == false`) | `Midori.cpp` runs `VirtualMachine` directly with no `MidoriRuntime` scheduler setup |
-| Async-enabled | `ExecutionMode::AsyncEnabled` (`m_has_async == true`) | `Midori.cpp` creates `MidoriRuntime`, then runs the VM with async worker support |
+Single VM type used in both modes.
 
-#### Why this split exists
+- Own value stack/call stack.
+- Own allocator and VM-local GC heap.
+- Executes normal procedures and runtime tasks through `Execute()` / `ExecuteTask(...)`.
 
-- Sync programs avoid async runtime startup costs (no worker pool startup).
-- Existing sync opcode handlers stay on the same fast path.
-- Async programs still use the existing runtime scheduler behavior.
+### `MidoriRuntime` (async-enabled mode only)
 
-### MidoriRuntime
+Coordinates concurrent execution:
 
-The central coordinator for async task execution.
+- Worker thread pool (`std::jthread`).
+- Worker count defaults to hardware concurrency (with safe bounds) and can be overridden with `MIDORI_ASYNC_WORKERS`.
+- Global task queue storing owning task payloads.
+- Shared global cells for async-capable global access.
+- Cross-VM managed object storage for safe transfers.
 
-**Responsibilities:**
-- Manages global variables (shared across VMs)
-- Provides thread pool for async task execution
-- Deep-copies return values from worker VMs to prevent dangling pointers
+### Shared Runtime Objects
 
-**Key Methods:**
-- `SpawnTask(future, closure)` – Queues an async task to the thread pool
-- `DeepCopyForCrossVM(value, gc)` – Deep-copies heap objects for safe cross-VM transfer
+- `MidoriFuture::FutureState` (shared completion state and result).
+- `MidoriSharedCellState` / `MidoriSharedCellHandle` (shared by-reference storage; lock-free atomic value path in non-full-debug builds).
+- Runtime task records (`FutureState` handle + closure payload).
 
-### MidoriAllocator
+## Async Scheduling Model
 
-A thin wrapper around system malloc/free.
+All workers run the same loop:
 
-```cpp
-void* Allocate(size_t size) { return std::malloc(size); }
-void Free(void* ptr) { std::free(ptr); }
-```
+1. Pop a task from the queue.
+2. Execute task closure on the worker-local VM.
+3. Publish completion to `FutureState`.
+4. Continue with next task.
 
-**Characteristics:**
-- No size classes or page management
-- Relies on system allocator for performance
-- Each VM has its own allocator instance (no sharing)
+There is no special main-worker VM role split.
 
-### GarbageCollector
+## Await Behavior
 
-A simple mark-sweep garbage collector, one per VM.
+`MidoriRuntime::AwaitFuture(...)` uses cooperative waiting:
 
-**Configuration:**
-| Parameter | Value |
-|-----------|-------|
-| Threshold | ~2 MB (`512000 * 4` bytes) |
-| Algorithm | Mark-Sweep |
-| Scope | Per-VM (no cross-VM coordination) |
+- If the awaited future is not ready, the waiting worker can execute other queued tasks.
+- Completion wakes waiters via future state signaling.
+- This prevents full-pool stalls in nested async fan-out/fan-in patterns.
 
-**Collection Flow:**
-1. Check `ShouldCollect()` after allocation-heavy operations
-2. Gather roots from VM's stacks and globals
-3. Mark: Trace reachable objects from roots
-4. Sweep: Delete unmarked objects
+## Memory and Ownership Model
 
-```cpp
-void TryCollect() {
-    if (m_gc.ShouldCollect()) {
-        m_gc.ReclaimMemory(GetGarbageCollectionRoots());
-    }
-}
-```
+### VM-Local Memory
 
-### VirtualMachine
+- Managed by per-VM GC (`GarbageCollector`).
+- Not shared directly across workers.
 
-A bytecode interpreter with its own heap.
+### Shared Async Memory
 
-**Key Members:**
-- `m_allocator` – Per-VM allocator
-- `m_gc` – Per-VM garbage collector
-- Value stack and call stack
-- Pointer to shared globals via runtime
+- Shared futures and shared cells are handle-owned (`std::shared_ptr` based).
+- Task queues store handles, not raw future pointers.
+- Cross-VM result transfer deep-copies VM-owned traceables before publishing.
 
-**Allocation:**
-```cpp
-template<typename T>
-MidoriTraceable* AllocateTraceable(T&& arg, PointerTag tag) {
-    void* mem = m_allocator.Allocate(sizeof(MidoriTraceable));
-    MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<T>(arg));
-    m_gc.RegisterObject(traceable);
-    return MidoriTaggedPointer(traceable, tag);
-}
-```
+## Global Variables
 
-## Memory Model
+- Sync-only code path uses the VM global array and legacy global opcodes.
+- Async-capable code path uses shared-global opcodes backed by runtime shared cells.
 
-### Per-VM Isolation
+## Shutdown Ordering
 
-Each VM has its own:
-- Allocator (malloc/free wrapper)
-- Garbage collector (tracks only its own objects)
-- Heap objects (not shared between VMs)
+`MidoriRuntime` shutdown follows safe ordering:
 
-### Cross-VM Value Transfer
+1. Stop accepting new tasks.
+2. Signal worker shutdown.
+3. Join worker threads.
+4. Destroy runtime-managed cross-VM objects.
 
-When an async task completes, its return value is deep-copied into runtime-managed memory:
-
-```cpp
-// In SpawnTask, before worker VM destruction:
-MidoriValue result = DeepCopyForCrossVM(vm.GetAsyncResult(), vm.GetGC());
-future->SetResult(result);
-// Worker VM can now safely be destroyed
-```
-
-This prevents dangling pointers when the worker VM's heap is freed.
-
-## Concurrency Model
-
-### Shared State
-
-| Resource | Sharing |
-|----------|---------|
-| Global Variables | Shared (via runtime) |
-| Captured References | Point to parent VM's heap |
-| Local Allocations | Per-VM only |
-
-### Race Conditions
-
-> [!WARNING]
-> **Concurrent mutation of captured mutable references is undefined behavior.**
-
-When multiple async tasks capture the same mutable reference (e.g., an array), concurrent modifications create data races:
-
-```midori
-let arr = [1, 2, 3];
-spawn { arr ++= 4; }  // Race!
-spawn { arr ++= 5; }  // Race!
-```
-
-The runtime does **not** prevent this. Users must:
-- Avoid concurrent mutation of shared captures
-- Use Futures for synchronization (spawn-then-await pattern)
-
-## GC Trigger Points
-
-Automatic GC is triggered after garbage-producing operations:
-- `CONCAT_ARRAY` – Old arrays become garbage
-- `CONCAT_TEXT` – Old texts become garbage
-
-```cpp
-case OpCode::CONCAT_ARRAY:
-    // ... create new array ...
-    left = AllocateTraceable(std::move(result), PointerTag::ARRAY);
-    TryCollect();  // Check if GC needed
-    break;
-```
-
-## Thread Safety
-
-| Component | Thread Safety |
-|-----------|---------------|
-| MidoriAllocator | Per-VM (no sharing) |
-| GarbageCollector | Per-VM (no sharing) |
-| Global Variables | Shared (user must avoid races) |
-| Cross-VM Objects | Mutex-protected in runtime |
+This prevents use-after-free during teardown.

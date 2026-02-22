@@ -255,6 +255,25 @@ const void* MidoriValue::GetRawDataPtr() const noexcept
 	return &m_data;
 }
 
+MidoriWord MidoriValue::GetRawBits() const noexcept
+{
+	static_assert(sizeof(MidoriWord) == sizeof(m_data));
+	MidoriWord bits = 0u;
+	std::memcpy(&bits, &m_data, sizeof(bits));
+	return bits;
+}
+
+MidoriValue MidoriValue::FromRawBits(MidoriWord bits) noexcept
+{
+	MidoriValue value;
+	static_assert(sizeof(MidoriWord) == sizeof(value.m_data));
+	std::memcpy(&value.m_data, &bits, sizeof(bits));
+#if MIDORI_DEBUG_FULL
+	value.m_tag = UNKNOWN;
+#endif
+	return value;
+}
+
 #if MIDORI_DEBUG_FULL
 MidoriText MidoriValue::ToText() const
 {
@@ -478,10 +497,6 @@ size_t MidoriTraceable::GetSize() const
 		dynamic_size = 0uz;
 		break;
 	case TraceableType::Future:
-		if (m_future.m_closure)
-		{
-			dynamic_size = sizeof(MidoriClosure) + m_future.m_closure->m_cell_values.GetCapacity();
-		}
 		break;
 	default:
 		break;
@@ -1825,12 +1840,20 @@ MidoriValue* MidoriCellValue::GetStackPointer()
 }
 
 MidoriSharedCellState::MidoriSharedCellState()
+#if MIDORI_DEBUG_FULL
 	: m_value(MidoriValue())
+#else
+	: m_value_bits(MidoriValue().GetRawBits())
+#endif
 {
 }
 
 MidoriSharedCellState::MidoriSharedCellState(MidoriValue value)
+#if MIDORI_DEBUG_FULL
 	: m_value(value)
+#else
+	: m_value_bits(value.GetRawBits())
+#endif
 {
 }
 
@@ -1856,8 +1879,12 @@ MidoriValue MidoriSharedCellHandle::Get() const
 		return MidoriValue();
 	}
 
+#if MIDORI_DEBUG_FULL
 	std::lock_guard<std::mutex> lock(m_state->m_mutex);
 	return m_state->m_value;
+#else
+	return MidoriValue::FromRawBits(m_state->m_value_bits.load(std::memory_order_acquire));
+#endif
 }
 
 void MidoriSharedCellHandle::Set(MidoriValue value)
@@ -1867,8 +1894,12 @@ void MidoriSharedCellHandle::Set(MidoriValue value)
 		return;
 	}
 
+#if MIDORI_DEBUG_FULL
 	std::lock_guard<std::mutex> lock(m_state->m_mutex);
 	m_state->m_value = value;
+#else
+	m_state->m_value_bits.store(value.GetRawBits(), std::memory_order_release);
+#endif
 }
 
 void MidoriFuture::FutureState::SetResult(MidoriValue value)
@@ -1925,15 +1956,13 @@ bool MidoriFuture::FutureState::HasError() const
 	return m_has_error.load(std::memory_order_acquire);
 }
 
-MidoriFuture::MidoriFuture(MidoriClosure&& closure)
-	: m_closure(std::make_unique<MidoriClosure>(std::move(closure))),
-	m_state(std::make_shared<FutureState>())
+MidoriFuture::MidoriFuture()
+	: m_state(std::make_shared<FutureState>())
 {
 }
 
 MidoriFuture::MidoriFuture(MidoriFuture&& other) noexcept
-	: m_closure(std::move(other.m_closure)),
-	m_state(std::move(other.m_state))
+	: m_state(std::move(other.m_state))
 {
 }
 
@@ -1941,7 +1970,6 @@ MidoriFuture& MidoriFuture::operator=(MidoriFuture&& other) noexcept
 {
 	if (this != &other)
 	{
-		m_closure = std::move(other.m_closure);
 		m_state = std::move(other.m_state);
 	}
 	return *this;

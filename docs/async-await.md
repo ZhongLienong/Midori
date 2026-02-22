@@ -1,181 +1,85 @@
-# Async/Await in Midori
+# Async and Await in Midori
 
-Midori provides concurrent execution through the `async`/`await` pattern with `Future<T>` types.
+Midori provides concurrency through `async` expressions and `Future<T>`.
 
-## Basic Usage
+## Quick Example
 
 ```midori
 import { <IO> }
 
-defun expensive_computation(x: Int) : Int => {
-    def result = x * x;
-    return result;
-};
+defun compute(x: Int) : Int => x * x;
 
-// Spawn concurrent task
-def task : Future<Int> = async expensive_computation(42);
+def work : Future<Int> = async compute(42);
+def result : Int = await work;
 
-// Do other work while task runs...
-IO::PrintLine("Task spawned, doing other work...");
-
-// Block until result is ready
-def result : Int = await task;
 IO::PrintLine("Result: " ++ (result as Text));
 ```
 
-## Key Concepts
+## Core Semantics
 
-### Future<T>
+### `Future<T>`
 
-`Future<T>` represents a value of type `T` that will be available asynchronously:
-
-```midori
-Future<Int>           // Future resolving to an integer
-Future<Text>          // Future resolving to text
-Future<Array<Float>>  // Future resolving to an array
-```
-
-### async Expression
-
-`async expr` spawns a concurrent task and immediately returns a `Future<T>`:
-
-- The expression runs in a **separate worker VM** with its own heap
-- Workers share global variables stored in the `MidoriRuntime` singleton with the main VM
-- Returns immediately without blocking
+`Future<T>` is the type produced by `async` and consumed by `await`.
 
 ```midori
-// These tasks run concurrently in separate VMs
-def task1 = async compute(10);
-def task2 = async compute(20);
-def task3 = async compute(30);
+Future<Int>
+Future<Text>
+Future<Array<Float>>
 ```
 
-### await Expression
+### `async expr`
 
-`await future` blocks until the future completes and returns the unwrapped value:
+- Evaluates `expr` on the runtime scheduler.
+- Returns immediately with `Future<T>`.
+- Captures follow normal Midori by-reference semantics.
 
-```midori
-def task : Future<Int> = async compute(42);
-def result : Int = await task;  // Blocks until complete
-```
+### `await future`
 
-## Error Handling
+- If ready, returns the result immediately.
+- If not ready, the runtime waits until completion and returns `T`.
+- If the future completed with an error, `await` raises a runtime error.
 
-If an async task terminates with a runtime error, the `Future<T>` is marked as failed. Awaiting a failed future terminates the current VM with a runtime error ("Async task error"); the original error details are not propagated. Errors in tasks that are never awaited are currently dropped.
+## Execution Modes
 
-## Variable Capture
+Midori has two execution modes selected at compile/link time:
 
-Async blocks capture variables from their enclosing scope **by reference**:
+1. `ExecutionMode::SyncOnly`
+   - No async runtime startup.
+   - Program runs on a single VM instance.
+2. `ExecutionMode::AsyncEnabled`
+   - Runtime scheduler and worker pool are started.
+   - The root program executes as a normal task.
 
-```midori
-defun make_tasks(values: Array<Int>) : Array<Future<Int>> => {
-    def tasks : Array<Future<Int>> = [];
+This split keeps non-async programs on a zero-extra-overhead path.
 
-    for i in 0..1..#values {
-        def value = values[i];  // Capture
-        tasks ++= async {
-            return value * value;
-        };
-    };
+## Capture and Shared State
 
-    return tasks;
-};
-```
+In async-enabled programs:
 
-> [!WARNING]
-> **Captured references point to the parent VM's heap.** Concurrent mutation of shared captures is **undefined behavior**.
+- Captured variables used by async-capable procedures are backed by shared cells.
+- Globals accessed from async-capable procedures use shared global storage.
+- Futures are backed by shared future state handles.
 
-```midori
-// UNSAFE - Race condition!
-let arr = [1, 2, 3];
-def t1 = async { arr ++= 4; };
-def t2 = async { arr ++= 5; };  // Both tasks mutate same array concurrently
-```
+This preserves language-level reference behavior while keeping runtime memory-safe.
 
-**Important**: When capturing loop variables, create a copy inside the loop:
+## Race Semantics
 
-```midori
-// CORRECT - capture a copy
-for i in 0..1..10 {
-    def i_copy = i;
-    tasks ++= async compute(i_copy);
-};
-```
+Midori currently allows language-level data races. Results can be nondeterministic.
 
-## Return Values
+The runtime still guarantees process safety:
 
-Async task return values are **deep-copied** from the worker VM's heap to runtime-managed memory:
+- no use-after-free from task scheduling,
+- no dangling future pointers in queues,
+- no cross-VM raw pointer ownership transfer.
 
-```midori
-// Primitive types - copied by value
-def int_task : Future<Int> = async 42;
+## Error Model
 
-// Heap types - deep-copied on completion  
-def text_task : Future<Text> = async "Hello, async!";
-def array_task : Future<Array<Int>> = async [1, 2, 3];
-```
+- Task failures mark their future as failed.
+- `await` on a failed future raises a generic async runtime error.
+- Unawaited task errors are not currently surfaced as structured diagnostics.
 
-This prevents dangling pointers when the worker VM is destroyed.
+## Current Limitations
 
-## Runtime Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      MidoriRuntime                          │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │  Thread Pool    │  │ Global Variables│  │ Cross-VM    │  │
-│  │  (N workers)    │  │   (shared)      │  │ Objects     │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────────┐  ┌─────────────────────┐
-│   Main VM           │  │   Worker VM         │
-│  ┌───────────────┐  │  │  ┌───────────────┐  │
-│  │ Own Allocator │  │  │  │ Own Allocator │  │
-│  │ Own GC        │  │  │  │ Own GC        │  │
-│  └───────────────┘  │  │  └───────────────┘  │
-└─────────────────────┘  └─────────────────────┘
-```
-
-**Key Points:**
-- Each VM has its own allocator and garbage collector
-- No stop-the-world coordination between VMs
-- Return values are deep-copied before worker VM destruction
-- Global variables live in the `MidoriRuntime` singleton and are shared across VMs (avoid concurrent mutation)
-
-## Best Practices
-
-1. **Spawn all tasks first, then await** - Maximizes parallelism:
-   ```midori
-   // Good - tasks run in parallel
-   def t1 = async work1();
-   def t2 = async work2();
-   def r1 = await t1;
-   def r2 = await t2;
-
-   // Bad - sequential execution
-   def r1 = await async work1();
-   def r2 = await async work2();
-   ```
-
-2. **Avoid concurrent mutation** - Don't modify captured references from multiple tasks
-
-3. **Capture loop variables explicitly** - Create copies inside the loop
-
-4. **Consider granularity** - Too many tiny tasks have overhead; too few reduce parallelism
-
-## Limitations
-
-- **No cancellation** - Once spawned, tasks run to completion
-- **No timeouts** - Await blocks indefinitely
-- **No error payloads** - Awaiting a failed task raises a generic runtime error
-- **No inter-task communication** - Tasks cannot send messages to each other
-- **Race conditions accepted** - Concurrent capture mutation is undefined behavior
-
-## Performance Considerations
-
-- Each async task allocates ~400KB for stacks
-- Thread pool startup has one-time overhead
-- Large return values (e.g., huge Arrays) incur deep-copy cost
-- Per-VM GC runs independently (~2MB threshold)
+- No cancellation API.
+- No timeout-aware await.
+- No rich error payload propagation from task to awaiter.

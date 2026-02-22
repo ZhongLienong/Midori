@@ -121,11 +121,6 @@ int VirtualMachine::ExecuteTask(const MidoriClosure& entry_closure) noexcept
 	return Execute();
 }
 
-int VirtualMachine::ExecuteAsyncTask(const MidoriClosure& entry_closure) noexcept
-{
-	return ExecuteTask(entry_closure);
-}
-
 void VirtualMachine::InitializeProcEntryCache() noexcept
 {
 	if (!m_executable)
@@ -2823,7 +2818,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (m_runtime)
 			{
-				MidoriTraceable* future_ptr = m_runtime->CreateManagedFuture(closure);
+				MidoriTraceable* future_ptr = m_runtime->CreateManagedFuture();
 				MidoriFuture& future = future_ptr->GetTraceable<MidoriFuture>();
 				m_runtime->SpawnTask(future.GetState(), closure, m_gc);
 				Push(future_ptr);
