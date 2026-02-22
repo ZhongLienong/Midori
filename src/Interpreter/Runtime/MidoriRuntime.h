@@ -30,6 +30,7 @@ public:
 private:
 	std::shared_ptr<const MidoriExecutable> m_executable;
 	GlobalVariables m_globals;
+	std::vector<MidoriSharedCellHandle::SharedState> m_shared_globals;
 
 	std::vector<std::jthread> m_workers;
 	std::queue<Task> m_task_queue;
@@ -51,8 +52,12 @@ public:
 	void SetGlobal(int index, MidoriValue value);
 	int GetGlobalCount() const;
 	GlobalVariables* GetGlobalsPtr();
+	MidoriValue GetSharedGlobal(int index) const;
+	void SetSharedGlobal(int index, MidoriValue value);
+	void SetSharedGlobal(int index, MidoriValue value, const GarbageCollector& gc);
+	MidoriTraceable* CreateManagedFuture(const MidoriClosure& closure);
 
-	void SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure);
+	void SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure, const GarbageCollector& gc);
 
 	const MidoriExecutable& GetExecutable() const;
 	std::shared_ptr<const MidoriExecutable> GetExecutablePtr() const;

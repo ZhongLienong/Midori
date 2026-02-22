@@ -160,6 +160,11 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			MidoriValue cell_value = current->GetTraceable<MidoriCellValue>().GetValue();
 			TryMark(cell_value.GetPointer());
 		}
+		else if (current->IsTraceable<MidoriSharedCellHandle>())
+		{
+			MidoriValue cell_value = current->GetTraceable<MidoriSharedCellHandle>().Get();
+			TryMark(cell_value.GetPointer());
+		}
 		else if (current->IsTraceable<MidoriStruct>())
 		{
 			MidoriTuple& arr = current->GetTraceable<MidoriStruct>().m_values;
@@ -183,7 +188,7 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			MidoriFuture& future = current->GetTraceable<MidoriFuture>();
 			if (future.m_state)
 			{
-				TryMark(future.m_state->m_result.GetPointer());
+				TryMark(future.m_state->PeekResult().GetPointer());
 			}
 
 			if (future.m_closure)

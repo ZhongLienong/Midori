@@ -234,6 +234,21 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 	case OpCode::SET_CELL:
 		wide_op = OpCode::SET_CELL_WIDE;
 		break;
+	case OpCode::DEFINE_GLOBAL_SHARED:
+		wide_op = OpCode::DEFINE_GLOBAL_SHARED_WIDE;
+		break;
+	case OpCode::GET_GLOBAL_SHARED:
+		wide_op = OpCode::GET_GLOBAL_SHARED_WIDE;
+		break;
+	case OpCode::SET_GLOBAL_SHARED:
+		wide_op = OpCode::SET_GLOBAL_SHARED_WIDE;
+		break;
+	case OpCode::GET_SHARED_CELL:
+		wide_op = OpCode::GET_SHARED_CELL_WIDE;
+		break;
+	case OpCode::SET_SHARED_CELL:
+		wide_op = OpCode::SET_SHARED_CELL_WIDE;
+		break;
 	default:
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid opcode for wide variable operation", line, m_file_name, m_source_lines));
 		return;
@@ -241,6 +256,152 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 
 	EmitByte(wide_op, line);
 	EmitTwoBytes(variable_index >> 8, variable_index & 0xFF, line);
+}
+
+OpCode CodeGenerator::GetCellLoadOpcode() const
+{
+	return CurrentProcedureUsesSharedCells() ? OpCode::GET_SHARED_CELL : OpCode::GET_CELL;
+}
+
+OpCode CodeGenerator::GetCellStoreOpcode() const
+{
+	return CurrentProcedureUsesSharedCells() ? OpCode::SET_SHARED_CELL : OpCode::SET_CELL;
+}
+
+bool CodeGenerator::CurrentProcedureUsesSharedCells() const
+{
+	const size_t index = m_builder.m_current_procedure_index;
+	return index < m_shared_cell_procedure_flags.size() && m_shared_cell_procedure_flags[index];
+}
+
+void CodeGenerator::RewriteGlobalsForAsyncModule(BytecodeModule& module) const
+{
+	for (BytecodeStream& procedure : module.m_procedures)
+	{
+		const int bytecode_size = procedure.GetByteCodeSize();
+		for (int offset = 0; offset < bytecode_size;)
+		{
+			const OpCode opcode = procedure.ReadByteCode(offset);
+			int advance = 1;
+			switch (opcode)
+			{
+			case OpCode::INTEGER_CONSTANT:
+			case OpCode::FLOAT_CONSTANT:
+			case OpCode::WORD_CONSTANT:
+				advance = 9;
+				break;
+			case OpCode::BYTE_CONSTANT:
+				advance = 2;
+				break;
+			case OpCode::CREATE_ARRAY:
+				advance = 4;
+				break;
+			case OpCode::LOAD_STRING_WIDE:
+				advance = 3;
+				break;
+			case OpCode::JUMP:
+			case OpCode::JUMP_IF_FALSE:
+			case OpCode::JUMP_IF_TRUE:
+			case OpCode::JUMP_BACK:
+			case OpCode::BREAK:
+			case OpCode::IF_INTEGER_EQUAL:
+			case OpCode::IF_INTEGER_NOT_EQUAL:
+			case OpCode::IF_INTEGER_GREATER:
+			case OpCode::IF_INTEGER_GREATER_EQUAL:
+			case OpCode::IF_INTEGER_LESS:
+			case OpCode::IF_INTEGER_LESS_EQUAL:
+			case OpCode::IF_FLOAT_EQUAL:
+			case OpCode::IF_FLOAT_NOT_EQUAL:
+			case OpCode::IF_FLOAT_GREATER:
+			case OpCode::IF_FLOAT_GREATER_EQUAL:
+			case OpCode::IF_FLOAT_LESS:
+			case OpCode::IF_FLOAT_LESS_EQUAL:
+				advance = 3;
+				break;
+			case OpCode::MATCH_JUMP_TABLE:
+				advance = 2 + (static_cast<int>(procedure.ReadByteCode(offset + 1)) * 2);
+				break;
+			case OpCode::CALL_FOREIGN:
+				advance = 3;
+				break;
+			case OpCode::CALL_FOREIGN_INDEXED:
+				advance = 4;
+				break;
+			case OpCode::CALL_PROC:
+				advance = 3;
+				break;
+			case OpCode::CALL_PROC_0:
+			case OpCode::CALL_PROC_1:
+			case OpCode::CALL_PROC_2:
+			case OpCode::CALL_PROC_3:
+				advance = 2;
+				break;
+			case OpCode::DEFINE_GLOBAL_WIDE:
+				procedure.SetByteCode(offset, OpCode::DEFINE_GLOBAL_SHARED_WIDE);
+				advance = 3;
+				break;
+			case OpCode::GET_GLOBAL_WIDE:
+				procedure.SetByteCode(offset, OpCode::GET_GLOBAL_SHARED_WIDE);
+				advance = 3;
+				break;
+			case OpCode::SET_GLOBAL_WIDE:
+				procedure.SetByteCode(offset, OpCode::SET_GLOBAL_SHARED_WIDE);
+				advance = 3;
+				break;
+			case OpCode::GET_LOCAL_WIDE:
+			case OpCode::SET_LOCAL_WIDE:
+			case OpCode::GET_CELL_WIDE:
+			case OpCode::SET_CELL_WIDE:
+			case OpCode::GET_SHARED_CELL_WIDE:
+			case OpCode::SET_SHARED_CELL_WIDE:
+				advance = 3;
+				break;
+			case OpCode::DEFINE_GLOBAL:
+				procedure.SetByteCode(offset, OpCode::DEFINE_GLOBAL_SHARED);
+				advance = 2;
+				break;
+			case OpCode::GET_GLOBAL:
+				procedure.SetByteCode(offset, OpCode::GET_GLOBAL_SHARED);
+				advance = 2;
+				break;
+			case OpCode::SET_GLOBAL:
+				procedure.SetByteCode(offset, OpCode::SET_GLOBAL_SHARED);
+				advance = 2;
+				break;
+			case OpCode::MAKE_CLOSURE:
+			case OpCode::MAKE_FUNCTION:
+			case OpCode::LOAD_STRING:
+			case OpCode::GET_LOCAL:
+			case OpCode::SET_LOCAL:
+			case OpCode::GET_CELL:
+			case OpCode::SET_CELL:
+			case OpCode::GET_SHARED_CELL:
+			case OpCode::SET_SHARED_CELL:
+			case OpCode::CALL:
+			case OpCode::BIND_CAPTURES:
+			case OpCode::BIND_CAPTURES_SHARED:
+			case OpCode::GET_MEMBER:
+			case OpCode::SET_MEMBER:
+			case OpCode::POP_VALUES:
+			case OpCode::POP_LOCAL_SCOPE:
+			case OpCode::POP_BLOCK_SCOPE:
+			case OpCode::POP_MATCH_SCOPE:
+			case OpCode::TAIL_CALL:
+			case OpCode::GET_ARRAY:
+			case OpCode::SET_ARRAY:
+			case OpCode::CONSTRUCT_STRUCT:
+			case OpCode::CONSTRUCT_UNION:
+			case OpCode::SET_TAG:
+				advance = 2;
+				break;
+			default:
+				advance = 1;
+				break;
+			}
+
+			offset += advance;
+		}
+	}
 }
 
 void CodeGenerator::EmitCall(int arity, int line)
@@ -1376,6 +1537,11 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 		module.m_global_variables.emplace_back(entry.first.c_str());
 	}
 
+	if (m_has_async)
+	{
+		RewriteGlobalsForAsyncModule(module);
+	}
+
 	return module;
 }
 
@@ -2337,7 +2503,7 @@ bool CodeGenerator::EmitGenericLengthCall(const std::string& function_name, cons
 	{
 		EmitByte(OpCode::MAKE_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-		EmitByte(OpCode::BIND_CAPTURES, line);
+		EmitByte(CurrentProcedureUsesSharedCells() ? OpCode::BIND_CAPTURES_SHARED : OpCode::BIND_CAPTURES, line);
 		EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
 		EmitCall(1, line);
 	}
@@ -2597,7 +2763,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 				// Fallback to closure call for tail calls
 				EmitByte(OpCode::MAKE_CLOSURE, line);
 				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-				EmitByte(OpCode::BIND_CAPTURES, line);
+				EmitByte(CurrentProcedureUsesSharedCells() ? OpCode::BIND_CAPTURES_SHARED : OpCode::BIND_CAPTURES, line);
 				EmitByte(static_cast<OpCode>(0), line);
 				EmitByte(OpCode::TAIL_CALL, line);
 				EmitByte(static_cast<OpCode>(arity), line);
@@ -2613,7 +2779,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			EmitByte(OpCode::MAKE_CLOSURE, line);
 			EmitByte(static_cast<OpCode>(specialized_proc_index), line);
 
-			EmitByte(OpCode::BIND_CAPTURES, line);
+			EmitByte(CurrentProcedureUsesSharedCells() ? OpCode::BIND_CAPTURES_SHARED : OpCode::BIND_CAPTURES, line);
 			EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
 
 			if (call.m_is_tail_call)
@@ -2787,7 +2953,7 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
 			const int line = m_variable->m_name.m_line;
-			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), line);
 		}
 	};
 
@@ -2817,7 +2983,7 @@ void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
 
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
 		}
 	};
 
@@ -2858,7 +3024,7 @@ void CodeGenerator::operator()(MidoriExpression::ExtendAssign& extend_assign)
 
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
 		}
 	};
 
@@ -2891,7 +3057,7 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
 		}
 	};
 
@@ -2932,7 +3098,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_CELL, m_line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
 		}
 	};
 
@@ -3017,7 +3183,7 @@ void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 
 		void operator()(const MidoriExpression::NameContext::Cell& arg) const
 		{
-			m_self->EmitVariable(arg.m_index, OpCode::SET_CELL, m_line);
+			m_self->EmitVariable(arg.m_index, m_self->GetCellStoreOpcode(), m_line);
 		}
 	};
 
@@ -3987,6 +4153,10 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 	int line = async_expr.m_keyword.m_line;
 	int captured_count = async_expr.m_captured_count;
 	m_has_async = true;
+	if (m_builder.m_current_procedure_index < m_shared_cell_procedure_flags.size())
+	{
+		m_shared_cell_procedure_flags[m_builder.m_current_procedure_index] = true;
+	}
 
 	if (captured_count > MAX_CAPTURED_COUNT)
 	{
@@ -3997,6 +4167,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 	size_t prev_index = m_builder.m_current_procedure_index;
 	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
 	m_builder.m_procedures.emplace_back();
+	m_shared_cell_procedure_flags.push_back(true);
 
 	Visit(async_expr.m_expr);
 
@@ -4018,7 +4189,7 @@ void CodeGenerator::operator()(MidoriExpression::Async& async_expr)
 	EmitByte(OpCode::MAKE_CLOSURE, line);
 	EmitByte(static_cast<OpCode>(async_proc_index), line);
 
-	EmitByte(OpCode::BIND_CAPTURES, line);
+	EmitByte(OpCode::BIND_CAPTURES_SHARED, line);
 	EmitByte(static_cast<OpCode>(captured_count), line);
 
 	EmitByte(OpCode::SPAWN_ASYNC, line);
@@ -4028,6 +4199,10 @@ void CodeGenerator::operator()(MidoriExpression::Await& await_expr)
 {
 	int line = await_expr.m_keyword.m_line;
 	m_has_async = true;
+	if (m_builder.m_current_procedure_index < m_shared_cell_procedure_flags.size())
+	{
+		m_shared_cell_procedure_flags[m_builder.m_current_procedure_index] = true;
+	}
 	Visit(await_expr.m_expr);
 	EmitByte(OpCode::AWAIT_FUTURE, line);
 }
@@ -4423,9 +4598,11 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
+	const bool inherit_shared_cells = prev_index < m_shared_cell_procedure_flags.size() && m_shared_cell_procedure_flags[prev_index];
 	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
 	int specialized_proc_index = static_cast<int>(m_builder.m_current_procedure_index);
 	m_builder.m_procedures.emplace_back();
+	m_shared_cell_procedure_flags.push_back(inherit_shared_cells);
 	m_specialized_functions[signature] = specialized_proc_index;
 
 	Visit(generic_info.m_body);
@@ -4795,8 +4972,10 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
+	const bool closure_uses_shared_cells = CurrentProcedureUsesSharedCells();
 	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
 	m_builder.m_procedures.emplace_back();
+	m_shared_cell_procedure_flags.push_back(closure_uses_shared_cells);
 	Visit(body);
 
 	EmitByte(OpCode::RETURN, line);
@@ -4824,7 +5003,7 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 		EmitByte(OpCode::MAKE_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(closure_proc_index), line);
 
-		EmitByte(OpCode::BIND_CAPTURES, line);
+		EmitByte(closure_uses_shared_cells ? OpCode::BIND_CAPTURES_SHARED : OpCode::BIND_CAPTURES, line);
 		EmitByte(static_cast<OpCode>(captured_count), line);
 	}
 }

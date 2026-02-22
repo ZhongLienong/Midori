@@ -956,17 +956,29 @@ namespace Disassembler
 		case OpCode::BIND_CAPTURES:
 			ClosureCreateInstruction("BIND_CAPTURES", executable, proc_index, offset);
 			break;
+		case OpCode::BIND_CAPTURES_SHARED:
+			ClosureCreateInstruction("BIND_CAPTURES_SHARED", executable, proc_index, offset);
+			break;
 		case OpCode::MAKE_FUNCTION:
 			AllocateClosureInstruction("MAKE_FUNCTION", executable, proc_index, offset);
 			break;
 		case OpCode::DEFINE_GLOBAL:
 			GlobalVariableInstruction("DEFINE_GLOBAL", executable, proc_index, offset);
 			break;
+		case OpCode::DEFINE_GLOBAL_SHARED:
+			GlobalVariableInstruction("DEFINE_GLOBAL_SHARED", executable, proc_index, offset);
+			break;
 		case OpCode::GET_GLOBAL:
 			GlobalVariableInstruction("GET_GLOBAL", executable, proc_index, offset);
 			break;
+		case OpCode::GET_GLOBAL_SHARED:
+			GlobalVariableInstruction("GET_GLOBAL_SHARED", executable, proc_index, offset);
+			break;
 		case OpCode::SET_GLOBAL:
 			GlobalVariableInstruction("SET_GLOBAL", executable, proc_index, offset);
+			break;
+		case OpCode::SET_GLOBAL_SHARED:
+			GlobalVariableInstruction("SET_GLOBAL_SHARED", executable, proc_index, offset);
 			break;
 		case OpCode::GET_LOCAL:
 			LocalOrCellVariableInstruction("GET_LOCAL", executable, proc_index, offset);
@@ -1001,17 +1013,32 @@ namespace Disassembler
 		case OpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);
 			break;
+		case OpCode::GET_SHARED_CELL:
+			LocalOrCellVariableInstruction("GET_SHARED_CELL", executable, proc_index, offset);
+			break;
 		case OpCode::SET_CELL:
 			LocalOrCellVariableInstruction("SET_CELL", executable, proc_index, offset);
+			break;
+		case OpCode::SET_SHARED_CELL:
+			LocalOrCellVariableInstruction("SET_SHARED_CELL", executable, proc_index, offset);
 			break;
 		case OpCode::DEFINE_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("DEFINE_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
+		case OpCode::DEFINE_GLOBAL_SHARED_WIDE:
+			GlobalVariableWideInstruction("DEFINE_GLOBAL_SHARED_WIDE", executable, proc_index, offset);
+			break;
 		case OpCode::GET_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("GET_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
+		case OpCode::GET_GLOBAL_SHARED_WIDE:
+			GlobalVariableWideInstruction("GET_GLOBAL_SHARED_WIDE", executable, proc_index, offset);
+			break;
 		case OpCode::SET_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("SET_GLOBAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_GLOBAL_SHARED_WIDE:
+			GlobalVariableWideInstruction("SET_GLOBAL_SHARED_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_LOCAL_WIDE", executable, proc_index, offset);
@@ -1022,8 +1049,14 @@ namespace Disassembler
 		case OpCode::GET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);
 			break;
+		case OpCode::GET_SHARED_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("GET_SHARED_CELL_WIDE", executable, proc_index, offset);
+			break;
 		case OpCode::SET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("SET_CELL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_SHARED_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("SET_SHARED_CELL_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_MEMBER:
 			MemberInstruction("GET_MEMBER", executable, proc_index, offset);

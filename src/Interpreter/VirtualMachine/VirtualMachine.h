@@ -102,8 +102,9 @@ private:
 	bool m_ffi_table_initialized = false;
 
     // Cold Caches & Results
-    std::vector<MidoriCellValue*> m_cells_to_promote;
+    std::vector<MidoriTraceable*> m_cells_to_promote;
 	std::vector<MidoriTraceable*> m_static_closure_cache;
+	std::unordered_map<MidoriTraceable*, MidoriTraceable*> m_shared_cell_handle_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
     MidoriValue m_async_result;
 

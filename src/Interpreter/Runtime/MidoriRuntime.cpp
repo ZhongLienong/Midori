@@ -5,6 +5,14 @@ MidoriRuntime::MidoriRuntime(MidoriExecutable&& executable)
 	: m_executable(std::make_shared<MidoriExecutable>(std::move(executable)))
 {
 	m_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
+	if (m_executable->GetExecutionMode() == ExecutionMode::AsyncEnabled)
+	{
+		m_shared_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
+		for (MidoriSharedCellHandle::SharedState& shared_global : m_shared_globals)
+		{
+			shared_global = std::make_shared<MidoriSharedCellState>(MidoriValue());
+		}
+	}
 
 	if (m_executable->GetExecutionMode() != ExecutionMode::AsyncEnabled)
 	{
@@ -64,7 +72,49 @@ MidoriRuntime::GlobalVariables* MidoriRuntime::GetGlobalsPtr()
 	return &m_globals;
 }
 
-void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure)
+MidoriValue MidoriRuntime::GetSharedGlobal(int index) const
+{
+	const MidoriSharedCellHandle::SharedState& shared_cell = m_shared_globals[static_cast<size_t>(index)];
+	if (!shared_cell)
+	{
+		return MidoriValue();
+	}
+
+	std::lock_guard<std::mutex> lock(shared_cell->m_mutex);
+	return shared_cell->m_value;
+}
+
+void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value)
+{
+	const MidoriSharedCellHandle::SharedState& shared_cell = m_shared_globals[static_cast<size_t>(index)];
+	if (!shared_cell)
+	{
+		return;
+	}
+
+	std::lock_guard<std::mutex> lock(shared_cell->m_mutex);
+	shared_cell->m_value = value;
+}
+
+void MidoriRuntime::SetSharedGlobal(int index, MidoriValue value, const GarbageCollector& gc)
+{
+	SetSharedGlobal(index, DeepCopyForCrossVM(value, gc));
+}
+
+MidoriTraceable* MidoriRuntime::CreateManagedFuture(const MidoriClosure& closure)
+{
+	MidoriFuture future_val(MidoriClosure{ .m_cell_values = closure.m_cell_values, .m_proc_index = closure.m_proc_index });
+	MidoriTraceable* future_ptr = new MidoriTraceable(std::move(future_val));
+
+	{
+		std::lock_guard<std::mutex> lock(m_cross_vm_mutex);
+		m_cross_vm_objects.emplace_back(future_ptr);
+	}
+
+	return future_ptr;
+}
+
+void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, const MidoriClosure& closure, const GarbageCollector& gc)
 {
 	if (!future_state)
 	{
@@ -73,11 +123,14 @@ void MidoriRuntime::SpawnTask(MidoriFuture::FutureStateHandle future_state, cons
 
 	Task task;
 	task.m_future_state = std::move(future_state);
-	task.m_closure = MidoriClosure
+	task.m_closure.m_proc_index = closure.m_proc_index;
+
+	const int length = closure.m_cell_values.GetLength();
+	task.m_closure.m_cell_values = MidoriTuple(length);
+	for (int i = 0; i < length; i += 1)
 	{
-		.m_cell_values = closure.m_cell_values,
-		.m_proc_index = closure.m_proc_index
-	};
+		task.m_closure.m_cell_values[i] = DeepCopyForCrossVM(closure.m_cell_values[i], gc);
+	}
 
 #ifdef __EMSCRIPTEN__
 	// WASM: Run synchronously (no thread support)
@@ -260,6 +313,13 @@ MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const Ga
 		{
 			copied_closure.m_cell_values[i] = DeepCopyForCrossVM(original.m_cell_values[i], gc, copied_map, new_objects);
 		}
+		new_objects.emplace_back(result);
+	}
+	else if (src->IsTraceable<MidoriSharedCellHandle>())
+	{
+		MidoriSharedCellHandle& original = src->GetTraceable<MidoriSharedCellHandle>();
+		result = new MidoriTraceable(MidoriSharedCellHandle(original.m_state));
+		copied_map.emplace(src, result);
 		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriFuture>())

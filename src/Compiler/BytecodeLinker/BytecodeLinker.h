@@ -23,6 +23,7 @@ private:
 	std::vector<MidoriText> m_global_procedure_names;
 	std::vector<BytecodeStream> m_global_procedures;
 	std::vector<MidoriText> m_global_variables;
+	bool m_has_async = false;
 
 public:
 	BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name);

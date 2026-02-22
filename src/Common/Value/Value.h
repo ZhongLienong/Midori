@@ -5,6 +5,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <thread>
 #include <unordered_set>
@@ -404,10 +405,12 @@ struct MidoriFuture
 		MidoriValue m_result;
 		std::atomic<bool> m_completed{ false };
 		std::atomic<bool> m_has_error{ false };
+		mutable std::mutex m_result_mutex;
 
 		void SetResult(MidoriValue value);
 		void SetError();
 		MidoriValue Get();
+		MidoriValue PeekResult() const;
 		bool IsReady() const;
 		bool HasError() const;
 	};
@@ -433,6 +436,29 @@ struct MidoriFuture
 	FutureStateHandle GetState() const;
 };
 
+struct MidoriSharedCellState
+{
+	mutable std::mutex m_mutex;
+	MidoriValue m_value;
+
+	MidoriSharedCellState();
+	explicit MidoriSharedCellState(MidoriValue value);
+};
+
+struct MidoriSharedCellHandle
+{
+	using SharedState = std::shared_ptr<MidoriSharedCellState>;
+
+	SharedState m_state;
+
+	MidoriSharedCellHandle();
+	explicit MidoriSharedCellHandle(SharedState state);
+	explicit MidoriSharedCellHandle(MidoriValue value);
+
+	MidoriValue Get() const;
+	void Set(MidoriValue value);
+};
+
 class MidoriTraceable
 {
 public:
@@ -445,6 +471,7 @@ public:
 		Struct,
 		Union,
 		Cell,
+		SharedCellHandle,
 		Closure,
 		Future
 	};
@@ -459,6 +486,7 @@ private:
 		MidoriStruct m_struct;
 		MidoriUnion m_union;
 		MidoriCellValue m_cell;
+		MidoriSharedCellHandle m_shared_cell_handle;
 		MidoriClosure m_closure;
 		MidoriFuture m_future;
 	};
@@ -495,6 +523,10 @@ private:
 		else if constexpr (std::is_same_v<T, MidoriCellValue>)
 		{
 			return TraceableType::Cell;
+		}
+		else if constexpr (std::is_same_v<T, MidoriSharedCellHandle>)
+		{
+			return TraceableType::SharedCellHandle;
 		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
@@ -549,6 +581,10 @@ public:
 		{
 			return m_cell;
 		}
+		else if constexpr (std::is_same_v<T, MidoriSharedCellHandle>)
+		{
+			return m_shared_cell_handle;
+		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
 			return m_closure;
@@ -586,6 +622,7 @@ public:
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
 	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
+	MidoriTraceable(MidoriSharedCellHandle&& shared_cell_handle) noexcept;
 	MidoriTraceable(MidoriClosure&& closure) noexcept;
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;

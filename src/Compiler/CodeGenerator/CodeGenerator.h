@@ -90,6 +90,7 @@ private:
 	TypeclassInstanceTypeMap m_class_instance_type_args;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 	std::unordered_map<std::string, size_t> m_ffi_indices;
+	std::vector<bool> m_shared_cell_procedure_flags{ false };
 
 	MidoriExecutable m_executable;
 	std::stack<LoopContext> m_loop_contexts;
@@ -129,6 +130,14 @@ private:
 	void EmitWordConstant(MidoriWord value, int line);
 
 	void EmitVariable(int variable_index, OpCode op, int line);
+
+	OpCode GetCellLoadOpcode() const;
+
+	OpCode GetCellStoreOpcode() const;
+
+	bool CurrentProcedureUsesSharedCells() const;
+
+	void RewriteGlobalsForAsyncModule(BytecodeModule& module) const;
 
 	void EmitCall(int arity, int line);
 
