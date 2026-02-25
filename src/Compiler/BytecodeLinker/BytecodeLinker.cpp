@@ -212,6 +212,10 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 				{
 					procedure.SetByteCode(offset, OpCode::SET_GLOBAL_SHARED);
 				}
+				else if (opcode == OpCode::CALL_GLOBAL)
+				{
+					procedure.SetByteCode(offset, OpCode::CALL_GLOBAL_SHARED);
+				}
 				else if (opcode == OpCode::DEFINE_GLOBAL_WIDE)
 				{
 					procedure.SetByteCode(offset, OpCode::DEFINE_GLOBAL_SHARED_WIDE);
@@ -223,6 +227,10 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 				else if (opcode == OpCode::SET_GLOBAL_WIDE)
 				{
 					procedure.SetByteCode(offset, OpCode::SET_GLOBAL_SHARED_WIDE);
+				}
+				else if (opcode == OpCode::CALL_GLOBAL_WIDE)
+				{
+					procedure.SetByteCode(offset, OpCode::CALL_GLOBAL_SHARED_WIDE);
 				}
 
 				offset += CalculateInstructionSize(opcode, procedure, offset);
@@ -658,7 +666,9 @@ void BytecodeLinker::PatchProcedure(
 			opcode == OpCode::SET_GLOBAL ||
 			opcode == OpCode::DEFINE_GLOBAL_SHARED ||
 			opcode == OpCode::GET_GLOBAL_SHARED ||
-			opcode == OpCode::SET_GLOBAL_SHARED
+			opcode == OpCode::SET_GLOBAL_SHARED ||
+			opcode == OpCode::CALL_GLOBAL ||
+			opcode == OpCode::CALL_GLOBAL_SHARED
 		)
 		{
 			const int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
@@ -684,7 +694,9 @@ void BytecodeLinker::PatchProcedure(
 			opcode == OpCode::SET_GLOBAL_WIDE ||
 			opcode == OpCode::DEFINE_GLOBAL_SHARED_WIDE ||
 			opcode == OpCode::GET_GLOBAL_SHARED_WIDE ||
-			opcode == OpCode::SET_GLOBAL_SHARED_WIDE
+			opcode == OpCode::SET_GLOBAL_SHARED_WIDE ||
+			opcode == OpCode::CALL_GLOBAL_WIDE ||
+			opcode == OpCode::CALL_GLOBAL_SHARED_WIDE
 		)
 		{
 			const int old_global_index = ReadWideOperand(procedure, offset);
@@ -757,6 +769,12 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::CALL_PROC_2:
 		case OpCode::CALL_PROC_3:
 			return 2;  // opcode + proc_index
+		case OpCode::CALL_GLOBAL:
+		case OpCode::CALL_GLOBAL_SHARED:
+			return 3;  // opcode + global_index + arity
+		case OpCode::CALL_GLOBAL_WIDE:
+		case OpCode::CALL_GLOBAL_SHARED_WIDE:
+			return 4;  // opcode + global_index(2) + arity
 		case OpCode::DEFINE_GLOBAL_WIDE:
 		case OpCode::GET_GLOBAL_WIDE:
 		case OpCode::SET_GLOBAL_WIDE:
@@ -765,6 +783,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::SET_GLOBAL_SHARED_WIDE:
 		case OpCode::GET_LOCAL_WIDE:
 		case OpCode::SET_LOCAL_WIDE:
+		case OpCode::GET_LOCAL_SHARED_WIDE:
+		case OpCode::SET_LOCAL_SHARED_WIDE:
 		case OpCode::GET_CELL_WIDE:
 		case OpCode::SET_CELL_WIDE:
 		case OpCode::GET_SHARED_CELL_WIDE:
@@ -781,6 +801,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::SET_GLOBAL_SHARED:
 		case OpCode::GET_LOCAL:
 		case OpCode::SET_LOCAL:
+		case OpCode::GET_LOCAL_SHARED:
+		case OpCode::SET_LOCAL_SHARED:
 		case OpCode::GET_CELL:
 		case OpCode::SET_CELL:
 		case OpCode::GET_SHARED_CELL:

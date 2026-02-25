@@ -27,6 +27,280 @@ namespace
 		size_t pos = name.size() - suffix.size();
 		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
 	}
+
+	bool ExpressionContainsAsyncOrAwait(const MidoriExpression& expression);
+
+	bool StatementContainsAsyncOrAwait(const MidoriStatement& statement)
+	{
+		return std::visit
+		(
+			[](const auto& node) -> bool
+			{
+				using StatementNode = std::decay_t<decltype(node)>;
+				if constexpr (std::is_same_v<StatementNode, MidoriStatement::ExpressionStatement>)
+				{
+					return node.m_expr && ExpressionContainsAsyncOrAwait(*node.m_expr);
+				}
+				else if constexpr (std::is_same_v<StatementNode, MidoriStatement::VariableDefinition>)
+				{
+					return node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value);
+				}
+				else if constexpr (std::is_same_v<StatementNode, MidoriStatement::TupleDefinition>)
+				{
+					return node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value);
+				}
+				else if constexpr (std::is_same_v<StatementNode, MidoriStatement::FunctionDefinition>)
+				{
+					return node.m_body && ExpressionContainsAsyncOrAwait(*node.m_body);
+				}
+				else if constexpr (std::is_same_v<StatementNode, MidoriStatement::Class>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_methods,
+						[](const std::unique_ptr<MidoriStatement>& method)
+						{
+							return method && StatementContainsAsyncOrAwait(*method);
+						}
+					);
+				}
+				else if constexpr (std::is_same_v<StatementNode, MidoriStatement::Instance>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_methods,
+						[](const std::unique_ptr<MidoriStatement>& method)
+						{
+							return method && StatementContainsAsyncOrAwait(*method);
+						}
+					);
+				}
+				else
+				{
+					return false;
+				}
+			},
+			*statement
+		);
+	}
+
+	bool ExpressionContainsAsyncOrAwait(const MidoriExpression& expression)
+	{
+		return std::visit
+		(
+			[](const auto& node) -> bool
+			{
+				using ExpressionNode = std::decay_t<decltype(node)>;
+				if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Async> || std::is_same_v<ExpressionNode, MidoriExpression::Await>)
+				{
+					return true;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::As>)
+				{
+					return node.m_expr && ExpressionContainsAsyncOrAwait(*node.m_expr);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Binary>)
+				{
+					return (node.m_left && ExpressionContainsAsyncOrAwait(*node.m_left))
+						|| (node.m_right && ExpressionContainsAsyncOrAwait(*node.m_right));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Group>)
+				{
+					return node.m_expr_in && ExpressionContainsAsyncOrAwait(*node.m_expr_in);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Tuple>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_elements,
+						[](const std::unique_ptr<MidoriExpression>& element)
+						{
+							return element && ExpressionContainsAsyncOrAwait(*element);
+						}
+					);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::UnaryPrefix> || std::is_same_v<ExpressionNode, MidoriExpression::UnarySuffix>)
+				{
+					return node.m_expr && ExpressionContainsAsyncOrAwait(*node.m_expr);
+				}
+				else if constexpr
+				(
+					std::is_same_v<ExpressionNode, MidoriExpression::Assignment>
+					|| std::is_same_v<ExpressionNode, MidoriExpression::AppendAssign>
+					|| std::is_same_v<ExpressionNode, MidoriExpression::ExtendAssign>
+					|| std::is_same_v<ExpressionNode, MidoriExpression::PrependAssign>
+					|| std::is_same_v<ExpressionNode, MidoriExpression::CompoundAssign>
+				)
+				{
+					return node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Call>)
+				{
+					const bool callee_contains_async = node.m_callee && ExpressionContainsAsyncOrAwait(*node.m_callee);
+					const bool argument_contains_async = std::ranges::any_of
+					(
+						node.m_arguments,
+						[](const std::unique_ptr<MidoriExpression>& argument)
+						{
+							return argument && ExpressionContainsAsyncOrAwait(*argument);
+						}
+					);
+
+					return callee_contains_async || argument_contains_async;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Function>)
+				{
+					return node.m_body && ExpressionContainsAsyncOrAwait(*node.m_body);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Construct>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_params,
+						[](const std::unique_ptr<MidoriExpression>& argument)
+						{
+							return argument && ExpressionContainsAsyncOrAwait(*argument);
+						}
+					);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::IfElse>)
+				{
+					return (node.m_condition && ExpressionContainsAsyncOrAwait(*node.m_condition))
+						|| (node.m_true_branch && ExpressionContainsAsyncOrAwait(*node.m_true_branch))
+						|| (node.m_else_branch && ExpressionContainsAsyncOrAwait(*node.m_else_branch));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::MemberAccess>)
+				{
+					return node.m_struct && ExpressionContainsAsyncOrAwait(*node.m_struct);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::MemberAssignment>)
+				{
+					return (node.m_struct && ExpressionContainsAsyncOrAwait(*node.m_struct))
+						|| (node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Array>)
+				{
+					return std::ranges::any_of
+					(
+						node.m_elems,
+						[](const std::unique_ptr<MidoriExpression>& element)
+						{
+							return element && ExpressionContainsAsyncOrAwait(*element);
+						}
+					);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::IndexAccess>)
+				{
+					const bool array_contains_async = node.m_arr_var && ExpressionContainsAsyncOrAwait(*node.m_arr_var);
+					const bool index_contains_async = std::ranges::any_of
+					(
+						node.m_indices,
+						[](const std::unique_ptr<MidoriExpression>& index)
+						{
+							return index && ExpressionContainsAsyncOrAwait(*index);
+						}
+					);
+
+					return array_contains_async || index_contains_async;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::IndexAssignment>)
+				{
+					const bool array_contains_async = node.m_arr_var && ExpressionContainsAsyncOrAwait(*node.m_arr_var);
+					const bool index_contains_async = std::ranges::any_of
+					(
+						node.m_indices,
+						[](const std::unique_ptr<MidoriExpression>& index)
+						{
+							return index && ExpressionContainsAsyncOrAwait(*index);
+						}
+					);
+					const bool value_contains_async = node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value);
+
+					return array_contains_async || index_contains_async || value_contains_async;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::ArrayComprehension>)
+				{
+					return (node.m_transform_expr && ExpressionContainsAsyncOrAwait(*node.m_transform_expr))
+						|| (node.m_range && ExpressionContainsAsyncOrAwait(*node.m_range));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::RangeBinary>)
+				{
+					return (node.m_start && ExpressionContainsAsyncOrAwait(*node.m_start))
+						|| (node.m_end && ExpressionContainsAsyncOrAwait(*node.m_end));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::RangeTernary>)
+				{
+					return (node.m_start && ExpressionContainsAsyncOrAwait(*node.m_start))
+						|| (node.m_step && ExpressionContainsAsyncOrAwait(*node.m_step))
+						|| (node.m_end && ExpressionContainsAsyncOrAwait(*node.m_end));
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Block>)
+				{
+					const bool statement_contains_async = std::ranges::any_of
+					(
+						node.m_stmts,
+						[](const std::unique_ptr<MidoriStatement>& statement)
+						{
+							return statement && StatementContainsAsyncOrAwait(*statement);
+						}
+					);
+					const bool final_expression_contains_async = node.m_final_expr.has_value()
+						&& node.m_final_expr.value()
+						&& ExpressionContainsAsyncOrAwait(*node.m_final_expr.value());
+
+					return statement_contains_async || final_expression_contains_async;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Match>)
+				{
+					const bool argument_contains_async = node.m_arg_expr && ExpressionContainsAsyncOrAwait(*node.m_arg_expr);
+					const bool case_contains_async = std::ranges::any_of
+					(
+						node.m_cases,
+						[](const std::unique_ptr<MidoriExpression>& case_expression)
+						{
+							return case_expression && ExpressionContainsAsyncOrAwait(*case_expression);
+						}
+					);
+
+					return argument_contains_async || case_contains_async;
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Case> || std::is_same_v<ExpressionNode, MidoriExpression::Default>)
+				{
+					return node.m_expr && ExpressionContainsAsyncOrAwait(*node.m_expr);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Loop>)
+				{
+					return node.m_body && ExpressionContainsAsyncOrAwait(*node.m_body);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::Return> || std::is_same_v<ExpressionNode, MidoriExpression::Break>)
+				{
+					return node.m_value && ExpressionContainsAsyncOrAwait(*node.m_value);
+				}
+				else if constexpr (std::is_same_v<ExpressionNode, MidoriExpression::For>)
+				{
+					return (node.m_range && ExpressionContainsAsyncOrAwait(*node.m_range))
+						|| (node.m_body && ExpressionContainsAsyncOrAwait(*node.m_body));
+				}
+				else
+				{
+					return false;
+				}
+			},
+			*expression
+		);
+	}
+
+	bool ProgramContainsAsyncOrAwait(const MidoriProgramTree& program)
+	{
+		return std::ranges::any_of
+		(
+			program,
+			[](const std::unique_ptr<MidoriStatement>& statement)
+			{
+				return statement && StatementContainsAsyncOrAwait(*statement);
+			}
+		);
+	}
 }
 
 CodeGenerator::BytecodeBuilder CodeGenerator::BytecodeBuilder::EmitByte(OpCode byte, int line) &&
@@ -183,6 +457,15 @@ void CodeGenerator::EmitWordConstant(MidoriWord value, int line)
 
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 {
+	if (op == OpCode::GET_LOCAL && CurrentProcedureUsesSharedCells())
+	{
+		op = OpCode::GET_LOCAL_SHARED;
+	}
+	else if (op == OpCode::SET_LOCAL && CurrentProcedureUsesSharedCells())
+	{
+		op = OpCode::SET_LOCAL_SHARED;
+	}
+
 	if (variable_index >= 0 && variable_index <= 3)
 	{
 		if (op == OpCode::GET_LOCAL)
@@ -227,6 +510,12 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 		break;
 	case OpCode::SET_LOCAL:
 		wide_op = OpCode::SET_LOCAL_WIDE;
+		break;
+	case OpCode::GET_LOCAL_SHARED:
+		wide_op = OpCode::GET_LOCAL_SHARED_WIDE;
+		break;
+	case OpCode::SET_LOCAL_SHARED:
+		wide_op = OpCode::SET_LOCAL_SHARED_WIDE;
 		break;
 	case OpCode::GET_CELL:
 		wide_op = OpCode::GET_CELL_WIDE;
@@ -336,6 +625,14 @@ void CodeGenerator::RewriteGlobalsForAsyncModule(BytecodeModule& module) const
 			case OpCode::CALL_PROC_3:
 				advance = 2;
 				break;
+			case OpCode::CALL_GLOBAL:
+				procedure.SetByteCode(offset, OpCode::CALL_GLOBAL_SHARED);
+				advance = 3;
+				break;
+			case OpCode::CALL_GLOBAL_WIDE:
+				procedure.SetByteCode(offset, OpCode::CALL_GLOBAL_SHARED_WIDE);
+				advance = 4;
+				break;
 			case OpCode::DEFINE_GLOBAL_WIDE:
 				procedure.SetByteCode(offset, OpCode::DEFINE_GLOBAL_SHARED_WIDE);
 				advance = 3;
@@ -350,6 +647,8 @@ void CodeGenerator::RewriteGlobalsForAsyncModule(BytecodeModule& module) const
 				break;
 			case OpCode::GET_LOCAL_WIDE:
 			case OpCode::SET_LOCAL_WIDE:
+			case OpCode::GET_LOCAL_SHARED_WIDE:
+			case OpCode::SET_LOCAL_SHARED_WIDE:
 			case OpCode::GET_CELL_WIDE:
 			case OpCode::SET_CELL_WIDE:
 			case OpCode::GET_SHARED_CELL_WIDE:
@@ -368,11 +667,19 @@ void CodeGenerator::RewriteGlobalsForAsyncModule(BytecodeModule& module) const
 				procedure.SetByteCode(offset, OpCode::SET_GLOBAL_SHARED);
 				advance = 2;
 				break;
+			case OpCode::CALL_GLOBAL_SHARED:
+				advance = 3;
+				break;
+			case OpCode::CALL_GLOBAL_SHARED_WIDE:
+				advance = 4;
+				break;
 			case OpCode::MAKE_CLOSURE:
 			case OpCode::MAKE_FUNCTION:
 			case OpCode::LOAD_STRING:
 			case OpCode::GET_LOCAL:
 			case OpCode::SET_LOCAL:
+			case OpCode::GET_LOCAL_SHARED:
+			case OpCode::SET_LOCAL_SHARED:
 			case OpCode::GET_CELL:
 			case OpCode::SET_CELL:
 			case OpCode::GET_SHARED_CELL:
@@ -454,6 +761,27 @@ void CodeGenerator::EmitCallProc(int proc_index, int arity, int line)
 
 	EmitByte(OpCode::CALL_PROC, line);
 	EmitByte(static_cast<OpCode>(proc_index), line);
+	EmitByte(static_cast<OpCode>(arity), line);
+}
+
+void CodeGenerator::EmitCallGlobal(int global_index, int arity, int line)
+{
+	if (global_index > MAX_VARIABLES)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many global variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
+		return;
+	}
+
+	if (global_index <= MAX_LOCAL_VARIABLES)
+	{
+		EmitByte(OpCode::CALL_GLOBAL, line);
+		EmitByte(static_cast<OpCode>(global_index), line);
+		EmitByte(static_cast<OpCode>(arity), line);
+		return;
+	}
+
+	EmitByte(OpCode::CALL_GLOBAL_WIDE, line);
+	EmitTwoBytes(global_index >> 8, global_index & 0xFF, line);
 	EmitByte(static_cast<OpCode>(arity), line);
 }
 
@@ -1409,6 +1737,10 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &
 MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 {
 	EmitInstanceMethodDefinitions();
+	if (!m_shared_cell_procedure_flags.empty())
+	{
+		m_shared_cell_procedure_flags[0u] = ProgramContainsAsyncOrAwait(m_program_tree);
+	}
 
 	struct ExportTracker
 	{
@@ -2807,7 +3139,8 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		);
 
-		bool is_optimized_call = false;
+		bool can_emit_call_global = false;
+		int call_global_index = -1;
 
 		std::optional<size_t> ffi_index_opt = std::nullopt;
 		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::NameAccess>())
@@ -2819,7 +3152,35 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		}
 
-		if (!ffi_index_opt.has_value() && !is_optimized_call)
+		if (!ffi_index_opt.has_value() && !call.m_is_foreign && !call.m_is_tail_call)
+		{
+			if (resolved_method_name.has_value())
+			{
+				std::optional<int> resolved_global_index = ResolveResolvedNameGlobalIndex(resolved_method_name.value(), line);
+				if (!resolved_global_index.has_value())
+				{
+					return;
+				}
+
+				can_emit_call_global = true;
+				call_global_index = resolved_global_index.value();
+			}
+			else if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+			{
+				const MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+				if (std::holds_alternative<MidoriExpression::NameContext::Global>(callee_name.m_name_ctx))
+				{
+					std::unordered_map<std::string, int>::iterator global_it = m_global_variables.find(callee_name.m_name.m_lexeme);
+					if (global_it != m_global_variables.end())
+					{
+						can_emit_call_global = true;
+						call_global_index = global_it->second;
+					}
+				}
+			}
+		}
+
+		if (!ffi_index_opt.has_value() && !can_emit_call_global)
 		{
 			if (resolved_method_name.has_value())
 			{
@@ -2834,11 +3195,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		}
 
-		if (is_optimized_call)
-		{
-			// Already emitted CALL_PROC
-		}
-		else if (call.m_is_foreign)
+		if (call.m_is_foreign)
 		{
 			uint8_t return_type_tag = 0;
 			if (call.m_type_data->IsType<MidoriType::TextType>())
@@ -2863,6 +3220,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 				EmitByte(static_cast<OpCode>(arity), line);
 				EmitByte(static_cast<OpCode>(return_type_tag), line);
 			}
+		}
+		else if (can_emit_call_global)
+		{
+			EmitCallGlobal(call_global_index, arity, line);
 		}
 		else if (call.m_is_tail_call)
 		{
@@ -4598,7 +4959,9 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
-	const bool inherit_shared_cells = prev_index < m_shared_cell_procedure_flags.size() && m_shared_cell_procedure_flags[prev_index];
+	const bool parent_uses_shared_cells = prev_index < m_shared_cell_procedure_flags.size() && m_shared_cell_procedure_flags[prev_index];
+	const bool body_contains_async = generic_info.m_body && ExpressionContainsAsyncOrAwait(*generic_info.m_body);
+	const bool inherit_shared_cells = parent_uses_shared_cells || body_contains_async;
 	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
 	int specialized_proc_index = static_cast<int>(m_builder.m_current_procedure_index);
 	m_builder.m_procedures.emplace_back();
@@ -4726,7 +5089,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 	return selected.m_resolved_name;
 }
 
-bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, int line)
+std::optional<int> CodeGenerator::ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line)
 {
 	size_t at_pos = resolved_name.find(ModuleSeparator);
 	if (at_pos != std::string::npos)
@@ -4737,21 +5100,30 @@ bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, 
 		int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
 		if (import_placeholder < 0)
 		{
-			return false;
+			return std::nullopt;
 		}
-
-		EmitVariable(import_placeholder, OpCode::GET_GLOBAL, line);
-		return true;
+		return import_placeholder;
 	}
 
 	std::unordered_map<std::string, int>::iterator global_it = m_global_variables.find(resolved_name);
 	if (global_it == m_global_variables.end())
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Resolved symbol '{}' not found in globals.", resolved_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	return global_it->second;
+}
+
+bool CodeGenerator::EmitResolvedNameGetGlobal(const std::string& resolved_name, int line)
+{
+	std::optional<int> global_index = ResolveResolvedNameGlobalIndex(resolved_name, line);
+	if (!global_index.has_value())
+	{
 		return false;
 	}
 
-	EmitVariable(global_it->second, OpCode::GET_GLOBAL, line);
+	EmitVariable(global_index.value(), OpCode::GET_GLOBAL, line);
 	return true;
 }
 
@@ -4972,7 +5344,7 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
-	const bool closure_uses_shared_cells = CurrentProcedureUsesSharedCells();
+	const bool closure_uses_shared_cells = CurrentProcedureUsesSharedCells() || (body && ExpressionContainsAsyncOrAwait(*body));
 	m_builder.m_current_procedure_index = m_builder.m_procedures.size();
 	m_builder.m_procedures.emplace_back();
 	m_shared_cell_procedure_flags.push_back(closure_uses_shared_cells);

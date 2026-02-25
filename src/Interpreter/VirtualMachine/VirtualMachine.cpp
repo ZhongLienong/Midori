@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <execution>
 #include <format>
@@ -40,6 +41,7 @@ VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = m_owned_executable.get();
+	m_shared_cell_mode_enabled = m_executable != nullptr && m_executable->GetExecutionMode() == ExecutionMode::AsyncEnabled;
 	m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
 	m_global_vars = &m_owned_globals;
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
@@ -56,6 +58,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime) noexcept
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = &runtime.GetExecutable();
+	m_shared_cell_mode_enabled = m_executable != nullptr && m_executable->GetExecutionMode() == ExecutionMode::AsyncEnabled;
 	m_global_vars = runtime.GetGlobalsPtr();
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
@@ -71,6 +74,7 @@ VirtualMachine::VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entr
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = &runtime.GetExecutable();
+	m_shared_cell_mode_enabled = m_executable != nullptr && m_executable->GetExecutionMode() == ExecutionMode::AsyncEnabled;
 	m_global_vars = runtime.GetGlobalsPtr();
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
@@ -92,6 +96,7 @@ int VirtualMachine::ExecuteTask(const MidoriClosure& entry_closure) noexcept
 
 	m_curr_closure_traceable = nullptr;
 	m_curr_environment = nullptr;
+	m_frame_has_shared_locals = false;
 	m_async_result = MidoriValue();
 
 	m_cells_to_promote.clear();
@@ -177,6 +182,11 @@ void VirtualMachine::InitializeStacks() noexcept
 	m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(s_value_stack_size * sizeof(MidoriValue)));
 	m_call_stack_begin = static_cast<CallFrame*>(std::malloc(s_call_stack_size * sizeof(CallFrame)));
 #endif
+	m_call_frame_shared_flags = static_cast<uint8_t*>(std::malloc(s_call_stack_size * sizeof(uint8_t)));
+	if (m_call_frame_shared_flags)
+	{
+		std::memset(m_call_frame_shared_flags, 0, s_call_stack_size * sizeof(uint8_t));
+	}
 
 	m_value_stack_base_pointer = m_value_stack_begin;
 	m_value_stack_pointer = m_value_stack_base_pointer;
@@ -206,6 +216,7 @@ VirtualMachine::~VirtualMachine()
 	std::free(m_value_stack_begin);
 	std::free(m_call_stack_begin);
 #endif
+	std::free(m_call_frame_shared_flags);
 }
 
 int VirtualMachine::TerminateExecution(std::string_view message) noexcept
@@ -496,6 +507,8 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 int VirtualMachine::ExecuteLoop() noexcept
 {
 	InstructionPointer ip = m_instruction_pointer;
+	const bool shared_cell_mode_enabled = m_shared_cell_mode_enabled;
+
 	while (true)
 	{
 
@@ -2191,6 +2204,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
 
 			ip = GetProcEntry(closure.m_proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
@@ -2218,6 +2235,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
 
 			ip = GetProcEntry(closure.m_proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
@@ -2233,6 +2254,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			// Static functions have no captures, so no environment needed
 			m_curr_environment = nullptr;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
 			ip = GetProcEntry(proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
@@ -2250,7 +2275,143 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			// Static functions have no captures, so no environment needed
 			m_curr_environment = nullptr;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
 			ip = GetProcEntry(proc_index);
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_GLOBAL:
+		{
+			int global_idx = ReadGlobalVariable(ip);
+			int arity = static_cast<int>(ReadByte(ip));
+			MidoriValue callable = (*m_global_vars)[global_idx];
+
+#if MIDORI_DEBUG_FULL
+			if (!callable.IsPointer())
+			{
+				m_instruction_pointer = ip;
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
+			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
+
+			ip = GetProcEntry(closure.m_proc_index);
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_GLOBAL_SHARED:
+		{
+			int global_idx = ReadGlobalVariable(ip);
+			int arity = static_cast<int>(ReadByte(ip));
+			MidoriValue callable;
+			if (m_runtime)
+			{
+				callable = m_runtime->GetSharedGlobal(global_idx);
+			}
+			else
+			{
+				callable = (*m_global_vars)[global_idx];
+			}
+
+#if MIDORI_DEBUG_FULL
+			if (!callable.IsPointer())
+			{
+				m_instruction_pointer = ip;
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
+			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
+
+			ip = GetProcEntry(closure.m_proc_index);
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_GLOBAL_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte(ip));
+			int low_byte = static_cast<int>(ReadByte(ip));
+			int global_idx = (high_byte << 8) | low_byte;
+			int arity = static_cast<int>(ReadByte(ip));
+			MidoriValue callable = (*m_global_vars)[global_idx];
+
+#if MIDORI_DEBUG_FULL
+			if (!callable.IsPointer())
+			{
+				m_instruction_pointer = ip;
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
+			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
+
+			ip = GetProcEntry(closure.m_proc_index);
+			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+
+			break;
+		}
+		case OpCode::CALL_GLOBAL_SHARED_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte(ip));
+			int low_byte = static_cast<int>(ReadByte(ip));
+			int global_idx = (high_byte << 8) | low_byte;
+			int arity = static_cast<int>(ReadByte(ip));
+			MidoriValue callable;
+			if (m_runtime)
+			{
+				callable = m_runtime->GetSharedGlobal(global_idx);
+			}
+			else
+			{
+				callable = (*m_global_vars)[global_idx];
+			}
+
+#if MIDORI_DEBUG_FULL
+			if (!callable.IsPointer())
+			{
+				m_instruction_pointer = ip;
+				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+			}
+#endif
+
+			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+
+			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
+			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
+
+			ip = GetProcEntry(closure.m_proc_index);
 			m_value_stack_base_pointer = m_value_stack_pointer - arity;
 
 			break;
@@ -2278,6 +2439,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
 			m_curr_environment = &closure.m_cell_values;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = false;
+			}
 
 			// Jump to the start of the function without creating a new call frame
 			ip = GetProcEntry(closure.m_proc_index);
@@ -2394,9 +2559,21 @@ int VirtualMachine::ExecuteLoop() noexcept
 			auto to_shared_cell_handle = [this](MidoriValue value) -> MidoriValue
 			{
 				MidoriTraceable* ptr = value.GetPointer();
+
+				auto make_shared_handle = [this](MidoriValue source_value) -> MidoriValue
+				{
+					MidoriValue shared_value = source_value;
+					if (m_runtime != nullptr)
+					{
+						shared_value = m_runtime->DeepCopyForCrossVM(source_value, m_gc);
+					}
+
+					return AllocateTraceable(MidoriSharedCellHandle(shared_value));
+				};
+
 				if (ptr == nullptr || !m_gc.Contains(ptr))
 				{
-					return AllocateTraceable(MidoriSharedCellHandle(value));
+					return make_shared_handle(value);
 				}
 
 				if (ptr->IsTraceable<MidoriSharedCellHandle>())
@@ -2406,7 +2583,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 				if (!ptr->IsTraceable<MidoriCellValue>())
 				{
-					return AllocateTraceable(MidoriSharedCellHandle(value));
+					return make_shared_handle(value);
 				}
 
 				std::unordered_map<MidoriTraceable*, MidoriTraceable*>::const_iterator cached_it = m_shared_cell_handle_cache.find(ptr);
@@ -2416,9 +2593,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 
 				MidoriValue cell_value = ptr->GetTraceable<MidoriCellValue>().GetValue();
-				MidoriTraceable* shared_handle = AllocateTraceable(MidoriSharedCellHandle(cell_value));
+				MidoriValue shared_cell = make_shared_handle(cell_value);
+				MidoriTraceable* shared_handle = shared_cell.GetPointer();
 				m_shared_cell_handle_cache.emplace(ptr, shared_handle);
-				return MidoriValue(shared_handle);
+				return shared_cell;
 			};
 
 			// Copy parent environment (already shared handles in shared-capture context).
@@ -2426,16 +2604,57 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				for (int i = 0; i < parent_count; i += 1)
 				{
-					new_env[i] = to_shared_cell_handle((*m_curr_environment)[i]);
+					MidoriValue parent_value = (*m_curr_environment)[i];
+					MidoriTraceable* parent_ptr = parent_value.GetPointer();
+					if (parent_ptr != nullptr && m_gc.Contains(parent_ptr) && parent_ptr->IsTraceable<MidoriCellValue>())
+					{
+						parent_value = to_shared_cell_handle(parent_value);
+					}
+					new_env[i] = parent_value;
 				}
 			}
 
 			// Capture local variables by shared handle to preserve by-reference semantics across tasks.
 			for (int i = 0; i < local_capture_count; i += 1)
 			{
-				MidoriValue& value = *(m_value_stack_base_pointer + i);
-				MidoriValue shared_cell = to_shared_cell_handle(value);
+				MidoriValue& local_slot = *(m_value_stack_base_pointer + i);
+				MidoriValue original_local_value = local_slot;
+				MidoriValue shared_cell = to_shared_cell_handle(original_local_value);
 				new_env[parent_count + i] = shared_cell;
+
+				// Avoid clobbering the in-flight closure value currently on top of stack.
+				if (&local_slot != (m_value_stack_pointer - 1))
+				{
+					local_slot = shared_cell;
+				}
+
+				// Keep already-pushed temporaries aligned with the promoted shared value.
+				MidoriTraceable* original_ptr = original_local_value.GetPointer();
+				if (original_ptr != nullptr)
+				{
+					MidoriTraceable* shared_ptr = shared_cell.GetPointer();
+					if (shared_ptr != nullptr && m_gc.Contains(shared_ptr) && shared_ptr->IsTraceable<MidoriSharedCellHandle>())
+					{
+						MidoriValue shared_value = shared_ptr->GetTraceable<MidoriSharedCellHandle>().Get();
+						for (MidoriValue* stack_slot = m_value_stack_base_pointer; stack_slot < m_value_stack_pointer; stack_slot += 1)
+						{
+							if (stack_slot == &local_slot)
+							{
+								continue;
+							}
+
+							MidoriTraceable* stack_ptr = stack_slot->GetPointer();
+							if (stack_ptr == original_ptr)
+							{
+								*stack_slot = shared_value;
+							}
+						}
+					}
+				}
+			}
+			if (local_capture_count > 0)
+			{
+				m_frame_has_shared_locals = true;
 			}
 
 			closure_env = std::move(new_env);
@@ -2511,10 +2730,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SET_LOCAL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& var = *(m_value_stack_base_pointer + offset);
-
-			MidoriValue& value = Peek();
-			var = value;
+			*(m_value_stack_base_pointer + offset) = Peek();
 			break;
 		}
 		case OpCode::GET_LOCAL_0:
@@ -2532,10 +2748,55 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SET_LOCAL_3:
 		{
 			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::SET_LOCAL_0);
-			MidoriValue& var = *(m_value_stack_base_pointer + offset);
+			*(m_value_stack_base_pointer + offset) = Peek();
+			break;
+		}
+		case OpCode::GET_LOCAL_SHARED:
+		{
+			int offset = static_cast<int>(ReadByte(ip));
+			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			if (!m_frame_has_shared_locals)
+			{
+				Push(slot);
+				break;
+			}
 
-			MidoriValue& value = Peek();
-			var = value;
+			MidoriTraceable* ptr = slot.GetPointer();
+			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriSharedCellHandle>())
+			{
+				Push(ptr->GetTraceable<MidoriSharedCellHandle>().Get());
+			}
+			else
+			{
+				Push(slot);
+			}
+			break;
+		}
+		case OpCode::SET_LOCAL_SHARED:
+		{
+			int offset = static_cast<int>(ReadByte(ip));
+			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			MidoriValue value = Peek();
+			if (!m_frame_has_shared_locals)
+			{
+				slot = value;
+				break;
+			}
+
+			MidoriTraceable* ptr = slot.GetPointer();
+			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriSharedCellHandle>())
+			{
+				MidoriValue shared_value = value;
+				if (m_runtime != nullptr)
+				{
+					shared_value = m_runtime->DeepCopyForCrossVM(value, m_gc);
+				}
+				ptr->GetTraceable<MidoriSharedCellHandle>().Set(shared_value);
+			}
+			else
+			{
+				slot = value;
+			}
 			break;
 		}
 		case OpCode::GET_CELL:
@@ -2570,7 +2831,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			MidoriSharedCellHandle& shared_cell = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriSharedCellHandle>();
-			shared_cell.Set(Peek());
+			MidoriValue value = Peek();
+			if (m_runtime != nullptr)
+			{
+				value = m_runtime->DeepCopyForCrossVM(value, m_gc);
+			}
+			shared_cell.Set(value);
 			break;
 		}
 		case OpCode::DEFINE_GLOBAL_WIDE:
@@ -2659,9 +2925,59 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& var = *(m_value_stack_base_pointer + offset);
-			MidoriValue& value = Peek();
-			var = value;
+			*(m_value_stack_base_pointer + offset) = Peek();
+			break;
+		}
+		case OpCode::GET_LOCAL_SHARED_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte(ip));
+			int low_byte = static_cast<int>(ReadByte(ip));
+			int offset = (high_byte << 8) | low_byte;
+			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			if (!m_frame_has_shared_locals)
+			{
+				Push(slot);
+				break;
+			}
+
+			MidoriTraceable* ptr = slot.GetPointer();
+			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriSharedCellHandle>())
+			{
+				Push(ptr->GetTraceable<MidoriSharedCellHandle>().Get());
+			}
+			else
+			{
+				Push(slot);
+			}
+			break;
+		}
+		case OpCode::SET_LOCAL_SHARED_WIDE:
+		{
+			int high_byte = static_cast<int>(ReadByte(ip));
+			int low_byte = static_cast<int>(ReadByte(ip));
+			int offset = (high_byte << 8) | low_byte;
+			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			MidoriValue value = Peek();
+			if (!m_frame_has_shared_locals)
+			{
+				slot = value;
+				break;
+			}
+
+			MidoriTraceable* ptr = slot.GetPointer();
+			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriSharedCellHandle>())
+			{
+				MidoriValue shared_value = value;
+				if (m_runtime != nullptr)
+				{
+					shared_value = m_runtime->DeepCopyForCrossVM(value, m_gc);
+				}
+				ptr->GetTraceable<MidoriSharedCellHandle>().Set(shared_value);
+			}
+			else
+			{
+				slot = value;
+			}
 			break;
 		}
 		case OpCode::GET_CELL_WIDE:
@@ -2697,7 +3013,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
 			MidoriSharedCellHandle& shared_cell = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriSharedCellHandle>();
-			shared_cell.Set(Peek());
+			MidoriValue value = Peek();
+			if (m_runtime != nullptr)
+			{
+				value = m_runtime->DeepCopyForCrossVM(value, m_gc);
+			}
+			shared_cell.Set(value);
 			break;
 		}
 		case OpCode::GET_MEMBER:
@@ -2737,7 +3058,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::POP_LOCAL_SCOPE:
 		{
 			// on scope exit, promote all cells to heap
-			PromoteCells();
+			MaybePromoteCells();
 
 			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
 			break;
@@ -2750,7 +3071,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::POP_BLOCK_SCOPE:
 		{
 			// on scope exit, promote all cells to heap
-			PromoteCells();
+			MaybePromoteCells();
 
 			MidoriValue final_value = Pop();
 			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
@@ -2767,10 +3088,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::RETURN:
 		{
 			// on return, promote all cells to heap
-			PromoteCells();
+			MaybePromoteCells();
 
 			MidoriValue value = Pop();
 			--m_call_stack_pointer;
+			const size_t frame_index = static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin);
 			const CallFrame& frame = *m_call_stack_pointer;
 
 			// Callee's m_value_stack_base_pointer points to where args started, which is our return point
@@ -2780,6 +3102,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			m_value_stack_pointer = return_point;
 			ip = frame.m_return_ip;
 			m_curr_environment = frame.m_closure_ptr;
+			if (shared_cell_mode_enabled)
+			{
+				m_frame_has_shared_locals = m_call_frame_shared_flags[frame_index] != 0;
+			}
 
 			Push(value);
 
@@ -2804,7 +3130,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SPAWN_ASYNC:
 		{
 			// Ensure captured locals live on the heap before worker threads read them.
-			PromoteCells();
+			MaybePromoteCells();
 
 			MidoriValue callable = Pop();
 #if MIDORI_DEBUG_FULL

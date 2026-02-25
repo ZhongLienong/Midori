@@ -1,0 +1,25 @@
+module DebugSharedCapture
+
+import { <IO> }
+
+def result = {
+    def x = 0;
+
+    defun inc() : Int => {
+        x = x + 1;
+        x
+    };
+
+    def task = async {
+        def _ = inc();
+        x
+    };
+
+    def async_value = await task;
+    def sync_value = x;
+    IO::PrintLine(async_value as Text);
+    IO::PrintLine(sync_value as Text);
+    0
+};
+
+IO::PrintLine(result as Text);

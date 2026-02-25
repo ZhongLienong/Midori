@@ -1,0 +1,22 @@
+module CaptureLocalSharedSignal
+
+import { <IO> }
+
+def result = {
+	def gate = 0;
+	def x = 1;
+
+	def task = async {
+		loop {
+			if gate >= 1 then break () else ();
+		};
+		x
+	};
+
+	x = 2;
+	gate = 1;
+
+	await task
+};
+
+IO::PrintLine(result as Text);

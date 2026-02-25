@@ -1,0 +1,21 @@
+module CaptureNestedAsyncFromCaptured
+
+import { <IO> }
+
+// Regression: nested async should preserve by-reference capture semantics
+// even when the parent closure came from a different VM.
+defun make_parent() : Future<Int> => {
+    def y = 1;
+    async {
+        def child: Future<Int> = async {
+            y = y + 1;
+            y
+        };
+        def _ = await child;
+        y
+    }
+};
+
+def parent = make_parent();
+def result = await parent;
+IO::PrintLine(result as Text);

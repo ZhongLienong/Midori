@@ -1,0 +1,26 @@
+module TmpRowTasks
+
+import { <IO> }
+
+defun f(n: Int) : Int => {
+    def row_tasks : Array<Future<Int>> = [];
+    def y = 0;
+    loop {
+        row_tasks ++= (async y);
+        y = y + 1;
+        if y >= n then break () else ();
+    };
+
+    def i = 0;
+    def count = 0;
+    loop {
+        def _ = await row_tasks[i];
+        count = count + 1;
+        i = i + 1;
+        if i >= n then break () else ();
+    };
+
+    count
+};
+
+IO::PrintLine((f(10)) as Text);

@@ -143,6 +143,8 @@ private:
 
 	void EmitCallProc(int proc_index, int arity, int line);
 
+	void EmitCallGlobal(int global_index, int arity, int line);
+
 	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, TypeEnvironment& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited) const;
 
 	bool EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter_type, const std::shared_ptr<MidoriType>& item_type, int line);
@@ -308,6 +310,8 @@ private:
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
 
 	bool EmitResolvedNameGetGlobal(const std::string& resolved_name, int line);
+
+	std::optional<int> ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line);
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
 

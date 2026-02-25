@@ -308,6 +308,38 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void CallGlobalInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int global_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		offset += 3;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + std::string(executable.GetGlobalVariable(global_index).GetCString()) + ", params: " + std::to_string(arity));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
+	void CallGlobalWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		int global_index = (high_byte << 8) | low_byte;
+		int arity = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+		offset += 4;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + std::string(executable.GetGlobalVariable(global_index).GetCString()) + ", params: " + std::to_string(arity));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void CallForeignInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -941,6 +973,12 @@ namespace Disassembler
 		case OpCode::CALL_PROC_3:
 			CallDirectFixedInstruction("CALL_PROC_3", 3, executable, proc_index, offset);
 			break;
+		case OpCode::CALL_GLOBAL:
+			CallGlobalInstruction("CALL_GLOBAL", executable, proc_index, offset);
+			break;
+		case OpCode::CALL_GLOBAL_SHARED:
+			CallGlobalInstruction("CALL_GLOBAL_SHARED", executable, proc_index, offset);
+			break;
 		case OpCode::TAIL_CALL:
 			CallInstruction("TAIL_CALL", executable, proc_index, offset);
 			break;
@@ -1010,6 +1048,12 @@ namespace Disassembler
 		case OpCode::SET_LOCAL_3:
 			SimpleInstruction("SET_LOCAL_3", offset);
 			break;
+		case OpCode::GET_LOCAL_SHARED:
+			LocalOrCellVariableInstruction("GET_LOCAL_SHARED", executable, proc_index, offset);
+			break;
+		case OpCode::SET_LOCAL_SHARED:
+			LocalOrCellVariableInstruction("SET_LOCAL_SHARED", executable, proc_index, offset);
+			break;
 		case OpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);
 			break;
@@ -1040,11 +1084,23 @@ namespace Disassembler
 		case OpCode::SET_GLOBAL_SHARED_WIDE:
 			GlobalVariableWideInstruction("SET_GLOBAL_SHARED_WIDE", executable, proc_index, offset);
 			break;
+		case OpCode::CALL_GLOBAL_WIDE:
+			CallGlobalWideInstruction("CALL_GLOBAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::CALL_GLOBAL_SHARED_WIDE:
+			CallGlobalWideInstruction("CALL_GLOBAL_SHARED_WIDE", executable, proc_index, offset);
+			break;
 		case OpCode::GET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::SET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("SET_LOCAL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_LOCAL_SHARED_WIDE:
+			LocalOrCellVariableWideInstruction("GET_LOCAL_SHARED_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_LOCAL_SHARED_WIDE:
+			LocalOrCellVariableWideInstruction("SET_LOCAL_SHARED_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);
