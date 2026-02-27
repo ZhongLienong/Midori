@@ -1054,6 +1054,12 @@ namespace Disassembler
 		case OpCode::SET_LOCAL_SHARED:
 			LocalOrCellVariableInstruction("SET_LOCAL_SHARED", executable, proc_index, offset);
 			break;
+		case OpCode::GET_LOCAL_CELL:
+			LocalOrCellVariableInstruction("GET_LOCAL_CELL", executable, proc_index, offset);
+			break;
+		case OpCode::SET_LOCAL_CELL:
+			LocalOrCellVariableInstruction("SET_LOCAL_CELL", executable, proc_index, offset);
+			break;
 		case OpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);
 			break;
@@ -1101,6 +1107,12 @@ namespace Disassembler
 			break;
 		case OpCode::SET_LOCAL_SHARED_WIDE:
 			LocalOrCellVariableWideInstruction("SET_LOCAL_SHARED_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_LOCAL_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("GET_LOCAL_CELL_WIDE", executable, proc_index, offset);
+			break;
+		case OpCode::SET_LOCAL_CELL_WIDE:
+			LocalOrCellVariableWideInstruction("SET_LOCAL_CELL_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);

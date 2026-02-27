@@ -1808,35 +1808,24 @@ int MidoriText::GetShortSize() const
 	return m_short.m_size_flag >> 1;
 }
 
-MidoriCellValue::MidoriCellValue(MidoriValue heap_value) noexcept
+MidoriCellValue::MidoriCellValue() noexcept
+	: m_value(MidoriValue())
 {
-	m_data = heap_value;
-	m_is_on_heap = true;
 }
 
-MidoriCellValue::MidoriCellValue(MidoriValue* stack_ref) noexcept
+MidoriCellValue::MidoriCellValue(MidoriValue value) noexcept
+	: m_value(value)
 {
-	std::memcpy(&m_data, &stack_ref, sizeof(void*));
-	m_is_on_heap = false;
 }
 
 MidoriValue& MidoriCellValue::GetValue()
 {
-	if (m_is_on_heap)
-	{
-		return m_data;
-	}
-	else
-	{
-		return *GetStackPointer();
-	}
+	return m_value;
 }
 
-MidoriValue* MidoriCellValue::GetStackPointer()
+const MidoriValue& MidoriCellValue::GetValue() const
 {
-	MidoriValue* ptr;
-	std::memcpy(&ptr, &m_data, sizeof(void*));
-	return ptr;
+	return m_value;
 }
 
 MidoriSharedCellState::MidoriSharedCellState()

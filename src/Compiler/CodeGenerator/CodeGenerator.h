@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <stack>
 #include <unordered_set>
 #include <optional>
@@ -15,6 +16,12 @@
 class CodeGenerator
 {
 private:
+	enum class LocalStorageKind : uint8_t
+	{
+		ValueLocal,
+		CellLocal,
+		SharedCellLocal
+	};
 
 	struct ResolvedMethodCandidate
 	{
@@ -91,6 +98,8 @@ private:
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 	std::unordered_map<std::string, size_t> m_ffi_indices;
 	std::vector<bool> m_shared_cell_procedure_flags{ false };
+	std::vector<std::vector<LocalStorageKind>> m_procedure_local_kinds{ std::vector<LocalStorageKind>() };
+	std::vector<int> m_procedure_capture_counts{ 0 };
 
 	MidoriExecutable m_executable;
 	std::stack<LoopContext> m_loop_contexts;
@@ -130,6 +139,22 @@ private:
 	void EmitWordConstant(MidoriWord value, int line);
 
 	void EmitVariable(int variable_index, OpCode op, int line);
+
+	void EnsureProcedureMetadataSize(size_t procedure_index);
+
+	void EnsureLocalKindCapacity(size_t procedure_index, int local_count);
+
+	void NoteCaptureBinding(int captured_count, bool uses_shared_cells);
+
+	int CurrentProcedureCaptureCount() const;
+
+	LocalStorageKind GetLocalStorageKind(int variable_index) const;
+
+	void RewriteEmittedLocalOps(int variable_index, LocalStorageKind previous_kind, LocalStorageKind new_kind);
+
+	OpCode GetLocalLoadOpcode(int variable_index) const;
+
+	OpCode GetLocalStoreOpcode(int variable_index) const;
 
 	OpCode GetCellLoadOpcode() const;
 

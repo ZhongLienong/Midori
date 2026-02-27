@@ -258,18 +258,18 @@ import { <IO> }
 
 defun compute(x: Int) : Int => x * x;
 
-// Spawn concurrent tasks (run in separate VMs with their own heaps)
+// Spawn concurrent tasks (executed by runtime worker VMs)
 def task1 : Future<Int> = async compute(10);
 def task2 : Future<Int> = async compute(20);
 
-// Await results (blocks until complete, deep-copies return values)
+// Await results (worker may run other queued tasks while waiting)
 def r1 : Int = await task1;
 def r2 : Int = await task2;
 
 IO::PrintLine("Results: " ++ (r1 as Text) ++ ", " ++ (r2 as Text));
 ```
 
-> **Warning**: Concurrent mutation of captured mutable references (e.g., arrays) is undefined behavior. See [Async/Await docs](docs/async-await.md) for details.
+> **Warning**: Midori currently allows language-level data races on shared mutable state. Results may be nondeterministic, but runtime memory safety is preserved. See [Async/Await docs](docs/async-await.md) for details.
 
 ## Language Features
 
@@ -665,9 +665,9 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 - **Frontend**: Lexer → Parser → Type Checker
 - **Optimizer**: Constant folding, tail call optimization, strength reduction
 - **Backend**: Bytecode generator → Linker
-- **Runtime**: Stack-based VM with per-VM mark-and-sweep GC
+- **Runtime**: Stack-based VM with per-VM mark-and-sweep GC plus shared async handles
 
-See [Runtime Architecture](docs/runtime-architecture.md) for details on the per-VM memory model.
+See [Runtime Architecture](docs/runtime-architecture.md) for details on VM-local and shared async memory.
 
 ## Documentation
 
@@ -677,5 +677,5 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
-- [Async/Await](docs/async-await.md) - Concurrent execution with per-VM isolation
+- [Async/Await](docs/async-await.md) - Concurrent execution, capture semantics, and race model
 - [Runtime Architecture](docs/runtime-architecture.md) - Memory model, garbage collection, and concurrency

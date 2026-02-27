@@ -39,6 +39,27 @@ Coordinates concurrent execution:
 - `MidoriSharedCellState` / `MidoriSharedCellHandle` (shared by-reference storage; lock-free atomic value path in non-full-debug builds).
 - Runtime task records (`FutureState` handle + closure payload).
 
+## Local and Capture Storage Model
+
+Local storage semantics are compiler-selected per procedure/local slot:
+
+- `ValueLocal`
+  - Backed by raw VM stack slots.
+  - Accessed via `GET_LOCAL*` / `SET_LOCAL*`.
+- `CellLocal`
+  - Backed by stable `MidoriCellValue` heap boxes in the current VM.
+  - Accessed via `GET_LOCAL_CELL*` / `SET_LOCAL_CELL*`.
+- `SharedCellLocal`
+  - Backed by runtime shared-cell handles for cross-VM async capture.
+  - Accessed via `GET_LOCAL_SHARED*` / `SET_LOCAL_SHARED*`.
+
+Capture opcodes are explicit:
+
+- `BIND_CAPTURES` binds local captures to VM-local cell boxes.
+- `BIND_CAPTURES_SHARED` binds captures to shared handles.
+
+This removes deferred stack-pointer promotion from closure correctness.
+
 ## Async Scheduling Model
 
 All workers run the same loop:

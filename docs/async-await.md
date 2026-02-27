@@ -31,7 +31,7 @@ Future<Array<Float>>
 
 - Evaluates `expr` on the runtime scheduler.
 - Returns immediately with `Future<T>`.
-- Captures follow normal Midori by-reference semantics.
+- Captures preserve Midori by-reference semantics through compiler-selected cell storage.
 
 ### `await future`
 
@@ -56,7 +56,14 @@ This split keeps non-async programs on a zero-extra-overhead path.
 
 In async-enabled programs:
 
-- Captured variables used by async-capable procedures are backed by shared cells.
+- Each local slot is classified by the compiler as one of:
+  - `ValueLocal`: plain VM stack slot (`GET_LOCAL` / `SET_LOCAL`).
+  - `CellLocal`: VM-local heap box (`MidoriCellValue`) for closure capture in the same VM.
+  - `SharedCellLocal`: shared handle-backed cell for async/cross-VM capture.
+- `CellLocal` and `SharedCellLocal` use dedicated local opcodes (`*_LOCAL_CELL*`, `*_LOCAL_SHARED*`).
+- Capture binding is explicit:
+  - `BIND_CAPTURES` binds closure captures to stable VM-local cell boxes.
+  - `BIND_CAPTURES_SHARED` binds captures to shared cell handles.
 - Globals accessed from async-capable procedures use shared global storage.
 - Futures are backed by shared future state handles.
 

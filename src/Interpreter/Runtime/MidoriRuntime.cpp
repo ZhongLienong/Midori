@@ -441,8 +441,7 @@ MidoriTraceable* MidoriRuntime::DeepCopyTraceable(MidoriTraceable* src, const Ga
 		copied_map.emplace(src, result);
 
 		MidoriCellValue& copied_cell = result->GetTraceable<MidoriCellValue>();
-		copied_cell.m_data = DeepCopyForCrossVM(original.GetValue(), gc, copied_map, new_objects);
-		copied_cell.m_is_on_heap = true;
+		copied_cell.GetValue() = DeepCopyForCrossVM(original.GetValue(), gc, copied_map, new_objects);
 		new_objects.emplace_back(result);
 	}
 	else if (src->IsTraceable<MidoriClosure>())

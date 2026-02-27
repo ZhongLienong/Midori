@@ -367,6 +367,7 @@ FodyWeavers.xsd
 
 # Claude
 .claude/
+CLAUDE.md
 
 # Build
 build/

@@ -78,11 +78,8 @@ private:
 	ValueStackPointer m_value_stack_begin = nullptr;
 	CallStackPointer m_call_stack_pointer = nullptr;
 	CallStackPointer m_call_stack_begin = nullptr;
-	uint8_t* m_call_frame_shared_flags = nullptr;
 	MidoriTraceable* m_curr_closure_traceable = nullptr;
 	MidoriTuple* m_curr_environment = nullptr;
-	bool m_frame_has_shared_locals = false;
-	bool m_shared_cell_mode_enabled = false;
 
     // Warm VM State
     MidoriRuntime* m_runtime = nullptr;
@@ -105,7 +102,6 @@ private:
 	bool m_ffi_table_initialized = false;
 
     // Cold Caches & Results
-    std::vector<MidoriTraceable*> m_cells_to_promote;
 	std::vector<MidoriTraceable*> m_static_closure_cache;
 	std::unordered_map<MidoriTraceable*, MidoriTraceable*> m_shared_cell_handle_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
@@ -335,9 +331,7 @@ private:
 
 	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriTuple* m_closure_ptr) noexcept
 	{
-		const size_t frame_index = static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin);
 		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_closure_ptr};
-		m_call_frame_shared_flags[frame_index] = static_cast<uint8_t>(m_shared_cell_mode_enabled && m_frame_has_shared_locals);
 		++m_call_stack_pointer;
 	}
 
@@ -351,21 +345,13 @@ private:
         return *(--m_value_stack_pointer);
     }
 
-	void PromoteCells() noexcept;
-
-	MIDORI_FORCE_INLINE void MaybePromoteCells() noexcept
-	{
-		if (!m_cells_to_promote.empty())
-		{
-			PromoteCells();
-		}
-	}
-
 	int CheckIndexBounds(const MidoriValue index, MidoriInteger size) noexcept;
 
 	int CheckNewArraySize(MidoriInteger size) noexcept;
 
 	int CheckArrayPopResult(const std::optional<MidoriValue>& result) noexcept;
+
+	MidoriValue EnsureCellHandle(MidoriValue& slot, ValueStackPointer closure_slot) noexcept;
 
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 

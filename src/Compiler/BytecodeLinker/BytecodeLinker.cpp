@@ -783,6 +783,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::SET_GLOBAL_SHARED_WIDE:
 		case OpCode::GET_LOCAL_WIDE:
 		case OpCode::SET_LOCAL_WIDE:
+		case OpCode::GET_LOCAL_CELL_WIDE:
+		case OpCode::SET_LOCAL_CELL_WIDE:
 		case OpCode::GET_LOCAL_SHARED_WIDE:
 		case OpCode::SET_LOCAL_SHARED_WIDE:
 		case OpCode::GET_CELL_WIDE:
@@ -801,6 +803,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::SET_GLOBAL_SHARED:
 		case OpCode::GET_LOCAL:
 		case OpCode::SET_LOCAL:
+		case OpCode::GET_LOCAL_CELL:
+		case OpCode::SET_LOCAL_CELL:
 		case OpCode::GET_LOCAL_SHARED:
 		case OpCode::SET_LOCAL_SHARED:
 		case OpCode::GET_CELL:

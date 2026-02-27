@@ -372,16 +372,15 @@ public:
 
 struct MidoriCellValue
 {
-	MidoriValue m_data;
-	bool m_is_on_heap;
+	MidoriValue m_value;
 
-	MidoriCellValue(MidoriValue heap_value) noexcept;
+	MidoriCellValue() noexcept;
 
-	MidoriCellValue(MidoriValue* stack_ref) noexcept;
+	explicit MidoriCellValue(MidoriValue value) noexcept;
 
 	MidoriValue& GetValue();
 
-	MidoriValue* GetStackPointer();
+	const MidoriValue& GetValue() const;
 };
 
 struct MidoriClosure
