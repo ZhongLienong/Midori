@@ -368,6 +368,7 @@ FodyWeavers.xsd
 # Claude
 .claude/
 CLAUDE.md
+AGENTS.md
 
 # Build
 build/

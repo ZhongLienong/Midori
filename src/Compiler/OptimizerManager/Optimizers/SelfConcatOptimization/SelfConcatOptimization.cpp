@@ -1,28 +1,11 @@
 #include "SelfConcatOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
 
 #include <ranges>
 
 namespace
 {
-	const MidoriExpression* UnwrapGroup(const MidoriExpression* expr)
-	{
-		while (expr && expr->IsExpression<MidoriExpression::Group>())
-		{
-			expr = expr->GetExpression<MidoriExpression::Group>().m_expr_in.get();
-		}
-		return expr;
-	}
-
-	std::unique_ptr<MidoriExpression> UnwrapGroup(std::unique_ptr<MidoriExpression> expr)
-	{
-		while (expr && expr->IsExpression<MidoriExpression::Group>())
-		{
-			expr = std::move(expr->GetExpression<MidoriExpression::Group>().m_expr_in);
-		}
-		return expr;
-	}
-
 	bool IsSameNameAccess(const MidoriExpression::NameAccess& access, const MidoriExpression::NameContext::Tag& ctx, const Token& name)
 	{
 		return std::visit
@@ -339,7 +322,7 @@ namespace
 
 	void CollectConcatOperands(const MidoriExpression& expr, std::vector<const MidoriExpression*>& operands)
 	{
-		const MidoriExpression* current = UnwrapGroup(&expr);
+		const MidoriExpression* current = OptimizerAnalysis::StripRedundantGroups(&expr);
 		if (current && current->IsExpression<MidoriExpression::Binary>())
 		{
 			const MidoriExpression::Binary& binary = current->GetExpression<MidoriExpression::Binary>();
@@ -355,7 +338,7 @@ namespace
 
 	void CollectConcatOperands(std::unique_ptr<MidoriExpression> expr, std::vector<std::unique_ptr<MidoriExpression>>& operands)
 	{
-		expr = UnwrapGroup(std::move(expr));
+		expr = OptimizerAnalysis::StripRedundantGroups(std::move(expr));
 		if (expr && expr->IsExpression<MidoriExpression::Binary>())
 		{
 			MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
@@ -388,7 +371,7 @@ namespace
 			return nullptr;
 		}
 
-		const MidoriExpression* first_expr = UnwrapGroup(operands[0u]);
+		const MidoriExpression* first_expr = OptimizerAnalysis::StripRedundantGroups(operands[0u]);
 		if (!first_expr || !first_expr->IsExpression<MidoriExpression::NameAccess>())
 		{
 			return nullptr;
