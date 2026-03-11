@@ -1,6 +1,21 @@
 #include "BaseOptimizer.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
+void MidoriOptimizer::ResetPassState()
+{
+	m_did_change = false;
+	m_pending_replacement.reset();
+
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+	m_optimizations_performed = 0;
+#endif
+}
+
+bool MidoriOptimizer::DidChange() const
+{
+	return m_did_change;
+}
+
 void MidoriOptimizer::VisitStatement(std::unique_ptr<MidoriStatement>& statement)
 {
 	VisitNode([this](auto&& arg) { (*this)(arg); }, statement);
@@ -352,11 +367,8 @@ int MidoriOptimizer::GetOptimizationsPerformed() const
 
 void MidoriOptimizer::MarkOptimization()
 {
+	m_did_change = true;
 	m_optimizations_performed += 1;
 }
 
-void MidoriOptimizer::ResetCounter()
-{
-	m_optimizations_performed = 0;
-}
 #endif

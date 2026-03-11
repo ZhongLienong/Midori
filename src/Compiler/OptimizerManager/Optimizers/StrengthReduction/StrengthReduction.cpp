@@ -33,9 +33,7 @@ namespace
 
 MidoriResult::OptimizerResult StrengthReduction::Optimize(MidoriProgramTree program_tree)
 {
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	ResetCounter();
-#endif
+	ResetPassState();
 
 	std::ranges::for_each
 	(

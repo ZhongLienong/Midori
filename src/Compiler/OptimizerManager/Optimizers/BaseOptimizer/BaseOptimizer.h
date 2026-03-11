@@ -10,6 +10,7 @@ protected:
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	int m_optimizations_performed = 0;
 #endif
+	bool m_did_change = false;
 
 	std::unique_ptr<MidoriExpression> m_pending_replacement;
 
@@ -20,20 +21,23 @@ public:
 
 	virtual std::string_view GetName() const = 0;
 
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+	void ResetPassState();
 
-	void ResetCounter();
+	bool DidChange() const;
+
+#if MIDORI_ENABLE_OPTIMIZER_STATS
 
 	int GetOptimizationsPerformed() const;
 #endif
 
 protected:
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-	// Mark that an optimization was performed (only in debug builds)
 	void MarkOptimization();
 #else
-	 // Mark optimization (no-op in other builds)
-	void MarkOptimization() { }
+	void MarkOptimization()
+	{
+		m_did_change = true;
+	}
 #endif
 
 protected:

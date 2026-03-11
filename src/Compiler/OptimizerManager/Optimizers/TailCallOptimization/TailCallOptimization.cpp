@@ -338,9 +338,7 @@ namespace
 
 MidoriResult::OptimizerResult TailCallOptimization::Optimize(MidoriProgramTree program_tree)
 {
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	ResetCounter();
-#endif
+	ResetPassState();
 	std::ranges::for_each
 	(
 		program_tree,
@@ -361,8 +359,10 @@ void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun
 {
 	m_current_function = defun.m_name.m_lexeme;
 	m_has_tail_recursion = false;
+	m_marked_new_tail_call = false;
 
-	if (IsTailRecursive(defun.m_body, m_current_function))
+	m_has_tail_recursion = IsTailRecursive(defun.m_body, m_current_function);
+	if (m_marked_new_tail_call)
 	{
 		MarkOptimization();
 	}
@@ -403,7 +403,11 @@ bool TailCallOptimization::IsTailCall(std::unique_ptr<MidoriExpression>& expr, s
 		const MidoriExpression::NameAccess& callee_name = callee_expr->GetExpression<MidoriExpression::NameAccess>();
 		if (callee_name.m_name.m_lexeme == function_name)
 		{
-			call.m_is_tail_call = true;
+			if (!call.m_is_tail_call)
+			{
+				call.m_is_tail_call = true;
+				m_marked_new_tail_call = true;
+			}
 			return true;
 		}
 	}

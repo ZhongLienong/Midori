@@ -56,6 +56,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_body;
 		std::optional<int> m_local_index;
 		int m_captured_count;
+		bool m_is_lift_wrapper = false;
 
 		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};

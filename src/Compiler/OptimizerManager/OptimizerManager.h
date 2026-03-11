@@ -34,6 +34,8 @@ private:
 #endif
 
 public:
+	static constexpr size_t s_max_iterations = 8u;
+
 	OptimizerManager(MidoriProgramTree&& program_tree);
 
 	void AddOptimizer(std::unique_ptr<MidoriOptimizer> optimizer);

@@ -7,9 +7,6 @@
 #include "Compiler/OptimizerManager/Optimizers/TailCallOptimization/TailCallOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
-#include <algorithm>
-#include <numeric>
-
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 #include "Common/Printer/Printer.h"
 #include <format>
@@ -40,42 +37,53 @@ void OptimizerManager::AddOptimizer(std::unique_ptr<MidoriOptimizer> optimizer)
 MidoriResult::OptimizerResult OptimizerManager::Optimize(OptimizerLog* log, std::mutex* print_mutex)
 {
 	std::string optimization_body;
-	optimization_body.reserve(m_optimizers.size() * 32u);
+	optimization_body.reserve(m_optimizers.size() * s_max_iterations * 48u);
 
 	MidoriResult::OptimizerResult result = std::move(m_program_tree);
-	size_t optimizer_index = 0u;
-	std::for_each
-	(
-		m_optimizers.begin(), 
-		m_optimizers.end(),
-		[this, &optimizer_index, &optimization_body, &result](const std::unique_ptr<MidoriOptimizer>& optimizer)
+	for (size_t iteration = 0u; iteration < s_max_iterations && result.has_value(); iteration += 1u)
+	{
+		bool iteration_changed = false;
+		std::string iteration_body;
+		iteration_body.reserve(m_optimizers.size() * 40u);
+
+		for (size_t optimizer_index = 0u; optimizer_index < m_optimizers.size(); optimizer_index += 1u)
 		{
-			const size_t current_index = optimizer_index;
-			optimizer_index += 1u;
+			MidoriOptimizer& optimizer = *m_optimizers[optimizer_index];
+			OptimizerStats& stat = m_stats[optimizer_index];
+			const std::string_view name = optimizer.GetName();
+			stat.m_name = name;
+			stat.m_passes_run += 1;
 
-			result = std::move(result)
-				.and_then
-				(
-					[this, &optimization_body, &optimizer, current_index](MidoriProgramTree&& program_tree)
-					{
-						const std::string_view name = optimizer->GetName();
-						OptimizerStats& stat = m_stats[current_index];
-						stat.m_name = name;
-						stat.m_passes_run += 1;
+			MidoriProgramTree program_tree = std::move(result).value();
+			result = optimizer.Optimize(std::move(program_tree));
 
-						MidoriResult::OptimizerResult updated = optimizer->Optimize(std::move(program_tree));
-						const int optimizations = optimizer->GetOptimizationsPerformed();
-						stat.m_optimizations_performed += optimizations;
-						if (optimizations > 0)
-						{
-							std::format_to(std::back_inserter(optimization_body), "  {}: {} optimizations\n", name, optimizations);
-						}
+			const int optimizations = optimizer.GetOptimizationsPerformed();
+			stat.m_optimizations_performed += optimizations;
+			iteration_changed = iteration_changed || optimizer.DidChange();
 
-						return updated;
-					}
-				);
+			if (optimizations > 0)
+			{
+				if (iteration_body.empty())
+				{
+					std::format_to(std::back_inserter(iteration_body), "Iteration {}:\n", iteration + 1u);
+				}
+
+				std::format_to(std::back_inserter(iteration_body), "  {}: {} optimizations\n", name, optimizations);
+			}
+
+			if (!result.has_value())
+			{
+				break;
+			}
 		}
-	);
+
+		optimization_body += iteration_body;
+
+		if (!iteration_changed)
+		{
+			break;
+		}
+	}
 
 	const auto print_output = [&optimization_body]()
 	{
@@ -120,23 +128,31 @@ MidoriResult::OptimizerResult OptimizerManager::Optimize(OptimizerLog* log, std:
 #else
 MidoriResult::OptimizerResult OptimizerManager::Optimize()
 {
-	return std::accumulate
-	(
-		m_optimizers.begin(),
-		m_optimizers.end(),
-		MidoriResult::OptimizerResult{ std::move(m_program_tree) },
-		[](MidoriResult::OptimizerResult result, const std::unique_ptr<MidoriOptimizer>& optimizer)
+	MidoriResult::OptimizerResult result = std::move(m_program_tree);
+
+	for (size_t iteration = 0u; iteration < s_max_iterations && result.has_value(); iteration += 1u)
+	{
+		bool iteration_changed = false;
+
+		for (const std::unique_ptr<MidoriOptimizer>& optimizer : m_optimizers)
 		{
-			return std::move(result)
-				.and_then
-				(
-					[&optimizer](MidoriProgramTree&& program_tree)
-					{
-						return optimizer->Optimize(std::move(program_tree));
-					}
-				);
+			MidoriProgramTree program_tree = std::move(result).value();
+			result = optimizer->Optimize(std::move(program_tree));
+			iteration_changed = iteration_changed || optimizer->DidChange();
+
+			if (!result.has_value())
+			{
+				break;
+			}
 		}
-	);
+
+		if (!iteration_changed)
+		{
+			break;
+		}
+	}
+
+	return result;
 }
 #endif
 

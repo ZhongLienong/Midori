@@ -7,6 +7,7 @@ class TailCallOptimization : public MidoriOptimizer
 private:
 	std::string m_current_function;
 	bool m_has_tail_recursion = false;
+	bool m_marked_new_tail_call = false;
 
 public:
 
@@ -23,7 +24,7 @@ protected:
 
 private:
 
-	static bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
+	bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
 
 	bool IsTailRecursive(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
 

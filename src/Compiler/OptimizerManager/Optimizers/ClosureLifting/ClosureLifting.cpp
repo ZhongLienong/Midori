@@ -5,9 +5,58 @@
 
 namespace
 {
+	constexpr std::string_view LiftedNamePrefix = "__lifted_";
+
+	bool IsForwardingLiftWrapperCall(const MidoriStatement::FunctionDefinition& defun)
+	{
+		if (defun.m_body == nullptr || !defun.m_body->IsExpression<MidoriExpression::Call>())
+		{
+			return false;
+		}
+
+		const MidoriExpression::Call& call = defun.m_body->GetExpression<MidoriExpression::Call>();
+		if (call.m_callee == nullptr || !call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+		{
+			return false;
+		}
+
+		const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+		if (!std::holds_alternative<MidoriExpression::NameContext::Global>(callee.m_name_ctx))
+		{
+			return false;
+		}
+
+		if (!callee.m_name.m_lexeme.starts_with(LiftedNamePrefix) || call.m_arguments.size() != defun.m_params.size())
+		{
+			return false;
+		}
+
+		for (size_t i = 0u; i < call.m_arguments.size(); i += 1u)
+		{
+			const std::unique_ptr<MidoriExpression>& argument = call.m_arguments[i];
+			if (argument == nullptr || !argument->IsExpression<MidoriExpression::NameAccess>())
+			{
+				return false;
+			}
+
+			const MidoriExpression::NameAccess& access = argument->GetExpression<MidoriExpression::NameAccess>();
+			if (!std::holds_alternative<MidoriExpression::NameContext::Local>(access.m_name_ctx))
+			{
+				return false;
+			}
+
+			if (std::get<MidoriExpression::NameContext::Local>(access.m_name_ctx).m_index != static_cast<int>(i) || access.m_name.m_lexeme != defun.m_params[i].m_lexeme)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	class SelfReferencePatcher : public MidoriOptimizer
 	{
-	public:
+public:
 		std::string_view m_self_name;
 		std::string m_new_global_name;
 		int m_patch_count{ 0 };
@@ -165,9 +214,7 @@ namespace
 
 MidoriResult::OptimizerResult ClosureLifting::Optimize(MidoriProgramTree program_tree)
 {
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-	ResetCounter();
-#endif
+	ResetPassState();
 	m_new_globals.clear();
 
 	std::ranges::for_each
@@ -212,7 +259,7 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 
 			bool is_local_nested = defun.m_local_index.has_value();
 
-			if (is_local_nested)
+			if (is_local_nested && !defun.m_is_lift_wrapper && !IsForwardingLiftWrapperCall(defun))
 			{
 				// Analyze captured variables
 				// We need to verify if the function *actually* uses any environmental captures.
@@ -229,9 +276,7 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 					SelfReferencePatcher patcher(defun.m_name.m_lexeme, lifted_token.m_lexeme);
 					patcher.Patch(defun.m_body);
 
-#if MIDORI_ENABLE_OPTIMIZER_STATS
 					MarkOptimization();
-#endif
 
 					// Reset captured count to 0. 
 					// This is crucial: it tells CodeGenerator to emit MAKE_FUNCTION instead of MAKE_CLOSURE,
@@ -297,6 +342,7 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 							std::move(defun.m_local_index)
 						)
 					);
+					wrapper_def->GetStatement<MidoriStatement::FunctionDefinition>().m_is_lift_wrapper = true;
 
 					stmt = std::move(wrapper_def);
 				}
