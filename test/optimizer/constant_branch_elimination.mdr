@@ -1,0 +1,25 @@
+module ConstantBranchElimination
+
+import { "../../MidoriPrelude/IO.mdr" }
+
+def constant_true: Int = if true then 10 else 20;
+def constant_false: Int = if false then 10 else 20;
+def grouped_true: Int = if true then ((30)) else 40;
+
+defun identity_flag(flag: Bool) : Bool => if flag then true else false;
+defun invert_flag(flag: Bool) : Bool => if flag then false else true;
+
+def base_true: Bool = true;
+def base_false: Bool = false;
+def simplified_true: Bool = identity_flag(base_true);
+def simplified_false: Bool = identity_flag(base_false);
+def inverted_true: Bool = invert_flag(base_true);
+def inverted_false: Bool = invert_flag(base_false);
+
+IO::PrintLine("constant_true=" ++ (constant_true as Text));
+IO::PrintLine("constant_false=" ++ (constant_false as Text));
+IO::PrintLine("grouped_true=" ++ (grouped_true as Text));
+IO::PrintLine("simplified_true=" ++ (if simplified_true then "true" else "false"));
+IO::PrintLine("simplified_false=" ++ (if simplified_false then "true" else "false"));
+IO::PrintLine("inverted_true=" ++ (if inverted_true then "true" else "false"));
+IO::PrintLine("inverted_false=" ++ (if inverted_false then "true" else "false"));

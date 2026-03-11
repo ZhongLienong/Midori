@@ -1,0 +1,82 @@
+module LocalConstantPropagation
+
+import { "../../MidoriPrelude/IO.mdr" }
+
+def propagated_literal: Int = {
+    def x: Int = 40;
+    def y: Int = x;
+    y + 2
+};
+
+def reassignment_guard: Int = {
+    def x: Int = 1;
+    def y: Int = x;
+    x = 5;
+    y
+};
+
+def chained_branch: Int = {
+    def flag: Bool = true;
+    def copied_flag: Bool = flag;
+    if copied_flag then 10 else 20
+};
+
+def closure_guard: Int = {
+    def x: Int = 1;
+    def get_x: fn() -> Int = fn() : Int => x;
+    x = 2;
+    get_x()
+};
+
+def assignment_order: Int = {
+    def x: Int = 1;
+    (x = 2) + x
+};
+
+def loop_counter: Int = {
+    def count: Int = 0;
+    loop
+    {
+        if count >= 3
+        then break count
+        else
+        {
+            count = count + 1;
+        }
+    }
+};
+
+def for_accumulator: Int = {
+    def total: Int = 0;
+    for value in [1, 2, 3] {
+        total = total + value;
+    };
+    total
+};
+
+def comprehension_accumulator: Int = {
+    def total: Int = 0;
+    def values: Array<Int> = [total = total + value for value in [1, 2, 3]];
+    total
+};
+
+def call_mutation_guard: Int = {
+    def x: Int = 1;
+    def mutate: fn() -> Unit = fn() : Unit => {
+        x = 2;
+        ()
+    };
+    def y: Int = x;
+    mutate();
+    y + x
+};
+
+IO::PrintLine("propagated_literal=" ++ (propagated_literal as Text));
+IO::PrintLine("reassignment_guard=" ++ (reassignment_guard as Text));
+IO::PrintLine("chained_branch=" ++ (chained_branch as Text));
+IO::PrintLine("closure_guard=" ++ (closure_guard as Text));
+IO::PrintLine("assignment_order=" ++ (assignment_order as Text));
+IO::PrintLine("loop_counter=" ++ (loop_counter as Text));
+IO::PrintLine("for_accumulator=" ++ (for_accumulator as Text));
+IO::PrintLine("comprehension_accumulator=" ++ (comprehension_accumulator as Text));
+IO::PrintLine("call_mutation_guard=" ++ (call_mutation_guard as Text));
