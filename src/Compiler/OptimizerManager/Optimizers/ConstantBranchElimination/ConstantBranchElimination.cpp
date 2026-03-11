@@ -1,0 +1,73 @@
+#include "ConstantBranchElimination.h"
+
+#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Token/Token.h"
+
+MidoriResult::OptimizerResult ConstantBranchElimination::Optimize(MidoriProgramTree program_tree)
+{
+	ResetPassState();
+
+	std::ranges::for_each
+	(
+		program_tree,
+		[this](std::unique_ptr<MidoriStatement>& stmt)
+		{
+			VisitStatement(stmt);
+		}
+	);
+	return std::move(program_tree);
+}
+
+std::string_view ConstantBranchElimination::GetName() const
+{
+	return "ConstantBranchElimination";
+}
+
+void ConstantBranchElimination::operator()(MidoriExpression::IfElse& if_else)
+{
+	VisitAndReplace(if_else.m_condition);
+	VisitAndReplace(if_else.m_true_branch);
+	VisitAndReplace(if_else.m_else_branch);
+
+	std::optional<bool> condition_value = OptimizerAnalysis::TryEvalTruthValue(*if_else.m_condition);
+	if (condition_value.has_value() && OptimizerAnalysis::IsPure(*if_else.m_condition))
+	{
+		m_pending_replacement = condition_value.value()
+			? OptimizerAnalysis::StripRedundantGroups(std::move(if_else.m_true_branch))
+			: OptimizerAnalysis::StripRedundantGroups(std::move(if_else.m_else_branch));
+		m_pending_replacement->GetType() = if_else.m_type_data;
+		return;
+	}
+
+	if (IsBoolLiteral(*if_else.m_true_branch, true) && IsBoolLiteral(*if_else.m_else_branch, false))
+	{
+		m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(if_else.m_condition));
+		m_pending_replacement->GetType() = if_else.m_type_data;
+		return;
+	}
+
+	if (IsBoolLiteral(*if_else.m_true_branch, false) && IsBoolLiteral(*if_else.m_else_branch, true))
+	{
+		m_pending_replacement = MakeLogicalNot(if_else);
+		m_pending_replacement->GetType() = if_else.m_type_data;
+	}
+}
+
+std::unique_ptr<MidoriExpression> ConstantBranchElimination::MakeLogicalNot(MidoriExpression::IfElse& if_else)
+{
+	std::unique_ptr<MidoriExpression> condition = OptimizerAnalysis::StripRedundantGroups(std::move(if_else.m_condition));
+	Token bang_token("!", Token::Name::BANG, if_else.m_if_token.m_line, if_else.m_if_token.m_file_name);
+	return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(bang_token, std::move(condition)));
+}
+
+bool ConstantBranchElimination::IsBoolLiteral(const MidoriExpression& expr, bool expected_value)
+{
+	const MidoriExpression* stripped_expr = OptimizerAnalysis::StripRedundantGroups(&expr);
+	if (stripped_expr == nullptr || !stripped_expr->IsExpression<MidoriExpression::BoolLiteral>())
+	{
+		return false;
+	}
+
+	const MidoriExpression::BoolLiteral& bool_expr = stripped_expr->GetExpression<MidoriExpression::BoolLiteral>();
+	return (bool_expr.m_token.m_token_name == Token::Name::TRUE) == expected_value;
+}
