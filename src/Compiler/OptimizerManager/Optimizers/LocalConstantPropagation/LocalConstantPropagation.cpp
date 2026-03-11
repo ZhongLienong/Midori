@@ -89,6 +89,11 @@ void LocalConstantPropagation::Finalize(const MidoriStatement::VariableDefinitio
 	const int local_index = def.m_local_index.value();
 	InvalidateLocal(local_index);
 
+	if (def.m_is_elided)
+	{
+		return;
+	}
+
 	const std::optional<Replacement> replacement = TryCreateReplacement(*def.m_value);
 	if (!replacement.has_value())
 	{

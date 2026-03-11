@@ -753,7 +753,7 @@ namespace
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
 				{
-					return IsPureExpression(*node.m_value);
+					return node.m_is_elided || IsPureExpression(*node.m_value);
 				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::TupleDefinition>)
 				{
@@ -869,7 +869,10 @@ namespace
 		void Visit(const MidoriStatement::VariableDefinition& node)
 		{
 			RecordDefinition(m_summary, node.m_local_index);
-			VisitExpression(*node.m_value);
+			if (!node.m_is_elided)
+			{
+				VisitExpression(*node.m_value);
+			}
 		}
 
 		void Visit(const MidoriStatement::TupleDefinition& node)

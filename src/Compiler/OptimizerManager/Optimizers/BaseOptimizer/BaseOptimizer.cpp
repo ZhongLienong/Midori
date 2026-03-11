@@ -46,6 +46,11 @@ void MidoriOptimizer::operator()(MidoriStatement::ExpressionStatement& simple)
 
 void MidoriOptimizer::operator()(MidoriStatement::VariableDefinition& def)
 {
+	if (def.m_is_elided)
+	{
+		return;
+	}
+
 	VisitAndReplace(def.m_value);
 }
 

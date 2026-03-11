@@ -32,6 +32,7 @@ public:
 		std::unique_ptr<MidoriExpression> m_value;
 		std::optional<std::shared_ptr<MidoriType>> m_annotated_type;
 		std::optional<int> m_local_index;
+		bool m_is_elided = false;
 
 		VariableDefinition(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index);
 	};

@@ -1,0 +1,48 @@
+module DeadCodeElimination
+
+import { "../../MidoriPrelude/IO.mdr" }
+
+defun print_and_return(value: Int) : Int => {
+    IO::PrintLine("effect=" ++ (value as Text));
+    value
+};
+
+def unused_pure_local: Int = {
+    def x: Int = 1 + 2;
+    def y: Int = x + 4;
+    9
+};
+
+def pure_statement_cleanup: Int = {
+    1 + 2;
+    true;
+    5
+};
+
+def kept_effectful_local: Int = {
+    def x: Int = print_and_return(1);
+    2
+};
+
+def kept_effectful_statement: Int = {
+    print_and_return(2);
+    4
+};
+
+defun early_return() : Int => {
+    return 3;
+    print_and_return(99);
+};
+
+def unreachable_break: Int = loop
+{
+    break 7;
+    print_and_return(100);
+};
+
+IO::PrintLine("unused_pure_local=" ++ (unused_pure_local as Text));
+IO::PrintLine("pure_statement_cleanup=" ++ (pure_statement_cleanup as Text));
+IO::PrintLine("kept_effectful_local=" ++ (kept_effectful_local as Text));
+IO::PrintLine("kept_effectful_statement=" ++ (kept_effectful_statement as Text));
+IO::PrintLine("early_return=" ++ (early_return() as Text));
+IO::PrintLine("unreachable_break=" ++ (unreachable_break as Text));

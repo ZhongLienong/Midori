@@ -2240,6 +2240,16 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 	int line = def.m_name.m_line;
 	bool is_global = !def.m_local_index.has_value();
 	std::optional<int> index = std::nullopt;
+
+	if (def.m_is_elided)
+	{
+		if (!is_global)
+		{
+			EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+		}
+		return;
+	}
+
 	if (is_global)
 	{
 		MidoriText variable_name(def.m_name.m_lexeme.c_str());
