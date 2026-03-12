@@ -1,7 +1,9 @@
 #include "ClosureLifting.h"
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Common/Constant/Constant.h"
 #include "Compiler/Token/Token.h"
 #include <format>
+#include <type_traits>
 
 namespace
 {
@@ -52,6 +54,18 @@ namespace
 		}
 
 		return true;
+	}
+
+	Token MakeLiftedToken(const Token& source_token, std::string_view base_name)
+	{
+		static int s_global_lift_id = 0;
+		return Token
+		(
+			std::format("__lifted_{}_{}", base_name, s_global_lift_id++),
+			Token::Name::IDENTIFIER_LITERAL,
+			source_token.m_line,
+			source_token.m_file_name
+		);
 	}
 
 	class SelfReferencePatcher : public MidoriOptimizer
@@ -130,14 +144,16 @@ public:
 		}
 	};
 
-	class CaptureAnalyzer : public MidoriOptimizer
+	class LiftSafetyAnalyzer : public MidoriOptimizer
 	{
 	public:
-		std::string_view m_self_name;
+		const std::unordered_set<std::string>* m_visible_globals = nullptr;
+		std::optional<std::string_view> m_self_name;
 		bool m_is_safe{ true };
 
-		CaptureAnalyzer(std::string_view self_name)
-			: m_self_name(self_name)
+		LiftSafetyAnalyzer(const std::unordered_set<std::string>& visible_globals, std::optional<std::string_view> self_name = std::nullopt)
+			: m_visible_globals(&visible_globals),
+			m_self_name(self_name)
 		{
 		}
 
@@ -166,13 +182,21 @@ public:
 
 			if (std::holds_alternative<MidoriExpression::NameContext::Cell>(context))
 			{
-				// Any cell access that isn't self-ref is an external capture -> UNSAFE.
-				if (name.m_lexeme != m_self_name)
+				if (!m_self_name.has_value() || name.m_lexeme != m_self_name.value())
+				{
+					m_is_safe = false;
+				}
+				return;
+			}
+
+			if (std::holds_alternative<MidoriExpression::NameContext::Global>(context))
+			{
+				if (name.m_lexeme.find(NameSeparator) == std::string::npos
+					&& !m_visible_globals->contains(name.m_lexeme))
 				{
 					m_is_safe = false;
 				}
 			}
-			// Local accesses are always safe (refer to current stack frame)
 		}
 
 		void operator()(MidoriExpression::NameAccess& access) override
@@ -215,23 +239,29 @@ public:
 MidoriResult::OptimizerResult ClosureLifting::Optimize(MidoriProgramTree program_tree)
 {
 	ResetPassState();
-	m_new_globals.clear();
+	m_visible_globals.clear();
+	m_pending_globals.clear();
 
-	std::ranges::for_each
-	(
-		program_tree,
-		[this](std::unique_ptr<MidoriStatement>& stmt)
-		{
-			VisitStatement(stmt);
-		}
-	);
+	MidoriProgramTree rewritten_program;
+	rewritten_program.reserve(program_tree.size());
 
-	// Prepend new globals to handle forward references
-	if (!m_new_globals.empty())
+	for (std::unique_ptr<MidoriStatement>& stmt : program_tree)
 	{
-		program_tree.insert(program_tree.begin(), std::make_move_iterator(m_new_globals.begin()), std::make_move_iterator(m_new_globals.end()));
+		m_pending_globals.clear();
+		VisitStatement(stmt);
+
+		for (std::unique_ptr<MidoriStatement>& pending_global : m_pending_globals)
+		{
+			RecordVisibleGlobalNames(*pending_global);
+			rewritten_program.emplace_back(std::move(pending_global));
+		}
+
+		RecordVisibleGlobalNames(*stmt);
+		rewritten_program.emplace_back(std::move(stmt));
 	}
-	return std::move(program_tree);
+
+	m_pending_globals.clear();
+	return std::move(rewritten_program);
 }
 
 std::string_view ClosureLifting::GetName() const
@@ -241,10 +271,39 @@ std::string_view ClosureLifting::GetName() const
 
 void ClosureLifting::operator()(MidoriExpression::Function& function)
 {
-	// Only visit the body to analyze nested functions within lambdas.
-	// Lambda lifting is disabled because it causes forward reference issues
-	// when lifted lambda bodies reference global functions defined later.
 	VisitAndReplace(function.m_body);
+
+	LiftSafetyAnalyzer analyzer(m_visible_globals);
+	analyzer.Analyze(function.m_body);
+	if (!analyzer.m_is_safe)
+	{
+		return;
+	}
+
+	Token lifted_token = MakeLiftedToken(function.m_function_keyword, "lambda");
+
+	std::unique_ptr<MidoriStatement> global_def = std::make_unique<MidoriStatement>
+	(
+		MidoriStatement::FunctionDefinition
+		(
+			lifted_token,
+			std::move(function.m_generic_params),
+			std::move(function.m_params),
+			std::move(function.m_param_types),
+			std::move(function.m_return_type),
+			std::move(function.m_body),
+			std::nullopt,
+			0
+		)
+	);
+	m_pending_globals.emplace_back(std::move(global_def));
+	m_visible_globals.insert(lifted_token.m_lexeme);
+
+	m_pending_replacement = std::make_unique<MidoriExpression>
+	(
+		MidoriExpression::NameAccess(lifted_token, MidoriExpression::NameContext::Global{})
+	);
+	m_pending_replacement->GetType() = function.m_type_data;
 }
 
 void ClosureLifting::operator()(MidoriExpression::Block& block)
@@ -261,17 +320,12 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 
 			if (is_local_nested && !defun.m_is_lift_wrapper && !IsForwardingLiftWrapperCall(defun))
 			{
-				// Analyze captured variables
-				// We need to verify if the function *actually* uses any environmental captures.
-				// Local accesses are safe. Cell accesses are unsafe unless they are self-references.
-				CaptureAnalyzer analyzer(defun.m_name.m_lexeme);
+				LiftSafetyAnalyzer analyzer(m_visible_globals, defun.m_name.m_lexeme);
 				analyzer.Analyze(defun.m_body);
 
 				if (analyzer.m_is_safe)
 				{
-					static int s_global_lift_id = 0;
-					std::string lifted_name = std::format("__lifted_{}_{}", defun.m_name.m_lexeme, s_global_lift_id++);
-					Token lifted_token(std::move(lifted_name), Token::Name::IDENTIFIER_LITERAL, defun.m_name.m_line, defun.m_name.m_file_name);
+					Token lifted_token = MakeLiftedToken(defun.m_name, defun.m_name.m_lexeme);
 
 					SelfReferencePatcher patcher(defun.m_name.m_lexeme, lifted_token.m_lexeme);
 					patcher.Patch(defun.m_body);
@@ -304,7 +358,8 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 							std::move(defun.m_constraints)
 						)
 					);
-					m_new_globals.emplace_back(std::move(global_def));
+					m_pending_globals.emplace_back(std::move(global_def));
+					m_visible_globals.insert(lifted_token.m_lexeme);
 
 					// Create arguments for the wrapper call
 					std::vector<std::unique_ptr<MidoriExpression>> call_args;
@@ -358,4 +413,48 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 	{
 		VisitAndReplace(block.m_final_expr.value());
 	}
+}
+
+void ClosureLifting::RecordVisibleGlobalNames(const MidoriStatement& stmt)
+{
+	std::visit
+	(
+		[this](const auto& node)
+		{
+			using T = std::decay_t<decltype(node)>;
+
+			if constexpr (std::is_same_v<T, MidoriStatement::VariableDefinition>)
+			{
+				if (!node.m_local_index.has_value())
+				{
+					m_visible_globals.insert(node.m_name.m_lexeme);
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriStatement::TupleDefinition>)
+			{
+				for (size_t i = 0u; i < node.m_names.size(); i += 1u)
+				{
+					if (!node.m_local_indices[i].has_value())
+					{
+						m_visible_globals.insert(node.m_names[i].m_lexeme);
+					}
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriStatement::FunctionDefinition>)
+			{
+				if (!node.m_local_index.has_value())
+				{
+					m_visible_globals.insert(node.m_name.m_lexeme);
+				}
+			}
+			else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
+			{
+				if (!node.m_local_index.has_value())
+				{
+					m_visible_globals.insert(node.m_function_name.m_lexeme);
+				}
+			}
+		},
+		*stmt
+	);
 }

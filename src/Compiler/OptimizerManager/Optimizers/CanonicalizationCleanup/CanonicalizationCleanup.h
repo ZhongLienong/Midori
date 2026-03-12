@@ -17,5 +17,13 @@ public:
 
 	void operator()(MidoriExpression::Group& group) override;
 
+	void operator()(MidoriExpression::MemberAccess& get) override;
+
+	void operator()(MidoriExpression::IndexAccess& array_get) override;
+
 	void operator()(MidoriExpression::UnaryPrefix& unary) override;
+
+	void operator()(MidoriExpression::ArrayComprehension& comp) override;
+
+	void operator()(MidoriExpression::For& for_expr) override;
 };

@@ -2,6 +2,8 @@
 
 #include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
 
+#include <unordered_set>
+
 class ClosureLifting : public MidoriOptimizer
 {
 public:
@@ -17,5 +19,8 @@ protected:
 	void operator()(MidoriExpression::Block& block) override;
 
 private:
-	std::vector<std::unique_ptr<MidoriStatement>> m_new_globals;
+	void RecordVisibleGlobalNames(const MidoriStatement& stmt);
+
+	std::unordered_set<std::string> m_visible_globals;
+	std::vector<std::unique_ptr<MidoriStatement>> m_pending_globals;
 };

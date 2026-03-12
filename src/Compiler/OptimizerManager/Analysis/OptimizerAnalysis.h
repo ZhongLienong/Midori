@@ -78,6 +78,14 @@ namespace OptimizerAnalysis
 
 	std::unique_ptr<MidoriExpression> MakeLiteralExpression(const ConstantValue& value, const Token& source_token);
 
+	std::optional<std::size_t> TryEvalConstantIndex(const MidoriExpression& expr);
+
+	bool IsKnownEmptyIterationSource(const MidoriExpression& expr);
+
+	bool IsBindingFreePattern(const MidoriPattern& pattern);
+
+	std::optional<bool> TryMatchPattern(const MidoriPattern& pattern, const MidoriExpression& expr);
+
 	struct LocalAccessInfo
 	{
 		int m_reads = 0;

@@ -2,6 +2,7 @@
 
 #include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
 
+#include <algorithm>
 #include <optional>
 #include <ranges>
 
@@ -101,6 +102,101 @@ namespace
 	void SetReplacementType(std::unique_ptr<MidoriExpression>& replacement, const std::shared_ptr<MidoriType>& type)
 	{
 		replacement->GetType() = type;
+	}
+
+	std::unique_ptr<MidoriExpression>* StripGroupOwners(std::unique_ptr<MidoriExpression>& expr)
+	{
+		std::unique_ptr<MidoriExpression>* current = &expr;
+		while (*current != nullptr && (*current)->IsExpression<MidoriExpression::Group>())
+		{
+			current = &(*current)->GetExpression<MidoriExpression::Group>().m_expr_in;
+		}
+		return current;
+	}
+
+	bool HasOnlyPureElements(const std::vector<std::unique_ptr<MidoriExpression>>& elements)
+	{
+		return std::ranges::all_of
+		(
+			elements,
+			[](const std::unique_ptr<MidoriExpression>& element)
+			{
+				return element != nullptr && OptimizerAnalysis::IsPure(*element);
+			}
+		);
+	}
+
+	std::unique_ptr<MidoriExpression> TryTakeStructMember(MidoriExpression::MemberAccess& get)
+	{
+		std::unique_ptr<MidoriExpression>* struct_owner = StripGroupOwners(get.m_struct);
+		if (*struct_owner == nullptr || !(*struct_owner)->IsExpression<MidoriExpression::Construct>())
+		{
+			return nullptr;
+		}
+
+		MidoriExpression::Construct& construct = (*struct_owner)->GetExpression<MidoriExpression::Construct>();
+		if (!construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>()
+			|| get.m_index < 0
+			|| static_cast<std::size_t>(get.m_index) >= construct.m_params.size()
+			|| !HasOnlyPureElements(construct.m_params))
+		{
+			return nullptr;
+		}
+
+		return OptimizerAnalysis::StripRedundantGroups(std::move(construct.m_params[static_cast<std::size_t>(get.m_index)]));
+	}
+
+	std::unique_ptr<MidoriExpression> TryTakeIndexedElement(MidoriExpression::IndexAccess& array_get)
+	{
+		if (array_get.m_indices.empty())
+		{
+			return nullptr;
+		}
+
+		std::unique_ptr<MidoriExpression>* current_owner = StripGroupOwners(array_get.m_arr_var);
+		for (const std::unique_ptr<MidoriExpression>& index_expr : array_get.m_indices)
+		{
+			if (*current_owner == nullptr || !(*current_owner)->IsExpression<MidoriExpression::Array>())
+			{
+				return nullptr;
+			}
+
+			MidoriExpression::Array& array_expr = (*current_owner)->GetExpression<MidoriExpression::Array>();
+			if (!HasOnlyPureElements(array_expr.m_elems))
+			{
+				return nullptr;
+			}
+
+			const std::optional<std::size_t> index = OptimizerAnalysis::TryEvalConstantIndex(*index_expr);
+			if (!index.has_value() || index.value() >= array_expr.m_elems.size())
+			{
+				return nullptr;
+			}
+
+			current_owner = StripGroupOwners(array_expr.m_elems[index.value()]);
+		}
+
+		return *current_owner == nullptr ? nullptr : OptimizerAnalysis::StripRedundantGroups(std::move(*current_owner));
+	}
+
+	std::unique_ptr<MidoriExpression> MakeEmptyArrayLiteral(const Token& source_token, const std::shared_ptr<MidoriType>& type)
+	{
+		std::unique_ptr<MidoriExpression> replacement = std::make_unique<MidoriExpression>
+		(
+			MidoriExpression::Array(source_token, {})
+		);
+		SetReplacementType(replacement, type);
+		return replacement;
+	}
+
+	std::unique_ptr<MidoriExpression> MakeUnitLiteral(const Token& source_token, const std::shared_ptr<MidoriType>& type)
+	{
+		std::unique_ptr<MidoriExpression> replacement = std::make_unique<MidoriExpression>
+		(
+			MidoriExpression::UnitLiteral(Token("()", Token::Name::UNIT, source_token.m_line, source_token.m_file_name))
+		);
+		SetReplacementType(replacement, type);
+		return replacement;
 	}
 }
 
@@ -266,6 +362,33 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Group& group)
 	SetReplacementType(m_pending_replacement, group.m_type_data);
 }
 
+void CanonicalizationCleanup::operator()(MidoriExpression::MemberAccess& get)
+{
+	VisitAndReplace(get.m_struct);
+
+	m_pending_replacement = TryTakeStructMember(get);
+	if (m_pending_replacement != nullptr)
+	{
+		SetReplacementType(m_pending_replacement, get.m_type_data);
+	}
+}
+
+void CanonicalizationCleanup::operator()(MidoriExpression::IndexAccess& array_get)
+{
+	VisitAndReplace(array_get.m_arr_var);
+
+	for (std::unique_ptr<MidoriExpression>& index : array_get.m_indices)
+	{
+		VisitAndReplace(index);
+	}
+
+	m_pending_replacement = TryTakeIndexedElement(array_get);
+	if (m_pending_replacement != nullptr)
+	{
+		SetReplacementType(m_pending_replacement, array_get.m_type_data);
+	}
+}
+
 void CanonicalizationCleanup::operator()(MidoriExpression::UnaryPrefix& unary)
 {
 	VisitAndReplace(unary.m_expr);
@@ -297,4 +420,30 @@ void CanonicalizationCleanup::operator()(MidoriExpression::UnaryPrefix& unary)
 
 	m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(inner_unary.m_expr));
 	SetReplacementType(m_pending_replacement, unary.m_type_data);
+}
+
+void CanonicalizationCleanup::operator()(MidoriExpression::ArrayComprehension& comp)
+{
+	VisitAndReplace(comp.m_range);
+
+	if (OptimizerAnalysis::IsPure(*comp.m_range) && OptimizerAnalysis::IsKnownEmptyIterationSource(*comp.m_range))
+	{
+		m_pending_replacement = MakeEmptyArrayLiteral(comp.m_bracket, comp.m_type_data);
+		return;
+	}
+
+	VisitAndReplace(comp.m_transform_expr);
+}
+
+void CanonicalizationCleanup::operator()(MidoriExpression::For& for_expr)
+{
+	VisitAndReplace(for_expr.m_range);
+
+	if (OptimizerAnalysis::IsPure(*for_expr.m_range) && OptimizerAnalysis::IsKnownEmptyIterationSource(*for_expr.m_range))
+	{
+		m_pending_replacement = MakeUnitLiteral(for_expr.m_for_keyword, for_expr.m_type_data);
+		return;
+	}
+
+	VisitAndReplace(for_expr.m_body);
 }

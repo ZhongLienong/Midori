@@ -53,6 +53,58 @@ void ConstantBranchElimination::operator()(MidoriExpression::IfElse& if_else)
 	}
 }
 
+void ConstantBranchElimination::operator()(MidoriExpression::Match& match)
+{
+	VisitAndReplace(match.m_arg_expr);
+
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		VisitAndReplace(case_expr);
+	}
+
+	if (!OptimizerAnalysis::IsPure(*match.m_arg_expr))
+	{
+		return;
+	}
+
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		if (case_expr->IsExpression<MidoriExpression::Default>())
+		{
+			MidoriExpression::Default& default_expr = case_expr->GetExpression<MidoriExpression::Default>();
+			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(default_expr.m_expr));
+			m_pending_replacement->GetType() = match.m_type_data;
+			return;
+		}
+
+		if (!case_expr->IsExpression<MidoriExpression::Case>())
+		{
+			return;
+		}
+
+		MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+		const std::optional<bool> pattern_matches = OptimizerAnalysis::TryMatchPattern(*match_case.m_pattern, *match.m_arg_expr);
+		if (!pattern_matches.has_value())
+		{
+			return;
+		}
+
+		if (!pattern_matches.value())
+		{
+			continue;
+		}
+
+		if (match_case.m_binding_count != 0 || !OptimizerAnalysis::IsBindingFreePattern(*match_case.m_pattern))
+		{
+			return;
+		}
+
+		m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(match_case.m_expr));
+		m_pending_replacement->GetType() = match.m_type_data;
+		return;
+	}
+}
+
 std::unique_ptr<MidoriExpression> ConstantBranchElimination::MakeLogicalNot(MidoriExpression::IfElse& if_else)
 {
 	std::unique_ptr<MidoriExpression> condition = OptimizerAnalysis::StripRedundantGroups(std::move(if_else.m_condition));

@@ -86,6 +86,52 @@ namespace
 		return value.Get<MidoriBool>();
 	}
 
+	std::optional<ConstantValue> TryGetPatternLiteralValue(const MidoriPattern::Literal& literal)
+	{
+		switch (literal.m_kind)
+		{
+		case MidoriPattern::LiteralKind::Bool:
+			return ConstantValue{ literal.m_token.m_token_name == Token::Name::TRUE };
+		case MidoriPattern::LiteralKind::Integer:
+		{
+			const std::optional<MidoriInteger> value = SafeParseInteger(literal.m_token.m_lexeme);
+			return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+		}
+		case MidoriPattern::LiteralKind::Byte:
+		{
+			const std::optional<MidoriByte> value = SafeParseByte(literal.m_token.m_lexeme);
+			return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+		}
+		case MidoriPattern::LiteralKind::Word:
+		{
+			const std::optional<MidoriWord> value = SafeParseWord(literal.m_token.m_lexeme);
+			return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+		}
+		case MidoriPattern::LiteralKind::Float:
+		{
+			const std::optional<MidoriFloat> value = SafeParseFloat(literal.m_token.m_lexeme);
+			return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+		}
+		case MidoriPattern::LiteralKind::Text:
+			return ConstantValue{ literal.m_token.m_lexeme };
+		case MidoriPattern::LiteralKind::Unit:
+			return ConstantValue{ UnitConstant{} };
+		default:
+			return std::nullopt;
+		}
+	}
+
+	template<typename T>
+	bool IsEmptyRange(T start, T step, T end)
+	{
+		if (step > static_cast<T>(0))
+		{
+			return !(start < end);
+		}
+
+		return !(start > end);
+	}
+
 	std::optional<int> TryGetLocalIndex(const MidoriExpression::NameContext::Tag& name_ctx)
 	{
 		if (!std::holds_alternative<MidoriExpression::NameContext::Local>(name_ctx))
@@ -115,6 +161,171 @@ namespace
 	}
 
 	std::optional<ConstantValue> EvalConstant(const MidoriExpression& expr);
+
+	bool IsKnownPatternMatchValue(const MidoriExpression& expr)
+	{
+		const MidoriExpression* stripped_expr = OptimizerAnalysis::StripRedundantGroups(&expr);
+		return stripped_expr != nullptr
+			&& (OptimizerAnalysis::IsLiteralExpression(*stripped_expr)
+				|| stripped_expr->IsExpression<MidoriExpression::Tuple>()
+				|| stripped_expr->IsExpression<MidoriExpression::Array>()
+				|| stripped_expr->IsExpression<MidoriExpression::Construct>());
+	}
+
+	std::optional<bool> TryMatchPatternKnown(const MidoriPattern& pattern, const MidoriExpression& expr)
+	{
+		const MidoriExpression* stripped_expr = OptimizerAnalysis::StripRedundantGroups(&expr);
+		if (stripped_expr == nullptr)
+		{
+			return std::nullopt;
+		}
+
+		return std::visit
+		(
+			[&](const auto& node) -> std::optional<bool>
+			{
+				using T = std::decay_t<decltype(node)>;
+
+				if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+				{
+					return true;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+				{
+					const std::optional<ConstantValue> pattern_value = TryGetPatternLiteralValue(node);
+					if (!pattern_value.has_value())
+					{
+						return std::nullopt;
+					}
+
+					const std::optional<ConstantValue> expr_value = EvalConstant(*stripped_expr);
+					if (expr_value.has_value())
+					{
+						return expr_value->m_value == pattern_value->m_value;
+					}
+
+					return IsKnownPatternMatchValue(*stripped_expr) ? std::optional<bool>{ false } : std::nullopt;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Tuple>)
+				{
+					if (!stripped_expr->IsExpression<MidoriExpression::Tuple>())
+					{
+						return IsKnownPatternMatchValue(*stripped_expr) ? std::optional<bool>{ false } : std::nullopt;
+					}
+
+					const MidoriExpression::Tuple& tuple_expr = stripped_expr->GetExpression<MidoriExpression::Tuple>();
+					if (tuple_expr.m_elements.size() != node.m_elements.size())
+					{
+						return false;
+					}
+
+					for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
+					{
+						const std::optional<bool> matched = TryMatchPatternKnown(*node.m_elements[i], *tuple_expr.m_elements[i]);
+						if (!matched.has_value())
+						{
+							return std::nullopt;
+						}
+						if (!matched.value())
+						{
+							return false;
+						}
+					}
+
+					return true;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Array>)
+				{
+					if (!stripped_expr->IsExpression<MidoriExpression::Array>())
+					{
+						return IsKnownPatternMatchValue(*stripped_expr) ? std::optional<bool>{ false } : std::nullopt;
+					}
+
+					const MidoriExpression::Array& array_expr = stripped_expr->GetExpression<MidoriExpression::Array>();
+					if (array_expr.m_elems.size() != node.m_elements.size())
+					{
+						return false;
+					}
+
+					for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
+					{
+						const std::optional<bool> matched = TryMatchPatternKnown(*node.m_elements[i], *array_expr.m_elems[i]);
+						if (!matched.has_value())
+						{
+							return std::nullopt;
+						}
+						if (!matched.value())
+						{
+							return false;
+						}
+					}
+
+					return true;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+				{
+					if (!stripped_expr->IsExpression<MidoriExpression::Construct>())
+					{
+						return IsKnownPatternMatchValue(*stripped_expr) ? std::optional<bool>{ false } : std::nullopt;
+					}
+
+					const MidoriExpression::Construct& construct_expr = stripped_expr->GetExpression<MidoriExpression::Construct>();
+					if (construct_expr.m_params.size() != node.m_args.size())
+					{
+						return false;
+					}
+
+					if (node.m_is_union)
+					{
+						if (!construct_expr.IsConstructTypeOf<MidoriExpression::Construct::Union>())
+						{
+							return false;
+						}
+
+						const MidoriExpression::Construct::Union& union_ctx = std::get<MidoriExpression::Construct::Union>(construct_expr.m_construct_ctx);
+						if (node.m_tag >= 0)
+						{
+							if (union_ctx.m_index != node.m_tag)
+							{
+								return false;
+							}
+						}
+						else if (construct_expr.m_data_name.m_lexeme != node.m_name)
+						{
+							return false;
+						}
+					}
+					else
+					{
+						if (!construct_expr.IsConstructTypeOf<MidoriExpression::Construct::Struct>() || construct_expr.m_data_name.m_lexeme != node.m_name)
+						{
+							return false;
+						}
+					}
+
+					for (size_t i = 0u; i < node.m_args.size(); i += 1u)
+					{
+						const std::optional<bool> matched = TryMatchPatternKnown(*node.m_args[i], *construct_expr.m_params[i]);
+						if (!matched.has_value())
+						{
+							return std::nullopt;
+						}
+						if (!matched.value())
+						{
+							return false;
+						}
+					}
+
+					return true;
+				}
+				else
+				{
+					return std::nullopt;
+				}
+			},
+			*pattern
+		);
+	}
 
 	std::optional<ConstantValue> EvalBinary(const MidoriExpression::Binary& binary)
 	{
@@ -1321,6 +1532,168 @@ namespace OptimizerAnalysis
 			},
 			value.m_value
 		);
+	}
+
+	std::optional<std::size_t> TryEvalConstantIndex(const MidoriExpression& expr)
+	{
+		const std::optional<ConstantValue> value = TryEvalConstant(expr);
+		if (!value.has_value())
+		{
+			return std::nullopt;
+		}
+
+		if (value->Is<MidoriInteger>())
+		{
+			const MidoriInteger index = value->Get<MidoriInteger>();
+			return index >= 0ll ? std::optional<std::size_t>{ static_cast<std::size_t>(index) } : std::nullopt;
+		}
+
+		if (value->Is<MidoriByte>())
+		{
+			return static_cast<std::size_t>(value->Get<MidoriByte>());
+		}
+
+		if (value->Is<MidoriWord>())
+		{
+			return static_cast<std::size_t>(value->Get<MidoriWord>());
+		}
+
+		return std::nullopt;
+	}
+
+	bool IsKnownEmptyIterationSource(const MidoriExpression& expr)
+	{
+		const MidoriExpression* stripped_expr = StripRedundantGroups(&expr);
+		if (stripped_expr == nullptr)
+		{
+			return false;
+		}
+
+		if (stripped_expr->IsExpression<MidoriExpression::Array>())
+		{
+			return stripped_expr->GetExpression<MidoriExpression::Array>().m_elems.empty();
+		}
+
+		if (stripped_expr->IsExpression<MidoriExpression::RangeBinary>())
+		{
+			const MidoriExpression::RangeBinary& range_expr = stripped_expr->GetExpression<MidoriExpression::RangeBinary>();
+			const std::optional<ConstantValue> start = TryEvalConstant(*range_expr.m_start);
+			const std::optional<ConstantValue> end = TryEvalConstant(*range_expr.m_end);
+			if (!start.has_value() || !end.has_value())
+			{
+				return false;
+			}
+
+			if (start->Is<MidoriInteger>() && end->Is<MidoriInteger>())
+			{
+				return !(start->Get<MidoriInteger>() < end->Get<MidoriInteger>());
+			}
+
+			if (start->Is<MidoriFloat>() && end->Is<MidoriFloat>())
+			{
+				return !(start->Get<MidoriFloat>() < end->Get<MidoriFloat>());
+			}
+
+			if (start->Is<MidoriByte>() && end->Is<MidoriByte>())
+			{
+				return !(start->Get<MidoriByte>() < end->Get<MidoriByte>());
+			}
+
+			if (start->Is<MidoriWord>() && end->Is<MidoriWord>())
+			{
+				return !(start->Get<MidoriWord>() < end->Get<MidoriWord>());
+			}
+
+			return false;
+		}
+
+		if (!stripped_expr->IsExpression<MidoriExpression::RangeTernary>())
+		{
+			return false;
+		}
+
+		const MidoriExpression::RangeTernary& range_expr = stripped_expr->GetExpression<MidoriExpression::RangeTernary>();
+		const std::optional<ConstantValue> start = TryEvalConstant(*range_expr.m_start);
+		const std::optional<ConstantValue> step = TryEvalConstant(*range_expr.m_step);
+		const std::optional<ConstantValue> end = TryEvalConstant(*range_expr.m_end);
+		if (!start.has_value() || !step.has_value() || !end.has_value())
+		{
+			return false;
+		}
+
+		if (start->Is<MidoriInteger>() && step->Is<MidoriInteger>() && end->Is<MidoriInteger>())
+		{
+			return IsEmptyRange(start->Get<MidoriInteger>(), step->Get<MidoriInteger>(), end->Get<MidoriInteger>());
+		}
+
+		if (start->Is<MidoriFloat>() && step->Is<MidoriFloat>() && end->Is<MidoriFloat>())
+		{
+			return IsEmptyRange(start->Get<MidoriFloat>(), step->Get<MidoriFloat>(), end->Get<MidoriFloat>());
+		}
+
+		if (start->Is<MidoriByte>() && step->Is<MidoriByte>() && end->Is<MidoriByte>())
+		{
+			return IsEmptyRange(start->Get<MidoriByte>(), step->Get<MidoriByte>(), end->Get<MidoriByte>());
+		}
+
+		if (start->Is<MidoriWord>() && step->Is<MidoriWord>() && end->Is<MidoriWord>())
+		{
+			return IsEmptyRange(start->Get<MidoriWord>(), step->Get<MidoriWord>(), end->Get<MidoriWord>());
+		}
+
+		return false;
+	}
+
+	bool IsBindingFreePattern(const MidoriPattern& pattern)
+	{
+		return std::visit
+		(
+			[](const auto& node) -> bool
+			{
+				using T = std::decay_t<decltype(node)>;
+
+				if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
+				{
+					return false;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
+				{
+					return true;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
+				{
+					for (const std::unique_ptr<MidoriPattern>& element : node.m_elements)
+					{
+						if (!IsBindingFreePattern(*element))
+						{
+							return false;
+						}
+					}
+					return true;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Constructor>)
+				{
+					for (const std::unique_ptr<MidoriPattern>& arg : node.m_args)
+					{
+						if (!IsBindingFreePattern(*arg))
+						{
+							return false;
+						}
+					}
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			},
+			*pattern
+		);
+	}
+
+	std::optional<bool> TryMatchPattern(const MidoriPattern& pattern, const MidoriExpression& expr)
+	{
+		return TryMatchPatternKnown(pattern, expr);
 	}
 
 	bool StatementLocalAccessSummary::UsesLocal(int local_index) const
