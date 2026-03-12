@@ -29,9 +29,10 @@ private:
 	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
 	TokenStream m_main_token_stream;
 	std::string m_main_file_name;
+	std::vector<std::string> m_main_source_lines;
 
 public:
-	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name);
+	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines = {});
 
 	MidoriResult::ModuleManagerResult GenerateBuildGraph();
 

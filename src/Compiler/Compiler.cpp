@@ -16,12 +16,10 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <filesystem>
-#include <fstream>
-#include <future>
 #include <mutex>
-#include <set>
 #include <sstream>
 #include <thread>
 
@@ -66,8 +64,6 @@ namespace
 
 	struct CompileEnv
 	{
-		const std::string& m_main_file_name;
-		const std::vector<std::string>& m_main_source_lines;
 		BuildGraph& m_build_graph;
 		std::unordered_map<std::string, CompiledModule>& m_compiled_modules;
 		std::mutex& m_modules_mutex;
@@ -222,12 +218,10 @@ namespace
 	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx)
 #endif
 	{
-		size_t current_module = 0u;
+		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
+		const std::string short_path = std::filesystem::path(file_path).filename().string();
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
-			current_module = ++env.m_completed_modules;
-			std::string short_path = std::filesystem::path(file_path).filename().string();
-
 			// Show tier info for multi-tier builds, just progress for single tier
 			if (env.m_tiers.size() > 1u)
 			{
@@ -299,90 +293,102 @@ namespace
 		return unique_warnings.size();
 	}
 
-	static bool IsMainFile(const CompileEnv& env, const std::string& file_path)
-	{
-#ifndef __EMSCRIPTEN__
-		return std::filesystem::equivalent(file_path, env.m_main_file_name);
-#else
-		return file_path == env.m_main_file_name;
-#endif
-	}
-
 	static MidoriResult::Result<std::vector<std::string>> LoadModuleSourceLines(const CompileEnv& env, const std::string& file_path)
 	{
-		if (IsMainFile(env, file_path))
+		std::unordered_map<std::string, BuildGraph::BuildNode>::const_iterator node_it = env.m_build_graph.m_nodes.find(file_path);
+		if (node_it == env.m_build_graph.m_nodes.end())
 		{
-			return env.m_main_source_lines;
+			return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Missing build graph node for module: "s + file_path, 0, file_path));
 		}
 
-		std::ifstream file(file_path);
-		if (!file.is_open())
+		if (node_it->second.m_source_lines.empty())
 		{
-			return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Could not open module file: "s + file_path, 0, file_path));
+			return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Missing source lines for module: "s + file_path, 0, file_path));
 		}
 
-		std::vector<std::string> module_source_lines;
-		std::string line;
-		while (std::getline(file, line))
-		{
-			module_source_lines.push_back(line);
-		}
-
-		return module_source_lines;
+		return node_it->second.m_source_lines;
 	}
 
 	static MidoriResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
 	{
 		ImportContext context;
 		std::unordered_map<std::string, std::string> imported_typeclass_sources;
-
-		context.m_imported_symbols.reserve(node.m_dependencies.size());
-		context.m_imported_type_signatures.reserve(node.m_dependencies.size());
-		imported_typeclass_sources.reserve(node.m_dependencies.size());
+		std::vector<const CompiledModule*> dependency_modules;
+		dependency_modules.reserve(node.m_dependencies.size());
 
 		{
 			std::lock_guard<std::mutex> lock(env.m_modules_mutex);
 			for (const std::string& dep_path : node.m_dependencies)
 			{
-				const CompiledModule& dep = env.m_compiled_modules.at(dep_path);
-				const std::string& dep_module_name = dep.ModuleName();
-				context.m_imported_symbols[dep_module_name] = dep.Symbols();
-				context.m_imported_type_signatures[dep_module_name] = dep.TypeSignatures();
+				dependency_modules.push_back(&env.m_compiled_modules.at(dep_path));
+			}
+		}
 
-				for (const auto& [tc_name, metadata] : dep.TypeclassMetadataByName())
+		size_t imported_type_count = 0u;
+		size_t imported_typeclass_count = 0u;
+		size_t imported_generic_function_count = 0u;
+		for (const CompiledModule* dep : dependency_modules)
+		{
+			imported_type_count += dep->TypeSignatures().size() * 2u;
+			imported_typeclass_count += dep->TypeclassMetadataByName().size();
+
+			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();
+			if (dep_bytecode.has_value())
+			{
+				imported_generic_function_count += dep_bytecode.value().m_generic_functions.size() * 2u;
+			}
+		}
+
+		context.m_imported_symbols.reserve(dependency_modules.size());
+		context.m_imported_type_signatures.reserve(dependency_modules.size());
+		context.m_imported_types.reserve(imported_type_count);
+		context.m_imported_typeclass_metadata.reserve(imported_typeclass_count);
+		context.m_imported_typeclass_infos.reserve(imported_typeclass_count);
+		context.m_imported_typeclass_methods.reserve(imported_typeclass_count);
+		context.m_imported_typeclass_instances.reserve(imported_typeclass_count);
+		context.m_imported_typeclass_instance_types.reserve(imported_typeclass_count);
+		context.m_imported_generic_functions.reserve(imported_generic_function_count);
+		imported_typeclass_sources.reserve(imported_typeclass_count);
+
+		for (const CompiledModule* dep : dependency_modules)
+		{
+			const std::string& dep_module_name = dep->ModuleName();
+			context.m_imported_symbols[dep_module_name] = dep->Symbols();
+			context.m_imported_type_signatures[dep_module_name] = dep->TypeSignatures();
+
+			for (const auto& [tc_name, metadata] : dep->TypeclassMetadataByName())
+			{
+				std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
+				if (existing_it != context.m_imported_typeclass_metadata.end())
 				{
-					std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
-					if (existing_it != context.m_imported_typeclass_metadata.end())
+					if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
 					{
-						if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
-						{
-							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), 0, file_path));
-						}
+						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), 0, file_path));
+					}
 
-						CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
-						CompilerAccess::MergeInstanceTypeArgs(existing_it->second.m_instance_type_args, metadata.m_instance_type_args);
-					}
-					else
-					{
-						context.m_imported_typeclass_metadata[tc_name] = metadata;
-						imported_typeclass_sources[tc_name] = dep_module_name;
-					}
+					CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
+					CompilerAccess::MergeInstanceTypeArgs(existing_it->second.m_instance_type_args, metadata.m_instance_type_args);
 				}
-
-				for (const auto& [name, type] : dep.TypeSignatures())
+				else
 				{
-					context.m_imported_types[name] = type;
-					context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
+					context.m_imported_typeclass_metadata[tc_name] = metadata;
+					imported_typeclass_sources[tc_name] = dep_module_name;
 				}
+			}
 
-				const std::optional<BytecodeModule>& dep_bytecode = dep.Bytecode();
-				if (dep_bytecode.has_value())
+			for (const auto& [name, type] : dep->TypeSignatures())
+			{
+				context.m_imported_types[name] = type;
+				context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
+			}
+
+			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();
+			if (dep_bytecode.has_value())
+			{
+				for (const auto& [name, info] : dep_bytecode.value().m_generic_functions)
 				{
-					for (const auto& [name, info] : dep_bytecode.value().m_generic_functions)
-					{
-						context.m_imported_generic_functions[name] = info;
-						context.m_imported_generic_functions[dep_module_name + "::" + name] = info;
-					}
+					context.m_imported_generic_functions[name] = info;
+					context.m_imported_generic_functions[dep_module_name + "::" + name] = info;
 				}
 			}
 		}
@@ -714,98 +720,196 @@ namespace
 		}
 	};
 
-	struct PendingModule
+	struct QueuedModule
 	{
 		std::string m_file_path;
-		MidoriResult::FutureModuleResult m_future;
+		size_t m_tier_idx = 0u;
 	};
 
-	static size_t WaitForReadyModule(const std::deque<PendingModule>& pending)
+	struct CompletedModule
 	{
-		while (true)
+		std::string m_file_path;
+		MidoriResult::CompiledModuleResult m_result;
+	};
+
+	class ModuleWorkQueue
+	{
+	public:
+		ModuleWorkQueue(CompileEnv& env, const ModuleCompiler& module_compiler, size_t worker_count)
+			: m_env(env),
+			m_module_compiler(module_compiler)
 		{
-			for (size_t i = 0u; i < pending.size(); i += 1u)
+			m_workers.reserve(worker_count);
+			for (size_t i = 0u; i < worker_count; i += 1u)
 			{
-				if (pending[i].m_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+				m_workers.emplace_back([this]() { WorkerLoop(); });
+			}
+		}
+
+		ModuleWorkQueue(const ModuleWorkQueue&) = delete;
+		ModuleWorkQueue& operator=(const ModuleWorkQueue&) = delete;
+
+		~ModuleWorkQueue()
+		{
+			Stop();
+		}
+
+		void Enqueue(std::string file_path, size_t tier_idx)
+		{
+			{
+				std::lock_guard<std::mutex> lock(m_mutex);
+				if (m_stop)
 				{
-					return i;
+					return;
+				}
+
+				m_ready.emplace_back(QueuedModule{ std::move(file_path), tier_idx });
+				m_in_flight += 1u;
+			}
+
+			m_ready_cv.notify_one();
+		}
+
+		CompletedModule WaitForCompleted()
+		{
+			std::unique_lock<std::mutex> lock(m_mutex);
+			m_completed_cv.wait
+			(
+				lock,
+				[this]()
+				{
+					return !m_completed.empty() || m_in_flight == 0u;
+				}
+			);
+
+			CompletedModule completed_module = std::move(m_completed.front());
+			m_completed.pop_front();
+			m_in_flight -= 1u;
+			return completed_module;
+		}
+
+		size_t InFlight() const
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			return m_in_flight;
+		}
+
+		void Stop()
+		{
+			bool should_notify = false;
+			{
+				std::lock_guard<std::mutex> lock(m_mutex);
+				if (!m_stop)
+				{
+					m_stop = true;
+					m_ready.clear();
+					should_notify = true;
 				}
 			}
 
-			// Avoid blocking on the oldest task while giving work time to finish.
-			pending.front().m_future.wait_for(std::chrono::milliseconds(1));
-		}
-	}
-
-	static MidoriResult::Result<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule)
-	{
-		std::set<std::string> ready;
-		for (const std::string& file_path : schedule.m_all_modules)
-		{
-			if (schedule.m_remaining_deps.at(file_path) == 0u)
+			if (should_notify)
 			{
-				ready.insert(file_path);
+				m_ready_cv.notify_all();
+				m_completed_cv.notify_all();
 			}
 		}
 
+	private:
+		void WorkerLoop()
+		{
+			while (true)
+			{
+				QueuedModule queued_module;
+				{
+					std::unique_lock<std::mutex> lock(m_mutex);
+					m_ready_cv.wait
+					(
+						lock,
+						[this]()
+						{
+							return m_stop || !m_ready.empty();
+						}
+					);
+
+					if (m_stop && m_ready.empty())
+					{
+						return;
+					}
+
+					queued_module = std::move(m_ready.front());
+					m_ready.pop_front();
+				}
+
+				CompletedModule completed_module
+				{
+					queued_module.m_file_path,
+					m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx)
+				};
+
+				{
+					std::lock_guard<std::mutex> lock(m_mutex);
+					m_completed.emplace_back(std::move(completed_module));
+				}
+
+				m_completed_cv.notify_one();
+			}
+		}
+
+		CompileEnv& m_env;
+		const ModuleCompiler& m_module_compiler;
+		mutable std::mutex m_mutex;
+		std::condition_variable m_ready_cv;
+		std::condition_variable m_completed_cv;
+		std::deque<QueuedModule> m_ready;
+		std::deque<CompletedModule> m_completed;
+		std::vector<std::jthread> m_workers;
+		size_t m_in_flight = 0u;
+		bool m_stop = false;
+	};
+
+	static MidoriResult::Result<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule)
+	{
 		size_t compiled_count = 0u;
 
 #ifndef __EMSCRIPTEN__
-		const size_t max_parallel = std::max<size_t>
+		const size_t worker_count = std::max<size_t>
 		(
 			1u,
 			std::min(schedule.m_all_modules.size(), static_cast<size_t>(std::max(1u, std::thread::hardware_concurrency())))
 		);
-		std::deque<PendingModule> pending;
+		ModuleWorkQueue work_queue(env, module_compiler, worker_count);
 
-		while (!ready.empty() || !pending.empty())
+		for (const std::string& file_path : schedule.m_all_modules)
 		{
-			while (!ready.empty() && pending.size() < max_parallel)
+			if (schedule.m_remaining_deps.at(file_path) == 0u)
 			{
-				std::string file_path = *ready.begin();
-				ready.erase(ready.begin());
-				const size_t tier_idx = schedule.m_tier_indices.at(file_path);
-
-				pending.emplace_back
-				(
-					PendingModule
-					{
-						file_path,
-						std::async
-						(
-							std::launch::async,
-							[&env, &module_compiler, file_path, tier_idx]() -> MidoriResult::CompiledModuleResult
-							{
-								return module_compiler.Compile(env, file_path, tier_idx);
-							}
-						)
-					}
-				);
+				work_queue.Enqueue(file_path, schedule.m_tier_indices.at(file_path));
 			}
+		}
 
-			if (pending.empty())
+		while (compiled_count < schedule.m_all_modules.size())
+		{
+			if (work_queue.InFlight() == 0u)
 			{
+				work_queue.Stop();
 				return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "No modules are ready to compile. Check for circular dependencies.\n"));
 			}
 
-			const size_t ready_idx = WaitForReadyModule(pending);
-			PendingModule pending_module = std::move(pending[ready_idx]);
-			pending.erase(pending.begin() + ready_idx);
-
-			MidoriResult::CompiledModuleResult result = pending_module.m_future.get();
-			if (!result.has_value())
+			CompletedModule completed_module = work_queue.WaitForCompleted();
+			if (!completed_module.m_result.has_value())
 			{
-				return std::unexpected(result.error());
+				work_queue.Stop();
+				return std::unexpected(completed_module.m_result.error());
 			}
 
 			{
 				std::lock_guard<std::mutex> lock(env.m_modules_mutex);
-				env.m_compiled_modules.emplace(pending_module.m_file_path, std::move(result).value());
+				env.m_compiled_modules.emplace(completed_module.m_file_path, std::move(completed_module.m_result).value());
 			}
 
 			compiled_count += 1u;
 
-			for (const std::string& dependent : schedule.m_dependents.at(pending_module.m_file_path))
+			for (const std::string& dependent : schedule.m_dependents.at(completed_module.m_file_path))
 			{
 				size_t& remaining = schedule.m_remaining_deps.at(dependent);
 				if (remaining > 0u)
@@ -813,16 +917,27 @@ namespace
 					remaining -= 1u;
 					if (remaining == 0u)
 					{
-						ready.insert(dependent);
+						work_queue.Enqueue(dependent, schedule.m_tier_indices.at(dependent));
 					}
 				}
 			}
 		}
+
+		work_queue.Stop();
 #else
+		std::deque<std::string> ready;
+		for (const std::string& file_path : schedule.m_all_modules)
+		{
+			if (schedule.m_remaining_deps.at(file_path) == 0u)
+			{
+				ready.emplace_back(file_path);
+			}
+		}
+
 		while (!ready.empty())
 		{
-			std::string file_path = *ready.begin();
-			ready.erase(ready.begin());
+			std::string file_path = std::move(ready.front());
+			ready.pop_front();
 
 			const size_t tier_idx = schedule.m_tier_indices.at(file_path);
 			MidoriResult::CompiledModuleResult result = module_compiler.Compile(env, file_path, tier_idx);
@@ -842,7 +957,7 @@ namespace
 					remaining -= 1u;
 					if (remaining == 0u)
 					{
-						ready.emplace(dependent);
+						ready.emplace_back(dependent);
 					}
 				}
 			}
@@ -906,9 +1021,9 @@ namespace
 		return duration;
 	}
 
-	static CompileEnv MakeCompileEnv(const std::string& main_file_name, const std::vector<std::string>& main_source_lines, BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules)
 	{
-		return CompileEnv{ main_file_name, main_source_lines, build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules };
 	}
 
 	static MidoriResult::Result<std::vector<BytecodeModule>> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -931,7 +1046,7 @@ namespace
 		return all_bytecode_modules;
 	}
 
-	static MidoriResult::Result<std::vector<BytecodeModule>> CompileBuildGraph(const std::string& main_file_name, const std::vector<std::string>& main_source_lines, BuildGraph&& build_graph)
+	static MidoriResult::Result<std::vector<BytecodeModule>> CompileBuildGraph(BuildGraph&& build_graph)
 	{
 		std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
 		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
@@ -948,7 +1063,7 @@ namespace
 			ReportCompilationStart(print_mutex, schedule, total_modules);
 		}
 
-		CompileEnv env = MakeCompileEnv(main_file_name, main_source_lines, build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules);
+		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules);
 		ModuleCompiler module_compiler;
 		MidoriResult::Result<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
 		if (!compile_result.has_value())
@@ -1108,14 +1223,14 @@ MidoriResult::CompilerResult Compiler::Compile()
 		(
 			[this](TokenStream&& lexer_result) -> MidoriResult::ModuleManagerResult
 			{
-				return ModuleManager(std::move(lexer_result), m_file_name).GenerateBuildGraph();
+				return ModuleManager(std::move(lexer_result), m_file_name, m_source_lines).GenerateBuildGraph();
 			}
 		)
 		.and_then
 		(
 			[this](BuildGraph&& build_graph) -> MidoriResult::Result<std::vector<BytecodeModule>>
 			{
-				return CompileBuildGraph(m_file_name, m_source_lines, std::move(build_graph));
+				return CompileBuildGraph(std::move(build_graph));
 			}
 		)
 		.and_then

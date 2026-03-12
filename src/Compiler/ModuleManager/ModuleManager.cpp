@@ -16,9 +16,26 @@
 
 using namespace std::string_literals;
 
-ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name)
+namespace
+{
+	std::vector<std::string> SplitSourceLines(const std::string& source)
+	{
+		std::vector<std::string> source_lines;
+		std::istringstream stream(source);
+		std::string line;
+		while (std::getline(stream, line))
+		{
+			source_lines.emplace_back(std::move(line));
+		}
+
+		return source_lines;
+	}
+}
+
+ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines)
 	: m_main_token_stream(std::move(main_file_tokens)),
-	m_main_file_name(main_file_name)
+	m_main_file_name(main_file_name),
+	m_main_source_lines(std::move(main_source_lines))
 {
 }
 
@@ -98,6 +115,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 		BuildGraph::BuildNode& main_node = build_graph.m_nodes[m_main_file_name];
 		main_node.m_tokens = m_main_token_stream;
 		main_node.m_file_name = m_main_file_name;
+		main_node.m_source_lines = m_main_source_lines;
 		main_node.m_use_imports = std::move(use_imports);
 
 		ImportResolver resolver(m_main_file_name);
@@ -160,8 +178,10 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 			std::ostringstream include_file_stream;
 			include_file_stream << include_file.rdbuf();
+			std::string include_source = include_file_stream.str();
+			std::vector<std::string> include_source_lines = SplitSourceLines(include_source);
 
-			MidoriResult::LexerResult lex_result = Lexer(include_file_stream.str(), include_absolute_path_str).Lex();
+			MidoriResult::LexerResult lex_result = Lexer(std::move(include_source), include_absolute_path_str).Lex();
 			if (!lex_result.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(lex_result.error().Rendered(), line, m_main_file_name));
@@ -169,7 +189,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 			TokenStream imported_token_stream = std::move(lex_result.value());
 
-			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str));
+			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str), std::move(include_source_lines));
 			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{

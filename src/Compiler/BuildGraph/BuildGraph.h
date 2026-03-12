@@ -13,6 +13,7 @@ struct BuildGraph
 	{
 		TokenStream m_tokens;
 		std::string m_file_name;
+		std::vector<std::string> m_source_lines;
 		std::vector<std::string> m_dependencies;
 		std::vector<UseImport> m_use_imports;  // Symbols brought into scope via 'use' statements
 		int m_in_degree = 0;
