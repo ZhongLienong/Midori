@@ -40,10 +40,6 @@ namespace
 			{
 				return MidoriType::MakeRangeType(substitute(type_variant.m_element_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::FutureType>)
-			{
-				return MidoriType::MakeFutureType(substitute(type_variant.m_element_type));
-			}
 			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
 			{
 				std::vector<TypePtr> new_element_types;
@@ -166,10 +162,6 @@ namespace
 			else if constexpr (std::is_same_v<Type, MidoriType::RangeType>)
 			{
 				return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
-			}
-			else if constexpr (std::is_same_v<Type, MidoriType::FutureType>)
-			{
-				return "Future<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::TupleType>)
 			{
@@ -313,10 +305,6 @@ struct MidoriType::TypeEqualityVisitor
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::FutureType>)
-		{
-			return *a.m_element_type == *b.m_element_type;
-		}
 		else if constexpr (std::is_same_v<TypeA, MidoriType::TupleType>)
 		{
 			return a.m_element_types.size() == b.m_element_types.size()
@@ -430,11 +418,6 @@ std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<Mido
 std::shared_ptr<MidoriType> MidoriType::MakeRangeType(const std::shared_ptr<MidoriType>& element_type)
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(RangeType{.m_element_type = element_type}));
-}
-
-std::shared_ptr<MidoriType> MidoriType::MakeFutureType(const std::shared_ptr<MidoriType>& element_type)
-{
-	return std::make_shared<MidoriType>(MidoriTypeUnion(FutureType{.m_element_type = element_type}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types)

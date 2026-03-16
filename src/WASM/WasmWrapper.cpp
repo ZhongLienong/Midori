@@ -11,7 +11,6 @@
 
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
-#include "Interpreter/Runtime/MidoriRuntime.h"
 
 using namespace std::string_literals;
 
@@ -105,16 +104,7 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 	try
 	{
 		MidoriExecutable executable = std::move(compile_result.value());
-		int exit_code;
-		if (executable.GetExecutionMode() == ExecutionMode::SyncOnly)
-		{
-			exit_code = VirtualMachine(std::move(executable)).Execute();
-		}
-		else
-		{
-			MidoriRuntime runtime(std::move(executable));
-			exit_code = runtime.RunRootTask();
-		}
+		int exit_code = VirtualMachine(std::move(executable)).Execute();
 
 		result.success = (exit_code == EXIT_SUCCESS);
 		result.exit_code = exit_code;

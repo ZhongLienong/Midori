@@ -1129,14 +1129,6 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 				}
 			);
 	}
-	else if (Match(Token::Name::ASYNC))
-	{
-		return ParseAsyncExpression();
-	}
-	else if (Match(Token::Name::AWAIT))
-	{
-		return ParseAwaitExpression();
-	}
 	else
 	{
 		return ParseConstruct();
@@ -3630,48 +3622,6 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseAsyncExpression()
-{
-	Token& keyword = Previous();
-
-	m_state.m_function_depth += 1;
-	int async_base = m_state.m_total_variables;
-	m_state.m_function_base_variable_index.push_back(async_base);
-	int prev_total_locals = m_state.m_total_locals_in_curr_scope;
-	m_state.m_total_locals_in_curr_scope = 0;
-
-	int parent_base = (m_state.m_function_depth >= 2) ? m_state.m_function_base_variable_index[static_cast<size_t>(m_state.m_function_depth - 2)] : 0;
-	int captured_count = async_base - parent_base;
-
-	return ParseExpression()
-		.and_then
-		(
-			[&keyword, prev_total_locals, captured_count, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
-			{
-				m_state.m_total_locals_in_curr_scope = prev_total_locals;
-				m_state.m_function_base_variable_index.pop_back();
-				m_state.m_function_depth -= 1;
-
-				std::unique_ptr<MidoriExpression> async_expr = std::make_unique<MidoriExpression>(MidoriExpression::Async(keyword, std::move(expr)));
-				async_expr->GetExpression<MidoriExpression::Async>().m_captured_count = captured_count;
-				return async_expr;
-			}
-		);
-}
-
-MidoriResult::ExpressionResult Parser::ParseAwaitExpression()
-{
-	Token& keyword = Previous();
-	return ParseUnaryArithmetic()
-		.and_then
-		(
-			[&keyword](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::ExpressionResult
-			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::Await(keyword, std::move(expr)));
-			}
-		);
-}
-
 MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
 {
 	BeginScope();
@@ -4157,37 +4107,6 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 													[&type](Token&&) -> MidoriResult::TypeResult
 													{
 														return MidoriType::MakeArrayType(type);
-													}
-												);
-										}
-									);
-							}
-						);
-				}
-			);
-		},
-		[this]() -> MidoriResult::TypeResult
-		{
-			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
-				Token::Name::FUTURE,
-				[this](Token&&) -> MidoriResult::TypeResult
-				{
-					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Future'.")
-						.and_then
-						(
-							[this](Token&&) -> MidoriResult::TypeResult
-							{
-								return ParseType()
-									.and_then
-									(
-										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
-										{
-											return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after future type.")
-												.and_then
-												(
-													[&type](Token&&) -> MidoriResult::TypeResult
-													{
-														return MidoriType::MakeFutureType(type);
 													}
 												);
 										}

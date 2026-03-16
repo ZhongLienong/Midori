@@ -543,22 +543,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Break& break_ex
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Async& async_expr, int depth) const
-{
-	PrintWithIndentation(depth, "Async {");
-	PrintWithIndentation(depth + 1, "Expression: ");
-	Visit(async_expr.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Await& await_expr, int depth) const
-{
-	PrintWithIndentation(depth, "Await {");
-	PrintWithIndentation(depth + 1, "Future: ");
-	Visit(await_expr.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Binding& binding, int depth) const
 {
 	PrintWithIndentation(depth, "BindingPattern {");

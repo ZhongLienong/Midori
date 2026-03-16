@@ -252,74 +252,57 @@ defun render_fractal_rgba(width : Int, height : Int, limit : Int, samples_per_ax
     def samples_f = samples_per_axis as Float;
     def inv_samples = 1.0 / ((samples_per_axis * samples_per_axis) as Float);
 
-    // Growable array/list so we never default-construct Future<Array<Int>>
-    def row_tasks : Array<Future<Array<Int>>> = [];
-
     def palette_id = palette_id_for(fractal_kind);
     def y = 0;
     loop
     {
-        def y_copy = y; // capture
-        def palette_id_copy = palette_id;
-        row_tasks ++= (async
+        def row_pixels : Array<Int> = [];
+        def x = 0;
+        loop
         {
-            def row_pixels : Array<Int> = [];
-            def x = 0;
+            def color_sum = new Color(0.0, 0.0, 0.0);
+
+            def sx = 0;
             loop
             {
-                def color_sum = new Color(0.0, 0.0, 0.0);
-
-                def sx = 0;
+                def sy = 0;
                 loop
                 {
-                    def sy = 0;
-                    loop
-                    {
-                        def u = ((x as Float) + ((sx as Float) + 0.5) / samples_f) / width_f;
-                        def v = ((y_copy as Float) + ((sy as Float) + 0.5) / samples_f) / height_f;
-                        def real = view_min.Real + u * real_span;
-                        def imag = view_min.Imag + v * imag_span;
-                        def point = new Complex(real, imag);
+                    def u = ((x as Float) + ((sx as Float) + 0.5) / samples_f) / width_f;
+                    def v = ((y as Float) + ((sy as Float) + 0.5) / samples_f) / height_f;
+                    def real = view_min.Real + u * real_span;
+                    def imag = view_min.Imag + v * imag_span;
+                    def point = new Complex(real, imag);
 
-                        def smooth = smooth_iter_for(fractal_kind, point, julia_c, limit);
-                        def sample_color = color_from_smooth(smooth, limit, palette_id_copy);
-                        color_sum = color_add(color_sum, sample_color);
+                    def smooth = smooth_iter_for(fractal_kind, point, julia_c, limit);
+                    def sample_color = color_from_smooth(smooth, limit, palette_id);
+                    color_sum = color_add(color_sum, sample_color);
 
-                        sy = sy + 1;
-                        if sy >= samples_per_axis then break () else ();
-                    };
-
-                    sx = sx + 1;
-                    if sx >= samples_per_axis then break () else ();
+                    sy = sy + 1;
+                    if sy >= samples_per_axis then break () else ();
                 };
 
-                def final_color = color_scale(color_sum, inv_samples);
-                append_color_rgba(row_pixels, final_color);
-
-                x = x + 1;
-                if x >= width then break () else ();
+                sx = sx + 1;
+                if sx >= samples_per_axis then break () else ();
             };
-            row_pixels
-        });
 
-        y = y + 1;
-        if y >= height then break () else ();
-    };
+            def final_color = color_scale(color_sum, inv_samples);
+            append_color_rgba(row_pixels, final_color);
 
-    // Deterministic output order: await rows in the same order we pushed them
-    def i = 0;
-    loop
-    {
-        def row = await row_tasks[i];
+            x = x + 1;
+            if x >= width then break () else ();
+        };
+
         def j = 0;
         loop
         {
-            pixels ++= row[j];
+            pixels ++= row_pixels[j];
             j = j + 1;
-            if j >= #row then break () else ();
+            if j >= #row_pixels then break () else ();
         };
-        i = i + 1;
-        if i >= height then break () else ();
+
+        y = y + 1;
+        if y >= height then break () else ();
     };
 
     pixels

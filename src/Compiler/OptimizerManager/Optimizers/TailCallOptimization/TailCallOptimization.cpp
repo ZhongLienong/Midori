@@ -320,16 +320,6 @@ namespace
 			{
 				return false;
 			}
-
-			bool operator()(const MidoriExpression::Async&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::Await& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_expr, m_function_name);
-			}
 		};
 
 		return std::visit(RecursiveCallVisitor{ function_name }, *expr);

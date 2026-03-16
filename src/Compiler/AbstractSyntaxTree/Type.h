@@ -48,11 +48,6 @@ public:
 		std::shared_ptr<MidoriType> m_element_type;
 	};
 
-	struct FutureType
-	{
-		std::shared_ptr<MidoriType> m_element_type;
-	};
-
 	struct TupleType
 	{
 		std::vector<std::shared_ptr<MidoriType>> m_element_types;
@@ -116,7 +111,6 @@ public:
 		NeverType,
 		ArrayType,
 		RangeType,
-		FutureType,
 		TupleType,
 		FunctionType,
 		StructType,
@@ -167,7 +161,6 @@ public:
 	static std::shared_ptr<MidoriType> MakeTypeVariable(int id);
 	static std::shared_ptr<MidoriType> MakeArrayType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeRangeType(const std::shared_ptr<MidoriType>& element_type);
-	static std::shared_ptr<MidoriType> MakeFutureType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);
 	static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false);
 	static std::shared_ptr<MidoriType> MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});

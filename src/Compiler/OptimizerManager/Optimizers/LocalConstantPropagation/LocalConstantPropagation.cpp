@@ -631,15 +631,3 @@ void LocalConstantPropagation::operator()(MidoriExpression::For& for_expr)
 	const Environment after_body = VisitInEnvironment(for_expr.m_body, repeated_environment);
 	CurrentEnvironment() = IntersectEnvironments(after_range, after_range, after_body);
 }
-
-void LocalConstantPropagation::operator()(MidoriExpression::Async& async_expr)
-{
-	VisitInFreshEnvironment(async_expr.m_expr);
-	ClearAllReplacements();
-}
-
-void LocalConstantPropagation::operator()(MidoriExpression::Await& await_expr)
-{
-	VisitAndReplace(await_expr.m_expr);
-	ClearAllReplacements();
-}

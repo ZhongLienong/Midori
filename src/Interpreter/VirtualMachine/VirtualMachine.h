@@ -12,10 +12,7 @@
 #include <cstring>
 #include <memory>
 #include <new>
-#include <unordered_map>
 #include <vector>
-
-class MidoriRuntime;
 
 class VirtualMachine
 {
@@ -24,13 +21,7 @@ public:
 
 	VirtualMachine(MidoriExecutable&& executable) noexcept;
 
-    VirtualMachine(MidoriRuntime& runtime) noexcept;
-
-    VirtualMachine(MidoriRuntime& runtime, const MidoriClosure& entry_closure) noexcept;
-
     ~VirtualMachine();
-
-    MidoriValue GetAsyncResult() const noexcept;
 
     GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
 
@@ -82,7 +73,6 @@ private:
 	MidoriTuple* m_curr_environment = nullptr;
 
     // Warm VM State
-    MidoriRuntime* m_runtime = nullptr;
 	std::shared_ptr<const MidoriExecutable> m_owned_executable;
     const MidoriExecutable* m_executable = nullptr;
 	GlobalVariables m_owned_globals;
@@ -103,9 +93,7 @@ private:
 
     // Cold Caches & Results
 	std::vector<MidoriTraceable*> m_static_closure_cache;
-	std::unordered_map<MidoriTraceable*, MidoriTraceable*> m_shared_cell_handle_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
-    MidoriValue m_async_result;
 
 #ifdef _WIN32
     void* m_value_stack_region = nullptr;
@@ -115,8 +103,6 @@ private:
 
 public:
     int Execute() noexcept;
-
-	int ExecuteTask(const MidoriClosure& entry_closure) noexcept;
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 

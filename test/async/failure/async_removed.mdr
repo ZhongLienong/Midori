@@ -1,0 +1,4 @@
+module AsyncRemoved
+
+// ERROR: async syntax was removed from the language.
+def value = async 42;

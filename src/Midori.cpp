@@ -8,7 +8,6 @@
 
 #include "Common/Printer/Printer.h"
 #include "Compiler/Compiler.h"
-#include "Interpreter/Runtime/MidoriRuntime.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Utility/Project/ProjectManifest.h"
 
@@ -163,14 +162,8 @@ int main(int argc, char* argv[])
 		(
 			[](MidoriExecutable&& executable) -> std::expected<int, CompilerError>
 			{
-				if (executable.GetExecutionMode() == ExecutionMode::SyncOnly)
-				{
-					VirtualMachine vm(std::move(executable));
-					return vm.Execute();
-				}
-
-				MidoriRuntime runtime(std::move(executable));
-				return runtime.RunRootTask();
+				VirtualMachine vm(std::move(executable));
+				return vm.Execute();
 			}
 		)
 		.or_else

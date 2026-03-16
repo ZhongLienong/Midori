@@ -92,32 +92,6 @@ for i in 10..-1..0 {   -- 10, 9, 8, ..., 1 (backward)
 
 Both ranges and arrays are valid iterables for `for` expressions. You can also define custom iteration by implementing `Iterable<Iter, Item>` with a `Next` method that returns `Option<Item>`.
 
-### Futures
-
-`Future<T>` represents a value that will be available asynchronously:
-
-```
-Future<Int>     -- Future resolving to an integer
-Future<Text>    -- Future resolving to text
-Future<Array<Int>>  -- Future resolving to an array
-```
-
-Futures are created with `async` and consumed with `await`:
-
-```
-def task : Future<Int> = async expensive_computation();
-def result : Int = await task;
-```
-
-**Key Properties:**
-- `async expr` spawns a concurrent task and returns `Future<T>` where `T` is the type of `expr`
-- `await future` blocks until the future completes and returns the unwrapped value of type `T`
-- Multiple futures can execute concurrently
-- The type-level rules are unchanged across runtime modes (`SyncOnly` vs `AsyncEnabled`)
-- In async-enabled execution, futures are backed by shared runtime state with safe handle ownership
-
-See [Async/Await](async-await.md) for detailed documentation on concurrent execution.
-
 ## Algebraic Data Types
 
 ### Structs (Product Types)
@@ -372,7 +346,7 @@ Types are represented as a variant (tagged union) of possible type forms:
 - Primitive types (Int, Float, Bool, etc.)
 - Type variables (for inference)
 - Generic parameters (for polymorphism)
-- Composite types (Array, Future, Function, Struct, Union, Tuple)
+- Composite types (Array, Function, Struct, Union, Tuple)
 - Class constraints (for type classes)
 
 ### Type Checker (`TypeChecker.cpp`)

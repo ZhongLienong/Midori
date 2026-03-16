@@ -239,8 +239,4 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Break& break_expr);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::Async& async_expr);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::Await& await_expr);
 };

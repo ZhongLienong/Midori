@@ -1,9 +1,0 @@
-module AsyncFloat
-
-import { <IO> }
-
-defun average(a: Float, b: Float) : Float => (a + b) / 2.0;
-
-def task : Future<Float> = async average(3.0, 7.0);
-def result : Float = await task;
-IO::PrintLine("Average: " ++ (result as Text));

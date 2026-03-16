@@ -124,8 +124,4 @@ private:
 	void operator()(MidoriExpression::Loop& loop) override;
 
 	void operator()(MidoriExpression::For& for_expr) override;
-
-	void operator()(MidoriExpression::Async& async_expr) override;
-
-	void operator()(MidoriExpression::Await& await_expr) override;
 };

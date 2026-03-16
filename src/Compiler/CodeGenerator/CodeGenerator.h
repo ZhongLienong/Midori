@@ -19,8 +19,7 @@ private:
 	enum class LocalStorageKind : uint8_t
 	{
 		ValueLocal,
-		CellLocal,
-		SharedCellLocal
+		CellLocal
 	};
 
 	struct ResolvedMethodCandidate
@@ -97,7 +96,6 @@ private:
 	TypeclassInstanceTypeMap m_class_instance_type_args;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
 	std::unordered_map<std::string, size_t> m_ffi_indices;
-	std::vector<bool> m_shared_cell_procedure_flags{ false };
 	std::vector<std::vector<LocalStorageKind>> m_procedure_local_kinds{ std::vector<LocalStorageKind>() };
 	std::vector<int> m_procedure_capture_counts{ 0 };
 
@@ -105,7 +103,6 @@ private:
 	std::stack<LoopContext> m_loop_contexts;
 	std::string m_errors;
 	int m_local_count = 0;
-	bool m_has_async = false;
 
 public:
 
@@ -144,7 +141,7 @@ private:
 
 	void EnsureLocalKindCapacity(size_t procedure_index, int local_count);
 
-	void NoteCaptureBinding(int captured_count, bool uses_shared_cells);
+	void NoteCaptureBinding(int captured_count);
 
 	int CurrentProcedureCaptureCount() const;
 
@@ -159,10 +156,6 @@ private:
 	OpCode GetCellLoadOpcode() const;
 
 	OpCode GetCellStoreOpcode() const;
-
-	bool CurrentProcedureUsesSharedCells() const;
-
-	void RewriteGlobalsForAsyncModule(BytecodeModule& module) const;
 
 	void EmitCall(int arity, int line);
 
@@ -313,10 +306,6 @@ private:
 	void operator()(MidoriExpression::Break& break_expr);
 
 	void operator()(MidoriExpression::Return& return_expr);
-
-	void operator()(MidoriExpression::Async& async_expr);
-
-	void operator()(MidoriExpression::Await& await_expr);
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 

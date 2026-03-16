@@ -356,11 +356,6 @@ Instructions are variable-length:
 - `ALLOCATE_CLOSURE` - Create closure object
 - `CONSTRUCT_CLOSURE` - Capture variables
 
-**Async/Await**:
-- `SPAWN_ASYNC` - Pop closure, spawn async task, push `Future<T>`
-- `AWAIT_FUTURE` - Pop future, block until complete, push result
-- `ASYNC_RETURN` - Return from async task (sets future result)
-
 **Data Structures**:
 - `NEW_ARRAY` - Create array
 - `ARRAY_GET` / `ARRAY_SET` - Array access

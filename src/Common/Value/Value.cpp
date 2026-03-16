@@ -329,10 +329,6 @@ MidoriTraceable::MidoriTraceable(MidoriCellValue&& cell_value) noexcept : m_cell
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriSharedCellHandle&& shared_cell_handle) noexcept : m_shared_cell_handle(std::move(shared_cell_handle)), m_type(TraceableType::SharedCellHandle)
-{
-}
-
 MidoriTraceable::MidoriTraceable(MidoriClosure&& closure) noexcept : m_closure(std::move(closure)), m_type(TraceableType::Closure)
 {
 }
@@ -342,10 +338,6 @@ MidoriTraceable::MidoriTraceable(MidoriStruct&& midori_struct)noexcept : m_struc
 }
 
 MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_union(std::move(midori_union)), m_type(TraceableType::Union)
-{
-}
-
-MidoriTraceable::MidoriTraceable(MidoriFuture&& midori_future) noexcept : m_future(std::move(midori_future)), m_type(TraceableType::Future)
 {
 }
 
@@ -374,14 +366,8 @@ MidoriTraceable::~MidoriTraceable()
 	case TraceableType::Cell:
 		m_cell.~MidoriCellValue();
 		break;
-	case TraceableType::SharedCellHandle:
-		m_shared_cell_handle.~MidoriSharedCellHandle();
-		break;
 	case TraceableType::Closure:
 		m_closure.~MidoriClosure();
-		break;
-	case TraceableType::Future:
-		m_future.~MidoriFuture();
 		break;
 	}
 }
@@ -417,8 +403,6 @@ MidoriText MidoriTraceable::ToText()
 		return MidoriText("FloatRange");
 	case TraceableType::Cell:
 		return MidoriText("Cell(").Append(m_cell.GetValue().ToText()).Append(")");
-	case TraceableType::SharedCellHandle:
-		return MidoriText("SharedCell(").Append(m_shared_cell_handle.Get().ToText()).Append(")");
 	case TraceableType::Closure:
 	{
 		char buffer[64];
@@ -461,12 +445,6 @@ MidoriText MidoriTraceable::ToText()
 		struct_val.Append("}");
 		return struct_val;
 	}
-	case TraceableType::Future:
-	{
-		char buffer[64];
-		std::snprintf(buffer, sizeof(buffer), "<future at: %p>", (void*)this);
-		return MidoriText(buffer);
-	}
 	default:
 		return MidoriText("Unknown MidoriTraceable");
 	}
@@ -492,11 +470,6 @@ size_t MidoriTraceable::GetSize() const
 		break;
 	case TraceableType::Union:
 		dynamic_size = m_union.m_values.GetCapacity();
-		break;
-	case TraceableType::SharedCellHandle:
-		dynamic_size = 0uz;
-		break;
-	case TraceableType::Future:
 		break;
 	default:
 		break;
@@ -1828,179 +1801,3 @@ const MidoriValue& MidoriCellValue::GetValue() const
 	return m_value;
 }
 
-MidoriSharedCellState::MidoriSharedCellState()
-#if MIDORI_DEBUG_FULL
-	: m_value(MidoriValue())
-#else
-	: m_value_bits(MidoriValue().GetRawBits())
-#endif
-{
-}
-
-MidoriSharedCellState::MidoriSharedCellState(MidoriValue value)
-#if MIDORI_DEBUG_FULL
-	: m_value(value)
-#else
-	: m_value_bits(value.GetRawBits())
-#endif
-{
-}
-
-MidoriSharedCellHandle::MidoriSharedCellHandle()
-	: m_state(std::make_shared<MidoriSharedCellState>())
-{
-}
-
-MidoriSharedCellHandle::MidoriSharedCellHandle(SharedState state)
-	: m_state(std::move(state))
-{
-}
-
-MidoriSharedCellHandle::MidoriSharedCellHandle(MidoriValue value)
-	: m_state(std::make_shared<MidoriSharedCellState>(value))
-{
-}
-
-MidoriValue MidoriSharedCellHandle::Get() const
-{
-	if (!m_state)
-	{
-		return MidoriValue();
-	}
-
-#if MIDORI_DEBUG_FULL
-	std::lock_guard<std::mutex> lock(m_state->m_mutex);
-	return m_state->m_value;
-#else
-	return MidoriValue::FromRawBits(m_state->m_value_bits.load(std::memory_order_acquire));
-#endif
-}
-
-void MidoriSharedCellHandle::Set(MidoriValue value)
-{
-	if (!m_state)
-	{
-		return;
-	}
-
-#if MIDORI_DEBUG_FULL
-	std::lock_guard<std::mutex> lock(m_state->m_mutex);
-	m_state->m_value = value;
-#else
-	m_state->m_value_bits.store(value.GetRawBits(), std::memory_order_release);
-#endif
-}
-
-void MidoriFuture::FutureState::SetResult(MidoriValue value)
-{
-	{
-		std::lock_guard<std::mutex> lock(m_result_mutex);
-		m_result = value;
-	}
-	m_completed.store(true, std::memory_order_release);
-#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
-	m_completed.notify_all();
-#endif
-}
-
-void MidoriFuture::FutureState::SetError()
-{
-	m_has_error.store(true, std::memory_order_release);
-	m_completed.store(true, std::memory_order_release);
-#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
-	m_completed.notify_all();
-#endif
-}
-
-MidoriValue MidoriFuture::FutureState::Get()
-{
-#if defined(__cpp_lib_atomic_wait) && (__cpp_lib_atomic_wait >= 201907L)
-	while (!m_completed.load(std::memory_order_acquire))
-	{
-		m_completed.wait(false, std::memory_order_acquire);
-	}
-#else
-	while (!m_completed.load(std::memory_order_acquire))
-	{
-		std::this_thread::yield();
-	}
-#endif
-	std::lock_guard<std::mutex> lock(m_result_mutex);
-	return m_result;
-}
-
-MidoriValue MidoriFuture::FutureState::PeekResult() const
-{
-	std::lock_guard<std::mutex> lock(m_result_mutex);
-	return m_result;
-}
-
-bool MidoriFuture::FutureState::IsReady() const
-{
-	return m_completed.load(std::memory_order_acquire);
-}
-
-bool MidoriFuture::FutureState::HasError() const
-{
-	return m_has_error.load(std::memory_order_acquire);
-}
-
-MidoriFuture::MidoriFuture()
-	: m_state(std::make_shared<FutureState>())
-{
-}
-
-MidoriFuture::MidoriFuture(MidoriFuture&& other) noexcept
-	: m_state(std::move(other.m_state))
-{
-}
-
-MidoriFuture& MidoriFuture::operator=(MidoriFuture&& other) noexcept
-{
-	if (this != &other)
-	{
-		m_state = std::move(other.m_state);
-	}
-	return *this;
-}
-
-void MidoriFuture::SetResult(MidoriValue value)
-{
-	if (m_state)
-	{
-		m_state->SetResult(value);
-	}
-}
-
-void MidoriFuture::SetError()
-{
-	if (m_state)
-	{
-		m_state->SetError();
-	}
-}
-
-MidoriValue MidoriFuture::Get()
-{
-	if (!m_state)
-	{
-		return MidoriValue();
-	}
-
-	return m_state->Get();
-}
-
-bool MidoriFuture::IsReady() const
-{
-	return m_state != nullptr && m_state->IsReady();
-}
-
-bool MidoriFuture::HasError() const
-{
-	return m_state != nullptr && m_state->HasError();
-}
-
-MidoriFuture::FutureStateHandle MidoriFuture::GetState() const
-{
-	return m_state;
-}

@@ -298,16 +298,6 @@ namespace
 			return ContainsNameAccess(*node.m_value, m_ctx, m_name);
 		}
 
-		bool operator()(const MidoriExpression::Async& node) const
-		{
-			return ContainsNameAccess(*node.m_expr, m_ctx, m_name);
-		}
-
-		bool operator()(const MidoriExpression::Await& node) const
-		{
-			return ContainsNameAccess(*node.m_expr, m_ctx, m_name);
-		}
-
 		template <typename T>
 		bool operator()(const T&) const
 		{

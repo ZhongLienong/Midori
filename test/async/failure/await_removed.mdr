@@ -1,0 +1,5 @@
+module AwaitRemoved
+
+// ERROR: await syntax was removed from the language.
+def task = 42;
+def value = await task;

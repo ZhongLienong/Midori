@@ -839,8 +839,6 @@ namespace
 					|| std::is_same_v<T, MidoriExpression::For>
 					|| std::is_same_v<T, MidoriExpression::Return>
 					|| std::is_same_v<T, MidoriExpression::Break>
-					|| std::is_same_v<T, MidoriExpression::Async>
-					|| std::is_same_v<T, MidoriExpression::Await>
 					|| std::is_same_v<T, MidoriExpression::ArrayComprehension>)
 				{
 					return false;
@@ -1377,16 +1375,6 @@ namespace
 		void Visit(const MidoriExpression::Return& node)
 		{
 			VisitExpression(*node.m_value);
-		}
-
-		void Visit(const MidoriExpression::Async&)
-		{
-			NoteNestedCallableBoundary();
-		}
-
-		void Visit(const MidoriExpression::Await& node)
-		{
-			VisitExpression(*node.m_expr);
 		}
 	};
 }

@@ -149,15 +149,6 @@ namespace
 			return MatchInstanceTypeArg(pattern->GetType<MidoriType::RangeType>().m_element_type, concrete->GetType<MidoriType::RangeType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::FutureType>())
-		{
-			if (!concrete->IsType<MidoriType::FutureType>())
-			{
-				return false;
-			}
-			return MatchInstanceTypeArg(pattern->GetType<MidoriType::FutureType>().m_element_type, concrete->GetType<MidoriType::FutureType>().m_element_type, substitutions, visited);
-		}
-
 		if (pattern->IsType<MidoriType::TupleType>())
 		{
 			if (!concrete->IsType<MidoriType::TupleType>())
@@ -4152,40 +4143,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 				{
 					return Unify(return_expr.m_keyword, return_expr.m_type_data, type);
 				}
-			}
-		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Async& async_expr)
-{
-	return Evaluate(async_expr.m_expr)
-		.and_then
-		(
-			[&async_expr](std::shared_ptr<MidoriType>&& inner_type) -> MidoriResult::TypeResult
-			{
-				async_expr.m_type_data = MidoriType::MakeFutureType(std::move(inner_type));
-				return async_expr.m_type_data;
-			}
-		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Await& await_expr)
-{
-	return Evaluate(await_expr.m_expr)
-		.and_then
-		(
-			[&await_expr, this](std::shared_ptr<MidoriType>&& expr_type) -> MidoriResult::TypeResult
-			{
-				std::shared_ptr<MidoriType> resolved = ApplySubstitution(expr_type);
-
-				if (!resolved->IsType<MidoriType::FutureType>())
-				{
-					std::shared_ptr<MidoriType> expected_type = MidoriType::MakeFutureType(FreshTypeVar());
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("'await' requires Future<T> type", await_expr.m_keyword, m_file_name, m_source_lines, expected_type, resolved));
-				}
-
-				await_expr.m_type_data = resolved->GetType<MidoriType::FutureType>().m_element_type;
-				return await_expr.m_type_data;
 			}
 		);
 }

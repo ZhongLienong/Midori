@@ -200,8 +200,6 @@ enum class OpCode : uint8_t
 	CALL_PROC_3,
 	CALL_GLOBAL,
 	CALL_GLOBAL_WIDE,
-	CALL_GLOBAL_SHARED,
-	CALL_GLOBAL_SHARED_WIDE,
 	TAIL_CALL,
 	CONSTRUCT_STRUCT,
 	CONSTRUCT_UNION,
@@ -225,16 +223,8 @@ enum class OpCode : uint8_t
 	SET_LOCAL_3,
 	GET_LOCAL_CELL,
 	SET_LOCAL_CELL,
-	GET_LOCAL_SHARED,
-	SET_LOCAL_SHARED,
 	GET_CELL,
 	SET_CELL,
-	BIND_CAPTURES_SHARED,
-	DEFINE_GLOBAL_SHARED,
-	GET_GLOBAL_SHARED,
-	SET_GLOBAL_SHARED,
-	GET_SHARED_CELL,
-	SET_SHARED_CELL,
 
 	// Wide variable operations (for indices > 255)
 	DEFINE_GLOBAL_WIDE,
@@ -244,15 +234,8 @@ enum class OpCode : uint8_t
 	SET_LOCAL_WIDE,
 	GET_LOCAL_CELL_WIDE,
 	SET_LOCAL_CELL_WIDE,
-	GET_LOCAL_SHARED_WIDE,
-	SET_LOCAL_SHARED_WIDE,
 	GET_CELL_WIDE,
 	SET_CELL_WIDE,
-	DEFINE_GLOBAL_SHARED_WIDE,
-	GET_GLOBAL_SHARED_WIDE,
-	SET_GLOBAL_SHARED_WIDE,
-	GET_SHARED_CELL_WIDE,
-	SET_SHARED_CELL_WIDE,
 
 	// Struct Operations
 	GET_MEMBER,
@@ -271,20 +254,9 @@ enum class OpCode : uint8_t
 	RETURN,
 	HALT,
 
-	// Async
-	SPAWN_ASYNC,
-	AWAIT_FUTURE,
-	ASYNC_RETURN,
-
 	// Placeholder
 	PUSH_PLACEHOLDER,
 	UPDATE_PLACEHOLDER,
-};
-
-enum class ExecutionMode : uint8_t
-{
-	SyncOnly,
-	AsyncEnabled
 };
 
 class BytecodeStream
@@ -342,8 +314,6 @@ private:
 	GlobalNames m_globals;
 	Procedures m_procedures;
 	StringPool m_string_pool;
-	bool m_has_async = false;
-	ExecutionMode m_execution_mode = ExecutionMode::SyncOnly;
 
 public:
 
@@ -360,14 +330,6 @@ public:
 	void SetFileName(std::string&& file_name);
 
 	std::string_view GetFileName() const;
-
-	void SetHasAsync(bool has_async);
-
-	bool HasAsync() const;
-
-	void SetExecutionMode(ExecutionMode execution_mode);
-
-	ExecutionMode GetExecutionMode() const;
 
 	int GetLine(int instr_index, int proc_index) const;
 

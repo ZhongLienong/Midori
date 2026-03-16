@@ -146,8 +146,4 @@ protected:
 	virtual void operator()(MidoriExpression::Break& break_expr);
 
 	virtual void operator()(MidoriExpression::Return& return_expr);
-
-	virtual void operator()(MidoriExpression::Async& async_expr);
-
-	virtual void operator()(MidoriExpression::Await& await_expr);
 };

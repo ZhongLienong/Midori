@@ -1,13 +1,10 @@
 #pragma once
 
-#include <atomic>
 #include <cassert>
 #include <functional>
 #include <list>
 #include <memory>
-#include <mutex>
 #include <optional>
-#include <thread>
 #include <unordered_set>
 #include <variant>
 
@@ -400,70 +397,6 @@ struct MidoriUnion
 	int m_index{ 0 };
 };
 
-struct MidoriFuture
-{
-	struct FutureState
-	{
-		MidoriValue m_result;
-		std::atomic<bool> m_completed{ false };
-		std::atomic<bool> m_has_error{ false };
-		mutable std::mutex m_result_mutex;
-
-		void SetResult(MidoriValue value);
-		void SetError();
-		MidoriValue Get();
-		MidoriValue PeekResult() const;
-		bool IsReady() const;
-		bool HasError() const;
-	};
-
-	using FutureStateHandle = std::shared_ptr<FutureState>;
-
-	FutureStateHandle m_state;
-
-	MidoriFuture();
-
-	MidoriFuture(const MidoriFuture&) = delete;
-	MidoriFuture& operator=(const MidoriFuture&) = delete;
-
-	MidoriFuture(MidoriFuture&& other) noexcept;
-	MidoriFuture& operator=(MidoriFuture&& other) noexcept;
-
-	void SetResult(MidoriValue value);
-	void SetError();
-	MidoriValue Get();
-	bool IsReady() const;
-	bool HasError() const;
-	FutureStateHandle GetState() const;
-};
-
-struct MidoriSharedCellState
-{
-#if MIDORI_DEBUG_FULL
-	mutable std::mutex m_mutex;
-	MidoriValue m_value;
-#else
-	std::atomic<MidoriWord> m_value_bits;
-#endif
-
-	MidoriSharedCellState();
-	explicit MidoriSharedCellState(MidoriValue value);
-};
-
-struct MidoriSharedCellHandle
-{
-	using SharedState = std::shared_ptr<MidoriSharedCellState>;
-
-	SharedState m_state;
-
-	MidoriSharedCellHandle();
-	explicit MidoriSharedCellHandle(SharedState state);
-	explicit MidoriSharedCellHandle(MidoriValue value);
-
-	MidoriValue Get() const;
-	void Set(MidoriValue value);
-};
-
 class MidoriTraceable
 {
 public:
@@ -476,9 +409,7 @@ public:
 		Struct,
 		Union,
 		Cell,
-		SharedCellHandle,
-		Closure,
-		Future
+		Closure
 	};
 
 private:
@@ -491,9 +422,7 @@ private:
 		MidoriStruct m_struct;
 		MidoriUnion m_union;
 		MidoriCellValue m_cell;
-		MidoriSharedCellHandle m_shared_cell_handle;
 		MidoriClosure m_closure;
-		MidoriFuture m_future;
 	};
 	TraceableType m_type;
 	bool m_is_marked = false;
@@ -529,17 +458,9 @@ private:
 		{
 			return TraceableType::Cell;
 		}
-		else if constexpr (std::is_same_v<T, MidoriSharedCellHandle>)
-		{
-			return TraceableType::SharedCellHandle;
-		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
 			return TraceableType::Closure;
-		}
-		else if constexpr (std::is_same_v<T, MidoriFuture>)
-		{
-			return TraceableType::Future;
 		}
 		else
 		{
@@ -586,17 +507,9 @@ public:
 		{
 			return m_cell;
 		}
-		else if constexpr (std::is_same_v<T, MidoriSharedCellHandle>)
-		{
-			return m_shared_cell_handle;
-		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
 			return m_closure;
-		}
-		else if constexpr (std::is_same_v<T, MidoriFuture>)
-		{
-			return m_future;
 		}
 	}
 
@@ -627,11 +540,9 @@ public:
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
 	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
-	MidoriTraceable(MidoriSharedCellHandle&& shared_cell_handle) noexcept;
 	MidoriTraceable(MidoriClosure&& closure) noexcept;
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
-	MidoriTraceable(MidoriFuture&& midori_future) noexcept;
 
 private:
 	MidoriTraceable() = delete;

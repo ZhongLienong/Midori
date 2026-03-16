@@ -1,0 +1,4 @@
+module FutureTypeRemoved
+
+// ERROR: Future<T> is no longer a built-in type.
+def value : Future<Int> = 42;

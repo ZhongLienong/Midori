@@ -1,0 +1,26 @@
+module NestedCaptureFromCaptured
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+defun make_parent() : fn() -> Int =>
+{
+	def value = 0;
+	def child = fn() : Int =>
+	{
+		value = value + 1;
+		value
+	};
+
+	return fn() : Int =>
+	{
+		def _ = child();
+		value
+	};
+};
+
+def parent = make_parent();
+IO::PrintLine(parent() as Text);
+IO::PrintLine(parent() as Text);

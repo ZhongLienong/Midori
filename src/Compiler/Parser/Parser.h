@@ -530,10 +530,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseFunctionExpression();
 
-	MidoriResult::ExpressionResult ParseAsyncExpression();
-
-	MidoriResult::ExpressionResult ParseAwaitExpression();
-
 	MidoriResult::ExpressionResult ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword);
 
 	MidoriResult::PatternResult ParsePattern();
