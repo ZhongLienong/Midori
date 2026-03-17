@@ -113,7 +113,8 @@ namespace
 
 			bool operator()(const MidoriExpression::AppendAssign& node) const
 			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
+				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
+					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
 			}
 
 			bool operator()(const MidoriExpression::ExtendAssign& node) const
@@ -123,12 +124,14 @@ namespace
 
 			bool operator()(const MidoriExpression::PrependAssign& node) const
 			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
+				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
+					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
 			}
 
 			bool operator()(const MidoriExpression::CompoundAssign& node) const
 			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
+				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
+					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
 			}
 
 			bool operator()(const MidoriExpression::NameAccess&) const

@@ -183,6 +183,10 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Assignment& bi
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::AppendAssign& append_assign)
 {
+	if (append_assign.m_struct != nullptr)
+	{
+		VisitExpression(append_assign.m_struct);
+	}
 	VisitExpression(append_assign.m_value);
 }
 
@@ -193,11 +197,19 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::ExtendAssign& 
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
+	if (prepend_assign.m_struct != nullptr)
+	{
+		VisitExpression(prepend_assign.m_struct);
+	}
 	VisitExpression(prepend_assign.m_value);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
+	if (compound_assign.m_struct != nullptr)
+	{
+		VisitExpression(compound_assign.m_struct);
+	}
 	VisitExpression(compound_assign.m_value);
 }
 

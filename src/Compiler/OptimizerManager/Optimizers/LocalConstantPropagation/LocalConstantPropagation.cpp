@@ -454,6 +454,14 @@ void LocalConstantPropagation::operator()(MidoriExpression::Assignment& bind)
 
 void LocalConstantPropagation::operator()(MidoriExpression::AppendAssign& append_assign)
 {
+	if (append_assign.m_struct != nullptr)
+	{
+		VisitAndReplace(append_assign.m_struct);
+		VisitAndReplace(append_assign.m_value);
+		ClearAliasReplacements();
+		return;
+	}
+
 	VisitAndReplace(append_assign.m_value);
 
 	const std::optional<int> local_index = TryGetLocalIndex(append_assign.m_name_ctx);
@@ -484,6 +492,14 @@ void LocalConstantPropagation::operator()(MidoriExpression::ExtendAssign& extend
 
 void LocalConstantPropagation::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
+	if (prepend_assign.m_struct != nullptr)
+	{
+		VisitAndReplace(prepend_assign.m_struct);
+		VisitAndReplace(prepend_assign.m_value);
+		ClearAliasReplacements();
+		return;
+	}
+
 	VisitAndReplace(prepend_assign.m_value);
 
 	const std::optional<int> local_index = TryGetLocalIndex(prepend_assign.m_name_ctx);
@@ -499,6 +515,14 @@ void LocalConstantPropagation::operator()(MidoriExpression::PrependAssign& prepe
 
 void LocalConstantPropagation::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
+	if (compound_assign.m_struct != nullptr)
+	{
+		VisitAndReplace(compound_assign.m_struct);
+		VisitAndReplace(compound_assign.m_value);
+		ClearAliasReplacements();
+		return;
+	}
+
 	VisitAndReplace(compound_assign.m_value);
 
 	const std::optional<int> local_index = TryGetLocalIndex(compound_assign.m_name_ctx);

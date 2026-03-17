@@ -42,7 +42,14 @@ namespace
 
 		void operator()(MidoriExpression::AppendAssign& assign) override
 		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
+			if (assign.m_struct != nullptr)
+			{
+				VisitExpression(assign.m_struct);
+			}
+			else
+			{
+				CheckAccess(assign.m_name, assign.m_name_ctx);
+			}
 			VisitExpression(assign.m_value);
 		}
 
@@ -54,13 +61,27 @@ namespace
 
 		void operator()(MidoriExpression::PrependAssign& assign) override
 		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
+			if (assign.m_struct != nullptr)
+			{
+				VisitExpression(assign.m_struct);
+			}
+			else
+			{
+				CheckAccess(assign.m_name, assign.m_name_ctx);
+			}
 			VisitExpression(assign.m_value);
 		}
 
 		void operator()(MidoriExpression::CompoundAssign& assign) override
 		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
+			if (assign.m_struct != nullptr)
+			{
+				VisitExpression(assign.m_struct);
+			}
+			else
+			{
+				CheckAccess(assign.m_name, assign.m_name_ctx);
+			}
 			VisitExpression(assign.m_value);
 		}
 

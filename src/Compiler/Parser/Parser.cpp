@@ -931,7 +931,12 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									}
 									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected(GenerateParserError("Invalid append assignment target (must be a variable).", op));
+								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
+								{
+									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
+									return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
+								}
+								return std::unexpected(GenerateParserError("Invalid append assignment target (must be a variable or struct member).", op));
 							}
 						);
 				}
@@ -969,7 +974,12 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									}
 									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected(GenerateParserError("Invalid prepend assignment target (must be a variable).", op));
+								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
+								{
+									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
+									return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
+								}
+								return std::unexpected(GenerateParserError("Invalid prepend assignment target (must be a variable or struct member).", op));
 							}
 						);
 				}
@@ -1007,7 +1017,12 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 									}
 									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
 								}
-								return std::unexpected(GenerateParserError("Invalid compound assignment target (must be a variable).", op));
+								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
+								{
+									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
+									return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(get_expr.m_member_name, op, std::move(get_expr.m_struct), std::move(right_expr)));
+								}
+								return std::unexpected(GenerateParserError("Invalid compound assignment target (must be a variable or struct member).", op));
 							}
 						);
 				}

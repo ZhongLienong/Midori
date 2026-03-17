@@ -192,7 +192,14 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::NameAccess& access)
 
 void UnusedLocalDiagnostic::operator()(MidoriExpression::AppendAssign& append_assign)
 {
-	MarkRead(append_assign.m_name_ctx);
+	if (append_assign.m_struct != nullptr)
+	{
+		VisitExpression(append_assign.m_struct);
+	}
+	else
+	{
+		MarkRead(append_assign.m_name_ctx);
+	}
 	VisitExpression(append_assign.m_value);
 }
 
@@ -204,13 +211,27 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::ExtendAssign& extend_as
 
 void UnusedLocalDiagnostic::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
-	MarkRead(prepend_assign.m_name_ctx);
+	if (prepend_assign.m_struct != nullptr)
+	{
+		VisitExpression(prepend_assign.m_struct);
+	}
+	else
+	{
+		MarkRead(prepend_assign.m_name_ctx);
+	}
 	VisitExpression(prepend_assign.m_value);
 }
 
 void UnusedLocalDiagnostic::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
-	MarkRead(compound_assign.m_name_ctx);
+	if (compound_assign.m_struct != nullptr)
+	{
+		VisitExpression(compound_assign.m_struct);
+	}
+	else
+	{
+		MarkRead(compound_assign.m_name_ctx);
+	}
 	VisitExpression(compound_assign.m_value);
 }
 

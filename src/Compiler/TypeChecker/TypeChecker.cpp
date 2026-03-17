@@ -3371,10 +3371,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 		(
 			[&append_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				std::shared_ptr<MidoriType>* binding = FindNameType(append_assign.m_name.m_lexeme);
-				if (binding != nullptr)
+				auto finish = [&append_assign, &value_type, this](std::shared_ptr<MidoriType> target_type) -> MidoriResult::TypeResult
 				{
-					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
 					if (!target_type->IsType<MidoriType::ArrayType>() &&
 					    !target_type->IsType<MidoriType::TextType>() &&
 					    !target_type->IsType<MidoriType::TypeVariable>())
@@ -3426,6 +3424,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 					// TypeVariable - create constraints
 					append_assign.m_type_data = target_type;
 					return append_assign.m_type_data;
+				};
+
+				if (append_assign.m_struct != nullptr)
+				{
+					return Evaluate(append_assign.m_struct)
+						.and_then
+						(
+							[&append_assign, &finish, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+							{
+								if (!actual_type->IsType<MidoriType::StructType>())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: target is not a struct member", append_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
+								std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), append_assign.m_name.m_lexeme);
+								if (find_result == struct_type.m_member_names.cend())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: struct does not have member", append_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								append_assign.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
+								return finish(ApplySubstitution(struct_type.m_member_types[static_cast<size_t>(append_assign.m_index)]));
+							}
+						);
+				}
+
+				std::shared_ptr<MidoriType>* binding = FindNameType(append_assign.m_name.m_lexeme);
+				if (binding != nullptr)
+				{
+					return finish(ApplySubstitution(*binding));
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Append assignment type error: variable not found", append_assign.m_name, m_file_name, m_source_lines));
@@ -3478,10 +3507,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 		(
 			[&prepend_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				std::shared_ptr<MidoriType>* binding = FindNameType(prepend_assign.m_name.m_lexeme);
-				if (binding != nullptr)
+				auto finish = [&prepend_assign, &value_type, this](std::shared_ptr<MidoriType> target_type) -> MidoriResult::TypeResult
 				{
-					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
 					if (!target_type->IsType<MidoriType::ArrayType>() &&
 					    !target_type->IsType<MidoriType::TextType>() &&
 					    !target_type->IsType<MidoriType::TypeVariable>())
@@ -3533,6 +3560,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 					// TypeVariable - create constraints
 					prepend_assign.m_type_data = target_type;
 					return prepend_assign.m_type_data;
+				};
+
+				if (prepend_assign.m_struct != nullptr)
+				{
+					return Evaluate(prepend_assign.m_struct)
+						.and_then
+						(
+							[&prepend_assign, &finish, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+							{
+								if (!actual_type->IsType<MidoriType::StructType>())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: target is not a struct member", prepend_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
+								std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), prepend_assign.m_name.m_lexeme);
+								if (find_result == struct_type.m_member_names.cend())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: struct does not have member", prepend_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								prepend_assign.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
+								return finish(ApplySubstitution(struct_type.m_member_types[static_cast<size_t>(prepend_assign.m_index)]));
+							}
+						);
+				}
+
+				std::shared_ptr<MidoriType>* binding = FindNameType(prepend_assign.m_name.m_lexeme);
+				if (binding != nullptr)
+				{
+					return finish(ApplySubstitution(*binding));
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Prepend assignment type error: variable not found", prepend_assign.m_name, m_file_name, m_source_lines));
@@ -3547,11 +3605,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 		(
 			[&compound_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
-				std::shared_ptr<MidoriType>* binding = FindNameType(compound_assign.m_name.m_lexeme);
-				if (binding != nullptr)
+				auto finish = [&compound_assign, &value_type, this](std::shared_ptr<MidoriType> target_type) -> MidoriResult::TypeResult
 				{
-					std::shared_ptr<MidoriType> target_type = ApplySubstitution(*binding);
-
 					// Check if operator is arithmetic
 					if (compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL ||
 					    compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ||
@@ -3591,6 +3646,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 								return compound_assign.m_type_data;
 							}
 						);
+				};
+
+				if (compound_assign.m_struct != nullptr)
+				{
+					return Evaluate(compound_assign.m_struct)
+						.and_then
+						(
+							[&compound_assign, &finish, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+							{
+								if (!actual_type->IsType<MidoriType::StructType>())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: target is not a struct member", compound_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
+								std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), compound_assign.m_name.m_lexeme);
+								if (find_result == struct_type.m_member_names.cend())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: struct does not have member", compound_assign.m_name, m_file_name, m_source_lines, actual_type));
+								}
+
+								compound_assign.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
+								return finish(ApplySubstitution(struct_type.m_member_types[static_cast<size_t>(compound_assign.m_index)]));
+							}
+						);
+				}
+
+				std::shared_ptr<MidoriType>* binding = FindNameType(compound_assign.m_name.m_lexeme);
+				if (binding != nullptr)
+				{
+					return finish(ApplySubstitution(*binding));
 				}
 
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));

@@ -3166,6 +3166,30 @@ void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
 {
 	int line = append_assign.m_name.m_line;
 
+	if (append_assign.m_struct != nullptr)
+	{
+		Visit(append_assign.m_struct);
+		EmitByte(OpCode::DUP, line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
+		Visit(append_assign.m_value);
+
+		if (append_assign.m_type_data->IsType<MidoriType::ArrayType>())
+		{
+			EmitByte(OpCode::APPEND_ARRAY, line);
+		}
+		else if (append_assign.m_type_data->IsType<MidoriType::TextType>())
+		{
+			EmitByte(OpCode::APPEND_TEXT, line);
+		}
+
+		EmitByte(OpCode::SET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
+		return;
+	}
+
 	struct AppendAssignVisitor
 	{
 		CodeGenerator* m_self = nullptr;
@@ -3240,6 +3264,30 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 {
 	int line = prepend_assign.m_name.m_line;
 
+	if (prepend_assign.m_struct != nullptr)
+	{
+		Visit(prepend_assign.m_struct);
+		EmitByte(OpCode::DUP, line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
+		Visit(prepend_assign.m_value);
+
+		if (prepend_assign.m_type_data->IsType<MidoriType::ArrayType>())
+		{
+			EmitByte(OpCode::PREPEND_ARRAY, line);
+		}
+		else if (prepend_assign.m_type_data->IsType<MidoriType::TextType>())
+		{
+			EmitByte(OpCode::PREPEND_TEXT, line);
+		}
+
+		EmitByte(OpCode::SET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
+		return;
+	}
+
 	struct PrependAssignVisitor
 	{
 		CodeGenerator* m_self = nullptr;
@@ -3280,6 +3328,56 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
 	int line = compound_assign.m_name.m_line;
+
+	if (compound_assign.m_struct != nullptr)
+	{
+		Visit(compound_assign.m_struct);
+		EmitByte(OpCode::DUP, line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+		Visit(compound_assign.m_value);
+
+		bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
+		switch (compound_assign.m_op.m_token_name)
+		{
+		case Token::Name::PLUS_EQUAL:
+			EmitByte(is_float ? OpCode::ADD_ASSIGN_FLOAT : OpCode::ADD_ASSIGN_INT, line);
+			break;
+		case Token::Name::MINUS_EQUAL:
+			EmitByte(is_float ? OpCode::SUB_ASSIGN_FLOAT : OpCode::SUB_ASSIGN_INT, line);
+			break;
+		case Token::Name::STAR_EQUAL:
+			EmitByte(is_float ? OpCode::MUL_ASSIGN_FLOAT : OpCode::MUL_ASSIGN_INT, line);
+			break;
+		case Token::Name::SLASH_EQUAL:
+			EmitByte(is_float ? OpCode::DIV_ASSIGN_FLOAT : OpCode::DIV_ASSIGN_INT, line);
+			break;
+		case Token::Name::PERCENT_EQUAL:
+			EmitByte(is_float ? OpCode::MOD_ASSIGN_FLOAT : OpCode::MOD_ASSIGN_INT, line);
+			break;
+		case Token::Name::AMPERSAND_EQUAL:
+			EmitByte(OpCode::AND_ASSIGN_INT, line);
+			break;
+		case Token::Name::BAR_EQUAL:
+			EmitByte(OpCode::OR_ASSIGN_INT, line);
+			break;
+		case Token::Name::CARET_EQUAL:
+			EmitByte(OpCode::XOR_ASSIGN_INT, line);
+			break;
+		case Token::Name::LEFT_SHIFT_EQUAL:
+			EmitByte(OpCode::LEFT_SHIFT_ASSIGN, line);
+			break;
+		case Token::Name::RIGHT_SHIFT_EQUAL:
+			EmitByte(OpCode::RIGHT_SHIFT_ASSIGN, line);
+			break;
+		}
+
+		EmitByte(OpCode::SET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+		EmitByte(OpCode::GET_MEMBER, line);
+		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+		return;
+	}
 
 	struct CompoundAssignVisitor
 	{

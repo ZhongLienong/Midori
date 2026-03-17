@@ -406,10 +406,13 @@ public:
 	struct AppendAssign : BaseExpression
 	{
 		Token m_name;
+		std::unique_ptr<MidoriExpression> m_struct;
 		std::unique_ptr<MidoriExpression> m_value;
 		NameContext::Tag m_name_ctx;
+		int m_index = -1;
 
 		AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+		AppendAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
 	};
 
 	struct ExtendAssign : BaseExpression
@@ -424,20 +427,26 @@ public:
 	struct PrependAssign : BaseExpression
 	{
 		Token m_name;
+		std::unique_ptr<MidoriExpression> m_struct;
 		std::unique_ptr<MidoriExpression> m_value;
 		NameContext::Tag m_name_ctx;
+		int m_index = -1;
 
 		PrependAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+		PrependAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
 	};
 
 	struct CompoundAssign : BaseExpression
 	{
 		Token m_name;
 		Token m_op;
+		std::unique_ptr<MidoriExpression> m_struct;
 		std::unique_ptr<MidoriExpression> m_value;
 		NameContext::Tag m_name_ctx;
+		int m_index = -1;
 
 		CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
+		CompoundAssign(const Token& member_name, const Token& op, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
 	};
 
 	struct NameAccess : BaseExpression

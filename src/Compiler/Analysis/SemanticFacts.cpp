@@ -1202,7 +1202,14 @@ namespace
 
 		void Visit(const MidoriExpression::AppendAssign& node)
 		{
-			RecordLocalAssignment(node.m_name_ctx, true);
+			if (node.m_struct != nullptr)
+			{
+				VisitExpression(*node.m_struct);
+			}
+			else
+			{
+				RecordLocalAssignment(node.m_name_ctx, true);
+			}
 			VisitExpression(*node.m_value);
 		}
 
@@ -1214,13 +1221,27 @@ namespace
 
 		void Visit(const MidoriExpression::PrependAssign& node)
 		{
-			RecordLocalAssignment(node.m_name_ctx, true);
+			if (node.m_struct != nullptr)
+			{
+				VisitExpression(*node.m_struct);
+			}
+			else
+			{
+				RecordLocalAssignment(node.m_name_ctx, true);
+			}
 			VisitExpression(*node.m_value);
 		}
 
 		void Visit(const MidoriExpression::CompoundAssign& node)
 		{
-			RecordLocalAssignment(node.m_name_ctx, true);
+			if (node.m_struct != nullptr)
+			{
+				VisitExpression(*node.m_struct);
+			}
+			else
+			{
+				RecordLocalAssignment(node.m_name_ctx, true);
+			}
 			VisitExpression(*node.m_value);
 		}
 

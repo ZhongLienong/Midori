@@ -58,13 +58,18 @@ class TestRunner:
     def __init__(self, build_config: str = "Development", verbose: bool = False):
         self.root_dir = Path(__file__).parent.parent
         self.test_dir = self.root_dir / "test"
+        self.requested_build_config = build_config
         self.build_config = build_config
         self.verbose = verbose
+        self.executable_notice: Optional[str] = None
+        self.executable_search_errors: List[str] = []
 
         # Find the Midori executable
         self.midori_exe = self.find_executable()
         if not self.midori_exe:
             print(f"{Color.RED}Error: Could not find Midori executable{Color.RESET}")
+            for message in self.executable_search_errors:
+                print(f"{Color.YELLOW}  - {message}{Color.RESET}")
             sys.exit(1)
 
         # Test results
@@ -72,13 +77,75 @@ class TestRunner:
 
     def find_executable(self) -> Optional[Path]:
         """Find the Midori executable based on build configuration."""
-        possible_paths = [
-            self.root_dir / f"out/build/x64-{self.build_config.lower()}/out/Midori.exe",
+        requested_candidates = self.get_executable_candidates(self.requested_build_config)
+        requested_errors: List[str] = []
+
+        for path in requested_candidates:
+            if not path.exists():
+                continue
+
+            validation_error = self.validate_executable(path)
+            if validation_error is None:
+                return path
+            requested_errors.append(f"{path} ({validation_error})")
+
+        if requested_errors and self.requested_build_config != "Debug":
+            debug_candidates = self.get_executable_candidates("Debug")
+            for path in debug_candidates:
+                if not path.exists():
+                    continue
+
+                validation_error = self.validate_executable(path)
+                if validation_error is None:
+                    self.build_config = "Debug"
+                    self.executable_notice = (
+                        f"Requested {self.requested_build_config} build is unavailable or invalid; "
+                        f"using Debug executable instead."
+                    )
+                    self.executable_search_errors = requested_errors
+                    return path
+
+        self.executable_search_errors = requested_errors
+
+        return None
+
+    def get_executable_candidates(self, build_config: str) -> List[Path]:
+        build_name = build_config.lower()
+        return [
+            self.root_dir / f"out/build/ninja/x64-{build_name}/out/Midori.exe",
+            self.root_dir / f"out/build/x64-{build_name}/out/Midori.exe",
         ]
 
-        for path in possible_paths:
-            if path.exists():
-                return path
+    def validate_executable(self, path: Path) -> Optional[str]:
+        build_dir = path.parent.parent
+        cache_path = build_dir / "CMakeCache.txt"
+        if not cache_path.exists():
+            return None
+
+        try:
+            cache_text = cache_path.read_text(encoding='utf-8', errors='replace')
+        except OSError as exc:
+            return f"could not read CMakeCache.txt: {exc}"
+
+        match = re.search(r'^CMAKE_GENERATOR:INTERNAL=(.+)$', cache_text, re.MULTILINE)
+        if match is None:
+            return None
+
+        generator = match.group(1).strip()
+        if generator == "Ninja":
+            missing_files: List[str] = []
+            if not (build_dir / "build.ninja").exists():
+                missing_files.append("build.ninja")
+            if not (build_dir / "CMakeFiles" / "rules.ninja").exists():
+                missing_files.append("CMakeFiles/rules.ninja")
+            if missing_files:
+                return f"Ninja build tree is incomplete (missing {', '.join(missing_files)})"
+            return None
+
+        if generator == "NMake Makefiles":
+            if not (build_dir / "Makefile").exists():
+                return "NMake build tree is incomplete (missing Makefile)"
+            return None
 
         return None
 
@@ -239,6 +306,8 @@ class TestRunner:
         print(f"{Color.GRAY}{'=' * 60}{Color.RESET}")
         print(f"Executable: {Color.CYAN}{self.midori_exe}{Color.RESET}")
         print(f"Build: {Color.CYAN}{self.build_config}{Color.RESET}")
+        if self.executable_notice:
+            print(f"Notice: {Color.YELLOW}{self.executable_notice}{Color.RESET}")
         print(f"Tests: {Color.CYAN}{len(tests)}{Color.RESET}")
         if show_full_output:
             print(f"Mode: {Color.CYAN}Detailed output enabled{Color.RESET}")
