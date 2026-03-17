@@ -1,6 +1,6 @@
 #include "DeadCodeElimination.h"
 
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 
 #include <cstddef>
 #include <type_traits>
@@ -11,7 +11,7 @@ namespace
 
 	bool IsTerminatingExpressionImpl(const MidoriExpression& expression)
 	{
-		const MidoriExpression* stripped_expression = OptimizerAnalysis::StripRedundantGroups(&expression);
+		const MidoriExpression* stripped_expression = MidoriAnalysis::StripRedundantGroups(&expression);
 		if (stripped_expression == nullptr)
 		{
 			return false;
@@ -113,7 +113,7 @@ void DeadCodeElimination::RemovePureExpressionStatements(std::vector<std::unique
 		}
 
 		const MidoriExpression& expression = *statement->GetStatement<MidoriStatement::ExpressionStatement>().m_expr;
-		if (!OptimizerAnalysis::IsPure(expression))
+		if (!MidoriAnalysis::IsPure(expression))
 		{
 			++it;
 			continue;
@@ -157,7 +157,7 @@ void DeadCodeElimination::TrimUnreachableBlockTail(MidoriExpression::Block& bloc
 
 void DeadCodeElimination::ElideUnusedPureLocalDefinitions(MidoriExpression::Block& block)
 {
-	const OptimizerAnalysis::BlockLocalAccessSummary access_summary = OptimizerAnalysis::AnalyzeBlockLocalAccess(block);
+	const MidoriAnalysis::BlockLocalAccessSummary access_summary = MidoriAnalysis::AnalyzeBlockLocalAccess(block);
 
 	for (std::size_t index = 0u; index < block.m_stmts.size(); index += 1u)
 	{
@@ -173,7 +173,7 @@ void DeadCodeElimination::ElideUnusedPureLocalDefinitions(MidoriExpression::Bloc
 			continue;
 		}
 
-		if (!OptimizerAnalysis::IsPure(*definition.m_value))
+		if (!MidoriAnalysis::IsPure(*definition.m_value))
 		{
 			continue;
 		}
@@ -196,7 +196,7 @@ bool DeadCodeElimination::IsTerminatingStatement(const MidoriStatement& statemen
 	return IsTerminatingStatementImpl(statement);
 }
 
-bool DeadCodeElimination::HasNestedCallableBoundaryAfter(const OptimizerAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index)
+bool DeadCodeElimination::HasNestedCallableBoundaryAfter(const MidoriAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index)
 {
 	const std::size_t start_index = statement_index + 1u;
 	for (std::size_t index = start_index; index < access_summary.m_statement_summaries.size(); index += 1u)

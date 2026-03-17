@@ -16,14 +16,9 @@ bool MidoriOptimizer::DidChange() const
 	return m_did_change;
 }
 
-void MidoriOptimizer::VisitStatement(std::unique_ptr<MidoriStatement>& statement)
-{
-	VisitNode([this](auto&& arg) { (*this)(arg); }, statement);
-}
-
 void MidoriOptimizer::VisitAndReplace(std::unique_ptr<MidoriExpression>& expr)
 {
-	VisitNode([this](auto&& arg) { (*this)(arg); }, expr);
+	MidoriAbstractSyntaxTreeWalker::VisitExpression(expr);
 
 	if (m_pending_replacement)
 	{
@@ -110,14 +105,10 @@ void MidoriOptimizer::operator()(MidoriExpression::Group& group)
 
 void MidoriOptimizer::operator()(MidoriExpression::Tuple& tuple)
 {
-	std::ranges::for_each
-	(
-		tuple.m_elements,
-		[this](std::unique_ptr<MidoriExpression>& element)
-		{
-			VisitAndReplace(element);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& element : tuple.m_elements)
+	{
+		VisitAndReplace(element);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::UnaryPrefix& unary)
@@ -133,14 +124,10 @@ void MidoriOptimizer::operator()(MidoriExpression::UnarySuffix& unary)
 void MidoriOptimizer::operator()(MidoriExpression::Call& call)
 {
 	VisitAndReplace(call.m_callee);
-	std::ranges::for_each
-	(
-		call.m_arguments,
-		[this](std::unique_ptr<MidoriExpression>& arg)
-		{
-			VisitAndReplace(arg);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& argument : call.m_arguments)
+	{
+		VisitAndReplace(argument);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::MemberAccess& get)
@@ -218,52 +205,36 @@ void MidoriOptimizer::operator()(MidoriExpression::Function& function)
 
 void MidoriOptimizer::operator()(MidoriExpression::Construct& construct)
 {
-	std::ranges::for_each
-	(
-		construct.m_params,
-		[this](std::unique_ptr<MidoriExpression>& arg)
-		{
-			VisitAndReplace(arg);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& parameter : construct.m_params)
+	{
+		VisitAndReplace(parameter);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Array& array)
 {
-	std::ranges::for_each
-	(
-		array.m_elems,
-		[this](std::unique_ptr<MidoriExpression>& element)
-		{
-			VisitAndReplace(element);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& element : array.m_elems)
+	{
+		VisitAndReplace(element);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitAndReplace(array_get.m_arr_var);
-	std::ranges::for_each
-	(
-		array_get.m_indices,
-		[this](std::unique_ptr<MidoriExpression>& index)
-		{
-			VisitAndReplace(index);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& index : array_get.m_indices)
+	{
+		VisitAndReplace(index);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::IndexAssignment& array_set)
 {
 	VisitAndReplace(array_set.m_arr_var);
-	std::ranges::for_each
-	(
-		array_set.m_indices,
-		[this](std::unique_ptr<MidoriExpression>& index)
-		{
-			VisitAndReplace(index);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& index : array_set.m_indices)
+	{
+		VisitAndReplace(index);
+	}
 	VisitAndReplace(array_set.m_value);
 }
 
@@ -295,14 +266,10 @@ void MidoriOptimizer::operator()(MidoriExpression::IfElse& if_else)
 
 void MidoriOptimizer::operator()(MidoriExpression::Block& block)
 {
-	std::ranges::for_each
-	(
-		block.m_stmts,
-		[this](std::unique_ptr<MidoriStatement>& stmt)
-		{
-			VisitStatement(stmt);
-		}
-	);
+	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	{
+		VisitStatement(statement);
+	}
 
 	if (block.m_final_expr.has_value())
 	{
@@ -313,14 +280,10 @@ void MidoriOptimizer::operator()(MidoriExpression::Block& block)
 void MidoriOptimizer::operator()(MidoriExpression::Match& match)
 {
 	VisitAndReplace(match.m_arg_expr);
-	std::ranges::for_each
-	(
-		match.m_cases,
-		[this](std::unique_ptr<MidoriExpression>& case_expr)
-		{
-			VisitAndReplace(case_expr);
-		}
-	);
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		VisitAndReplace(case_expr);
+	}
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Case& case_expr)

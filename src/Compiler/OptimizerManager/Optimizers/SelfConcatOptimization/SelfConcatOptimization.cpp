@@ -1,6 +1,6 @@
 #include "SelfConcatOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 
 #include <ranges>
 
@@ -312,7 +312,7 @@ namespace
 
 	void CollectConcatOperands(const MidoriExpression& expr, std::vector<const MidoriExpression*>& operands)
 	{
-		const MidoriExpression* current = OptimizerAnalysis::StripRedundantGroups(&expr);
+		const MidoriExpression* current = MidoriAnalysis::StripRedundantGroups(&expr);
 		if (current && current->IsExpression<MidoriExpression::Binary>())
 		{
 			const MidoriExpression::Binary& binary = current->GetExpression<MidoriExpression::Binary>();
@@ -328,7 +328,7 @@ namespace
 
 	void CollectConcatOperands(std::unique_ptr<MidoriExpression> expr, std::vector<std::unique_ptr<MidoriExpression>>& operands)
 	{
-		expr = OptimizerAnalysis::StripRedundantGroups(std::move(expr));
+		expr = MidoriAnalysis::StripRedundantGroups(std::move(expr));
 		if (expr && expr->IsExpression<MidoriExpression::Binary>())
 		{
 			MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
@@ -361,7 +361,7 @@ namespace
 			return nullptr;
 		}
 
-		const MidoriExpression* first_expr = OptimizerAnalysis::StripRedundantGroups(operands[0u]);
+		const MidoriExpression* first_expr = MidoriAnalysis::StripRedundantGroups(operands[0u]);
 		if (!first_expr || !first_expr->IsExpression<MidoriExpression::NameAccess>())
 		{
 			return nullptr;

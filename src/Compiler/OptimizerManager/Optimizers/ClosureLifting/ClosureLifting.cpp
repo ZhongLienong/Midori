@@ -1,4 +1,6 @@
 #include "ClosureLifting.h"
+#include "Compiler/Analysis/AbstractSyntaxTreeWalker.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Constant/Constant.h"
 #include "Compiler/Token/Token.h"
@@ -68,7 +70,7 @@ namespace
 		);
 	}
 
-	class SelfReferencePatcher : public MidoriOptimizer
+	class SelfReferencePatcher : protected MidoriAbstractSyntaxTreeWalker
 	{
 public:
 		std::string_view m_self_name;
@@ -81,23 +83,12 @@ public:
 		{
 		}
 
-		MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override 
-		{ 
-			return std::move(program_tree); 
-		}
-
-		std::string_view GetName() const override 
-		{ 
-			return "SelfReferencePatcher"; 
-		}
-
 		void Patch(std::unique_ptr<MidoriExpression>& expr)
 		{
-			VisitAndReplace(expr);
+			VisitExpression(expr);
 		}
 
 	protected:
-		// Helper to rewrite name access
 		void RewriteAccess(Token& name, MidoriExpression::NameContext::Tag& context)
 		{
 			if (name.m_lexeme == m_self_name)
@@ -116,122 +107,31 @@ public:
 		void operator()(MidoriExpression::Assignment& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
+			VisitExpression(assign.m_value);
 		}
 
 		void operator()(MidoriExpression::AppendAssign& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
+			VisitExpression(assign.m_value);
 		}
 
 		void operator()(MidoriExpression::ExtendAssign& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
+			VisitExpression(assign.m_value);
 		}
 
 		void operator()(MidoriExpression::PrependAssign& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
+			VisitExpression(assign.m_value);
 		}
 
 		void operator()(MidoriExpression::CompoundAssign& assign) override
 		{
 			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
-		}
-	};
-
-	class LiftSafetyAnalyzer : public MidoriOptimizer
-	{
-	public:
-		const std::unordered_set<std::string>* m_visible_globals = nullptr;
-		std::optional<std::string_view> m_self_name;
-		bool m_is_safe{ true };
-
-		LiftSafetyAnalyzer(const std::unordered_set<std::string>& visible_globals, std::optional<std::string_view> self_name = std::nullopt)
-			: m_visible_globals(&visible_globals),
-			m_self_name(self_name)
-		{
-		}
-
-		MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override 
-		{ 
-			return std::move(program_tree); 
-		}
-		
-		std::string_view GetName() const override
-		{
-			return "CaptureAnalyzer"; 
-		}
-
-		void Analyze(std::unique_ptr<MidoriExpression>& expr)
-		{
-			VisitAndReplace(expr);
-		}
-
-	protected:
-		void CheckAccess(const Token& name, const MidoriExpression::NameContext::Tag& context)
-		{
-			if (!m_is_safe)
-			{
-				return;
-			}
-
-			if (std::holds_alternative<MidoriExpression::NameContext::Cell>(context))
-			{
-				if (!m_self_name.has_value() || name.m_lexeme != m_self_name.value())
-				{
-					m_is_safe = false;
-				}
-				return;
-			}
-
-			if (std::holds_alternative<MidoriExpression::NameContext::Global>(context))
-			{
-				if (name.m_lexeme.find(NameSeparator) == std::string::npos
-					&& !m_visible_globals->contains(name.m_lexeme))
-				{
-					m_is_safe = false;
-				}
-			}
-		}
-
-		void operator()(MidoriExpression::NameAccess& access) override
-		{
-			CheckAccess(access.m_name, access.m_name_ctx);
-		}
-
-		void operator()(MidoriExpression::Assignment& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::AppendAssign& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::ExtendAssign& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::PrependAssign& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::CompoundAssign& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitAndReplace(assign.m_value);
+			VisitExpression(assign.m_value);
 		}
 	};
 }
@@ -273,9 +173,8 @@ void ClosureLifting::operator()(MidoriExpression::Function& function)
 {
 	VisitAndReplace(function.m_body);
 
-	LiftSafetyAnalyzer analyzer(m_visible_globals);
-	analyzer.Analyze(function.m_body);
-	if (!analyzer.m_is_safe)
+	const MidoriAnalysis::LiftSafetySummary lift_safety = MidoriAnalysis::AnalyzeLiftSafety(*function.m_body, m_visible_globals);
+	if (!lift_safety.m_is_safe)
 	{
 		return;
 	}
@@ -320,10 +219,8 @@ void ClosureLifting::operator()(MidoriExpression::Block& block)
 
 			if (is_local_nested && !defun.m_is_lift_wrapper && !IsForwardingLiftWrapperCall(defun))
 			{
-				LiftSafetyAnalyzer analyzer(m_visible_globals, defun.m_name.m_lexeme);
-				analyzer.Analyze(defun.m_body);
-
-				if (analyzer.m_is_safe)
+				const MidoriAnalysis::LiftSafetySummary lift_safety = MidoriAnalysis::AnalyzeLiftSafety(*defun.m_body, m_visible_globals, defun.m_name.m_lexeme);
+				if (lift_safety.m_is_safe)
 				{
 					Token lifted_token = MakeLiftedToken(defun.m_name, defun.m_name.m_lexeme);
 

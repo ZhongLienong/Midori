@@ -15,6 +15,8 @@ namespace
 			return "Parser Error";
 		case CompilerStage::TypeChecker:
 			return "Type Checker Error";
+		case CompilerStage::StaticAnalyzer:
+			return "Static Analyzer Error";
 		case CompilerStage::CodeGenerator:
 			return "Code Generator Error";
 		case CompilerStage::Module:
@@ -43,6 +45,8 @@ namespace
 			return "Parser Warning";
 		case CompilerStage::TypeChecker:
 			return "Type Checker Warning";
+		case CompilerStage::StaticAnalyzer:
+			return "Static Analyzer Warning";
 		case CompilerStage::CodeGenerator:
 			return "Code Generator Warning";
 		case CompilerStage::Module:

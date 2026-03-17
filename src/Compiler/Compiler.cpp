@@ -10,6 +10,7 @@
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/OptimizerManager/OptimizerManager.h"
 #include "Compiler/Parser/Parser.h"
+#include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
 
 #include <algorithm>
@@ -17,6 +18,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <mutex>
@@ -84,6 +86,7 @@ namespace
 		ImportContext m_import_context;
 		std::vector<std::string> m_source_lines;
 		ParsedModule m_parsed_module;
+		StaticAnalysisResult m_analysis_result;
 		MidoriProgramTree m_ast;
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
@@ -95,6 +98,7 @@ namespace
 		MidoriResult::Result<CompileState> WithSourceLines() &&;
 		MidoriResult::Result<CompileState> WithParsedModule() &&;
 		MidoriResult::Result<CompileState> WithTypeCheckedAst() &&;
+		MidoriResult::Result<CompileState> WithStaticAnalysis() &&;
 		MidoriResult::Result<CompileState> WithOptimizedAst() &&;
 		MidoriResult::Result<CompileState> WithBytecode() &&;
 		MidoriResult::CompiledModuleResult Finalize() &&;
@@ -150,6 +154,12 @@ namespace
 	static CompileState ApplyAst(CompileState state, MidoriProgramTree&& ast)
 	{
 		state.m_ast = std::move(ast);
+		return std::move(state);
+	}
+
+	static CompileState ApplyStaticAnalysis(CompileState state, StaticAnalysisResult&& analysis_result)
+	{
+		state.m_analysis_result = std::move(analysis_result);
 		return std::move(state);
 	}
 
@@ -256,6 +266,43 @@ namespace
 		return current_module;
 	}
 
+	static std::string_view WarningCodeName(CompilerWarningCode code)
+	{
+		switch (code)
+		{
+		case CompilerWarningCode::NameShadowing:
+			return "NameShadowing";
+		case CompilerWarningCode::UnusedLocal:
+			return "UnusedLocal";
+		case CompilerWarningCode::UnreachableCode:
+			return "UnreachableCode";
+		case CompilerWarningCode::CaptureEscape:
+			return "CaptureEscape";
+		default:
+			return "None";
+		}
+	}
+
+	static bool ShouldEmitMachineReadableWarnings()
+	{
+#ifdef _WIN32
+		char* warning_format = nullptr;
+		size_t warning_format_length = 0u;
+		const errno_t result = _dupenv_s(&warning_format, &warning_format_length, "MIDORI_TEST_WARNING_FORMAT");
+		if (result != 0 || warning_format == nullptr)
+		{
+			return false;
+		}
+
+		const bool enabled = std::string_view(warning_format) == "machine";
+		free(warning_format);
+		return enabled;
+#else
+		const char* warning_format = std::getenv("MIDORI_TEST_WARNING_FORMAT");
+		return warning_format != nullptr && std::string_view(warning_format) == "machine";
+#endif
+	}
+
 	static size_t ReportWarnings(CompileEnv& env, const std::string& file_path, const std::vector<CompilerWarning>& warnings)
 	{
 		std::vector<const CompilerWarning*> unique_warnings;
@@ -288,6 +335,11 @@ namespace
 		for (const CompilerWarning* warning : unique_warnings)
 		{
 			Printer::Print<Printer::Color::YELLOW>(std::format("{}", *warning));
+			if (ShouldEmitMachineReadableWarnings())
+			{
+				const int line = warning->m_location.has_value() ? warning->m_location->m_line : 0;
+				std::print("MIDORI_WARNING\t{}\t{}\t{}\n", WarningCodeName(warning->m_code), line, warning->m_message);
+			}
 		}
 
 		return unique_warnings.size();
@@ -441,6 +493,11 @@ namespace
 		return TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types).TypeCheck();
 	}
 
+	static StaticAnalysisResult StaticAnalyzeModule(MidoriProgramTree& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines)
+	{
+		return StaticAnalyzerManager().Analyze(ast, file_path, module_source_lines);
+	}
+
 	static MidoriResult::OptimizerResult OptimizeModule(MidoriProgramTree&& ast
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 		, OptimizerLog* optimizer_log, std::mutex* print_mutex
@@ -533,6 +590,23 @@ namespace
 			TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_import_context),
 			std::move(state)
 		);
+	}
+
+	MidoriResult::Result<CompileState> CompileState::WithStaticAnalysis() &&
+	{
+		CompileState state = std::move(*this);
+		StaticAnalysisResult analysis_result = StaticAnalyzeModule(state.m_ast, state.m_file_path, state.m_source_lines);
+		if (!analysis_result.m_errors.empty())
+		{
+			return std::unexpected(std::move(analysis_result.m_errors.front()));
+		}
+
+		if (state.m_env != nullptr)
+		{
+			ReportWarnings(*state.m_env, state.m_file_path, analysis_result.m_warnings);
+		}
+
+		return ApplyStaticAnalysis(std::move(state), std::move(analysis_result));
 	}
 
 	MidoriResult::Result<CompileState> CompileState::WithOptimizedAst() &&
@@ -664,6 +738,11 @@ namespace
 		return std::move(state).WithTypeCheckedAst();
 	}
 
+	static MidoriResult::Result<CompileState> StageStaticAnalysis(CompileState state)
+	{
+		return std::move(state).WithStaticAnalysis();
+	}
+
 	static MidoriResult::Result<CompileState> StageOptimizedAst(CompileState state)
 	{
 		return std::move(state).WithOptimizedAst();
@@ -695,12 +774,13 @@ namespace
 
 		static MidoriResult::Result<CompileState> RunStages(CompileState state)
 		{
-			static const std::array<Stage, 6u> stages =
+			static const std::array<Stage, 7u> stages =
 			{
 				StageImportContext,
 				StageSourceLines,
 				StageParsedModule,
 				StageTypeCheckedAst,
+				StageStaticAnalysis,
 				StageOptimizedAst,
 				StageBytecode
 			};

@@ -1,9 +1,11 @@
-#include "OptimizerAnalysis.h"
+#include "SemanticFacts.h"
 
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+
+namespace OptimizerAnalysis = MidoriAnalysis;
 
 namespace
 {
@@ -1379,7 +1381,7 @@ namespace
 	};
 }
 
-namespace OptimizerAnalysis
+namespace MidoriAnalysis
 {
 	const MidoriExpression* StripRedundantGroups(const MidoriExpression* expr)
 	{

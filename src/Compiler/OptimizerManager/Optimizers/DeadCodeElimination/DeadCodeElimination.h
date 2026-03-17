@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 #include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
 
 class DeadCodeElimination final : public MidoriOptimizer
@@ -21,7 +21,7 @@ private:
 
 	static bool IsTerminatingStatement(const MidoriStatement& statement);
 
-	static bool HasNestedCallableBoundaryAfter(const OptimizerAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index);
+	static bool HasNestedCallableBoundaryAfter(const MidoriAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index);
 
 	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 

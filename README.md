@@ -23,7 +23,7 @@ A statically-typed functional programming language featuring algebraic data type
 # From the repo root (after building Midori.exe):
 python .\scripts\install.py --copy-binaries
 
-# This prefers a Release build if present (out/build/x64-release),
+# This prefers a Release preset build if present,
 # otherwise falls back to Development/Debug. Use --preset to force:
 # python .\scripts\install.py --copy-binaries --preset x64-release
 
@@ -540,51 +540,53 @@ extern "C" {
 
 ### Building Midori
 
-Midori uses a three-tier build configuration:
+Midori uses CMake presets for native builds.
 
-**Debug** - Full diagnostics with AST dumps and bytecode disassembly:
+Configure and build a Development binary:
 ```bash
-cmake --build build --config Debug
+cmake --preset x64-development
+cmake --build --preset x64-development --target Midori
 ```
 
-**Development** - Optimized build with compilation progress:
+Other common presets:
 ```bash
-cmake --build build --config Development
+cmake --preset x64-debug
+cmake --build --preset x64-debug --target Midori
+
+cmake --preset x64-release
+cmake --build --preset x64-release --target Midori
 ```
 
-**Release** - Maximum performance with minimal output:
-```bash
-cmake --build build --config Release
-```
+Native preset builds write the executable to `out/build/ninja/<preset>/out/Midori.exe`.
 
 ### Running Programs
 
 ```bash
-# Run a Midori program
-./build/Midori.exe path/to/program.mdr
-
-# With debug output
-./build/Debug/Midori.exe path/to/program.mdr
+# Run a Midori program built with the Development preset
+.\out\build\ninja\x64-development\out\Midori.exe path\to\program.mdr
 ```
 
 ### Running Tests
 
 Run all tests:
 ```bash
-python scripts/run_tests.py
+python scripts/run_tests.py --build Development
 ```
 
 Run specific tests:
 ```bash
-python scripts/run_tests.py --test closure/simple.mdr
-python scripts/run_tests.py --category typeclass
-python scripts/run_tests.py --pattern recursive
+python scripts/run_tests.py --test closure/simple.mdr --build Development
+python scripts/run_tests.py --category typeclass --build Development
+python scripts/run_tests.py --category static_analyzer --build Development
+python scripts/run_tests.py --pattern recursive --build Development
 ```
 
-Create new tests:
+Test fixtures are file-based:
 ```bash
-python scripts/new_test.py closure/my_test
-python scripts/new_test.py expression/failure/syntax_error --should-fail
+# Add a new program test under test/<category>/<name>.mdr
+# Put tests under a failure/ directory when they should fail compilation
+# Add <name>.expected to assert stdout/stderr snapshots
+# Add <name>.warnings.json to assert warning code, line, and message fragments
 ```
 
 ## Example Programs

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 #include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
 
 #include <optional>
@@ -24,7 +24,7 @@ private:
 
 	struct Replacement
 	{
-		std::variant<OptimizerAnalysis::ConstantValue, AliasReplacement> m_value;
+		std::variant<MidoriAnalysis::ConstantValue, AliasReplacement> m_value;
 	};
 
 	using Environment = std::unordered_map<int, Replacement>;

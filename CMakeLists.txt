@@ -16,6 +16,7 @@ project(Midori
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_SUPPRESS_REGENERATION ON)
 
 # Define build configurations (multi-config) or default build type (single-config)
 if(CMAKE_GENERATOR_MULTI_CONFIG)

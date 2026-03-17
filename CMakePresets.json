@@ -5,8 +5,8 @@
       "name": "windows-base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
+      "binaryDir": "${sourceDir}/out/build/ninja/${presetName}",
+      "installDir": "${sourceDir}/out/install/ninja/${presetName}",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl.exe",
         "CMAKE_CXX_COMPILER": "cl.exe"
@@ -57,8 +57,8 @@
       "name": "linux-debug",
       "displayName": "Linux Debug",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
+      "binaryDir": "${sourceDir}/out/build/ninja/${presetName}",
+      "installDir": "${sourceDir}/out/install/ninja/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       },
@@ -77,8 +77,8 @@
       "name": "linux-experimental",
       "displayName": "Linux Experimental",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
+      "binaryDir": "${sourceDir}/out/build/ninja/${presetName}",
+      "installDir": "${sourceDir}/out/install/ninja/${presetName}",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Experimental"
       },
@@ -92,6 +92,32 @@
           "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
         }
       }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "x64-debug",
+      "configurePreset": "x64-debug"
+    },
+    {
+      "name": "x64-development",
+      "configurePreset": "x64-development"
+    },
+    {
+      "name": "x64-release",
+      "configurePreset": "x64-release"
+    },
+    {
+      "name": "x64-experimental",
+      "configurePreset": "x64-experimental"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-experimental",
+      "configurePreset": "linux-experimental"
     }
   ]
 }

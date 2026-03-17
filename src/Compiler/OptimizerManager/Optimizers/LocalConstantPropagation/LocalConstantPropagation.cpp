@@ -231,7 +231,7 @@ void LocalConstantPropagation::ClearAliasReplacements()
 
 LocalConstantPropagation::Environment LocalConstantPropagation::FilterRepeatedEnvironment(const Environment& environment, const MidoriExpression& expr) const
 {
-	const OptimizerAnalysis::StatementLocalAccessSummary access_summary = OptimizerAnalysis::AnalyzeExpressionLocalAccess(expr);
+	const MidoriAnalysis::StatementLocalAccessSummary access_summary = MidoriAnalysis::AnalyzeExpressionLocalAccess(expr);
 	Environment filtered_environment;
 
 	for (const std::pair<const int, Replacement>& entry : environment)
@@ -245,7 +245,7 @@ LocalConstantPropagation::Environment LocalConstantPropagation::FilterRepeatedEn
 		}
 
 		bool replacement_depends_on_assigned_local = false;
-		for (const std::pair<const int, OptimizerAnalysis::LocalAccessInfo>& access_entry : access_summary.m_locals)
+		for (const std::pair<const int, MidoriAnalysis::LocalAccessInfo>& access_entry : access_summary.m_locals)
 		{
 			if (access_entry.second.m_assignments <= 0)
 			{
@@ -270,15 +270,15 @@ LocalConstantPropagation::Environment LocalConstantPropagation::FilterRepeatedEn
 
 std::optional<LocalConstantPropagation::Replacement> LocalConstantPropagation::TryCreateReplacement(const MidoriExpression& expr) const
 {
-	const MidoriExpression* stripped_expr = OptimizerAnalysis::StripRedundantGroups(&expr);
+	const MidoriExpression* stripped_expr = MidoriAnalysis::StripRedundantGroups(&expr);
 	if (stripped_expr == nullptr)
 	{
 		return std::nullopt;
 	}
 
-	if (OptimizerAnalysis::IsLiteralExpression(*stripped_expr))
+	if (MidoriAnalysis::IsLiteralExpression(*stripped_expr))
 	{
-		const std::optional<OptimizerAnalysis::ConstantValue> constant_value = OptimizerAnalysis::TryEvalConstant(*stripped_expr);
+		const std::optional<MidoriAnalysis::ConstantValue> constant_value = MidoriAnalysis::TryEvalConstant(*stripped_expr);
 		if (constant_value.has_value())
 		{
 			return Replacement{ constant_value.value() };
@@ -308,9 +308,9 @@ std::unique_ptr<MidoriExpression> LocalConstantPropagation::MaterializeReplaceme
 		{
 			using T = std::decay_t<decltype(value)>;
 
-			if constexpr (std::is_same_v<T, OptimizerAnalysis::ConstantValue>)
+			if constexpr (std::is_same_v<T, MidoriAnalysis::ConstantValue>)
 			{
-				std::unique_ptr<MidoriExpression> replacement_expr = OptimizerAnalysis::MakeLiteralExpression(value, use_site.m_name);
+				std::unique_ptr<MidoriExpression> replacement_expr = MidoriAnalysis::MakeLiteralExpression(value, use_site.m_name);
 				replacement_expr->GetType() = use_site.m_type_data;
 				return replacement_expr;
 			}
@@ -342,10 +342,10 @@ bool LocalConstantPropagation::AreEquivalent(const Replacement& left, const Repl
 		return false;
 	}
 
-	if (std::holds_alternative<OptimizerAnalysis::ConstantValue>(left.m_value))
+	if (std::holds_alternative<MidoriAnalysis::ConstantValue>(left.m_value))
 	{
-		return std::get<OptimizerAnalysis::ConstantValue>(left.m_value).m_value
-			== std::get<OptimizerAnalysis::ConstantValue>(right.m_value).m_value;
+		return std::get<MidoriAnalysis::ConstantValue>(left.m_value).m_value
+			== std::get<MidoriAnalysis::ConstantValue>(right.m_value).m_value;
 	}
 
 	return std::get<AliasReplacement>(left.m_value).m_local_index

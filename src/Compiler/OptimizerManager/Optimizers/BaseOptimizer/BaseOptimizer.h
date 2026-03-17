@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Common/Error/Error.h"
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Compiler/Analysis/AbstractSyntaxTreeWalker.h"
 #include "Compiler/Result/Result.h"
 
-class MidoriOptimizer
+class MidoriOptimizer : protected MidoriAbstractSyntaxTreeWalker
 {
 protected:
 #if MIDORI_ENABLE_OPTIMIZER_STATS
@@ -41,109 +41,59 @@ protected:
 #endif
 
 protected:
-	void VisitStatement(std::unique_ptr<MidoriStatement>& statement);
-
 	void VisitAndReplace(std::unique_ptr<MidoriExpression>& expr);
 
 	virtual void Replace(std::unique_ptr<MidoriExpression>&& new_node, std::unique_ptr<MidoriExpression>& old_node);
 
-	virtual void operator()(MidoriStatement::ExpressionStatement& simple);
+	virtual void operator()(MidoriStatement::ExpressionStatement& simple) override;
+	virtual void operator()(MidoriStatement::VariableDefinition& def) override;
+	virtual void operator()(MidoriStatement::TupleDefinition& def_tuple) override;
+	virtual void operator()(MidoriStatement::FunctionDefinition& defun) override;
+	virtual void operator()(MidoriStatement::Continue& continue_stmt) override;
+	virtual void operator()(MidoriStatement::ForeignDefinition& foreign) override;
+	virtual void operator()(MidoriStatement::Struct& struct_stmt) override;
+	virtual void operator()(MidoriStatement::Union& union_stmt) override;
+	virtual void operator()(MidoriStatement::Class& typeclass_stmt) override;
+	virtual void operator()(MidoriStatement::Instance& instance_stmt) override;
+	virtual void operator()(MidoriStatement::TypeAlias& type_alias) override;
 
-	virtual void operator()(MidoriStatement::VariableDefinition& def);
-
-	virtual void operator()(MidoriStatement::TupleDefinition& def_tuple);
-
-	virtual void operator()(MidoriStatement::FunctionDefinition& defun);
-
-	virtual void operator()(MidoriStatement::Continue& continue_stmt);
-
-	virtual void operator()(MidoriStatement::ForeignDefinition& foreign);
-
-	virtual void operator()(MidoriStatement::Struct& struct_stmt);
-
-	virtual void operator()(MidoriStatement::Union& union_stmt);
-
-	virtual void operator()(MidoriStatement::Class& typeclass_stmt);
-
-	virtual void operator()(MidoriStatement::Instance& instance_stmt);
-
-	virtual void operator()(MidoriStatement::TypeAlias& type_alias);
-
-	virtual void operator()(MidoriExpression::As& as);
-
-	virtual void operator()(MidoriExpression::Binary& binary);
-
-	virtual void operator()(MidoriExpression::Group& group);
-
-	virtual void operator()(MidoriExpression::Tuple& tuple);
-
-	virtual void operator()(MidoriExpression::UnaryPrefix& unary);
-
-	virtual void operator()(MidoriExpression::UnarySuffix& unary);
-
-	virtual void operator()(MidoriExpression::Call& call);
-
-	virtual void operator()(MidoriExpression::MemberAccess& get);
-
-	virtual void operator()(MidoriExpression::MemberAssignment& set);
-
-	virtual void operator()(MidoriExpression::NameAccess& variable);
-
-	virtual void operator()(MidoriExpression::Assignment& bind);
-
-	virtual void operator()(MidoriExpression::AppendAssign& append_assign);
-
-	virtual void operator()(MidoriExpression::ExtendAssign& extend_assign);
-
-	virtual void operator()(MidoriExpression::PrependAssign& prepend_assign);
-
-	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign);
-
-	virtual void operator()(MidoriExpression::TextLiteral& text);
-
-	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr);
-
-	virtual void operator()(MidoriExpression::FloatLiteral& float_literal);
-
-	virtual void operator()(MidoriExpression::IntegerLiteral& integer);
-
-	virtual void operator()(MidoriExpression::ByteLiteral& byte_literal);
-
-	virtual void operator()(MidoriExpression::WordLiteral& word_literal);
-
-	virtual void operator()(MidoriExpression::UnitLiteral& unit);
-
-	virtual void operator()(MidoriExpression::Function& function);
-
-	virtual void operator()(MidoriExpression::Construct& construct);
-
-	virtual void operator()(MidoriExpression::Array& array);
-
-	virtual void operator()(MidoriExpression::IndexAccess& array_get);
-
-	virtual void operator()(MidoriExpression::IndexAssignment& array_set);
-
-	virtual void operator()(MidoriExpression::ArrayComprehension& comp);
-
-	virtual void operator()(MidoriExpression::RangeBinary& range_binary);
-
-	virtual void operator()(MidoriExpression::RangeTernary& range_ternary);
-
-	virtual void operator()(MidoriExpression::IfElse& if_else);
-
-	virtual void operator()(MidoriExpression::Block& block);
-
-	virtual void operator()(MidoriExpression::Match& match);
-
-	virtual void operator()(MidoriExpression::Case& case_expr);
-
-	virtual void operator()(MidoriExpression::Default& default_expr);
-
-	virtual void operator()(MidoriExpression::Loop& loop);
-
-	virtual void operator()(MidoriExpression::For& for_expr);
-
-	virtual void operator()(MidoriExpression::Break& break_expr);
-
-	virtual void operator()(MidoriExpression::Return& return_expr);
+	virtual void operator()(MidoriExpression::As& as) override;
+	virtual void operator()(MidoriExpression::Binary& binary) override;
+	virtual void operator()(MidoriExpression::Group& group) override;
+	virtual void operator()(MidoriExpression::Tuple& tuple) override;
+	virtual void operator()(MidoriExpression::UnaryPrefix& unary) override;
+	virtual void operator()(MidoriExpression::UnarySuffix& unary) override;
+	virtual void operator()(MidoriExpression::Call& call) override;
+	virtual void operator()(MidoriExpression::MemberAccess& get) override;
+	virtual void operator()(MidoriExpression::MemberAssignment& set) override;
+	virtual void operator()(MidoriExpression::NameAccess& variable) override;
+	virtual void operator()(MidoriExpression::Assignment& bind) override;
+	virtual void operator()(MidoriExpression::AppendAssign& append_assign) override;
+	virtual void operator()(MidoriExpression::ExtendAssign& extend_assign) override;
+	virtual void operator()(MidoriExpression::PrependAssign& prepend_assign) override;
+	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
+	virtual void operator()(MidoriExpression::TextLiteral& text) override;
+	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr) override;
+	virtual void operator()(MidoriExpression::FloatLiteral& float_literal) override;
+	virtual void operator()(MidoriExpression::IntegerLiteral& integer) override;
+	virtual void operator()(MidoriExpression::ByteLiteral& byte_literal) override;
+	virtual void operator()(MidoriExpression::WordLiteral& word_literal) override;
+	virtual void operator()(MidoriExpression::UnitLiteral& unit) override;
+	virtual void operator()(MidoriExpression::Function& function) override;
+	virtual void operator()(MidoriExpression::Construct& construct) override;
+	virtual void operator()(MidoriExpression::Array& array) override;
+	virtual void operator()(MidoriExpression::IndexAccess& array_get) override;
+	virtual void operator()(MidoriExpression::IndexAssignment& array_set) override;
+	virtual void operator()(MidoriExpression::ArrayComprehension& comp) override;
+	virtual void operator()(MidoriExpression::RangeBinary& range_binary) override;
+	virtual void operator()(MidoriExpression::RangeTernary& range_ternary) override;
+	virtual void operator()(MidoriExpression::IfElse& if_else) override;
+	virtual void operator()(MidoriExpression::Block& block) override;
+	virtual void operator()(MidoriExpression::Match& match) override;
+	virtual void operator()(MidoriExpression::Case& case_expr) override;
+	virtual void operator()(MidoriExpression::Default& default_expr) override;
+	virtual void operator()(MidoriExpression::Loop& loop) override;
+	virtual void operator()(MidoriExpression::For& for_expr) override;
+	virtual void operator()(MidoriExpression::Break& break_expr) override;
+	virtual void operator()(MidoriExpression::Return& return_expr) override;
 };

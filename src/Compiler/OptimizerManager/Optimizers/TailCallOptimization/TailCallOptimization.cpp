@@ -1,6 +1,6 @@
 #include "TailCallOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 
 namespace
 {
@@ -43,7 +43,7 @@ namespace
 
 			bool operator()(const MidoriExpression::Call& node) const
 			{
-				const MidoriExpression* callee_expr = OptimizerAnalysis::StripRedundantGroups(node.m_callee.get());
+				const MidoriExpression* callee_expr = MidoriAnalysis::StripRedundantGroups(node.m_callee.get());
 				if (callee_expr && callee_expr->IsExpression<MidoriExpression::NameAccess>())
 				{
 					const MidoriExpression::NameAccess& callee_name = callee_expr->GetExpression<MidoriExpression::NameAccess>();
@@ -387,7 +387,7 @@ bool TailCallOptimization::IsTailCall(std::unique_ptr<MidoriExpression>& expr, s
 	}
 
 	MidoriExpression::Call& call = expr->GetExpression<MidoriExpression::Call>();
-	const MidoriExpression* callee_expr = OptimizerAnalysis::StripRedundantGroups(call.m_callee.get());
+	const MidoriExpression* callee_expr = MidoriAnalysis::StripRedundantGroups(call.m_callee.get());
 	if (callee_expr && callee_expr->IsExpression<MidoriExpression::NameAccess>())
 	{
 		const MidoriExpression::NameAccess& callee_name = callee_expr->GetExpression<MidoriExpression::NameAccess>();

@@ -79,29 +79,6 @@ namespace
 		return full_name;
 	}
 
-	std::string JoinKinds(const std::vector<std::string_view>& kinds)
-	{
-		if (kinds.empty())
-		{
-			return {};
-		}
-		if (kinds.size() == 1u)
-		{
-			return std::string(kinds[0u]);
-		}
-
-		std::string joined;
-		for (size_t i = 0u; i < kinds.size(); i += 1u)
-		{
-			if (i > 0u)
-			{
-				joined.append(i + 1u == kinds.size() ? " and " : ", ");
-			}
-			joined.append(kinds[i]);
-		}
-		return joined;
-	}
-
 	bool IsExportedInAnyModule(const std::unordered_map<std::string, ModuleDeclaration>& modules, const std::string& symbol_name)
 	{
 		for (const std::pair<const std::string, ModuleDeclaration>& entry : modules)
@@ -749,68 +726,11 @@ std::string Parser::Mangle(std::string_view name)
 
 MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 {
-	std::string original_name = name.m_lexeme;
 	name.m_lexeme = Mangle(name.m_lexeme);
 
 	if (m_state.m_scopes.back().m_defined_names.contains(name.m_lexeme))
 	{
 		return std::unexpected(GenerateParserError("Name already exists in the current scope", name));
-	}
-
-	bool shadows_struct = false;
-	bool shadows_variable = false;
-	bool shadows_union = false;
-	bool shadows_type = false;
-
-	// m_state.m_scopes.size() - 2 because the last scope is the current scope
-	for (int i = static_cast<int>(m_state.m_scopes.size()) - 2; i >= 0; --i)
-	{
-		size_t index = static_cast<size_t>(i);
-		if (m_state.m_scopes[index].m_struct_constructors.contains(name.m_lexeme))
-		{
-			shadows_struct = true;
-		}
-		if (m_state.m_scopes[index].m_variables.contains(name.m_lexeme))
-		{
-			shadows_variable = true;
-		}
-		if (m_state.m_scopes[index].m_union_constructors.contains(name.m_lexeme))
-		{
-			shadows_union = true;
-		}
-		if (m_state.m_scopes[index].m_defined_types.contains(name.m_lexeme))
-		{
-			shadows_type = true;
-		}
-	}
-
-	if (shadows_struct || shadows_variable || shadows_union || shadows_type)
-	{
-		std::vector<std::string_view> shadowed_kinds;
-		if (shadows_struct)
-		{
-			shadowed_kinds.push_back("a struct");
-		}
-		if (shadows_variable)
-		{
-			shadowed_kinds.push_back("a variable");
-		}
-		if (shadows_union)
-		{
-			shadowed_kinds.push_back("a union constructor");
-		}
-		if (shadows_type)
-		{
-			shadowed_kinds.push_back("a type");
-		}
-
-		Token warning_token = name;
-		warning_token.m_lexeme = original_name;
-		std::string kind_message = JoinKinds(shadowed_kinds);
-		std::string warning_message = std::format("Name '{}' shadows {} from an outer scope.", original_name, kind_message);
-		CompilerWarning warning = CompilerWarning::WithToken(CompilerStage::Parser, warning_message, warning_token, m_context.m_file_name, *m_context.m_source_lines);
-		warning.m_code = CompilerWarningCode::NameShadowing;
-		m_warnings.emplace_back(std::move(warning));
 	}
 
 	m_state.m_scopes.back().m_defined_names.emplace(name.m_lexeme);
@@ -2689,6 +2609,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							int tag = 0;
 							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme, std::move(generic_param_names));
 							MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+							std::vector<Token> constructor_names;
 
 							size_t type_scope_idx = has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
 							m_state.m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
@@ -2697,7 +2618,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
 										.and_then
 										(
-											[&union_type_ref, &union_type, &union_name, &constraints, &tag, &generic_params, &generic_param_types, has_generic_params, this](Token&&) mutable -> MidoriResult::StatementResult
+											[&union_type_ref, &union_type, &union_name, &constructor_names, &constraints, &tag, &generic_params, &generic_param_types, has_generic_params, this](Token&&) mutable -> MidoriResult::StatementResult
 											{
 												struct ActiveUnionScope
 												{
@@ -2722,19 +2643,21 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 
 												return ParseDelimitedZeroOrMoreUnlimited<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
 													(
-												[&tag, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
+												[&tag, &constructor_names, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 												{
 													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.")
 														.and_then
 														(
-															[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
+															[&tag, &constructor_names, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 															{
 																member_name.m_lexeme = Mangle(member_name.m_lexeme);
 																return DefineName(member_name, is_variable)
 																	.and_then
 																	(
-																		[&tag, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
+																		[&tag, &constructor_names, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
 																		{
+																			constructor_names.push_back(member_name);
+
 																			if (Match(Token::Name::LEFT_PAREN))
 																			{
 																				return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
@@ -2768,7 +2691,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 											)
 											.and_then
 											(
-											[&union_type_ref, &union_type, &union_name, &constraints, &generic_params, has_generic_params, this](std::vector<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>&& result)
+											[&union_type_ref, &union_type, &union_name, &constructor_names, &constraints, &generic_params, has_generic_params, this](std::vector<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>&& result)
 												{
 													UnionMemberInfo member_info = BuildUnionMemberInfo(std::move(result));
 													union_type_ref.m_member_info = std::move(member_info);
@@ -2787,7 +2710,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.")
 														.and_then
 														(
-															[&union_name, &union_type, &constraints, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
+															[&union_name, &union_type, &constructor_names, &constraints, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
 															{
 																m_state.m_namespaces.pop_back();
 
@@ -2796,7 +2719,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 																	EndScope();
 																}
 
-																return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(union_name), std::move(generic_params), std::move(constraints), std::move(union_type)));
+																return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(union_name), std::move(generic_params), std::move(constructor_names), std::move(constraints), std::move(union_type)));
 															}
 														);
 												}

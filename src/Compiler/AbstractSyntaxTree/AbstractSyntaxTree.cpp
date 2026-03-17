@@ -432,9 +432,10 @@ MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_
 {
 }
 
-MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
+MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& constructor_names, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
+	m_constructor_names(std::move(constructor_names)),
 	m_constraints(std::move(constraints)),
 	m_self_type(std::move(self_type))
 {

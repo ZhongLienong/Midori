@@ -1,6 +1,6 @@
 #include "CanonicalizationCleanup.h"
 
-#include "Compiler/OptimizerManager/Analysis/OptimizerAnalysis.h"
+#include "Compiler/Analysis/SharedAnalysis.h"
 
 #include <algorithm>
 #include <optional>
@@ -10,23 +10,23 @@ namespace
 {
 	bool TryGetPureTruthValue(const MidoriExpression& expr, bool expected_value)
 	{
-		if (!OptimizerAnalysis::IsPure(expr))
+		if (!MidoriAnalysis::IsPure(expr))
 		{
 			return false;
 		}
 
-		const std::optional<bool> truth_value = OptimizerAnalysis::TryEvalTruthValue(expr);
+		const std::optional<bool> truth_value = MidoriAnalysis::TryEvalTruthValue(expr);
 		return truth_value.has_value() && truth_value.value() == expected_value;
 	}
 
 	bool TryGetPureNumericConstant(const MidoriExpression& expr, bool expect_zero)
 	{
-		if (!OptimizerAnalysis::IsPure(expr))
+		if (!MidoriAnalysis::IsPure(expr))
 		{
 			return false;
 		}
 
-		const std::optional<OptimizerAnalysis::ConstantValue> constant_value = OptimizerAnalysis::TryEvalConstant(expr);
+		const std::optional<MidoriAnalysis::ConstantValue> constant_value = MidoriAnalysis::TryEvalConstant(expr);
 		if (!constant_value.has_value())
 		{
 			return false;
@@ -71,12 +71,12 @@ namespace
 
 	bool IsPureEmptyText(const MidoriExpression& expr)
 	{
-		if (!OptimizerAnalysis::IsPure(expr))
+		if (!MidoriAnalysis::IsPure(expr))
 		{
 			return false;
 		}
 
-		const std::optional<OptimizerAnalysis::ConstantValue> constant_value = OptimizerAnalysis::TryEvalConstant(expr);
+		const std::optional<MidoriAnalysis::ConstantValue> constant_value = MidoriAnalysis::TryEvalConstant(expr);
 		return constant_value.has_value()
 			&& constant_value->Is<std::string>()
 			&& constant_value->Get<std::string>().empty();
@@ -84,7 +84,7 @@ namespace
 
 	bool IsEmptyArrayLiteral(const MidoriExpression& expr)
 	{
-		const MidoriExpression* stripped_expr = OptimizerAnalysis::StripRedundantGroups(&expr);
+		const MidoriExpression* stripped_expr = MidoriAnalysis::StripRedundantGroups(&expr);
 		if (stripped_expr == nullptr || !stripped_expr->IsExpression<MidoriExpression::Array>())
 		{
 			return false;
@@ -121,7 +121,7 @@ namespace
 			elements,
 			[](const std::unique_ptr<MidoriExpression>& element)
 			{
-				return element != nullptr && OptimizerAnalysis::IsPure(*element);
+				return element != nullptr && MidoriAnalysis::IsPure(*element);
 			}
 		);
 	}
@@ -143,7 +143,7 @@ namespace
 			return nullptr;
 		}
 
-		return OptimizerAnalysis::StripRedundantGroups(std::move(construct.m_params[static_cast<std::size_t>(get.m_index)]));
+		return MidoriAnalysis::StripRedundantGroups(std::move(construct.m_params[static_cast<std::size_t>(get.m_index)]));
 	}
 
 	std::unique_ptr<MidoriExpression> TryTakeIndexedElement(MidoriExpression::IndexAccess& array_get)
@@ -167,7 +167,7 @@ namespace
 				return nullptr;
 			}
 
-			const std::optional<std::size_t> index = OptimizerAnalysis::TryEvalConstantIndex(*index_expr);
+			const std::optional<std::size_t> index = MidoriAnalysis::TryEvalConstantIndex(*index_expr);
 			if (!index.has_value() || index.value() >= array_expr.m_elems.size())
 			{
 				return nullptr;
@@ -176,7 +176,7 @@ namespace
 			current_owner = StripGroupOwners(array_expr.m_elems[index.value()]);
 		}
 
-		return *current_owner == nullptr ? nullptr : OptimizerAnalysis::StripRedundantGroups(std::move(*current_owner));
+		return *current_owner == nullptr ? nullptr : MidoriAnalysis::StripRedundantGroups(std::move(*current_owner));
 	}
 
 	std::unique_ptr<MidoriExpression> MakeEmptyArrayLiteral(const Token& source_token, const std::shared_ptr<MidoriType>& type)
@@ -236,7 +236,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::As& as)
 		return;
 	}
 
-	m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(as.m_expr));
+	m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(as.m_expr));
 	SetReplacementType(m_pending_replacement, as.m_type_data);
 }
 
@@ -250,42 +250,42 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Binary& binary)
 	case Token::Name::SINGLE_PLUS:
 		if (IsPureZero(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
 		if (IsPureZero(*binary.m_left))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::SINGLE_MINUS:
 		if (IsPureZero(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::STAR:
 		if (IsPureOne(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
 		if (IsPureOne(*binary.m_left))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::SLASH:
 		if (IsPureOne(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
@@ -295,7 +295,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Binary& binary)
 	case Token::Name::CARET:
 		if (IsPureZero(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
@@ -303,49 +303,49 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Binary& binary)
 		if ((binary.m_op.m_token_name == Token::Name::SINGLE_BAR || binary.m_op.m_token_name == Token::Name::CARET)
 			&& IsPureZero(*binary.m_left))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::DOUBLE_AMPERSAND:
 		if (TryGetPureTruthValue(*binary.m_left, true))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
 		if (TryGetPureTruthValue(*binary.m_right, true))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::DOUBLE_BAR:
 		if (TryGetPureTruthValue(*binary.m_left, false))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
 		if (TryGetPureTruthValue(*binary.m_right, false))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::DOUBLE_PLUS:
 		if (IsConcatIdentityValue(*binary.m_left))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_right));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
 		if (IsConcatIdentityValue(*binary.m_right))
 		{
-			m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(binary.m_left));
+			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
@@ -358,7 +358,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Group& group)
 {
 	VisitAndReplace(group.m_expr_in);
 
-	m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(group.m_expr_in));
+	m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(group.m_expr_in));
 	SetReplacementType(m_pending_replacement, group.m_type_data);
 }
 
@@ -395,7 +395,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::UnaryPrefix& unary)
 
 	if (unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
 	{
-		m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(unary.m_expr));
+		m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(unary.m_expr));
 		SetReplacementType(m_pending_replacement, unary.m_type_data);
 		return;
 	}
@@ -418,7 +418,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::UnaryPrefix& unary)
 		return;
 	}
 
-	m_pending_replacement = OptimizerAnalysis::StripRedundantGroups(std::move(inner_unary.m_expr));
+	m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(inner_unary.m_expr));
 	SetReplacementType(m_pending_replacement, unary.m_type_data);
 }
 
@@ -426,7 +426,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::ArrayComprehension& c
 {
 	VisitAndReplace(comp.m_range);
 
-	if (OptimizerAnalysis::IsPure(*comp.m_range) && OptimizerAnalysis::IsKnownEmptyIterationSource(*comp.m_range))
+	if (MidoriAnalysis::IsPure(*comp.m_range) && MidoriAnalysis::IsKnownEmptyIterationSource(*comp.m_range))
 	{
 		m_pending_replacement = MakeEmptyArrayLiteral(comp.m_bracket, comp.m_type_data);
 		return;
@@ -439,7 +439,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::For& for_expr)
 {
 	VisitAndReplace(for_expr.m_range);
 
-	if (OptimizerAnalysis::IsPure(*for_expr.m_range) && OptimizerAnalysis::IsKnownEmptyIterationSource(*for_expr.m_range))
+	if (MidoriAnalysis::IsPure(*for_expr.m_range) && MidoriAnalysis::IsKnownEmptyIterationSource(*for_expr.m_range))
 	{
 		m_pending_replacement = MakeUnitLiteral(for_expr.m_for_keyword, for_expr.m_type_data);
 		return;

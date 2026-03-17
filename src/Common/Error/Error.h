@@ -15,6 +15,7 @@ enum class CompilerStage
 	Lexer,
 	Parser,
 	TypeChecker,
+	StaticAnalyzer,
 	CodeGenerator,
 	Module,
 	Optimizer,
@@ -33,7 +34,10 @@ enum class CompilerErrorCode
 enum class CompilerWarningCode
 {
 	None,
-	NameShadowing
+	NameShadowing,
+	UnusedLocal,
+	UnreachableCode,
+	CaptureEscape
 };
 
 struct CompilerErrorLocation

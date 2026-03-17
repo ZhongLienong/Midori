@@ -30,6 +30,11 @@ Source Code (.mdr)
 +-----+------+
       | Typed AST
       v
++---------------------+
+| StaticAnalyzerManager| Diagnostics on Typed AST
++----------+----------+
+           | Typed AST + warnings
+           v
 +-----------------+
 | OptimizerManager| AST Optimizations
 +------+----------+
@@ -220,7 +225,42 @@ See [Type System Documentation](type-system.md) for detailed information.
 - **Occurs check** - Prevent infinite types
 - **Constraint propagation** - Type class constraints flow through calls
 
-## Phase 5: Optimization (OptimizerManager)
+## Phase 5: Static Analysis (StaticAnalyzerManager)
+
+**Source**: `src/Compiler/StaticAnalyzerManager/`, `src/Compiler/Analysis/`
+
+The static analyzer runs after type checking and before optimization. It walks the typed AST to emit warnings without mutating the program.
+
+### Input
+- Typed AST
+- File path
+- Source lines for diagnostic rendering
+
+### Output
+- `StaticAnalysisResult` containing warnings
+- The same typed AST continues into optimization
+
+### Processing Steps
+
+1. **Shared semantic facts** - Reuse compiler-wide helpers from `src/Compiler/Analysis/`
+2. **Ordered diagnostic passes** - Run analyzer passes over the typed AST
+3. **Warning collection** - Emit `CompilerWarning` values with warning codes and source context
+4. **Reporting** - Surface warnings before optimizer output so diagnostics refer to user-written code
+
+### Current Diagnostics
+
+- `UnusedLocalDiagnostic`
+- `UnreachableCodeDiagnostic`
+- `ShadowingPolicyDiagnostic`
+- `CaptureEscapeDiagnostic`
+
+### Key Features
+
+- **Shared analysis ownership** - Optimizers and diagnostics consume the same semantic fact layer
+- **Typed-AST diagnostics** - Warnings run after name resolution and type checking
+- **Stable warning identity** - Diagnostics carry warning codes for regression testing
+
+## Phase 6: Optimization (OptimizerManager)
 
 **Source**: `src/Compiler/OptimizerManager/`
 
@@ -297,7 +337,7 @@ ClosureLifting.optimize()
 TailCallOptimization.optimize()
 ```
 
-## Phase 6: Code Generation (CodeGenerator)
+## Phase 7: Code Generation (CodeGenerator)
 
 **Source**: `src/Compiler/CodeGenerator/`
 
@@ -375,7 +415,7 @@ identity(42);      // Generates identity_Int
 identity("hello"); // Generates identity_Text
 ```
 
-## Phase 7: Linking (BytecodeLinker)
+## Phase 8: Linking (BytecodeLinker)
 
 **Source**: `src/Compiler/BytecodeLinker/`
 
