@@ -667,6 +667,7 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::BYTE_CONSTANT:
 			return 2;
 		case OpCode::CREATE_ARRAY:
+		case OpCode::CREATE_TUPLE:
 			return 4;
 		case OpCode::LOAD_STRING_WIDE:
 			return 3;
@@ -740,6 +741,7 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::POP_MATCH_SCOPE:
 		case OpCode::TAIL_CALL:
 		case OpCode::GET_ARRAY:
+		case OpCode::GET_TUPLE:
 		case OpCode::SET_ARRAY:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:

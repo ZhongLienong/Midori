@@ -317,6 +317,10 @@ MidoriTraceable::MidoriTraceable(MidoriArray&& array) noexcept : m_array(std::mo
 {
 }
 
+MidoriTraceable::MidoriTraceable(MidoriTuple&& tuple) noexcept : m_tuple(std::move(tuple)), m_type(TraceableType::Tuple)
+{
+}
+
 MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_int_range(std::move(range)), m_type(TraceableType::IntRange)
 {
 }
@@ -350,6 +354,9 @@ MidoriTraceable::~MidoriTraceable()
 		break;
 	case TraceableType::Array:
 		m_array.~MidoriArray();
+		break;
+	case TraceableType::Tuple:
+		m_tuple.~MidoriTuple();
 		break;
 	case TraceableType::IntRange:
 		m_int_range.~MidoriIntRange();
@@ -395,6 +402,24 @@ MidoriText MidoriTraceable::ToText()
 			result.Append(m_array[idx].ToText());
 		}
 		result.Append("]");
+		return result;
+	}
+	case TraceableType::Tuple:
+	{
+		const int len = m_tuple.GetLength();
+		if (len == 0)
+		{
+			return MidoriText("()");
+		}
+
+		MidoriText result("(");
+		result.Append(m_tuple[0].ToText());
+		for (int idx = 1; idx < len; idx += 1)
+		{
+			result.Append(", ");
+			result.Append(m_tuple[idx].ToText());
+		}
+		result.Append(")");
 		return result;
 	}
 	case TraceableType::IntRange:
@@ -461,6 +486,9 @@ size_t MidoriTraceable::GetSize() const
 		break;
 	case TraceableType::Array:
 		dynamic_size = m_array.GetCapacity();
+		break;
+	case TraceableType::Tuple:
+		dynamic_size = m_tuple.GetCapacity();
 		break;
 	case TraceableType::Closure:
 		dynamic_size = m_closure.m_cell_values.GetCapacity();

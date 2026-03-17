@@ -200,7 +200,7 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void ArrayInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void IndexedAccessInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -213,7 +213,7 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void ArrayCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void AggregateCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
 			(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8) |
@@ -223,7 +223,7 @@ namespace
 
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// array length: " + std::to_string(operand));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// element count: " + std::to_string(operand));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -551,13 +551,22 @@ namespace Disassembler
 			SimpleInstruction("INT_10", offset);
 			break;
 		case OpCode::CREATE_ARRAY:
-			ArrayCreateInstruction("CREATE_ARRAY", executable, proc_index, offset);
+			AggregateCreateInstruction("CREATE_ARRAY", executable, proc_index, offset);
+			break;
+		case OpCode::CREATE_TUPLE:
+			AggregateCreateInstruction("CREATE_TUPLE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_ARRAY:
-			ArrayInstruction("GET_ARRAY", executable, proc_index, offset);
+			IndexedAccessInstruction("GET_ARRAY", executable, proc_index, offset);
+			break;
+		case OpCode::GET_TUPLE:
+			IndexedAccessInstruction("GET_TUPLE", executable, proc_index, offset);
+			break;
+		case OpCode::UNPACK_TUPLE:
+			SimpleInstruction("UNPACK_TUPLE", offset);
 			break;
 		case OpCode::SET_ARRAY:
-			ArrayInstruction("SET_ARRAY", executable, proc_index, offset);
+			IndexedAccessInstruction("SET_ARRAY", executable, proc_index, offset);
 			break;
 		case OpCode::DUP_ARRAY:
 			SimpleInstruction("DUP_ARRAY", offset);

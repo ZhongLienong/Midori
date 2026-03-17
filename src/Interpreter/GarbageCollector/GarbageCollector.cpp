@@ -127,6 +127,15 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		return;
 	}
 
+	auto mark_tuple_values = [this](MidoriTuple& tuple)
+		{
+			const int length = tuple.GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				TryMark(tuple[idx].GetPointer());
+			}
+		};
+
 	for (MidoriTraceable* root : roots)
 	{
 		TryMark(root);
@@ -146,14 +155,13 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 				TryMark(arr[idx].GetPointer());
 			}
 		}
+		else if (current->IsTraceable<MidoriTuple>())
+		{
+			mark_tuple_values(current->GetTraceable<MidoriTuple>());
+		}
 		else if (current->IsTraceable<MidoriClosure>())
 		{
-			MidoriTuple& cell_values = current->GetTraceable<MidoriClosure>().m_cell_values;
-			int length = cell_values.GetLength();
-			for (int i = 0; i < length; i += 1)
-			{
-				TryMark(cell_values[i].GetPointer());
-			}
+			mark_tuple_values(current->GetTraceable<MidoriClosure>().m_cell_values);
 		}
 		else if (current->IsTraceable<MidoriCellValue>())
 		{
@@ -162,21 +170,11 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		}
 		else if (current->IsTraceable<MidoriStruct>())
 		{
-			MidoriTuple& arr = current->GetTraceable<MidoriStruct>().m_values;
-			int length = arr.GetLength();
-			for (int idx = 0; idx < length; idx += 1)
-			{
-				TryMark(arr[idx].GetPointer());
-			}
+			mark_tuple_values(current->GetTraceable<MidoriStruct>().m_values);
 		}
 		else if (current->IsTraceable<MidoriUnion>())
 		{
-			MidoriTuple& arr = current->GetTraceable<MidoriUnion>().m_values;
-			int length = arr.GetLength();
-			for (int idx = 0; idx < length; idx += 1)
-			{
-				TryMark(arr[idx].GetPointer());
-			}
+			mark_tuple_values(current->GetTraceable<MidoriUnion>().m_values);
 		}
 	}
 }

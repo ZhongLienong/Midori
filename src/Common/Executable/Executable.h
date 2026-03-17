@@ -30,7 +30,10 @@ enum class OpCode : uint8_t
 
 	// Array Operations
 	CREATE_ARRAY,
+	CREATE_TUPLE,
 	GET_ARRAY,
+	GET_TUPLE,
+	UNPACK_TUPLE,
 	SET_ARRAY,
 	DUP_ARRAY,
 	ADD_BACK_ARRAY,

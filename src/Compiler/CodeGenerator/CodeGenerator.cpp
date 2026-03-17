@@ -355,6 +355,7 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			advance = 2;
 			break;
 		case OpCode::CREATE_ARRAY:
+		case OpCode::CREATE_TUPLE:
 			advance = 4;
 			break;
 		case OpCode::LOAD_STRING_WIDE:
@@ -429,6 +430,7 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::POP_MATCH_SCOPE:
 		case OpCode::TAIL_CALL:
 		case OpCode::GET_ARRAY:
+		case OpCode::GET_TUPLE:
 		case OpCode::SET_ARRAY:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:
@@ -1274,7 +1276,7 @@ void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<i
 			{
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(OpCode::GET_TUPLE, line);
 				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
 			}
@@ -1385,7 +1387,7 @@ void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
 			{
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-				m_self->EmitByte(OpCode::GET_ARRAY, line);
+				m_self->EmitByte(OpCode::GET_TUPLE, line);
 				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
 			}
@@ -1744,30 +1746,43 @@ void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 {
 	int line = def_tuple.m_names.empty() ? 0 : def_tuple.m_names[0].m_line;
 
-	// For each binding, extract the corresponding array element
-	// We regenerate the tuple expression each time since GET_ARRAY consumes it
-	for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
-	{
-		bool is_global = !def_tuple.m_local_indices[i].has_value();
-
-		// Generate the tuple expression (loads it onto stack)
-		Visit(def_tuple.m_value);
-
-		// Push the index
-		EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
-
-		// Get array element at index i (consumes the array from stack)
-		EmitByte(OpCode::GET_ARRAY, line);
-		EmitByte(static_cast<OpCode>(1), line); // 1 index
-
-		if (is_global)
+	const bool all_local = std::ranges::all_of
+	(
+		def_tuple.m_local_indices,
+		[](const std::optional<int>& local_index)
 		{
-			MidoriText variable_name(def_tuple.m_names[i].m_lexeme.c_str());
-			int index = m_executable.AddGlobalVariable(std::move(variable_name));
-			m_global_variables[def_tuple.m_names[i].m_lexeme] = index;
-			EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
+			return local_index.has_value();
 		}
-		// For local variables, the element is left on stack and becomes the local
+	);
+	const bool all_global = std::ranges::all_of
+	(
+		def_tuple.m_local_indices,
+		[](const std::optional<int>& local_index)
+		{
+			return !local_index.has_value();
+		}
+	);
+
+	if (!all_local && !all_global)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Tuple bindings must all belong to the same scope.", def_tuple.m_names[0], m_file_name, m_source_lines));
+		return;
+	}
+
+	Visit(def_tuple.m_value);
+	EmitByte(OpCode::UNPACK_TUPLE, line);
+
+	if (all_local)
+	{
+		return;
+	}
+
+	for (int i = static_cast<int>(def_tuple.m_names.size()) - 1; i >= 0; i -= 1)
+	{
+		MidoriText variable_name(def_tuple.m_names[static_cast<size_t>(i)].m_lexeme.c_str());
+		int index = m_executable.AddGlobalVariable(std::move(variable_name));
+		m_global_variables[def_tuple.m_names[static_cast<size_t>(i)].m_lexeme] = index;
+		EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
 	}
 }
 
@@ -2635,9 +2650,7 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 		}
 	);
 
-	// At runtime, tuples are represented as arrays (heterogeneous)
-	// Type checking ensures type safety
-	EmitByte(OpCode::CREATE_ARRAY, line);
+	EmitByte(OpCode::CREATE_TUPLE, line);
 	EmitThreeBytes(size, size >> 8, size >> 16, line);
 }
 

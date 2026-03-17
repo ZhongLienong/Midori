@@ -604,6 +604,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(AllocateTraceable(std::move(arr)));
 			break;
 		}
+		case OpCode::CREATE_TUPLE:
+		{
+			int count = ReadThreeBytes(ip);
+			MidoriTuple tuple(count);
+
+			for (int i = count - 1; i >= 0; i -= 1)
+			{
+				tuple[i] = Pop();
+			}
+
+			Push(AllocateTraceable(std::move(tuple)));
+			break;
+		}
 		case OpCode::GET_ARRAY:
 		{
 			int num_indices = static_cast<int>(ReadByte(ip));
@@ -645,6 +658,59 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 			}
 
+			break;
+		}
+		case OpCode::GET_TUPLE:
+		{
+			int num_indices = static_cast<int>(ReadByte(ip));
+			if (num_indices <= 0)
+			{
+				(void)Pop();
+				break;
+			}
+
+			MidoriValue* indices_begin = m_value_stack_pointer - num_indices;
+			MidoriValue* tuple_slot = indices_begin - 1;
+			MidoriValue tuple_value = *tuple_slot;
+			MidoriTuple* tuple_ref = &tuple_value.GetPointer()->GetTraceable<MidoriTuple>();
+			MidoriInteger tuple_size = static_cast<MidoriInteger>(tuple_ref->GetLength());
+			const int last_index = num_indices - 1;
+
+			for (int i = 0; i < num_indices; i += 1)
+			{
+				MidoriValue& index = indices_begin[i];
+				int return_code = CheckIndexBounds(index, tuple_size);
+				if (return_code != 0)
+				{
+					m_value_stack_pointer = tuple_slot;
+					m_instruction_pointer = ip;
+					return return_code;
+				}
+
+				MidoriValue& next_val = (*tuple_ref)[static_cast<int>(index.GetInteger())];
+
+				if (i != last_index)
+				{
+					tuple_ref = &next_val.GetPointer()->GetTraceable<MidoriTuple>();
+					tuple_size = static_cast<MidoriInteger>(tuple_ref->GetLength());
+				}
+				else
+				{
+					*tuple_slot = next_val;
+					m_value_stack_pointer = tuple_slot + 1;
+				}
+			}
+
+			break;
+		}
+		case OpCode::UNPACK_TUPLE:
+		{
+			MidoriTuple& tuple = Pop().GetPointer()->GetTraceable<MidoriTuple>();
+			const int length = tuple.GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				Push(tuple[idx]);
+			}
 			break;
 		}
 		case OpCode::SET_ARRAY:

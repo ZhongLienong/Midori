@@ -404,6 +404,7 @@ public:
 	{
 		Text,
 		Array,
+		Tuple,
 		IntRange,
 		FloatRange,
 		Struct,
@@ -417,6 +418,7 @@ private:
 	{
 		MidoriText m_text;
 		MidoriArray m_array;
+		MidoriTuple m_tuple;
 		MidoriIntRange m_int_range;
 		MidoriFloatRange m_float_range;
 		MidoriStruct m_struct;
@@ -437,6 +439,10 @@ private:
 		else if constexpr (std::is_same_v<T, MidoriArray>)
 		{
 			return TraceableType::Array;
+		}
+		else if constexpr (std::is_same_v<T, MidoriTuple>)
+		{
+			return TraceableType::Tuple;
 		}
 		else if constexpr (std::is_same_v<T, MidoriIntRange>)
 		{
@@ -486,6 +492,10 @@ public:
 		else if constexpr (std::is_same_v<T, MidoriArray>)
 		{
 			return m_array;
+		}
+		else if constexpr (std::is_same_v<T, MidoriTuple>)
+		{
+			return m_tuple;
 		}
 		else if constexpr (std::is_same_v<T, MidoriIntRange>)
 		{
@@ -537,6 +547,7 @@ public:
 
 	MidoriTraceable(MidoriText&& str) noexcept;
 	MidoriTraceable(MidoriArray&& array) noexcept;
+	MidoriTraceable(MidoriTuple&& tuple) noexcept;
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
 	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
