@@ -897,93 +897,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 							}
 						);
 				}
-				else if (Match(Token::Name::PLUS_PLUS_EQUAL))
-				{
-					Token& op = Previous();
-					return ParseBind()
-						.and_then
-						(
-							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
-							{
-								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
-								{
-									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
-									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
-
-									if (found_scope_it != m_state.m_scopes.crend())
-									{
-										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
-										if (IsGlobalName(found_scope_it))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
-										}
-										else if (IsLocalName(find_result))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
-										}
-										else
-										{
-											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
-											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-											return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
-										}
-									}
-									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
-								}
-								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
-								{
-									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
-								}
-								return std::unexpected(GenerateParserError("Invalid append assignment target (must be a variable or struct member).", op));
-							}
-						);
-				}
-				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
-				{
-					Token& op = Previous();
-					return ParseBind()
-						.and_then
-						(
-							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
-							{
-								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
-								{
-									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
-									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
-
-									if (found_scope_it != m_state.m_scopes.crend())
-									{
-										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
-										if (IsGlobalName(found_scope_it))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
-										}
-										else if (IsLocalName(find_result))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
-										}
-										else
-										{
-											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
-											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-											return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
-										}
-									}
-									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
-								}
-								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
-								{
-									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
-								}
-								return std::unexpected(GenerateParserError("Invalid prepend assignment target (must be a variable or struct member).", op));
-							}
-						);
-				}
-				else if (Match(Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
+				else if (Match(Token::Name::PLUS_PLUS_EQUAL, Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
 				{
 					Token& op = Previous();
 					return ParseBind()
@@ -1025,6 +939,10 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 								return std::unexpected(GenerateParserError("Invalid compound assignment target (must be a variable or struct member).", op));
 							}
 						);
+				}
+				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
+				{
+					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Write x = prefix ++ x instead.", Previous()));
 				}
 
 				return left_expr;

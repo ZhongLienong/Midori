@@ -3328,6 +3328,33 @@ void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
 void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
 	int line = compound_assign.m_name.m_line;
+	const bool is_concat_assign = compound_assign.m_op.m_token_name == Token::Name::PLUS_PLUS_EQUAL;
+
+	auto emit_concat_opcode = [this, &compound_assign, line]() -> void
+	{
+		if (compound_assign.m_type_data->IsType<MidoriType::TextType>())
+		{
+			EmitByte(OpCode::CONCAT_TEXT, line);
+			return;
+		}
+		if (compound_assign.m_type_data->IsType<MidoriType::ArrayType>())
+		{
+			EmitByte(OpCode::CONCAT_ARRAY, line);
+			return;
+		}
+
+		const std::string actual_type = compound_assign.m_type_data ? compound_assign.m_type_data->ToString() : "Unknown";
+		AddError
+		(
+			MidoriError::GenerateCodeGeneratorErrorWithContext
+			(
+				std::format("Concat assignment operator '++=' requires Text or Array type (got {})", actual_type),
+				compound_assign.m_op,
+				m_file_name,
+				m_source_lines
+			)
+		);
+	};
 
 	if (compound_assign.m_struct != nullptr)
 	{
@@ -3336,6 +3363,16 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		EmitByte(OpCode::GET_MEMBER, line);
 		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
 		Visit(compound_assign.m_value);
+
+		if (is_concat_assign)
+		{
+			emit_concat_opcode();
+			EmitByte(OpCode::SET_MEMBER, line);
+			EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+			EmitByte(OpCode::GET_MEMBER, line);
+			EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+			return;
+		}
 
 		bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 		switch (compound_assign.m_op.m_token_name)
@@ -3379,7 +3416,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		return;
 	}
 
-	struct CompoundAssignVisitor
+	struct CompoundAssignLoadVisitor
 	{
 		CodeGenerator* m_self = nullptr;
 		MidoriExpression::CompoundAssign* m_assign = nullptr;
@@ -3393,6 +3430,22 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		void operator()(const MidoriExpression::NameContext::Global&) const
 		{
 			const std::string& name = m_assign->m_name.m_lexeme;
+
+			if (name.find(NameSeparator) != std::string::npos)
+			{
+				size_t separator_pos = name.find(NameSeparator);
+				std::string module_name = name.substr(0u, separator_pos);
+				std::string symbol_name = name.substr(separator_pos + 2u);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				if (import_placeholder < 0)
+				{
+					return;
+				}
+
+				m_self->EmitVariable(import_placeholder, OpCode::GET_GLOBAL, m_line);
+				return;
+			}
+
 			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
 		}
 
@@ -3402,9 +3455,55 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		}
 	};
 
-	std::visit(CompoundAssignVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
+	struct CompoundAssignStoreVisitor
+	{
+		CodeGenerator* m_self = nullptr;
+		MidoriExpression::CompoundAssign* m_assign = nullptr;
+		int m_line = 0;
+
+		void operator()(const MidoriExpression::NameContext::Local& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, OpCode::SET_LOCAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Global&) const
+		{
+			const std::string& name = m_assign->m_name.m_lexeme;
+
+			if (name.find(NameSeparator) != std::string::npos)
+			{
+				size_t separator_pos = name.find(NameSeparator);
+				std::string module_name = name.substr(0u, separator_pos);
+				std::string symbol_name = name.substr(separator_pos + 2u);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				if (import_placeholder < 0)
+				{
+					return;
+				}
+
+				m_self->EmitVariable(import_placeholder, OpCode::SET_GLOBAL, m_line);
+				return;
+			}
+
+			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::SET_GLOBAL, m_line);
+		}
+
+		void operator()(const MidoriExpression::NameContext::Cell& arg) const
+		{
+			m_self->EmitVariable(arg.m_index, m_self->GetCellStoreOpcode(), m_line);
+		}
+	};
+
+	std::visit(CompoundAssignLoadVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 
 	Visit(compound_assign.m_value);
+
+	if (is_concat_assign)
+	{
+		emit_concat_opcode();
+		std::visit(CompoundAssignStoreVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
+		return;
+	}
 
 	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 	switch (compound_assign.m_op.m_token_name)
@@ -3440,6 +3539,8 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		EmitByte(OpCode::RIGHT_SHIFT_ASSIGN, line);
 		break;
 	}
+
+	std::visit(CompoundAssignStoreVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Assignment& bind)

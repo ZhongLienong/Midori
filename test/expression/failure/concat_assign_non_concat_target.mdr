@@ -1,0 +1,4 @@
+module ConcatAssignNonConcatTarget
+
+def value = 1;
+value ++= 2;

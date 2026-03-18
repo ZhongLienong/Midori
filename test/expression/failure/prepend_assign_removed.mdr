@@ -1,0 +1,4 @@
+module PrependAssignRemoved
+
+def text = "tail";
+text =++ "head";

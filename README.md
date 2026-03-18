@@ -283,10 +283,23 @@ def second = counter();  // 2
 - **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
 - **Logical**: `&&`, `||`, `!`
 - **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
-- **String**: `++` (concatenation)
+- **Concatenation**: `++` for `Text` and `Array<T>`
 - **Pipe**: `|>` (function composition)
 - **Length**: `#` (array length)
-- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `++=`
+- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `++=` where `x ++= y` means `x = x ++ y`
+
+For concatenation, `++=` is concat-assign rather than a distinct append syntax:
+
+- `Text ++= Text`
+- `Array<T> ++= Array<T>`
+- `Array<T> ++= T` is invalid
+
+Append and prepend remain optimizer concerns, not language-level syntax. Write these forms explicitly:
+
+```midori
+items ++= [value];
+items = [value] ++ items;
+```
 
 ### Advanced Features
 - **Recursive Data Types**: Self-referential unions for lists, trees

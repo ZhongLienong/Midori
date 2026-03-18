@@ -3605,6 +3605,106 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 		(
 			[&compound_assign, this](std::shared_ptr<MidoriType>&& value_type) ->MidoriResult::TypeResult
 			{
+				if (compound_assign.m_op.m_token_name == Token::Name::PLUS_PLUS_EQUAL)
+				{
+					auto finish_concat_assign = [&compound_assign, &value_type, this](std::shared_ptr<MidoriType> target_type) -> MidoriResult::TypeResult
+					{
+						std::shared_ptr<MidoriType> resolved_target_type = ApplySubstitution(target_type);
+						std::shared_ptr<MidoriType> resolved_value_type = ApplySubstitution(value_type);
+
+						if (!resolved_target_type->IsType<MidoriType::ArrayType>()
+							&& !resolved_target_type->IsType<MidoriType::TextType>()
+							&& !resolved_target_type->IsType<MidoriType::TypeVariable>())
+						{
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: '++=' expects array or text type", compound_assign.m_op, m_file_name, m_source_lines, resolved_target_type));
+						}
+
+						if (resolved_target_type->IsType<MidoriType::ArrayType>()
+							&& !resolved_value_type->IsType<MidoriType::ArrayType>()
+							&& !resolved_value_type->IsType<MidoriType::TypeVariable>())
+						{
+							std::string message = std::format
+							(
+								"Compound assignment type error: array '++=' expects another array of the same element type, but got {}. Single-element append is no longer a distinct surface form; write x ++= [value].",
+								resolved_value_type->ToString()
+							);
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, compound_assign.m_op, m_file_name, m_source_lines));
+						}
+
+						return Unify(compound_assign.m_op, target_type, value_type)
+							.and_then
+							(
+								[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+								{
+									std::shared_ptr<MidoriType> resolved_target_after = ApplySubstitution(target_type);
+
+									if (!resolved_target_after->IsType<MidoriType::ArrayType>()
+										&& !resolved_target_after->IsType<MidoriType::TextType>()
+										&& !resolved_target_after->IsType<MidoriType::TypeVariable>())
+									{
+										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: '++=' expects array or text type", compound_assign.m_op, m_file_name, m_source_lines, resolved_target_after));
+									}
+
+									compound_assign.m_type_data = resolved_target_after;
+									return compound_assign.m_type_data;
+								}
+							)
+							.or_else
+							(
+								[&compound_assign, &target_type, &value_type, this](CompilerError&& error) -> MidoriResult::TypeResult
+								{
+									std::shared_ptr<MidoriType> resolved_target_after = ApplySubstitution(target_type);
+									std::shared_ptr<MidoriType> resolved_value_after = ApplySubstitution(value_type);
+
+									if (resolved_target_after->IsType<MidoriType::ArrayType>() && resolved_value_after->IsType<MidoriType::ArrayType>())
+									{
+										std::string message = std::format
+										(
+											"Compound assignment type error: array '++=' expects another array of the same element type, but got {}.",
+											resolved_value_after->ToString()
+										);
+										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, compound_assign.m_op, m_file_name, m_source_lines));
+									}
+
+									return std::unexpected(std::move(error));
+								}
+							);
+					};
+
+					if (compound_assign.m_struct != nullptr)
+					{
+						return Evaluate(compound_assign.m_struct)
+							.and_then
+							(
+								[&compound_assign, &finish_concat_assign, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+								{
+									if (!actual_type->IsType<MidoriType::StructType>())
+									{
+										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: '++=' target is not a struct member", compound_assign.m_name, m_file_name, m_source_lines, actual_type));
+									}
+
+									const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
+									std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), compound_assign.m_name.m_lexeme);
+									if (find_result == struct_type.m_member_names.cend())
+									{
+										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: struct does not have member", compound_assign.m_name, m_file_name, m_source_lines, actual_type));
+									}
+
+									compound_assign.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
+									return finish_concat_assign(ApplySubstitution(struct_type.m_member_types[static_cast<size_t>(compound_assign.m_index)]));
+								}
+							);
+					}
+
+					std::shared_ptr<MidoriType>* binding = FindNameType(compound_assign.m_name.m_lexeme);
+					if (binding != nullptr)
+					{
+						return finish_concat_assign(ApplySubstitution(*binding));
+					}
+
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
+				}
+
 				auto finish = [&compound_assign, &value_type, this](std::shared_ptr<MidoriType> target_type) -> MidoriResult::TypeResult
 				{
 					// Check if operator is arithmetic

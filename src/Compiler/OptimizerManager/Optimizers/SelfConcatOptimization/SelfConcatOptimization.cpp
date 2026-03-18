@@ -1,11 +1,24 @@
 #include "SelfConcatOptimization.h"
+
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Common/Constant/Constant.h"
 #include "Compiler/Analysis/SharedAnalysis.h"
 
 #include <ranges>
 
 namespace
 {
+	bool IsCompilerGeneratedLocal(const Token& name)
+	{
+		return !name.m_lexeme.empty() && name.m_lexeme.front() == INTERNAL_NAME_PREFIX;
+	}
+
+	bool IsConcatType(const std::shared_ptr<MidoriType>& type)
+	{
+		return type != nullptr
+			&& (type->IsType<MidoriType::TextType>() || type->IsType<MidoriType::ArrayType>());
+	}
+
 	bool IsSameNameAccess(const MidoriExpression::NameAccess& access, const MidoriExpression::NameContext::Tag& ctx, const Token& name)
 	{
 		return std::visit
@@ -237,15 +250,18 @@ namespace
 
 		bool operator()(const MidoriExpression::Block& node) const
 		{
-			const bool has_statement = std::ranges::any_of(
+			const bool has_statement = std::ranges::any_of
+			(
 				node.m_stmts,
 				[this](const std::unique_ptr<MidoriStatement>& stmt)
 				{
-					return stmt->IsStatement<MidoriStatement::ExpressionStatement>() && ContainsNameAccess(*stmt->GetStatement<MidoriStatement::ExpressionStatement>().m_expr, m_ctx, m_name);
+					return stmt->IsStatement<MidoriStatement::ExpressionStatement>()
+						&& ContainsNameAccess(*stmt->GetStatement<MidoriStatement::ExpressionStatement>().m_expr, m_ctx, m_name);
 				}
 			);
 
-			const bool has_final_expr = node.m_final_expr.has_value() && ContainsNameAccess(*node.m_final_expr.value(), m_ctx, m_name);
+			const bool has_final_expr = node.m_final_expr.has_value()
+				&& ContainsNameAccess(*node.m_final_expr.value(), m_ctx, m_name);
 
 			return has_statement || has_final_expr;
 		}
@@ -313,7 +329,7 @@ namespace
 	void CollectConcatOperands(const MidoriExpression& expr, std::vector<const MidoriExpression*>& operands)
 	{
 		const MidoriExpression* current = MidoriAnalysis::StripRedundantGroups(&expr);
-		if (current && current->IsExpression<MidoriExpression::Binary>())
+		if (current != nullptr && current->IsExpression<MidoriExpression::Binary>())
 		{
 			const MidoriExpression::Binary& binary = current->GetExpression<MidoriExpression::Binary>();
 			if (binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS)
@@ -323,13 +339,14 @@ namespace
 				return;
 			}
 		}
+
 		operands.emplace_back(current);
 	}
 
 	void CollectConcatOperands(std::unique_ptr<MidoriExpression> expr, std::vector<std::unique_ptr<MidoriExpression>>& operands)
 	{
 		expr = MidoriAnalysis::StripRedundantGroups(std::move(expr));
-		if (expr && expr->IsExpression<MidoriExpression::Binary>())
+		if (expr != nullptr && expr->IsExpression<MidoriExpression::Binary>())
 		{
 			MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
 			if (binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS)
@@ -339,21 +356,382 @@ namespace
 				return;
 			}
 		}
+
 		operands.emplace_back(std::move(expr));
 	}
 
-	std::unique_ptr<MidoriExpression> BuildSelfConcatBlock(MidoriExpression::Assignment& bind)
+	bool ContainsCapturingFunction(const MidoriExpression& expr);
+
+	struct CapturingFunctionVisitor
 	{
-		if (!bind.m_type_data->IsType<MidoriType::TextType>() && !bind.m_type_data->IsType<MidoriType::ArrayType>())
+		bool operator()(const MidoriExpression::Function& node) const
+		{
+			if (node.m_captured_count > 0)
+			{
+				return true;
+			}
+
+			return ContainsCapturingFunction(*node.m_body);
+		}
+
+		bool operator()(const MidoriExpression::As& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr);
+		}
+
+		bool operator()(const MidoriExpression::Binary& node) const
+		{
+			return ContainsCapturingFunction(*node.m_left) || ContainsCapturingFunction(*node.m_right);
+		}
+
+		bool operator()(const MidoriExpression::Group& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr_in);
+		}
+
+		bool operator()(const MidoriExpression::Tuple& node) const
+		{
+			return std::ranges::any_of
+			(
+				node.m_elements,
+				[](const std::unique_ptr<MidoriExpression>& element)
+				{
+					return ContainsCapturingFunction(*element);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::UnaryPrefix& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr);
+		}
+
+		bool operator()(const MidoriExpression::UnarySuffix& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr);
+		}
+
+		bool operator()(const MidoriExpression::Assignment& node) const
+		{
+			return ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::AppendAssign& node) const
+		{
+			const bool has_struct = node.m_struct != nullptr && ContainsCapturingFunction(*node.m_struct);
+			return has_struct || ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::ExtendAssign& node) const
+		{
+			return ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::PrependAssign& node) const
+		{
+			const bool has_struct = node.m_struct != nullptr && ContainsCapturingFunction(*node.m_struct);
+			return has_struct || ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::CompoundAssign& node) const
+		{
+			const bool has_struct = node.m_struct != nullptr && ContainsCapturingFunction(*node.m_struct);
+			return has_struct || ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::Call& node) const
+		{
+			if (ContainsCapturingFunction(*node.m_callee))
+			{
+				return true;
+			}
+
+			return std::ranges::any_of
+			(
+				node.m_arguments,
+				[](const std::unique_ptr<MidoriExpression>& argument)
+				{
+					return ContainsCapturingFunction(*argument);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::Construct& node) const
+		{
+			return std::ranges::any_of
+			(
+				node.m_params,
+				[](const std::unique_ptr<MidoriExpression>& param)
+				{
+					return ContainsCapturingFunction(*param);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::IfElse& node) const
+		{
+			return ContainsCapturingFunction(*node.m_condition)
+				|| ContainsCapturingFunction(*node.m_true_branch)
+				|| ContainsCapturingFunction(*node.m_else_branch);
+		}
+
+		bool operator()(const MidoriExpression::MemberAccess& node) const
+		{
+			return ContainsCapturingFunction(*node.m_struct);
+		}
+
+		bool operator()(const MidoriExpression::MemberAssignment& node) const
+		{
+			return ContainsCapturingFunction(*node.m_struct)
+				|| ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::Array& node) const
+		{
+			return std::ranges::any_of
+			(
+				node.m_elems,
+				[](const std::unique_ptr<MidoriExpression>& elem)
+				{
+					return ContainsCapturingFunction(*elem);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::IndexAccess& node) const
+		{
+			if (ContainsCapturingFunction(*node.m_arr_var))
+			{
+				return true;
+			}
+
+			return std::ranges::any_of
+			(
+				node.m_indices,
+				[](const std::unique_ptr<MidoriExpression>& index)
+				{
+					return ContainsCapturingFunction(*index);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::IndexAssignment& node) const
+		{
+			if (ContainsCapturingFunction(*node.m_arr_var)
+				|| ContainsCapturingFunction(*node.m_value))
+			{
+				return true;
+			}
+
+			return std::ranges::any_of
+			(
+				node.m_indices,
+				[](const std::unique_ptr<MidoriExpression>& index)
+				{
+					return ContainsCapturingFunction(*index);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::ArrayComprehension& node) const
+		{
+			return ContainsCapturingFunction(*node.m_transform_expr)
+				|| ContainsCapturingFunction(*node.m_range);
+		}
+
+		bool operator()(const MidoriExpression::RangeBinary& node) const
+		{
+			return ContainsCapturingFunction(*node.m_start) || ContainsCapturingFunction(*node.m_end);
+		}
+
+		bool operator()(const MidoriExpression::RangeTernary& node) const
+		{
+			return ContainsCapturingFunction(*node.m_start)
+				|| ContainsCapturingFunction(*node.m_step)
+				|| ContainsCapturingFunction(*node.m_end);
+		}
+
+		bool operator()(const MidoriExpression::Block& node) const
+		{
+			const bool has_statement = std::ranges::any_of
+			(
+				node.m_stmts,
+				[](const std::unique_ptr<MidoriStatement>& stmt)
+				{
+					if (!stmt->IsStatement<MidoriStatement::ExpressionStatement>())
+					{
+						return false;
+					}
+
+					return ContainsCapturingFunction(*stmt->GetStatement<MidoriStatement::ExpressionStatement>().m_expr);
+				}
+			);
+
+			const bool has_final_expr = node.m_final_expr.has_value()
+				&& ContainsCapturingFunction(*node.m_final_expr.value());
+
+			return has_statement || has_final_expr;
+		}
+
+		bool operator()(const MidoriExpression::Match& node) const
+		{
+			if (ContainsCapturingFunction(*node.m_arg_expr))
+			{
+				return true;
+			}
+
+			return std::ranges::any_of
+			(
+				node.m_cases,
+				[](const std::unique_ptr<MidoriExpression>& case_expr)
+				{
+					return ContainsCapturingFunction(*case_expr);
+				}
+			);
+		}
+
+		bool operator()(const MidoriExpression::Case& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr);
+		}
+
+		bool operator()(const MidoriExpression::Default& node) const
+		{
+			return ContainsCapturingFunction(*node.m_expr);
+		}
+
+		bool operator()(const MidoriExpression::Loop& node) const
+		{
+			return ContainsCapturingFunction(*node.m_body);
+		}
+
+		bool operator()(const MidoriExpression::For& node) const
+		{
+			return ContainsCapturingFunction(*node.m_range) || ContainsCapturingFunction(*node.m_body);
+		}
+
+		bool operator()(const MidoriExpression::Return& node) const
+		{
+			return ContainsCapturingFunction(*node.m_value);
+		}
+
+		bool operator()(const MidoriExpression::Break& node) const
+		{
+			return ContainsCapturingFunction(*node.m_value);
+		}
+
+		template <typename T>
+		bool operator()(const T&) const
+		{
+			return false;
+		}
+	};
+
+	bool ContainsCapturingFunction(const MidoriExpression& expr)
+	{
+		return std::visit(CapturingFunctionVisitor{}, *expr);
+	}
+
+	bool IsFreshValue(const MidoriExpression& expr)
+	{
+		const MidoriExpression* stripped_expr = MidoriAnalysis::StripRedundantGroups(&expr);
+		if (stripped_expr == nullptr)
+		{
+			return false;
+		}
+
+		if (stripped_expr->IsExpression<MidoriExpression::TextLiteral>()
+			|| stripped_expr->IsExpression<MidoriExpression::Array>()
+			|| stripped_expr->IsExpression<MidoriExpression::ArrayComprehension>())
+		{
+			return true;
+		}
+
+		if (!stripped_expr->IsExpression<MidoriExpression::Binary>())
+		{
+			return false;
+		}
+
+		const MidoriExpression::Binary& binary = stripped_expr->GetExpression<MidoriExpression::Binary>();
+		return binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS && IsConcatType(binary.m_type_data);
+	}
+
+	std::unique_ptr<MidoriExpression> BuildConcatMutationExpr(const Token& name, MidoriExpression::NameContext::Tag&& name_ctx, std::unique_ptr<MidoriExpression> operand, const std::shared_ptr<MidoriType>& target_type)
+	{
+		if (!IsConcatType(target_type))
 		{
 			return nullptr;
 		}
 
-		if (!std::holds_alternative<MidoriExpression::NameContext::Local>(bind.m_name_ctx))
+		operand = MidoriAnalysis::StripRedundantGroups(std::move(operand));
+		if (operand == nullptr)
 		{
 			return nullptr;
 		}
 
+		if (target_type->IsType<MidoriType::TextType>())
+		{
+			std::unique_ptr<MidoriExpression> update_expr = std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(name, std::move(operand), std::move(name_ctx)));
+			update_expr->GetType() = target_type;
+			return update_expr;
+		}
+
+		if (operand->IsExpression<MidoriExpression::Array>())
+		{
+			MidoriExpression::Array& array_literal = operand->GetExpression<MidoriExpression::Array>();
+			if (array_literal.m_elems.size() == 1u)
+			{
+				std::unique_ptr<MidoriExpression> element = std::move(array_literal.m_elems[0u]);
+				std::unique_ptr<MidoriExpression> update_expr = std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(name, std::move(element), std::move(name_ctx)));
+				update_expr->GetType() = target_type;
+				return update_expr;
+			}
+		}
+
+		std::unique_ptr<MidoriExpression> update_expr = std::make_unique<MidoriExpression>(MidoriExpression::ExtendAssign(name, std::move(operand), std::move(name_ctx)));
+		update_expr->GetType() = target_type;
+		return update_expr;
+	}
+
+	std::unique_ptr<MidoriExpression> BuildPrependMutationExpr(const Token& name, MidoriExpression::NameContext::Tag&& name_ctx, std::unique_ptr<MidoriExpression> operand, const std::shared_ptr<MidoriType>& target_type)
+	{
+		if (!IsConcatType(target_type))
+		{
+			return nullptr;
+		}
+
+		operand = MidoriAnalysis::StripRedundantGroups(std::move(operand));
+		if (operand == nullptr)
+		{
+			return nullptr;
+		}
+
+		if (target_type->IsType<MidoriType::TextType>())
+		{
+			std::unique_ptr<MidoriExpression> update_expr = std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(name, std::move(operand), std::move(name_ctx)));
+			update_expr->GetType() = target_type;
+			return update_expr;
+		}
+
+		if (!operand->IsExpression<MidoriExpression::Array>())
+		{
+			return nullptr;
+		}
+
+		MidoriExpression::Array& array_literal = operand->GetExpression<MidoriExpression::Array>();
+		if (array_literal.m_elems.size() != 1u)
+		{
+			return nullptr;
+		}
+
+		std::unique_ptr<MidoriExpression> element = std::move(array_literal.m_elems[0u]);
+		std::unique_ptr<MidoriExpression> update_expr = std::make_unique<MidoriExpression>(MidoriExpression::PrependAssign(name, std::move(element), std::move(name_ctx)));
+		update_expr->GetType() = target_type;
+		return update_expr;
+	}
+
+	std::unique_ptr<MidoriExpression> BuildSuffixConcatBlock(MidoriExpression::Assignment& bind)
+	{
 		std::vector<const MidoriExpression*> operands;
 		CollectConcatOperands(*bind.m_value, operands);
 		if (operands.size() < 2u)
@@ -362,7 +740,7 @@ namespace
 		}
 
 		const MidoriExpression* first_expr = MidoriAnalysis::StripRedundantGroups(operands[0u]);
-		if (!first_expr || !first_expr->IsExpression<MidoriExpression::NameAccess>())
+		if (first_expr == nullptr || !first_expr->IsExpression<MidoriExpression::NameAccess>())
 		{
 			return nullptr;
 		}
@@ -387,6 +765,7 @@ namespace
 		{
 			return nullptr;
 		}
+
 		owned_operands.erase(owned_operands.begin());
 
 		std::vector<std::unique_ptr<MidoriStatement>> statements;
@@ -395,16 +774,11 @@ namespace
 		for (std::unique_ptr<MidoriExpression>& operand : owned_operands)
 		{
 			MidoriExpression::NameContext::Tag name_ctx = bind.m_name_ctx;
-			std::unique_ptr<MidoriExpression> update_expr;
-			if (bind.m_type_data->IsType<MidoriType::TextType>())
+			std::unique_ptr<MidoriExpression> update_expr = BuildConcatMutationExpr(bind.m_name, std::move(name_ctx), std::move(operand), bind.m_type_data);
+			if (update_expr == nullptr)
 			{
-				update_expr = std::make_unique<MidoriExpression>(MidoriExpression::AppendAssign(bind.m_name, std::move(operand), std::move(name_ctx)));
+				return nullptr;
 			}
-			else
-			{
-				update_expr = std::make_unique<MidoriExpression>(MidoriExpression::ExtendAssign(bind.m_name, std::move(operand), std::move(name_ctx)));
-			}
-			update_expr->GetType() = bind.m_type_data;
 
 			Token semicolon_token(";", Token::Name::SINGLE_SEMICOLON, bind.m_name.m_line, bind.m_name.m_file_name);
 			statements.emplace_back(std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semicolon_token, std::move(update_expr))));
@@ -417,7 +791,90 @@ namespace
 		Token right_brace_token("}", Token::Name::RIGHT_BRACE, bind.m_name.m_line, bind.m_name.m_file_name);
 		std::unique_ptr<MidoriExpression> block_expr = std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace_token, std::move(statements), 0, std::move(final_expr)));
 		block_expr->GetType() = bind.m_type_data;
+		return block_expr;
+	}
 
+	std::unique_ptr<MidoriExpression> BuildPrefixConcatBlock(MidoriExpression::Assignment& bind)
+	{
+		std::vector<const MidoriExpression*> operands;
+		CollectConcatOperands(*bind.m_value, operands);
+		if (operands.size() < 2u)
+		{
+			return nullptr;
+		}
+
+		const MidoriExpression* last_expr = MidoriAnalysis::StripRedundantGroups(operands.back());
+		if (last_expr == nullptr || !last_expr->IsExpression<MidoriExpression::NameAccess>())
+		{
+			return nullptr;
+		}
+
+		const MidoriExpression::NameAccess& name_access = last_expr->GetExpression<MidoriExpression::NameAccess>();
+		if (!IsSameNameAccess(name_access, bind.m_name_ctx, bind.m_name))
+		{
+			return nullptr;
+		}
+
+		for (size_t idx = 0uz; idx + 1uz < operands.size(); idx += 1uz)
+		{
+			if (ContainsNameAccess(*operands[idx], bind.m_name_ctx, bind.m_name))
+			{
+				return nullptr;
+			}
+
+			if (!MidoriAnalysis::IsPure(*operands[idx]))
+			{
+				return nullptr;
+			}
+
+			if (bind.m_type_data->IsType<MidoriType::ArrayType>())
+			{
+				const MidoriExpression* stripped_operand = MidoriAnalysis::StripRedundantGroups(operands[idx]);
+				if (stripped_operand == nullptr || !stripped_operand->IsExpression<MidoriExpression::Array>())
+				{
+					return nullptr;
+				}
+
+				const MidoriExpression::Array& array_literal = stripped_operand->GetExpression<MidoriExpression::Array>();
+				if (array_literal.m_elems.size() != 1u)
+				{
+					return nullptr;
+				}
+			}
+		}
+
+		std::vector<std::unique_ptr<MidoriExpression>> owned_operands;
+		CollectConcatOperands(std::move(bind.m_value), owned_operands);
+		if (owned_operands.size() <= 1uz)
+		{
+			return nullptr;
+		}
+
+		owned_operands.pop_back();
+
+		std::vector<std::unique_ptr<MidoriStatement>> statements;
+		statements.reserve(owned_operands.size());
+
+		for (auto it = owned_operands.rbegin(); it != owned_operands.rend(); it += 1)
+		{
+			MidoriExpression::NameContext::Tag name_ctx = bind.m_name_ctx;
+			std::unique_ptr<MidoriExpression> update_expr = BuildPrependMutationExpr(bind.m_name, std::move(name_ctx), std::move(*it), bind.m_type_data);
+			if (update_expr == nullptr)
+			{
+				return nullptr;
+			}
+
+			Token semicolon_token(";", Token::Name::SINGLE_SEMICOLON, bind.m_name.m_line, bind.m_name.m_file_name);
+			statements.emplace_back(std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semicolon_token, std::move(update_expr))));
+		}
+
+		MidoriExpression::NameContext::Tag final_ctx = bind.m_name_ctx;
+		std::unique_ptr<MidoriExpression> final_expr = std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(bind.m_name, std::move(final_ctx)));
+		final_expr->GetType() = bind.m_type_data;
+
+		Token right_brace_token("}", Token::Name::RIGHT_BRACE, bind.m_name.m_line, bind.m_name.m_file_name);
+		std::unique_ptr<MidoriExpression> block_expr = std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace_token, std::move(statements), 0, std::move(final_expr)));
+		block_expr->GetType() = bind.m_type_data;
 		return block_expr;
 	}
 }
@@ -425,6 +882,11 @@ namespace
 MidoriResult::OptimizerResult SelfConcatOptimization::Optimize(MidoriProgramTree program_tree)
 {
 	ResetPassState();
+	m_unique_locals_stack.clear();
+	m_local_scope_stack.clear();
+
+	PushFunctionState();
+	PushLocalScope();
 
 	std::ranges::for_each
 	(
@@ -435,6 +897,9 @@ MidoriResult::OptimizerResult SelfConcatOptimization::Optimize(MidoriProgramTree
 		}
 	);
 
+	PopLocalScope();
+	PopFunctionState();
+
 	return std::move(program_tree);
 }
 
@@ -443,13 +908,317 @@ std::string_view SelfConcatOptimization::GetName() const
 	return "SelfConcatOptimization";
 }
 
-void SelfConcatOptimization::operator()(MidoriExpression::Assignment& bind)
+void SelfConcatOptimization::PushFunctionState()
 {
-	VisitAndReplace(bind.m_value);
+	m_unique_locals_stack.emplace_back();
+}
 
-	std::unique_ptr<MidoriExpression> replacement = BuildSelfConcatBlock(bind);
-	if (replacement)
+void SelfConcatOptimization::PopFunctionState()
+{
+	m_unique_locals_stack.pop_back();
+}
+
+void SelfConcatOptimization::PushLocalScope()
+{
+	m_local_scope_stack.emplace_back();
+}
+
+void SelfConcatOptimization::PopLocalScope()
+{
+	std::unordered_map<int, UniqueLocalInfo>& unique_locals = CurrentUniqueLocals();
+	for (const int local_index : m_local_scope_stack.back())
 	{
-		m_pending_replacement = std::move(replacement);
+		unique_locals.erase(local_index);
 	}
+
+	m_local_scope_stack.pop_back();
+}
+
+std::unordered_map<int, SelfConcatOptimization::UniqueLocalInfo>& SelfConcatOptimization::CurrentUniqueLocals()
+{
+	return m_unique_locals_stack.back();
+}
+
+const std::unordered_map<int, SelfConcatOptimization::UniqueLocalInfo>& SelfConcatOptimization::CurrentUniqueLocals() const
+{
+	return m_unique_locals_stack.back();
+}
+
+void SelfConcatOptimization::InvalidateUniqueLocal(int local_index)
+{
+	CurrentUniqueLocals().erase(local_index);
+}
+
+void SelfConcatOptimization::InvalidateAllUniqueLocals()
+{
+	CurrentUniqueLocals().clear();
+}
+
+void SelfConcatOptimization::RefreshUniqueLocal(int local_index, const Token& name, const std::shared_ptr<MidoriType>& type)
+{
+	CurrentUniqueLocals().insert_or_assign(local_index, UniqueLocalInfo{ name, type });
+}
+
+SelfConcatOptimization::RootRewriteEffect SelfConcatOptimization::TryRewriteRoot(std::unique_ptr<MidoriExpression>& expr, RootContext context)
+{
+	RootRewriteEffect effect;
+
+	expr = MidoriAnalysis::StripRedundantGroups(std::move(expr));
+	if (expr == nullptr)
+	{
+		return effect;
+	}
+
+	const MidoriAnalysis::StatementLocalAccessSummary access_summary = MidoriAnalysis::AnalyzeExpressionLocalAccess(*expr);
+	if (access_summary.m_has_nested_callable_boundary && ContainsCapturingFunction(*expr))
+	{
+		return effect;
+	}
+
+	if (expr->IsExpression<MidoriExpression::CompoundAssign>())
+	{
+		MidoriExpression::CompoundAssign& compound_assign = expr->GetExpression<MidoriExpression::CompoundAssign>();
+		if (compound_assign.m_struct != nullptr || compound_assign.m_op.m_token_name != Token::Name::PLUS_PLUS_EQUAL)
+		{
+			return effect;
+		}
+
+		const std::optional<int> local_index = MidoriAnalysis::TryGetLocalIndex(compound_assign.m_name_ctx);
+		if (!local_index.has_value() || !IsConcatType(compound_assign.m_type_data))
+		{
+			return effect;
+		}
+
+		const bool is_compiler_generated = IsCompilerGeneratedLocal(compound_assign.m_name);
+		if (!is_compiler_generated && !CurrentUniqueLocals().contains(local_index.value()))
+		{
+			return effect;
+		}
+
+		MidoriExpression::NameContext::Tag name_ctx = compound_assign.m_name_ctx;
+		std::unique_ptr<MidoriExpression> replacement = BuildConcatMutationExpr(compound_assign.m_name, std::move(name_ctx), std::move(compound_assign.m_value), compound_assign.m_type_data);
+		if (replacement == nullptr)
+		{
+			return effect;
+		}
+
+		Replace(std::move(replacement), expr);
+		if (!is_compiler_generated && context == RootContext::Discarded)
+		{
+			effect.m_preserved_local = local_index;
+		}
+
+		return effect;
+	}
+
+	if (!expr->IsExpression<MidoriExpression::Assignment>())
+	{
+		return effect;
+	}
+
+	MidoriExpression::Assignment& bind = expr->GetExpression<MidoriExpression::Assignment>();
+	const std::optional<int> local_index = MidoriAnalysis::TryGetLocalIndex(bind.m_name_ctx);
+	if (!local_index.has_value() || !IsConcatType(bind.m_type_data))
+	{
+		return effect;
+	}
+
+	const bool is_compiler_generated = IsCompilerGeneratedLocal(bind.m_name);
+	if (!is_compiler_generated && !CurrentUniqueLocals().contains(local_index.value()))
+	{
+		return effect;
+	}
+
+	std::unique_ptr<MidoriExpression> replacement = BuildSuffixConcatBlock(bind);
+	if (replacement == nullptr)
+	{
+		replacement = BuildPrefixConcatBlock(bind);
+	}
+	if (replacement == nullptr)
+	{
+		return effect;
+	}
+
+	Replace(std::move(replacement), expr);
+	if (!is_compiler_generated && context == RootContext::Discarded)
+	{
+		effect.m_preserved_local = local_index;
+	}
+
+	return effect;
+}
+
+SelfConcatOptimization::RootRewriteEffect SelfConcatOptimization::AnalyzeRootEffects(const MidoriExpression& expr, RootContext context) const
+{
+	RootRewriteEffect effect;
+	if (context != RootContext::Discarded)
+	{
+		return effect;
+	}
+
+	const MidoriExpression* stripped_expr = MidoriAnalysis::StripRedundantGroups(&expr);
+	if (stripped_expr == nullptr || !stripped_expr->IsExpression<MidoriExpression::Assignment>())
+	{
+		return effect;
+	}
+
+	const MidoriExpression::Assignment& bind = stripped_expr->GetExpression<MidoriExpression::Assignment>();
+	const std::optional<int> local_index = MidoriAnalysis::TryGetLocalIndex(bind.m_name_ctx);
+	if (!local_index.has_value() || !IsConcatType(bind.m_type_data) || !IsFreshValue(*bind.m_value))
+	{
+		return effect;
+	}
+
+	effect.m_refreshed_local = local_index;
+	effect.m_refreshed_info = UniqueLocalInfo{ bind.m_name, bind.m_type_data };
+	return effect;
+}
+
+void SelfConcatOptimization::ApplyExpressionEffects(const MidoriExpression& expr, const RootRewriteEffect& effect)
+{
+	const MidoriAnalysis::StatementLocalAccessSummary access_summary = MidoriAnalysis::AnalyzeExpressionLocalAccess(expr);
+	if (access_summary.m_has_nested_callable_boundary && ContainsCapturingFunction(expr))
+	{
+		InvalidateAllUniqueLocals();
+	}
+	else
+	{
+		std::vector<int> to_invalidate;
+		for (const auto& [local_index, info] : CurrentUniqueLocals())
+		{
+			static_cast<void>(info);
+
+			if (effect.m_preserved_local.has_value() && effect.m_preserved_local.value() == local_index)
+			{
+				continue;
+			}
+
+			if (access_summary.UsesLocal(local_index) || access_summary.AssignsLocal(local_index))
+			{
+				to_invalidate.emplace_back(local_index);
+			}
+		}
+
+		for (const int local_index : to_invalidate)
+		{
+			InvalidateUniqueLocal(local_index);
+		}
+	}
+
+	if (effect.m_refreshed_local.has_value() && effect.m_refreshed_info.has_value())
+	{
+		RefreshUniqueLocal
+		(
+			effect.m_refreshed_local.value(),
+			effect.m_refreshed_info->m_name,
+			effect.m_refreshed_info->m_type
+		);
+	}
+}
+
+void SelfConcatOptimization::OptimizeRootExpression(std::unique_ptr<MidoriExpression>& expr, RootContext context)
+{
+	VisitAndReplace(expr);
+
+	RootRewriteEffect effect = TryRewriteRoot(expr, context);
+	RootRewriteEffect analyzed_effect = AnalyzeRootEffects(*expr, context);
+	if (!effect.m_refreshed_local.has_value() && analyzed_effect.m_refreshed_local.has_value())
+	{
+		effect.m_refreshed_local = analyzed_effect.m_refreshed_local;
+		effect.m_refreshed_info = analyzed_effect.m_refreshed_info;
+	}
+
+	ApplyExpressionEffects(*expr, effect);
+}
+
+void SelfConcatOptimization::TrackFreshDefinition(const MidoriStatement::VariableDefinition& def)
+{
+	if (def.m_is_elided || !def.m_local_index.has_value())
+	{
+		return;
+	}
+
+	if (!IsConcatType(def.m_value->GetType()) || !IsFreshValue(*def.m_value))
+	{
+		return;
+	}
+
+	RefreshUniqueLocal(def.m_local_index.value(), def.m_name, def.m_value->GetType());
+	m_local_scope_stack.back().emplace_back(def.m_local_index.value());
+}
+
+void SelfConcatOptimization::operator()(MidoriStatement::ExpressionStatement& simple)
+{
+	OptimizeRootExpression(simple.m_expr, RootContext::Discarded);
+}
+
+void SelfConcatOptimization::operator()(MidoriStatement::VariableDefinition& def)
+{
+	if (def.m_is_elided)
+	{
+		return;
+	}
+
+	OptimizeRootExpression(def.m_value, RootContext::Escaping);
+	TrackFreshDefinition(def);
+}
+
+void SelfConcatOptimization::operator()(MidoriStatement::TupleDefinition& def_tuple)
+{
+	OptimizeRootExpression(def_tuple.m_value, RootContext::Escaping);
+}
+
+void SelfConcatOptimization::operator()(MidoriStatement::FunctionDefinition& defun)
+{
+	if (defun.m_captured_count > 0)
+	{
+		InvalidateAllUniqueLocals();
+	}
+
+	PushFunctionState();
+	PushLocalScope();
+	OptimizeRootExpression(defun.m_body, RootContext::Terminal);
+	PopLocalScope();
+	PopFunctionState();
+}
+
+void SelfConcatOptimization::operator()(MidoriExpression::Block& block)
+{
+	PushLocalScope();
+
+	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	{
+		VisitStatement(statement);
+	}
+
+	if (block.m_final_expr.has_value())
+	{
+		OptimizeRootExpression(block.m_final_expr.value(), RootContext::Terminal);
+	}
+
+	PopLocalScope();
+}
+
+void SelfConcatOptimization::operator()(MidoriExpression::Function& function)
+{
+	if (function.m_captured_count > 0)
+	{
+		InvalidateAllUniqueLocals();
+	}
+
+	PushFunctionState();
+	PushLocalScope();
+	OptimizeRootExpression(function.m_body, RootContext::Terminal);
+	PopLocalScope();
+	PopFunctionState();
+}
+
+void SelfConcatOptimization::operator()(MidoriExpression::Return& return_expr)
+{
+	OptimizeRootExpression(return_expr.m_value, RootContext::Terminal);
+}
+
+void SelfConcatOptimization::operator()(MidoriExpression::Break& break_expr)
+{
+	OptimizeRootExpression(break_expr.m_value, RootContext::Terminal);
 }

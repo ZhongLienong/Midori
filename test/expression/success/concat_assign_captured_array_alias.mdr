@@ -1,0 +1,25 @@
+module ConcatAssignCapturedArrayAlias
+
+import
+{
+    "../../../MidoriPrelude/Prelude/Panic.mdr",
+}
+
+def makeCheck = fn() : fn() -> () =>
+{
+    def items = [1];
+    def alias = items;
+
+    fn() : () =>
+    {
+        items ++= [2];
+
+        if #alias == 1 then () else Panic::Panic("captured concat-assign should not mutate the aliased original array");
+        if alias[0] == 1 then () else Panic::Panic("captured alias should keep its original element");
+        if #items == 2 then () else Panic::Panic("captured concat-assign should still update the captured binding");
+        if items[1] == 2 then () else Panic::Panic("captured concat-assign should append the new element");
+    }
+};
+
+def check = makeCheck();
+check();

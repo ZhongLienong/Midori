@@ -1,0 +1,21 @@
+module ConcatAssignArrayExposedResultAlias
+
+import
+{
+    "../../../MidoriPrelude/Prelude/Panic.mdr",
+}
+
+defun Check() : () =>
+{
+    def items = [1];
+    def first = items ++= [2];
+    items ++= [3];
+
+    if #first == 2 then () else Panic::Panic("escaped concat-assign result should keep the old array after later mutations");
+    if first[0] == 1 then () else Panic::Panic("escaped concat-assign result should preserve its prefix");
+    if first[1] == 2 then () else Panic::Panic("escaped concat-assign result should preserve its appended element");
+    if #items == 3 then () else Panic::Panic("later concat-assign should still update the local");
+    if items[2] == 3 then () else Panic::Panic("later concat-assign should append the later element");
+};
+
+Check();

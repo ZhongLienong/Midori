@@ -57,7 +57,7 @@ defun MakeMapBuckets<K, V>(capacity: Int) : Array<MapSlot<K, V>> => {
         if i >= capacity
         then break ()
         else {
-            buckets ++= new MapSlot::Empty();
+            buckets ++= [new MapSlot::Empty()];
             i = i + 1;
         }
     };
@@ -255,7 +255,7 @@ defun MapKeys<K, V>(map: Map<K, V>) : Array<K> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(k, _value) => { keys ++= k; () }
+                case MapSlot::Occupied(k, _value) => { keys ++= [k]; () }
                 default => ()
             ;
             i = i + 1;
@@ -273,7 +273,7 @@ defun MapValues<K, V>(map: Map<K, V>) : Array<V> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(_key, v) => { values ++= v; () }
+                case MapSlot::Occupied(_key, v) => { values ++= [v]; () }
                 default => ()
             ;
             i = i + 1;
@@ -291,7 +291,7 @@ defun MapEntries<K, V>(map: Map<K, V>) : Array<Entry<K, V>> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(k, v) => { entries ++= new Entry(k, v); () }
+                case MapSlot::Occupied(k, v) => { entries ++= [new Entry(k, v)]; () }
                 default => ()
             ;
             i = i + 1;

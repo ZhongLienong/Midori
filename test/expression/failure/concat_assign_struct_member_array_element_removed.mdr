@@ -1,0 +1,9 @@
+module ConcatAssignStructMemberArrayElementRemoved
+
+struct Box
+{
+    items : Array<Int>
+};
+
+def box = new Box([1, 2]);
+box.items ++= 3;
