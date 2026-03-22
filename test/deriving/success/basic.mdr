@@ -1,0 +1,34 @@
+module DerivingBasic
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Equatable.mdr", "../../../MidoriPrelude/Hashable.mdr" }
+
+struct Point
+{
+    x: Int,
+    y: Int
+} deriving (Equatable, Hashable);
+
+union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+
+defun HashValue<T>(value: T) : Int where Hashable<T> => {
+    Hashable::Hash(value)
+};
+
+def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
+def bound = OptionBoxBind(mapped, fn(x) => {
+    if x > 5
+    then new OptionBox::Full(x * 2)
+    else new OptionBox::Empty()
+});
+def unwrapped = OptionBoxUnwrap(bound, 0);
+
+def p1 = new Point(1, 2);
+def p2 = new Point(1, 2);
+def p3 = new Point(2, 3);
+def point_hash_same = HashValue(p1) == HashValue(p2);
+
+IO::PrintLine("derived_eq_same=" ++ (if p1 == p2 then "true" else "false"));
+IO::PrintLine("derived_eq_diff=" ++ (if p1 == p3 then "true" else "false"));
+IO::PrintLine("derived_hash_same=" ++ (if point_hash_same then "true" else "false"));
+IO::PrintLine("derived_hash_value=" ++ (HashValue(p1) as Text));
+IO::PrintLine("derived_unwrap=" ++ (unwrapped as Text));

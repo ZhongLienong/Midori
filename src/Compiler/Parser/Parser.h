@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <queue>
 #include <stack>
 #include <string_view>
 #include <unordered_map>
@@ -101,6 +102,7 @@ private:
 	ParseContext m_context;
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
+	std::queue<std::unique_ptr<MidoriStatement>> m_pending_statements;
 
 public:
 	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
@@ -446,7 +448,7 @@ private:
 
 	MidoriResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types = nullptr);
 
-	MidoriResult::FunctionParamsResult ParseFunctionParameters();
+	MidoriResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
 
 	Parser& BeginScope() &;
 
@@ -524,6 +526,8 @@ private:
 
 	MidoriResult::ExpressionResult ParseBreakExpression();
 
+	MidoriResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr);
+
 	MidoriResult::ExpressionResult ParseMatchExpression();
 
 	MidoriResult::ExpressionResult ParseIfElseExpression();
@@ -559,6 +563,20 @@ private:
 	MidoriResult::StatementResult ParseForeignStatement();
 
 	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
+
+	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
+
+	Token MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const;
+
+	std::string AppendSuffixToQualifiedName(std::string_view qualified_name, std::string_view suffix) const;
+
+	MidoriResult::TokenResult RegisterSyntheticGlobalName(const std::string& name, const Token& anchor);
+
+	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<std::string>& mangled_method_names);
+
+	std::expected<void, CompilerError> QueueDerivedStructStatements(const MidoriStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets);
+
+	std::expected<void, CompilerError> QueueDerivedUnionStatements(const MidoriStatement::Union& union_stmt, const std::vector<Token>& deriving_targets);
 
 	MidoriResult::StatementResult ParseStatement();
 };

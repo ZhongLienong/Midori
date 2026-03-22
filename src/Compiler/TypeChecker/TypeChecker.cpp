@@ -1589,6 +1589,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 	if (def.m_value->IsExpression<MidoriExpression::Function>())
 	{
 		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+		bool has_inferred_param_types = std::ranges::any_of
+		(
+			function.m_param_types,
+			[](const std::shared_ptr<MidoriType>& param_type)
+			{
+				return param_type->IsType<MidoriType::UndecidedType>();
+			}
+		);
+
+		if (!def.m_annotated_type.has_value() && has_inferred_param_types)
+		{
+			return std::unexpected
+			(
+				MidoriError::GenerateTypeCheckerErrorWithContext
+				(
+					"Function expression type error: could not infer all lambda parameter or return types",
+					function.m_function_keyword,
+					m_file_name,
+					m_source_lines
+				)
+			);
+		}
 
 		// Freshen any UndecidedType parameters to TypeVariables
 		for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
@@ -1602,16 +1624,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		function.m_type_data = function_type;
 		def.m_value->GetType() = function.m_type_data;
 
-		m_name_type_table.back().emplace(def.m_name.m_lexeme, def.m_value->GetType());
-		MidoriType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MidoriType::FunctionType>();
 		if (def.m_annotated_type.has_value())
 		{
 			std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
-			if (*annotated_type != *function_type)
+			MidoriResult::TypeResult annotation_result = Unify(def.m_name, function_type, annotated_type);
+			if (!annotation_result.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
 			}
+
+			function.m_type_data = ApplySubstitution(function_type);
+			def.m_value->GetType() = function.m_type_data;
+			const MidoriType::FunctionType& resolved_function_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+			function.m_param_types = resolved_function_type.m_param_types;
+			function.m_return_type = resolved_function_type.m_return_type;
 		}
+
+		m_name_type_table.back().emplace(def.m_name.m_lexeme, def.m_value->GetType());
+		MidoriType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MidoriType::FunctionType>();
 
 		return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 		{
@@ -1624,8 +1654,38 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			return Evaluate(def.m_value)
 				.and_then
 				(
-					[](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+					[&def, &function, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 					{
+						std::shared_ptr<MidoriType> resolved_function_type = ApplySubstitution(def.m_value->GetType());
+						def.m_value->GetType() = resolved_function_type;
+						function.m_type_data = resolved_function_type;
+
+						if (resolved_function_type->IsType<MidoriType::FunctionType>())
+						{
+							const MidoriType::FunctionType& resolved_signature = resolved_function_type->GetType<MidoriType::FunctionType>();
+							function.m_param_types = resolved_signature.m_param_types;
+							function.m_return_type = resolved_signature.m_return_type;
+						}
+
+						if (HasTypeVariables(resolved_function_type))
+						{
+							return std::unexpected
+							(
+								MidoriError::GenerateTypeCheckerErrorWithContext
+								(
+									"Function expression type error: could not infer all lambda parameter or return types",
+									function.m_function_keyword,
+									m_file_name,
+									m_source_lines
+								)
+							);
+						}
+
+						if (std::shared_ptr<MidoriType>* binding = FindNameType(def.m_name.m_lexeme))
+						{
+							*binding = resolved_function_type;
+						}
+
 						return MidoriType::MakeUndecidedType();
 					}
 				);
@@ -1814,6 +1874,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 			m_active_constraints.push_back(std::move(freshened_constraint));
 		}
 
+		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
 		return Evaluate(defun.m_body)
 			.and_then
 			(
@@ -2251,13 +2312,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					}
 					else
 					{
+						std::shared_ptr<MidoriType> resolved_case_type = ApplySubstitution(case_result.value());
 						if (prev_case_type == nullptr)
 						{
-							prev_case_type = case_result.value();
+							prev_case_type = resolved_case_type;
 						}
-						else if (*prev_case_type != *case_result.value())
+						else
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, prev_case_type, case_result.value()));
+							std::shared_ptr<MidoriType> resolved_prev_case_type = ApplySubstitution(prev_case_type);
+							MidoriResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
+							if (!unify_result.has_value())
+							{
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
+							}
+
+							prev_case_type = ApplySubstitution(resolved_prev_case_type);
 						}
 					}
 				}
@@ -3209,7 +3278,168 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					return call.m_type_data;
 				}
 			}
+
+			std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(qualifier);
+			if (tc_it != m_classes.end())
+			{
+				const ClassInfo& tc_info = tc_it->second;
+				TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(method_name);
+				if (method_it != tc_info.m_method_types.cend())
+				{
+					std::vector<std::shared_ptr<MidoriType>> arg_results;
+					arg_results.reserve(call.m_arguments.size());
+					for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+					{
+						MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+						if (!arg_result.has_value())
+						{
+							return arg_result;
+						}
+						arg_results.emplace_back(std::move(arg_result.value()));
+					}
+
+					struct ConcreteMethodCandidate
+					{
+						std::shared_ptr<MidoriType> m_method_type;
+					};
+
+					std::vector<ConcreteMethodCandidate> candidates;
+					for (const auto& [instance_key, instance_info] : m_instances)
+					{
+						if (instance_info.m_class_name != qualifier || instance_info.m_type_args.size() != tc_info.m_type_param_names.size())
+						{
+							continue;
+						}
+
+						TypeEnvironment class_substitutions;
+						for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
+						{
+							class_substitutions.emplace(tc_info.m_type_param_names[i], instance_info.m_type_args[i]);
+						}
+
+						std::shared_ptr<MidoriType> candidate_method_type = MidoriType::SubstituteTypeParams(method_it->second, class_substitutions);
+						if (!candidate_method_type->IsType<MidoriType::FunctionType>())
+						{
+							continue;
+						}
+
+						const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
+						if (candidate_function_type.m_param_types.size() != arg_results.size())
+						{
+							continue;
+						}
+
+						std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+						std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+						bool matched = true;
+
+						for (size_t i = 0u; i < arg_results.size(); i += 1u)
+						{
+							std::shared_ptr<MidoriType> resolved_arg = ApplySubstitution(arg_results[i]);
+							if (!MatchInstanceTypeArg(candidate_function_type.m_param_types[i], resolved_arg, substitutions, visited))
+							{
+								matched = false;
+								break;
+							}
+						}
+
+						if (matched && m_expected_expr_type != nullptr)
+						{
+							std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
+							if (!MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, substitutions, visited))
+							{
+								matched = false;
+							}
+						}
+
+						if (!matched)
+						{
+							continue;
+						}
+
+						candidates.push_back(ConcreteMethodCandidate{ ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions)) });
+					}
+
+					if (candidates.empty())
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+					}
+					if (candidates.size() != 1u)
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+					}
+
+					MidoriType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MidoriType::FunctionType>();
+					for (size_t idx : std::views::iota(0u, arg_results.size()))
+					{
+						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
+						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						if (!result.has_value())
+						{
+							return result;
+						}
+					}
+
+					call.m_is_foreign = function_type.m_is_foreign;
+					call.m_type_data = ApplySubstitution(function_type.m_return_type);
+					return call.m_type_data;
+				}
+			}
 		}
+	}
+
+	if (call.m_callee->IsExpression<MidoriExpression::Function>())
+	{
+		std::vector<std::shared_ptr<MidoriType>> arg_results;
+		arg_results.reserve(call.m_arguments.size());
+		for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+		{
+			MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+			if (!arg_result.has_value())
+			{
+				return arg_result;
+			}
+			arg_results.emplace_back(std::move(arg_result.value()));
+		}
+
+		std::shared_ptr<MidoriType> expected_return_type = m_expected_expr_type != nullptr ? std::shared_ptr<MidoriType>(m_expected_expr_type) : FreshTypeVar();
+		std::shared_ptr<MidoriType> expected_callee_type = MidoriType::MakeFunctionType(arg_results, std::move(expected_return_type));
+		ExpectedTypeGuard guard(*this, expected_callee_type);
+
+		return Evaluate(call.m_callee)
+			.and_then
+			(
+				[&call, &arg_results, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+				{
+					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
+					if (!resolved_type->IsType<MidoriType::FunctionType>())
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+					}
+
+					MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
+					if (function_type.m_param_types.size() != call.m_arguments.size())
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+					}
+
+					for (size_t idx : std::views::iota(0u, arg_results.size()))
+					{
+						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
+						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						if (!result.has_value())
+						{
+							return result;
+						}
+					}
+
+					call.m_is_foreign = function_type.m_is_foreign;
+					call.m_type_data = ApplySubstitution(function_type.m_return_type);
+					return call.m_type_data;
+				}
+			);
 	}
 
 	return Evaluate(call.m_callee)
@@ -3910,6 +4140,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
 	function.m_type_data = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 
+	if (m_expected_expr_type != nullptr)
+	{
+		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
+		MidoriResult::TypeResult expected_result = Unify(function.m_function_keyword, function.m_type_data, expected_type);
+		if (!expected_result.has_value())
+		{
+			return expected_result;
+		}
+
+		function.m_type_data = ApplySubstitution(function.m_type_data);
+		const MidoriType::FunctionType& inferred_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+		function.m_param_types = inferred_type.m_param_types;
+		function.m_return_type = inferred_type.m_return_type;
+	}
+
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 	{
 		std::ranges::for_each
@@ -3918,6 +4163,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 			[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
 		);
 
+		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
 			(
@@ -3926,8 +4172,27 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type)
 						.and_then
 						(
-							[&function](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
+								function.m_type_data = ApplySubstitution(function.m_type_data);
+								const MidoriType::FunctionType& resolved_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+								function.m_param_types = resolved_type.m_param_types;
+								function.m_return_type = resolved_type.m_return_type;
+
+								if (HasTypeVariables(function.m_type_data))
+								{
+									return std::unexpected
+									(
+										MidoriError::GenerateTypeCheckerErrorWithContext
+										(
+											"Function expression type error: could not infer all lambda parameter or return types",
+											function.m_function_keyword,
+											m_file_name,
+											m_source_lines
+										)
+									);
+								}
+
 								return function.m_type_data;
 							}
 						);
@@ -4284,12 +4549,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 
 							if_else.m_condition_operand_type = ResolveConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
 
-							return Evaluate(if_else.m_true_branch)
+							auto evaluate_branch_with_expected = [this](const std::unique_ptr<MidoriExpression>& branch) -> MidoriResult::TypeResult
+							{
+								if (m_expected_expr_type != nullptr)
+								{
+									ExpectedTypeGuard guard(*this, m_expected_expr_type);
+									return Evaluate(branch);
+								}
+
+								return Evaluate(branch);
+							};
+
+							return evaluate_branch_with_expected(if_else.m_true_branch)
 								.and_then
 								(
-									[&if_else, this](std::shared_ptr<MidoriType>&& true_branch_type) ->MidoriResult::TypeResult
+									[&if_else, &evaluate_branch_with_expected, this](std::shared_ptr<MidoriType>&& true_branch_type) ->MidoriResult::TypeResult
 									{
-										return Evaluate(if_else.m_else_branch)
+										return evaluate_branch_with_expected(if_else.m_else_branch)
 											.and_then
 											(
 												[&true_branch_type, &if_else, this](std::shared_ptr<MidoriType>&& else_branch_type)->MidoriResult::TypeResult
@@ -4319,6 +4595,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 	{
 		for (const std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
 		{
+			ExpectedTypeGuard statement_guard(*this, std::shared_ptr<MidoriType>{});
 			MidoriResult::TypeResult result = Evaluate(stmt);
 			if (!result.has_value())
 			{

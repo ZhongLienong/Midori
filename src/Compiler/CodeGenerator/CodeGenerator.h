@@ -323,6 +323,8 @@ private:
 
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
 
+	std::optional<std::string> ResolveConcreteTypeclassMethodName(const std::string& callee_name, const MidoriExpression::Call& call, int line);
+
 	bool EmitResolvedNameGetGlobal(const std::string& resolved_name, int line);
 
 	std::optional<int> ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line);

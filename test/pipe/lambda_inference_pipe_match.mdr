@@ -1,0 +1,24 @@
+module LambdaInferencePipeMatch
+
+import { "../../MidoriPrelude/IO.mdr" }
+
+union Result<T, E> = Error(E) | OK(T);
+
+def doubler: fn(Int) -> Int = fn(x) => { x * 2 };
+
+defun Transform(value: Int) : Result<Int, Text> => {
+    if value > 10
+    then new Result::OK(value + 1)
+    else new Result::Error("too small")
+};
+
+def pipeline_result =
+    5
+    |> doubler
+    |> fn(x) => { x + 1 }
+    |> Transform
+    |> match with
+        case Result::OK(v) => v
+        case Result::Error(_) => 0;
+
+IO::PrintLine("pipeline_result=" ++ (pipeline_result as Text));

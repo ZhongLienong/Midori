@@ -103,6 +103,7 @@ struct Token
 		INSTANCE,
 		WHERE,
 		TYPE,
+		DERIVING,
 
 		// types
 		FLOAT,

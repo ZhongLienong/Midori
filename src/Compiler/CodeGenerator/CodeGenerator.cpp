@@ -2864,6 +2864,25 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 			function_name = resolved_method_name.value();
 		}
+		else if (function_name.find(NameSeparator) != std::string::npos)
+		{
+			resolved_method_name = ResolveConcreteTypeclassMethodName(function_name, call, line);
+			if (resolved_method_name.has_value())
+			{
+				function_name = resolved_method_name.value();
+			}
+			else
+			{
+				size_t separator_pos = function_name.rfind(NameSeparator.data());
+				std::string qualifier = function_name.substr(0u, separator_pos);
+				std::string method_name = function_name.substr(separator_pos + NameSeparator.length());
+				TypeclassMethodMap::iterator methods_it = m_class_methods.find(qualifier);
+				if (methods_it != m_class_methods.end() && methods_it->second.contains(method_name))
+				{
+					return;
+				}
+			}
+		}
 
 		std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(function_name);
 		if (generic_it != m_generic_functions.end())
@@ -4957,6 +4976,93 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_method_resolution_map = std::move(prev_resolution_map);
 	m_generic_type_substitution = std::move(prev_generic_type_map);
 	return static_cast<int>(specialized_proc_index);
+}
+
+std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(const std::string& callee_name, const MidoriExpression::Call& call, int line)
+{
+	size_t separator_pos = callee_name.rfind(NameSeparator.data());
+	if (separator_pos == std::string::npos)
+	{
+		return std::nullopt;
+	}
+
+	const std::string qualifier = callee_name.substr(0u, separator_pos);
+	const std::string method_name = callee_name.substr(separator_pos + NameSeparator.length());
+
+	TypeclassMethodMap::iterator methods_it = m_class_methods.find(qualifier);
+	if (methods_it == m_class_methods.end() || !methods_it->second.contains(method_name))
+	{
+		return std::nullopt;
+	}
+
+	TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(qualifier);
+	if (instance_args_it == m_class_instance_type_args.end())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no instance metadata found.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	std::shared_ptr<MidoriType> first_arg_type = nullptr;
+	if (!call.m_arguments.empty())
+	{
+		first_arg_type = GetConcreteTypeForExpression(call.m_arguments[0u]);
+	}
+
+	std::shared_ptr<MidoriType> return_type = call.m_type_data;
+	std::vector<ResolvedMethodCandidate> candidates;
+	for (const std::vector<std::shared_ptr<MidoriType>>& candidate_args : instance_args_it->second)
+	{
+		if (candidate_args.empty())
+		{
+			continue;
+		}
+
+		TypeEnvironment substitutions;
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		if (first_arg_type != nullptr && !MatchInstanceTypeArg(candidate_args[0u], first_arg_type, substitutions, visited))
+		{
+			continue;
+		}
+
+		if (candidate_args.size() > 1u && return_type != nullptr)
+		{
+			if (!MatchInstanceTypeArg(candidate_args[1u], return_type, substitutions, visited))
+			{
+				continue;
+			}
+		}
+
+		std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, qualifier, candidate_args);
+		std::optional<std::string> resolved_name = ResolveInstanceName(qualifier, mangled_name_prefix);
+
+		ResolvedMethodCandidate candidate;
+		candidate.m_first_type_name = candidate_args[0u]->ToString();
+		if (candidate_args.size() > 1u)
+		{
+			candidate.m_second_type_name = candidate_args[1u]->ToString();
+		}
+		candidate.m_resolved_name = resolved_name.value_or(mangled_name_prefix);
+		candidate.m_has_instance = resolved_name.has_value();
+		candidates.emplace_back(std::move(candidate));
+	}
+
+	if (candidates.empty())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching concrete instance found.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+	if (candidates.size() != 1u)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': multiple concrete instances match this call.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+	if (!candidates[0u].m_has_instance)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no emitted instance method was found.", callee_name), line, m_file_name, m_source_lines));
+		return std::nullopt;
+	}
+
+	return candidates[0u].m_resolved_name;
 }
 
 std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line)
