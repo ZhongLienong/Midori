@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <algorithm>
 #include <format>
 #include <iterator>
 #include <ranges>
@@ -107,6 +108,29 @@ namespace
 			}
 		}
 		return false;
+	}
+
+	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type)
+	{
+		std::unordered_set<const MidoriType*> visited;
+		return HasTypeVariables(type, visited);
+	}
+
+	std::string JoinSortedNames(std::vector<std::string> names)
+	{
+		std::ranges::sort(names);
+
+		std::string joined;
+		for (size_t i = 0u; i < names.size(); i += 1u)
+		{
+			if (i != 0u)
+			{
+				joined.append(", ");
+			}
+			joined.append(names[i]);
+		}
+
+		return joined;
 	}
 
 	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
@@ -2143,19 +2167,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 			{
 				std::shared_ptr<MidoriType> resolved_arg_type = ApplySubstitution(arg_type);
 				bool is_union = resolved_arg_type->IsType<MidoriType::UnionType>();
+				bool is_bool = resolved_arg_type->IsType<MidoriType::BoolType>();
 
-				std::unordered_set<std::string> expected_member_names;
+				std::unordered_set<std::string> missing_cases;
 				if (is_union)
 				{
 					const MidoriType::UnionType& union_type = resolved_arg_type->GetType<MidoriType::UnionType>();
 					for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 					{
-						expected_member_names.insert(member_name);
+						missing_cases.insert(member_name);
 					}
+				}
+				else if (is_bool)
+				{
+					missing_cases.emplace("true");
+					missing_cases.emplace("false");
 				}
 
 				bool has_default_case = false;
-				std::shared_ptr<MidoriType>* prev_case_type = nullptr;
+				std::shared_ptr<MidoriType> prev_case_type = nullptr;
 
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 				{
@@ -2181,12 +2211,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							const MidoriPattern::Constructor& ctor = match_case.m_pattern->GetPattern<MidoriPattern::Constructor>();
 							if (ctor.m_is_union)
 							{
-								expected_member_names.erase(ctor.m_name);
+								missing_cases.erase(ctor.m_name);
 							}
 						}
-						else if (is_union && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+						else if (is_bool && match_case.m_pattern->IsPattern<MidoriPattern::Literal>())
 						{
-							expected_member_names.clear();
+							const MidoriPattern::Literal& literal = match_case.m_pattern->GetPattern<MidoriPattern::Literal>();
+							if (literal.m_kind == MidoriPattern::LiteralKind::Bool)
+							{
+								if (literal.m_token.m_token_name == Token::Name::TRUE)
+								{
+									missing_cases.erase("true");
+								}
+								else if (literal.m_token.m_token_name == Token::Name::FALSE)
+								{
+									missing_cases.erase("false");
+								}
+							}
+						}
+
+						if ((is_union || is_bool) && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+						{
+							missing_cases.clear();
 						}
 
 						if (!error.has_value())
@@ -2207,20 +2253,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					{
 						if (prev_case_type == nullptr)
 						{
-							prev_case_type = &case_result.value();
+							prev_case_type = case_result.value();
 						}
-						else if (**prev_case_type != *case_result.value())
+						else if (*prev_case_type != *case_result.value())
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, *prev_case_type, case_result.value()));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, prev_case_type, case_result.value()));
 						}
 					}
 				}
 
-				if (is_union)
+				if (is_union || is_bool)
 				{
-					if (!expected_member_names.empty() && !has_default_case)
+					if (!missing_cases.empty() && !has_default_case)
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Not all union members are matched", match.m_match_keyword, m_file_name, m_source_lines));
+						std::vector<std::string> missing_names(missing_cases.begin(), missing_cases.end());
+						const std::string missing_label = is_union ? "variants" : "cases";
+						const std::string message = std::format("Match expression type error: non-exhaustive match: missing {}: {}", missing_label, JoinSortedNames(std::move(missing_names)));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, match.m_match_keyword, m_file_name, m_source_lines));
 					}
 				}
 				else
@@ -2237,7 +2286,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					}
 				}
 
-				match.m_type_data = *prev_case_type;
+				match.m_type_data = prev_case_type;
 				return match.m_type_data;
 			}
 		);
@@ -3922,7 +3971,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	std::shared_ptr<MidoriType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
 
-	const MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();
+	MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();
+
+	if (construct.m_has_explicit_type_args)
+	{
+		MidoriResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type);
+		if (!explicit_type_result.has_value())
+		{
+			return explicit_type_result;
+		}
+	}
+	else if (m_expected_expr_type != nullptr)
+	{
+		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
+		MidoriResult::TypeResult expected_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, expected_type);
+		if (!expected_type_result.has_value())
+		{
+			return expected_type_result;
+		}
+	}
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
@@ -3932,6 +3999,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))
 	{
 		std::unique_ptr<MidoriExpression>& param = construct.m_params[idx];
+		ExpectedTypeGuard guard(*this, constructor_type.m_param_types[idx]);
 		MidoriResult::TypeResult param_result = Evaluate(param);
 		if (!param_result.has_value())
 		{
@@ -3949,6 +4017,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	// For generic structs, apply substitution to the return type to get the monomorphized type
 	// After unifying parameters, type variables have been substituted with concrete types
 	construct.m_type_data = ApplySubstitution(constructor_type.m_return_type);
+
+	if (HasTypeVariables(construct.m_type_data))
+	{
+		return std::unexpected(
+			MidoriError::GenerateTypeCheckerErrorWithContext(
+				std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
+				construct.m_data_name,
+				m_file_name,
+				m_source_lines
+			)
+		);
+	}
 
 	// Mark as generic instantiation if this was a generic struct/union
 	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())

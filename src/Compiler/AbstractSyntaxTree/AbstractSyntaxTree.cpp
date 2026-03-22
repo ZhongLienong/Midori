@@ -229,10 +229,11 @@ MidoriExpression::Function::Function(const Token& function_keyword, std::vector<
 {
 }
 
-MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, ConstructContext&& construct_ctx)
+MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, bool has_explicit_type_args, ConstructContext&& construct_ctx)
 	: m_data_name(data_name),
 	m_params(std::move(params)),
 	m_return_type(std::move(return_type)),
+	m_has_explicit_type_args(has_explicit_type_args),
 	m_construct_ctx(std::move(construct_ctx))
 {
 }

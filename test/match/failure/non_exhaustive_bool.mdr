@@ -1,0 +1,5 @@
+module MatchNonExhaustiveBool
+
+def result = match true with
+    case true => 1
+;

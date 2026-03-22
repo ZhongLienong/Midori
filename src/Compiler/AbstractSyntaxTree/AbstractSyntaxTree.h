@@ -493,9 +493,10 @@ public:
 		Token m_data_name;
 		std::vector<std::unique_ptr<MidoriExpression>> m_params;
 		std::shared_ptr<MidoriType> m_return_type;
+		bool m_has_explicit_type_args = false;
 		ConstructContext m_construct_ctx;
 
-		Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, ConstructContext&& construct_ctx);
+		Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, bool has_explicit_type_args, ConstructContext&& construct_ctx);
 
 		template<typename T>
 		constexpr bool IsConstructTypeOf() const

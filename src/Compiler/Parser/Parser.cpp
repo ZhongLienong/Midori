@@ -1303,10 +1303,12 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 				defined_type = MidoriType::SubstituteTypeParams(base_type, substitutions);
 			}
 
+			const bool has_explicit_type_args = !type_args.empty();
+
 			return Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.")
 				.and_then
 				(
-					[&defined_type, &data_name_token_value, is_struct, this](Token&&) ->MidoriResult::ExpressionResult
+					[&defined_type, &data_name_token_value, is_struct, has_explicit_type_args, this](Token&&) ->MidoriResult::ExpressionResult
 					{
 						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 							(
@@ -1316,18 +1318,18 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 							)
 							.and_then
 							(
-								[&defined_type, &data_name_token_value, is_struct](std::vector<std::unique_ptr<MidoriExpression>>&& arguments)->MidoriResult::ExpressionResult
+								[&defined_type, &data_name_token_value, is_struct, has_explicit_type_args](std::vector<std::unique_ptr<MidoriExpression>>&& arguments)->MidoriResult::ExpressionResult
 								{
 									std::shared_ptr<MidoriType> defined_type_copy = defined_type.value();
 									if (is_struct)
 									{
-										std::unique_ptr<MidoriExpression> cons_struct_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), MidoriExpression::Construct::Struct{}));
+										std::unique_ptr<MidoriExpression> cons_struct_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), has_explicit_type_args, MidoriExpression::Construct::Struct{}));
 										return cons_struct_expr;
 									}
 									else
 									{
 										const MidoriType::UnionType& union_type = defined_type.value()->GetType<MidoriType::UnionType>();
-										std::unique_ptr<MidoriExpression> cons_union_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), MidoriExpression::Construct::Union(union_type.m_member_info.at(data_name_token_value.m_lexeme).m_tag)));
+										std::unique_ptr<MidoriExpression> cons_union_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), has_explicit_type_args, MidoriExpression::Construct::Union(union_type.m_member_info.at(data_name_token_value.m_lexeme).m_tag)));
 										return cons_union_expr;
 									}
 								}
