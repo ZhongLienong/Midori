@@ -3,7 +3,8 @@ import { "Prelude/Option.mdr" }
 public export { Iterable }
 use Option.{Option}
 
-class Iterable<Iter, Item>
+class Iterable<Iter>
 {
+    type Item;
     Next: fn(iter: Iter) -> Option<Item>;
 };

@@ -7,14 +7,14 @@ import
     "../../../MidoriPrelude/Prelude/List.mdr"
 }
 
-use List.{List}
+use List.{List, ListIter, ListIterNew}
 
-def list = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil<Int>())));
-def iter = List::ListIterNew(list);
+def list : List<Int> = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
+def iter : ListIter<Int> = ListIterNew(list);
 def total = 0;
 
 for value in iter {
-    total <- total + value;
+    total = total + value;
 };
 
 if total == 6

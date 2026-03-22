@@ -103,22 +103,39 @@ public:
 
 	struct Class
 	{
+		struct AssociatedTypeDeclaration
+		{
+			Token m_name;
+
+			explicit AssociatedTypeDeclaration(const Token& name);
+		};
+
 		Token m_name;
 		std::vector<Token> m_type_params;
 		std::vector<MidoriType::ClassConstraint> m_superclasses;
+		std::vector<AssociatedTypeDeclaration> m_associated_types;
 		std::vector<std::unique_ptr<MidoriStatement>> m_methods;
 
-		Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
+		Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	struct Instance
 	{
+		struct AssociatedTypeBinding
+		{
+			Token m_name;
+			std::shared_ptr<MidoriType> m_type;
+
+			AssociatedTypeBinding(const Token& name, std::shared_ptr<MidoriType>&& type);
+		};
+
 		Token m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
 		std::vector<MidoriType::ClassConstraint> m_constraints;
+		std::vector<AssociatedTypeBinding> m_associated_types;
 		std::vector<std::unique_ptr<MidoriStatement>> m_methods;
 
-		Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
+		Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	struct TypeAlias

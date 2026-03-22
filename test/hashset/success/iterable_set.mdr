@@ -15,7 +15,7 @@ def iter = Set::SetIterNew(set);
 def total = 0;
 
 for value in iter {
-    total <- total + value;
+    total = total + value;
 };
 
 if total == 3

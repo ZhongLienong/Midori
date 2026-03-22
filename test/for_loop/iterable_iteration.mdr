@@ -17,8 +17,9 @@ struct Counter
 
 defun CounterNew(end: Int) : Counter => new Counter(0, end);
 
-instance Iterable<Counter, Int>
+instance Iterable<Counter>
 {
+    type Item = Int;
     defun Next(counter: Counter) : Option<Int> => {
         if counter.current >= counter.end
         then new Option::None()
@@ -34,7 +35,7 @@ def iter = CounterNew(4);
 def total = 0;
 
 for i in iter {
-    total <- total + i;
+    total = total + i;
 };
 
 if total == 6

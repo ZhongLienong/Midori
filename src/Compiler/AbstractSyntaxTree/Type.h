@@ -63,6 +63,17 @@ public:
 		bool operator==(const ClassConstraint& other) const;
 	};
 
+	struct AssociatedType
+	{
+		std::string m_class_name;
+		std::string m_name;
+		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+
+		AssociatedType() = default;
+		AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+		bool operator==(const AssociatedType& other) const;
+	};
+
 	struct FunctionType
 	{
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
@@ -115,6 +126,7 @@ public:
 		FunctionType,
 		StructType,
 		UnionType,
+		AssociatedType,
 		ClassConstraint
 	>;
 
@@ -159,6 +171,7 @@ public:
 	static const std::shared_ptr<MidoriType> MakeUndecidedType();
 	static std::shared_ptr<MidoriType> MakeGenericType(const std::string& name);
 	static std::shared_ptr<MidoriType> MakeTypeVariable(int id);
+	static std::shared_ptr<MidoriType> MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
 	static std::shared_ptr<MidoriType> MakeArrayType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeRangeType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);

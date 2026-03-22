@@ -62,7 +62,9 @@ namespace
 			{
 				std::vector<TypePtr> new_param_types;
 				std::ranges::transform(type_variant.m_param_types, std::back_inserter(new_param_types), substitute);
-				return MidoriType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
+				TypePtr new_function = MidoriType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
+				new_function->GetType<MidoriType::FunctionType>().m_constraints = type_variant.m_constraints;
+				return new_function;
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
 			{
@@ -106,6 +108,12 @@ namespace
 				);
 
 				return new_union_type;
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::AssociatedType>)
+			{
+				std::vector<TypePtr> new_type_args;
+				std::ranges::transform(type_variant.m_type_args, std::back_inserter(new_type_args), substitute);
+				return MidoriType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(new_type_args));
 			}
 			else
 			{
@@ -283,6 +291,25 @@ namespace
 					return type_variant.m_name;
 				}
 			}
+			else if constexpr (std::is_same_v<Type, MidoriType::AssociatedType>)
+			{
+				if (type_variant.m_type_args.empty())
+				{
+					return type_variant.m_class_name + "::"s + type_variant.m_name;
+				}
+
+				std::vector<std::string> type_arg_strings;
+				std::ranges::transform
+				(
+					type_variant.m_type_args,
+					std::back_inserter(type_arg_strings),
+					[this](const TypePtr& type_arg) { return stringify(*type_arg); }
+				);
+
+				return type_variant.m_class_name + "::"s + type_variant.m_name + "<"s +
+					std::accumulate(std::next(type_arg_strings.begin()), type_arg_strings.end(), type_arg_strings.front(), join_with_comma) +
+					">"s;
+			}
 			else
 			{
 				return ""s;
@@ -368,6 +395,14 @@ struct MidoriType::TypeEqualityVisitor
 			s_visiting.erase(key);
 			return result;
 		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::AssociatedType>)
+		{
+			return a == b;
+		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::ClassConstraint>)
+		{
+			return a == b;
+		}
 		else
 		{
 			return true;
@@ -425,6 +460,31 @@ bool MidoriType::ClassConstraint::operator==(const ClassConstraint& other) const
 	);
 }
 
+MidoriType::AssociatedType::AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+	: m_class_name(class_name),
+	m_name(name),
+	m_type_args(std::move(type_args))
+{
+}
+
+bool MidoriType::AssociatedType::operator==(const AssociatedType& other) const
+{
+	if (m_class_name != other.m_class_name || m_name != other.m_name || m_type_args.size() != other.m_type_args.size())
+	{
+		return false;
+	}
+
+	return std::ranges::equal
+	(
+		m_type_args,
+		other.m_type_args,
+		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		{
+			return *left == *right;
+		}
+	);
+}
+
 const std::shared_ptr<MidoriType> MidoriType::MakeUndecidedType()
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(UndecidedType{}));
@@ -438,6 +498,11 @@ std::shared_ptr<MidoriType> MidoriType::MakeGenericType(const std::string& name)
 std::shared_ptr<MidoriType> MidoriType::MakeTypeVariable(int id)
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(TypeVariable(id)));
+}
+
+std::shared_ptr<MidoriType> MidoriType::MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(AssociatedType(class_name, name, std::move(type_args))));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<MidoriType>& element_type)

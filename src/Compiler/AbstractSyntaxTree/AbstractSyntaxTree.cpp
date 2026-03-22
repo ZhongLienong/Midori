@@ -489,18 +489,31 @@ MidoriStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::
 {
 }
 
-MidoriStatement::Class::Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+MidoriStatement::Class::AssociatedTypeDeclaration::AssociatedTypeDeclaration(const Token& name)
+	: m_name(name)
+{
+}
+
+MidoriStatement::Class::Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
 	: m_name(name),
 	m_type_params(std::move(type_params)),
 	m_superclasses(std::move(superclasses)),
+	m_associated_types(std::move(associated_types)),
 	m_methods(std::move(methods))
 {
 }
 
-MidoriStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+MidoriStatement::Instance::AssociatedTypeBinding::AssociatedTypeBinding(const Token& name, std::shared_ptr<MidoriType>&& type)
+	: m_name(name),
+	m_type(std::move(type))
+{
+}
+
+MidoriStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
 	: m_class_name(class_name),
 	m_type_args(std::move(type_args)),
 	m_constraints(std::move(constraints)),
+	m_associated_types(std::move(associated_types)),
 	m_methods(std::move(methods))
 {
 }

@@ -26,7 +26,7 @@ def all_correct = {
         match Map::MapGet(numbers, i) with
             case Option::Some(value) => {
                 if value == i * 2 then {
-                    count <- count + 1;
+                    count = count + 1;
                 } else {
                     ()
                 }

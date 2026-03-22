@@ -291,8 +291,10 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 	{
 		m_state.m_class_methods[tc_name] = metadata.m_method_names;
 		m_state.m_typeclass_type_params[tc_name] = metadata.m_type_param_names;
+		m_state.m_typeclass_associated_types[tc_name] = metadata.m_associated_type_names;
 		m_state.m_class_instances[tc_name] = metadata.m_instance_methods;
 		m_state.m_class_instance_type_args[tc_name] = metadata.m_instance_type_args;
+		m_state.m_class_instance_associated_type_bindings[tc_name] = metadata.m_instance_associated_type_bindings;
 		m_state.m_typeclass_method_types[tc_name] = metadata.m_method_types;
 	}
 }
@@ -2814,185 +2816,233 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 
 MidoriResult::StatementResult Parser::ParseClassDeclaration()
 {
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.")
-		.and_then
-		(
-			[this](Token&& typeclass_name) -> MidoriResult::StatementResult
+	MidoriResult::TokenResult class_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
+	if (!class_name_result.has_value())
+	{
+		return std::unexpected(class_name_result.error());
+	}
+
+	Token typeclass_name = std::move(class_name_result.value());
+	typeclass_name.m_lexeme = Mangle(typeclass_name.m_lexeme);
+	if (typeclass_name.m_lexeme[0u] != std::toupper(typeclass_name.m_lexeme[0u]))
+	{
+		return std::unexpected(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
+	}
+
+	MidoriResult::TokenResult defined_name_result = DefineName(typeclass_name, false);
+	if (!defined_name_result.has_value())
+	{
+		return std::unexpected(defined_name_result.error());
+	}
+	typeclass_name = std::move(defined_name_result.value());
+
+	if (!Match(Token::Name::LEFT_ANGLE))
+	{
+		return std::unexpected(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
+	}
+
+	BeginScope();
+	struct ScopeGuard
+	{
+		Parser* m_parser;
+
+		explicit ScopeGuard(Parser* parser)
+			: m_parser(parser)
+		{
+		}
+
+		~ScopeGuard()
+		{
+			if (m_parser != nullptr)
 			{
-				typeclass_name.m_lexeme = Mangle(typeclass_name.m_lexeme);
-				if (typeclass_name.m_lexeme[0u] != std::toupper(typeclass_name.m_lexeme[0u]))
+				m_parser->EndScope();
+			}
+		}
+	} scope_guard(this);
+
+	std::vector<Token> type_params;
+	std::vector<std::shared_ptr<MidoriType>> type_param_types;
+	MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&type_param_types);
+	if (!generic_parse_result.has_value())
+	{
+		return std::unexpected(generic_parse_result.error());
+	}
+	type_params = std::move(generic_parse_result.value());
+
+	std::vector<std::string> type_param_names;
+	std::ranges::transform(type_params, std::back_inserter(type_param_names), [](const Token& tok) { return tok.m_lexeme; });
+	m_state.m_typeclass_type_params[typeclass_name.m_lexeme] = type_param_names;
+	std::vector<std::string>& associated_type_names = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
+	associated_type_names.clear();
+
+	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.");
+	if (!brace_result.has_value())
+	{
+		return std::unexpected(brace_result.error());
+	}
+
+	std::vector<MidoriStatement::Class::AssociatedTypeDeclaration> associated_types;
+	std::vector<std::unique_ptr<MidoriStatement>> methods;
+	while (!Match(Token::Name::RIGHT_BRACE))
+	{
+		if (IsAtEnd())
+		{
+			return std::unexpected(GenerateParserError("Expected '}' after class body.", Previous()));
+		}
+
+		if (Match(Token::Name::TYPE))
+		{
+			MidoriResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
+			if (!assoc_name_result.has_value())
+			{
+				return std::unexpected(assoc_name_result.error());
+			}
+
+			Token assoc_name = std::move(assoc_name_result.value());
+			assoc_name.m_lexeme = Mangle(assoc_name.m_lexeme);
+			if (assoc_name.m_lexeme[0u] != std::toupper(assoc_name.m_lexeme[0u]))
+			{
+				return std::unexpected(GenerateParserError("Associated type name must start with a capital letter.", assoc_name));
+			}
+
+			MidoriResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
+			if (!defined_assoc_result.has_value())
+			{
+				return std::unexpected(defined_assoc_result.error());
+			}
+			assoc_name = std::move(defined_assoc_result.value());
+
+			MidoriResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type declaration.");
+			if (!assoc_semicolon_result.has_value())
+			{
+				return std::unexpected(assoc_semicolon_result.error());
+			}
+
+			associated_type_names.push_back(assoc_name.m_lexeme);
+			std::vector<std::shared_ptr<MidoriType>> associated_type_args = type_param_types;
+			m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = MidoriType::MakeAssociatedType(typeclass_name.m_lexeme, assoc_name.m_lexeme, std::move(associated_type_args));
+			associated_types.emplace_back(assoc_name);
+			continue;
+		}
+
+		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
+		if (!method_name_result.has_value())
+		{
+			return std::unexpected(method_name_result.error());
+		}
+
+		Token method_name = std::move(method_name_result.value());
+		std::string method_name_str = method_name.m_lexeme;
+
+		MidoriResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after method name.");
+		if (!colon_result.has_value())
+		{
+			return std::unexpected(colon_result.error());
+		}
+
+		MidoriResult::TokenResult function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' in method signature.");
+		if (!function_result.has_value())
+		{
+			return std::unexpected(function_result.error());
+		}
+
+		MidoriResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
+		if (!left_paren_result.has_value())
+		{
+			return std::unexpected(left_paren_result.error());
+		}
+
+		using MethodParam = std::tuple<Token, std::shared_ptr<MidoriType>>;
+		std::expected<std::vector<MethodParam>, CompilerError> params_result = ParseDelimitedZeroOrMoreLimited<MethodParam>
+		(
+			[this]() -> std::expected<MethodParam, CompilerError>
+			{
+				MidoriResult::TokenResult param_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.");
+				if (!param_name_result.has_value())
 				{
-					return std::unexpected(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
+					return std::unexpected(param_name_result.error());
 				}
 
-				constexpr bool is_variable = false;
-				return DefineName(typeclass_name, is_variable)
-					.and_then
-					(
-						[this](Token&& typeclass_name) -> MidoriResult::StatementResult
-						{
-							std::vector<Token> type_params;
-							std::vector<std::shared_ptr<MidoriType>> type_param_types;
-							bool has_type_params = false;
+				Token param_name = std::move(param_name_result.value());
+				MidoriResult::TokenResult param_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.");
+				if (!param_colon_result.has_value())
+				{
+					return std::unexpected(param_colon_result.error());
+				}
 
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_type_params = true;
-								BeginScope();
+				MidoriResult::TypeResult param_type_result = ParseType();
+				if (!param_type_result.has_value())
+				{
+					return std::unexpected(param_type_result.error());
+				}
 
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&type_param_types);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();
-									return std::unexpected(generic_parse_result.error());
-								}
-
-								type_params = std::move(generic_parse_result.value());
-							}
-
-							if (!has_type_params)
-							{
-								return std::unexpected(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
-							}
-
-							std::vector<std::string> type_param_names;
-							std::ranges::transform(type_params, std::back_inserter(type_param_names), [](const Token& tok) { return tok.m_lexeme; });
-							m_state.m_typeclass_type_params[typeclass_name.m_lexeme] = type_param_names;
-
-							return Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.")
-								.and_then
-								(
-									[&typeclass_name, &type_params, this](Token&&) -> MidoriResult::StatementResult
-									{
-										return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriStatement>>
-											(
-												[&typeclass_name, this]() -> MidoriResult::StatementResult
-												{
-													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.")
-														.and_then
-														(
-															[&typeclass_name, this](Token&& method_name) -> MidoriResult::StatementResult
-															{
-																std::string method_name_str = method_name.m_lexeme;
-
-																return Consume(Token::Name::SINGLE_COLON, "Expected ':' after method name.")
-																	.and_then
-																	(
-																		[&typeclass_name, &method_name, &method_name_str, this](Token&&) -> MidoriResult::StatementResult
-																		{
-																			return Consume(Token::Name::FUNCTION, "Expected 'fn' in method signature.")
-																				.and_then
-																				(
-																					[&typeclass_name, &method_name, &method_name_str, this](Token&&) -> MidoriResult::StatementResult
-																					{
-																						return Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.")
-																							.and_then
-																							(
-																								[&typeclass_name, &method_name, &method_name_str, this](Token&&) -> MidoriResult::StatementResult
-																								{
-																									return ParseDelimitedZeroOrMoreLimited<std::tuple<Token, std::shared_ptr<MidoriType>>>
-																										(
-																											[this]() -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
-																											{
-																												return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
-																													.and_then
-																													(
-																														[this](Token&& param_name) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
-																														{
-																															return Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.")
-																																.and_then
-																																(
-																																	[&param_name, this](Token&&) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
-																																	{
-																																		return ParseType()
-																																			.and_then
-																																			(
-																																				[&param_name](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<Token, std::shared_ptr<MidoriType>>, CompilerError>
-																																				{
-																																					return std::make_tuple(std::move(param_name), std::move(type));
-																																				}
-																																			);
-																																	}
-																																);
-																														}
-																													);
-																											},
-																											[this]() { return Consume(Token::Name::COMMA, "Expected ',' between parameters."); },
-																											[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after parameters."); }
-																										)
-																										.and_then
-																										(
-																											[&typeclass_name, &method_name, &method_name_str, this](std::vector<std::tuple<Token, std::shared_ptr<MidoriType>>>&& params) -> MidoriResult::StatementResult
-																											{
-																												return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type.")
-																													.and_then
-																													(
-																														[&typeclass_name, &method_name, &method_name_str, &params, this](Token&&) -> MidoriResult::StatementResult
-																														{
-																															return ParseType()
-																																.and_then
-																																(
-																																	[&typeclass_name, &method_name, &method_name_str, &params, this](std::shared_ptr<MidoriType>&& return_type) -> MidoriResult::StatementResult
-																																	{
-																																		std::vector<std::shared_ptr<MidoriType>> param_types;
-																																		std::vector<Token> param_tokens;
-																																		param_types.reserve(params.size());
-																																		param_tokens.reserve(params.size());
-
-																																		for (std::tuple<Token, std::shared_ptr<MidoriType>>& tuple : params)
-																																		{
-																																			param_types.emplace_back(std::get<1>(tuple));
-																																			param_tokens.emplace_back(std::move(std::get<0>(tuple)));
-																																		}
-
-																																		std::vector<std::shared_ptr<MidoriType>> param_types_copy = param_types;
-																																		std::shared_ptr<MidoriType> return_type_copy = return_type;
-																																		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(std::move(param_types_copy), std::move(return_type_copy));
-
-																																		m_state.m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
-																																		m_state.m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
-
-																																		return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>()));
-																																	}
-																																);
-																														}
-																													);
-																											}
-																										);
-																								}
-																							);
-																					}
-																				);
-																		}
-																	);
-															}
-														);
-												},
-												[this]() { return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method signature."); },
-												[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after class methods."); }
-											)
-											.and_then
-											(
-												[&typeclass_name, &type_params, this](std::vector<std::unique_ptr<MidoriStatement>>&& methods) -> MidoriResult::StatementResult
-												{
-													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after class body.")
-														.and_then
-														(
-															[&typeclass_name, &type_params, &methods, this](Token&&) -> MidoriResult::StatementResult
-															{
-																EndScope();
-
-																return std::make_unique<MidoriStatement>(MidoriStatement::Class(std::move(typeclass_name), std::move(type_params), std::vector<MidoriType::ClassConstraint>(), std::move(methods)));
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
-			}
+				return std::make_tuple(std::move(param_name), std::move(param_type_result.value()));
+			},
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between parameters."); },
+			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after parameters."); }
 		);
+		if (!params_result.has_value())
+		{
+			return std::unexpected(std::move(params_result.error()));
+		}
+
+		MidoriResult::TokenResult arrow_result = Consume(Token::Name::THIN_ARROW, "Expected '->' before return type.");
+		if (!arrow_result.has_value())
+		{
+			return std::unexpected(arrow_result.error());
+		}
+
+		MidoriResult::TypeResult return_type_result = ParseType();
+		if (!return_type_result.has_value())
+		{
+			return std::unexpected(return_type_result.error());
+		}
+		std::shared_ptr<MidoriType> return_type = std::move(return_type_result.value());
+
+		MidoriResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method signature.");
+		if (!method_semicolon_result.has_value())
+		{
+			return std::unexpected(method_semicolon_result.error());
+		}
+
+		std::vector<std::shared_ptr<MidoriType>> param_types;
+		std::vector<Token> param_tokens;
+		param_types.reserve(params_result->size());
+		param_tokens.reserve(params_result->size());
+		for (MethodParam& tuple : params_result.value())
+		{
+			param_types.emplace_back(std::get<1>(tuple));
+			param_tokens.emplace_back(std::move(std::get<0>(tuple)));
+		}
+
+		std::vector<std::shared_ptr<MidoriType>> param_types_copy = param_types;
+		std::shared_ptr<MidoriType> return_type_copy = return_type;
+		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(std::move(param_types_copy), std::move(return_type_copy));
+
+		m_state.m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
+		m_state.m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
+		methods.emplace_back
+		(
+			std::make_unique<MidoriStatement>
+			(
+				MidoriStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>())
+			)
+		);
+	}
+
+	MidoriResult::TokenResult class_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after class body.");
+	if (!class_semicolon_result.has_value())
+	{
+		return std::unexpected(class_semicolon_result.error());
+	}
+
+	scope_guard.m_parser = nullptr;
+	EndScope();
+
+	return std::make_unique<MidoriStatement>
+	(
+		MidoriStatement::Class(std::move(typeclass_name), std::move(type_params), std::vector<MidoriType::ClassConstraint>(), std::move(associated_types), std::move(methods))
+	);
 }
 
 MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
@@ -3004,7 +3054,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	}
 
 	Token typeclass_name = std::move(class_result.value());
-	if (!m_state.m_class_methods.contains(typeclass_name.m_lexeme))
+	if (!m_state.m_typeclass_type_params.contains(typeclass_name.m_lexeme))
 	{
 		return std::unexpected(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
 	}
@@ -3082,182 +3132,279 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
 	}
 
-	std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
-	m_state.m_class_instance_type_args[typeclass_name.m_lexeme].push_back(std::move(type_args_copy));
-
 	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
 	{
 		return std::unexpected(brace_result.error());
 	}
 
-	return ParseZeroOrMoreLimited<std::unique_ptr<MidoriStatement>>
-		(
-			[this]() -> MidoriResult::StatementResult
+	const std::vector<std::string>& declared_associated_types = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
+	std::vector<MidoriStatement::Instance::AssociatedTypeBinding> associated_types;
+	std::unordered_set<std::string> bound_associated_type_names;
+	std::vector<std::unique_ptr<MidoriStatement>> methods;
+
+	while (!Match(Token::Name::RIGHT_BRACE))
+	{
+		if (IsAtEnd())
+		{
+			return std::unexpected(GenerateParserError("Expected '}' after instance body.", Previous()));
+		}
+
+		if (Match(Token::Name::TYPE))
+		{
+			MidoriResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
+			if (!assoc_name_result.has_value())
 			{
-				if (!Match(Token::Name::DEFUN))
-				{
-					return std::unexpected("Expected 'defun' for method implementation.");
-				}
-
-				// Parse instance method manually to avoid DefineName() scope conflicts
-				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.")
-					.and_then
-					(
-						[this](Token&& method_name) -> MidoriResult::StatementResult
-						{
-							std::vector<Token> generic_params;
-							bool has_generic_params = false;
-
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_generic_params = true;
-								BeginScope();
-
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(nullptr);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();
-									return std::unexpected(generic_parse_result.error());
-								}
-
-								generic_params = std::move(generic_parse_result.value());
-							}
-
-							return Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.")
-								.and_then
-								(
-									[&method_name, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
-									{
-										m_state.m_function_depth += 1;
-										m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
-										int prev_total_locals = m_state.m_total_locals_in_curr_scope;
-										m_state.m_total_locals_in_curr_scope = 0;
-										BeginScope();
-
-										MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
-
-										if (!params_parse_result.has_value())
-										{
-											EndScope();
-											m_state.m_total_locals_in_curr_scope = prev_total_locals;
-											m_state.m_function_base_variable_index.pop_back();
-											m_state.m_function_depth -= 1;
-
-											if (has_generic_params)
-											{
-												EndScope();
-											}
-
-											return std::unexpected(params_parse_result.error());
-										}
-
-										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
-										ParamSplit split = SplitParamTuples(std::move(param_tuples));
-										std::vector<Token> params = std::move(split.m_params);
-										std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
-
-										return Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.")
-											.and_then
-											(
-												[&method_name, &generic_params, &params, &param_types, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-												{
-													return ParseType()
-														.and_then
-														(
-															[&method_name, &generic_params, &params, &param_types, has_generic_params, prev_total_locals, this](std::shared_ptr<MidoriType>&& return_type) -> MidoriResult::StatementResult
-															{
-																return Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.")
-																	.and_then
-																	(
-																		[&method_name, &generic_params, &params, &param_types, &return_type, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-																		{
-																			return ParseExpression()
-																				.and_then
-																				(
-																					[&method_name, &generic_params, &params, &param_types, &return_type, has_generic_params, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& body) -> MidoriResult::StatementResult
-																					{
-																						return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.")
-																							.and_then
-																							(
-																								[&method_name, &generic_params, &params, &param_types, &return_type, &body, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-																								{
-																									EndScope();
-																									m_state.m_total_locals_in_curr_scope = prev_total_locals;
-																									m_state.m_function_base_variable_index.pop_back();
-																									m_state.m_function_depth -= 1;
-
-																									if (has_generic_params)
-																									{
-																										EndScope();
-																									}
-
-																									return std::make_unique<MidoriStatement>(
-																										MidoriStatement::FunctionDefinition(
-																											method_name,
-																											std::move(generic_params),
-																											std::move(params),
-																											std::move(param_types),
-																											std::move(return_type),
-																											std::move(body),
-																											std::nullopt,
-																											0,
-																											std::vector<MidoriType::ClassConstraint>()
-																										)
-																									);
-																								}
-																							);
-																					}
-																				);
-																		}
-																	);
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
-			},
-			[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after instance methods."); }
-		)
-		.and_then
-		(
-			[&typeclass_name, &type_args, this](std::vector<std::unique_ptr<MidoriStatement>>&& methods) -> MidoriResult::StatementResult
-			{
-				return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after instance body.")
-					.and_then
-					(
-						[&typeclass_name, &type_args, &methods, this](Token&&) -> MidoriResult::StatementResult
-						{
-							for (std::unique_ptr<MidoriStatement>& method_stmt : methods)
-							{
-								if (method_stmt->IsStatement<MidoriStatement::FunctionDefinition>())
-								{
-									MidoriStatement::FunctionDefinition& defun = method_stmt->GetStatement<MidoriStatement::FunctionDefinition>();
-
-									std::string method_name = defun.m_name.m_lexeme;
-									std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, typeclass_name.m_lexeme, type_args);
-
-									// Track the mangled instance method WITH module suffix for cross-module resolution
-									std::string mangled_name_with_module = mangled_name;
-									if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
-									{
-										mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
-									}
-									m_state.m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
-
-									// Update the method's name to the mangled version (without module suffix - CodeGenerator adds it)
-									defun.m_name.m_lexeme = mangled_name;
-								}
-							}
-
-							return std::make_unique<MidoriStatement>(MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::vector<MidoriType::ClassConstraint>(), std::move(methods)));
-						}
-					);
+				return std::unexpected(assoc_name_result.error());
 			}
+
+			Token assoc_name = std::move(assoc_name_result.value());
+			assoc_name.m_lexeme = Mangle(assoc_name.m_lexeme);
+			if (!std::ranges::contains(declared_associated_types, assoc_name.m_lexeme))
+			{
+				return std::unexpected(GenerateParserError("Unknown associated type '" + assoc_name.m_lexeme + "' for class '" + typeclass_name.m_lexeme + "'.", assoc_name));
+			}
+			if (!bound_associated_type_names.insert(assoc_name.m_lexeme).second)
+			{
+				return std::unexpected(GenerateParserError("Duplicate associated type binding '" + assoc_name.m_lexeme + "'.", assoc_name));
+			}
+
+			MidoriResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
+			if (!defined_assoc_result.has_value())
+			{
+				return std::unexpected(defined_assoc_result.error());
+			}
+			assoc_name = std::move(defined_assoc_result.value());
+
+			MidoriResult::TokenResult equals_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after associated type name.");
+			if (!equals_result.has_value())
+			{
+				return std::unexpected(equals_result.error());
+			}
+
+			MidoriResult::TypeResult assoc_type_result = ParseType();
+			if (!assoc_type_result.has_value())
+			{
+				return std::unexpected(assoc_type_result.error());
+			}
+			std::shared_ptr<MidoriType> assoc_type = std::move(assoc_type_result.value());
+
+			MidoriResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type binding.");
+			if (!assoc_semicolon_result.has_value())
+			{
+				return std::unexpected(assoc_semicolon_result.error());
+			}
+
+			m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = assoc_type;
+			associated_types.emplace_back(assoc_name, std::shared_ptr<MidoriType>(assoc_type));
+			continue;
+		}
+
+		if (!Match(Token::Name::DEFUN))
+		{
+			return std::unexpected(GenerateParserError("Expected 'defun' or associated type binding in instance body.", Peek(0)));
+		}
+
+		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
+		if (!method_name_result.has_value())
+		{
+			return std::unexpected(method_name_result.error());
+		}
+		Token method_name = std::move(method_name_result.value());
+
+		std::vector<Token> generic_params;
+		bool has_generic_params = false;
+		if (Match(Token::Name::LEFT_ANGLE))
+		{
+			has_generic_params = true;
+			BeginScope();
+
+			MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(nullptr);
+			if (!generic_parse_result.has_value())
+			{
+				EndScope();
+				return std::unexpected(generic_parse_result.error());
+			}
+
+			generic_params = std::move(generic_parse_result.value());
+		}
+
+		MidoriResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
+		if (!left_paren_result.has_value())
+		{
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(left_paren_result.error());
+		}
+
+		m_state.m_function_depth += 1;
+		m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
+		int prev_total_locals = m_state.m_total_locals_in_curr_scope;
+		m_state.m_total_locals_in_curr_scope = 0;
+		BeginScope();
+
+		MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
+		if (!params_parse_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(params_parse_result.error());
+		}
+
+		std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
+		ParamSplit split = SplitParamTuples(std::move(param_tuples));
+		std::vector<Token> params = std::move(split.m_params);
+		std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
+
+		MidoriResult::TokenResult return_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.");
+		if (!return_colon_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(return_colon_result.error());
+		}
+
+		MidoriResult::TypeResult return_type_result = ParseType();
+		if (!return_type_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(return_type_result.error());
+		}
+		std::shared_ptr<MidoriType> return_type = std::move(return_type_result.value());
+
+		MidoriResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.");
+		if (!fat_arrow_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(fat_arrow_result.error());
+		}
+
+		MidoriResult::ExpressionResult body_result = ParseExpression();
+		if (!body_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(body_result.error());
+		}
+		std::unique_ptr<MidoriExpression> body = std::move(body_result.value());
+
+		MidoriResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.");
+		if (!method_semicolon_result.has_value())
+		{
+			EndScope();
+			m_state.m_total_locals_in_curr_scope = prev_total_locals;
+			m_state.m_function_base_variable_index.pop_back();
+			m_state.m_function_depth -= 1;
+			if (has_generic_params)
+			{
+				EndScope();
+			}
+			return std::unexpected(method_semicolon_result.error());
+		}
+
+		EndScope();
+		m_state.m_total_locals_in_curr_scope = prev_total_locals;
+		m_state.m_function_base_variable_index.pop_back();
+		m_state.m_function_depth -= 1;
+		if (has_generic_params)
+		{
+			EndScope();
+		}
+
+		methods.emplace_back
+		(
+			std::make_unique<MidoriStatement>
+			(
+				MidoriStatement::FunctionDefinition(
+					method_name,
+					std::move(generic_params),
+					std::move(params),
+					std::move(param_types),
+					std::move(return_type),
+					std::move(body),
+					std::nullopt,
+					0,
+					std::vector<MidoriType::ClassConstraint>()
+				)
+			)
 		);
+	}
+
+	MidoriResult::TokenResult instance_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after instance body.");
+	if (!instance_semicolon_result.has_value())
+	{
+		return std::unexpected(instance_semicolon_result.error());
+	}
+
+	std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
+	m_state.m_class_instance_type_args[typeclass_name.m_lexeme].push_back(std::move(type_args_copy));
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> associated_type_bindings;
+	for (const MidoriStatement::Instance::AssociatedTypeBinding& binding : associated_types)
+	{
+		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
+	}
+	m_state.m_class_instance_associated_type_bindings[typeclass_name.m_lexeme].push_back(associated_type_bindings);
+
+	for (std::unique_ptr<MidoriStatement>& method_stmt : methods)
+	{
+		if (method_stmt->IsStatement<MidoriStatement::FunctionDefinition>())
+		{
+			MidoriStatement::FunctionDefinition& defun = method_stmt->GetStatement<MidoriStatement::FunctionDefinition>();
+
+			std::string method_name = defun.m_name.m_lexeme;
+			std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, typeclass_name.m_lexeme, type_args);
+			std::string mangled_name_with_module = mangled_name;
+			if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
+			{
+				mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
+			}
+			m_state.m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
+			defun.m_name.m_lexeme = mangled_name;
+		}
+	}
+
+	scope_guard.m_parser = nullptr;
+	EndScope();
+
+	return std::make_unique<MidoriStatement>
+	(
+		MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::vector<MidoriType::ClassConstraint>(), std::move(associated_types), std::move(methods))
+	);
 }
 
 MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
@@ -4250,6 +4397,57 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
 
 								std::shared_ptr<MidoriType> base_type = nullptr;
+								auto try_parse_associated_type = [this, &type_name]() -> MidoriResult::TypeResult
+								{
+									std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
+									if (associated_type_qualifier.empty())
+									{
+										return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
+									}
+
+									std::string associated_type_name = ExtractSymbolName(type_name.m_lexeme);
+									TypeclassAssociatedTypeMap::const_iterator assoc_it = m_state.m_typeclass_associated_types.find(associated_type_qualifier);
+									if (assoc_it == m_state.m_typeclass_associated_types.cend()
+										|| !std::ranges::contains(assoc_it->second, associated_type_name))
+									{
+										return std::unexpected(GenerateParserError("Undefined struct or union.", type_name));
+									}
+
+									if (!Match(Token::Name::LEFT_ANGLE))
+									{
+										return std::unexpected(GenerateParserError("Expected '<' after associated type name.", type_name));
+									}
+
+									MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+									(
+										[this]() { return ParseType(); },
+										[this]() { return Consume(Token::Name::COMMA, "Expected ',' after associated type argument."); },
+										[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after associated type arguments."); }
+									);
+									if (!type_args_result.has_value())
+									{
+										return std::unexpected(type_args_result.error());
+									}
+
+									const size_t expected_arg_count = m_state.m_typeclass_type_params.contains(associated_type_qualifier)
+										? m_state.m_typeclass_type_params.at(associated_type_qualifier).size()
+										: 0u;
+									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
+									if (type_args.size() != expected_arg_count)
+									{
+										return std::unexpected
+										(
+											GenerateParserError
+											(
+												"Associated type argument count mismatch: expected " + std::to_string(expected_arg_count) +
+												", got " + std::to_string(type_args.size()),
+												type_name
+											)
+										);
+									}
+
+									return MidoriType::MakeAssociatedType(associated_type_qualifier, associated_type_name, std::move(type_args));
+								};
 
 								if (found_scope_it != m_state.m_scopes.crend())
 								{
@@ -4270,6 +4468,22 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 													base_type = type_it->second;
 													break;
 												}
+											}
+										}
+									}
+
+									if (base_type == nullptr)
+									{
+										std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
+										if (!associated_type_qualifier.empty())
+										{
+											std::string associated_type_name = ExtractSymbolName(type_name.m_lexeme);
+											TypeclassAssociatedTypeMap::const_iterator assoc_it = m_state.m_typeclass_associated_types.find(associated_type_qualifier);
+											if (assoc_it != m_state.m_typeclass_associated_types.cend()
+												&& std::ranges::contains(assoc_it->second, associated_type_name)
+												&& Check(Token::Name::LEFT_ANGLE, 0))
+											{
+												return try_parse_associated_type();
 											}
 										}
 									}
@@ -4314,6 +4528,17 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (base_type == nullptr)
 									{
+										std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
+										if (!associated_type_qualifier.empty())
+										{
+											std::string associated_type_name = ExtractSymbolName(type_name.m_lexeme);
+											TypeclassAssociatedTypeMap::const_iterator assoc_it = m_state.m_typeclass_associated_types.find(associated_type_qualifier);
+											if (assoc_it != m_state.m_typeclass_associated_types.cend() && std::ranges::contains(assoc_it->second, associated_type_name))
+											{
+												return try_parse_associated_type();
+											}
+										}
+
 										if (m_state.m_allow_implicit_generic_params && type_name.m_lexeme.find(NameSeparator) == std::string::npos)
 										{
 											std::shared_ptr<MidoriType> generic_type = MidoriType::MakeGenericType(type_name.m_lexeme);
@@ -4726,6 +4951,7 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 	if (m_state.m_class_methods.contains(class_name))
 	{
 		m_state.m_class_instance_type_args[class_name].push_back(type_args);
+		m_state.m_class_instance_associated_type_bindings[class_name].emplace_back();
 	}
 
 	for (const std::string& mangled_method_name : mangled_method_names)
@@ -4929,7 +5155,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 		}
 
 		RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
-		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, std::move(methods))));
+		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 	}
 
 	return {};
@@ -5165,7 +5391,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			}
 
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
-			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, std::move(methods))));
+			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
 
@@ -5468,13 +5694,20 @@ const std::vector<CompilerWarning>& Parser::GetWarnings() const
 CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 {
 	CompiledModule::TypeclassMetadataMap result;
-	for (const auto& [tc_name, methods] : m_state.m_class_methods)
+	for (const auto& [tc_name, type_params] : m_state.m_typeclass_type_params)
 	{
 		CompiledModule::TypeclassMetadata metadata;
-		metadata.m_method_names = methods;
+		if (m_state.m_class_methods.contains(tc_name))
+		{
+			metadata.m_method_names = m_state.m_class_methods.at(tc_name);
+		}
 		if (m_state.m_typeclass_type_params.contains(tc_name))
 		{
 			metadata.m_type_param_names = m_state.m_typeclass_type_params.at(tc_name);
+		}
+		if (m_state.m_typeclass_associated_types.contains(tc_name))
+		{
+			metadata.m_associated_type_names = m_state.m_typeclass_associated_types.at(tc_name);
 		}
 		if (m_state.m_class_instances.contains(tc_name))
 		{
@@ -5483,6 +5716,10 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 		if (m_state.m_class_instance_type_args.contains(tc_name))
 		{
 			metadata.m_instance_type_args = m_state.m_class_instance_type_args.at(tc_name);
+		}
+		if (m_state.m_class_instance_associated_type_bindings.contains(tc_name))
+		{
+			metadata.m_instance_associated_type_bindings = m_state.m_class_instance_associated_type_bindings.at(tc_name);
 		}
 		if (m_state.m_typeclass_method_types.contains(tc_name))
 		{

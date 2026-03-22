@@ -30,10 +30,11 @@ struct MapIter<K, V>
     index: Int
 };
 
-defun MapIterNew<K, V>(map: Map<K, V>) : MapIter<K, V> => new MapIter(map, 0);
+defun MapIterNew<K, V>(map: Map<K, V>) : MapIter<K, V> => new MapIter<K, V>(map, 0);
 
-instance Iterable<MapIter<K, V>, Entry<K, V>>
+instance Iterable<MapIter<K, V>>
 {
+    type Item = Entry<K, V>;
     defun Next(iter: MapIter<K, V>) : Option<Entry<K, V>> => {
         loop {
             if iter.index >= iter.map.capacity
@@ -43,7 +44,7 @@ instance Iterable<MapIter<K, V>, Entry<K, V>>
                 iter.index = iter.index + 1;
                 def entry = iter.map.buckets[idx];
                 match entry with
-                    case MapSlot::Occupied(k, v) => break new Option::Some<Entry<K, V>>(new Entry(k, v))
+                    case MapSlot::Occupied(k, v) => break new Option::Some<Entry<K, V>>(new Entry<K, V>(k, v))
                     default => ()
             }
         }
@@ -57,7 +58,7 @@ defun MakeMapBuckets<K, V>(capacity: Int) : Array<MapSlot<K, V>> => {
         if i >= capacity
         then break ()
         else {
-            buckets ++= [new MapSlot::Empty()];
+            buckets ++= [new MapSlot::Empty<K, V>()];
             i = i + 1;
         }
     };
@@ -66,7 +67,7 @@ defun MakeMapBuckets<K, V>(capacity: Int) : Array<MapSlot<K, V>> => {
 
 defun MapNewWithCapacity<K, V>(capacity: Int) : Map<K, V> => {
     def cap = if capacity < 16 then 16 else capacity;
-    new Map(MakeMapBuckets(cap), 0, cap)
+    new Map<K, V>(MakeMapBuckets(cap), 0, cap)
 };
 
 defun MapNew<K, V>() : Map<K, V> => MapNewWithCapacity(16);
@@ -129,7 +130,7 @@ defun MapInsertNoRehash<K, V>(map: Map<K, V>, key: K, value: V) : Bool
             case MapSlot::Occupied(_key, _value) => false
             default => true
         ;
-        map.buckets[slot] = new MapSlot::Occupied(key, value);
+        map.buckets[slot] = new MapSlot::Occupied<K, V>(key, value);
         if was_new then map.count = map.count + 1 else 0;
         was_new
     }
@@ -201,7 +202,7 @@ defun MapUpdate<K, V>(map: Map<K, V>, key: K, value: V) : Option<V>
             case MapSlot::Occupied(_key, v) => new Option::Some<V>(v)
             default => new Option::None<V>()
         ;
-        map.buckets[slot] = new MapSlot::Occupied(key, value);
+        map.buckets[slot] = new MapSlot::Occupied<K, V>(key, value);
         old_value
     }
 };
@@ -213,7 +214,7 @@ defun MapRemove<K, V>(map: Map<K, V>, key: K) : Bool
     if slot < 0
     then false
     else {
-        map.buckets[slot] = new MapSlot::Deleted();
+        map.buckets[slot] = new MapSlot::Deleted<K, V>();
         map.count = map.count - 1;
         true
     }
@@ -238,7 +239,7 @@ defun MapClear<K, V>(map: Map<K, V>) : Unit => {
         if i >= map.capacity
         then break ()
         else {
-            map.buckets[i] = new MapSlot::Empty();
+            map.buckets[i] = new MapSlot::Empty<K, V>();
             i = i + 1;
         }
     };
@@ -291,7 +292,7 @@ defun MapEntries<K, V>(map: Map<K, V>) : Array<Entry<K, V>> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(k, v) => { entries ++= [new Entry(k, v)]; () }
+                case MapSlot::Occupied(k, v) => { entries ++= [new Entry<K, V>(k, v)]; () }
                 default => ()
             ;
             i = i + 1;

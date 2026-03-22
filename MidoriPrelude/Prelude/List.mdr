@@ -15,10 +15,11 @@ struct ListIter<T>
     current: List<T>
 };
 
-defun ListIterNew<T>(list: List<T>) : ListIter<T> => new ListIter(list);
+defun ListIterNew<T>(list: List<T>) : ListIter<T> => new ListIter<T>(list);
 
-instance Iterable<ListIter<T>, T>
+instance Iterable<ListIter<T>>
 {
+    type Item = T;
     defun Next(iter: ListIter<T>) : Option<T> => {
         match iter.current with
             case List::Cons(head, tail) => {

@@ -15,7 +15,7 @@ def iter = Map::MapIterNew(map);
 def total = 0;
 
 for entry in iter {
-    total <- total + entry.value;
+    total = total + entry.value;
 };
 
 if total == 30

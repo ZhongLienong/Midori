@@ -24,10 +24,11 @@ struct SetIter<T>
     index: Int
 };
 
-defun SetIterNew<T>(set: Set<T>) : SetIter<T> => new SetIter(set, 0);
+defun SetIterNew<T>(set: Set<T>) : SetIter<T> => new SetIter<T>(set, 0);
 
-instance Iterable<SetIter<T>, T>
+instance Iterable<SetIter<T>>
 {
+    type Item = T;
     defun Next(iter: SetIter<T>) : Option<T> => {
         loop {
             if iter.index >= iter.set.capacity
@@ -51,7 +52,7 @@ defun MakeSetBuckets<T>(capacity: Int) : Array<SetSlot<T>> => {
         if i >= capacity
         then break ()
         else {
-            buckets ++= [new SetSlot::Empty()];
+            buckets ++= [new SetSlot::Empty<T>()];
             i = i + 1;
         }
     };
@@ -60,7 +61,7 @@ defun MakeSetBuckets<T>(capacity: Int) : Array<SetSlot<T>> => {
 
 defun SetNewWithCapacity<T>(capacity: Int) : Set<T> => {
     def cap = if capacity < 16 then 16 else capacity;
-    new Set(MakeSetBuckets(cap), 0, cap)
+    new Set<T>(MakeSetBuckets(cap), 0, cap)
 };
 
 defun SetNew<T>() : Set<T> => SetNewWithCapacity(16);
@@ -124,7 +125,7 @@ defun SetInsertNoRehash<T>(set: Set<T>, elem: T) : Bool
             default => true
         ;
         if was_new then {
-            set.buckets[slot] = new SetSlot::Occupied(elem);
+            set.buckets[slot] = new SetSlot::Occupied<T>(elem);
             set.count = set.count + 1;
         } else ();
         was_new
@@ -177,7 +178,7 @@ defun SetRemove<T>(set: Set<T>, elem: T) : Bool
     if slot < 0
     then false
     else {
-        set.buckets[slot] = new SetSlot::Deleted();
+        set.buckets[slot] = new SetSlot::Deleted<T>();
         set.count = set.count - 1;
         true
     }
@@ -195,7 +196,7 @@ defun SetClear<T>(set: Set<T>) : Unit => {
         if i >= set.capacity
         then break ()
         else {
-            set.buckets[i] = new SetSlot::Empty();
+            set.buckets[i] = new SetSlot::Empty<T>();
             i = i + 1;
         }
     };

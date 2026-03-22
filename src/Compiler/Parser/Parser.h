@@ -46,6 +46,8 @@ private:
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
+	using TypeclassAssociatedTypeMap = std::unordered_map<std::string, std::vector<std::string>>;
+	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>>;
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
 
@@ -67,8 +69,10 @@ private:
 	{
 		TypeclassMethodMap m_class_methods;
 		TypeclassInstanceMap m_typeclass_type_params;
+		TypeclassAssociatedTypeMap m_typeclass_associated_types;
 		TypeclassInstanceMap m_class_instances;
 		TypeclassInstanceTypeMap m_class_instance_type_args;
+		TypeclassInstanceAssociatedTypeBindingMap m_class_instance_associated_type_bindings;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
 		std::stack<int> m_local_count_before_loop;

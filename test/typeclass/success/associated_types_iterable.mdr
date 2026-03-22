@@ -1,0 +1,48 @@
+module AssociatedTypesIterable
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr"
+}
+
+use Option.{Option}
+
+struct Counter
+{
+    current: Int,
+    end: Int
+};
+
+defun CounterNew(end: Int) : Counter => new Counter(0, end);
+
+instance Iterable<Counter>
+{
+    type Item = Int;
+
+    defun Next(counter: Counter) : Option<Int> => {
+        if counter.current >= counter.end
+        then new Option::None()
+        else {
+            def value = counter.current;
+            counter.current = counter.current + 1;
+            new Option::Some(value)
+        }
+    };
+};
+
+defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
+    where Iterable<Iter> => {
+    return Iterable::Next(iter);
+};
+
+def iter = CounterNew(2);
+
+match NextValue(iter) with
+    case Option::Some(value) => {
+        if value == 0
+        then IO::PrintLine("associated_types_iterable: PASS")
+        else IO::PrintLine("associated_types_iterable: FAIL")
+    }
+    case Option::None() => IO::PrintLine("associated_types_iterable: FAIL");

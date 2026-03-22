@@ -22,6 +22,8 @@ class TypeChecker
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
+	using AssociatedTypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<AssociatedTypeEnvironment>>;
 	enum class UnifyDiagnosticMode
 	{
 		Symmetric,
@@ -34,11 +36,12 @@ public:
 		std::string m_name;
 		std::vector<std::string> m_type_param_names;
 		std::vector<MidoriType::ClassConstraint> m_superclasses;
+		AssociatedTypeEnvironment m_associated_types;
 		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
 		std::unordered_set<std::string> m_methods_with_defaults;
 
 		ClassInfo() = default;
-		ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
+		ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, AssociatedTypeEnvironment&& associated_types, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
 	};
 
 private:
@@ -72,10 +75,17 @@ private:
 		std::string m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
 		std::vector<MidoriType::ClassConstraint> m_constraints;
+		AssociatedTypeEnvironment m_associated_type_bindings;
 		std::unordered_map<std::string, std::unique_ptr<MidoriStatement>> m_method_impls;
 
 		InstanceInfo() = default;
-		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
+		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
+	};
+
+	struct ResolvedInstanceMatch
+	{
+		const InstanceInfo* m_instance = nullptr;
+		TypeEnvironment m_substitutions;
 	};
 
 	class ScopeSession;
@@ -107,7 +117,7 @@ private:
 
 public:
 
-	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {});
+	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {});
 
 	MidoriResult::TypeCheckerResult TypeCheck();
 
@@ -159,6 +169,10 @@ private:
 	CompilerError MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const;
 
 	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> ResolveGenericTypeArguments(const std::shared_ptr<MidoriType>& prototype, const std::shared_ptr<MidoriType>& concrete_type) const;
+
+	std::shared_ptr<MidoriType> ResolveAssociatedType(const MidoriType::AssociatedType& associated_type);
+
+	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
 
 	std::optional<CompilerError> TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const;
 

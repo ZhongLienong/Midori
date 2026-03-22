@@ -774,6 +774,33 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 		return true;
 	}
 
+	if (pattern->IsType<MidoriType::AssociatedType>())
+	{
+		if (!concrete->IsType<MidoriType::AssociatedType>())
+		{
+			return false;
+		}
+
+		const MidoriType::AssociatedType& pattern_associated = pattern->GetType<MidoriType::AssociatedType>();
+		const MidoriType::AssociatedType& concrete_associated = concrete->GetType<MidoriType::AssociatedType>();
+		if (pattern_associated.m_class_name != concrete_associated.m_class_name ||
+			pattern_associated.m_name != concrete_associated.m_name ||
+			pattern_associated.m_type_args.size() != concrete_associated.m_type_args.size())
+		{
+			return false;
+		}
+
+		for (size_t i = 0u; i < pattern_associated.m_type_args.size(); i += 1u)
+		{
+			if (!MatchInstanceTypeArg(pattern_associated.m_type_args[i], concrete_associated.m_type_args[i], substitutions, visited))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	return *pattern == *concrete;
 }
 
@@ -816,26 +843,13 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 
 	if (!iter_type->IsType<MidoriType::TypeVariable>() && !item_type->IsType<MidoriType::TypeVariable>())
 	{
-		std::vector<std::shared_ptr<MidoriType>> type_args;
-		type_args.emplace_back(iter_type);
-		type_args.emplace_back(item_type);
-		std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(NEXT_METHOD_NAME), std::string(ITERABLE_CLASS_NAME), type_args);
-
-		std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-		if (it != m_global_variables.end())
-		{
-			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-			EmitCall(1, line);
-			return true;
-		}
-
 		std::optional<std::string> resolved_name;
 		TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(std::string(ITERABLE_CLASS_NAME));
 		if (instance_args_it != m_class_instance_type_args.end())
 		{
 			for (const std::vector<std::shared_ptr<MidoriType>>& candidate_args : instance_args_it->second)
 			{
-				if (candidate_args.size() != 2u)
+				if (candidate_args.empty())
 				{
 					continue;
 				}
@@ -846,7 +860,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 				{
 					continue;
 				}
-				if (!MatchInstanceTypeArg(candidate_args[1u], item_type, substitutions, visited))
+				if (candidate_args.size() > 1u && !MatchInstanceTypeArg(candidate_args[1u], item_type, substitutions, visited))
 				{
 					continue;
 				}
@@ -879,7 +893,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 			return false;
 		}
 
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable::Next instance for iterator type '"s + iter_type->ToString() + "' not found"s, line, m_file_name, m_source_lines));
 		return false;
 	}
 
@@ -4694,6 +4708,17 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 			}
 			return false;
 		}
+		bool operator()(const MidoriType::AssociatedType& type_variant) const
+		{
+			for (const std::shared_ptr<MidoriType>& type_arg : type_variant.m_type_args)
+			{
+				if (m_self->IsGenericType(type_arg))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
 
 		bool operator()(const MidoriType::UndecidedType&) const { return false; }
 		bool operator()(const MidoriType::GenericParam&) const { return false; }
@@ -4819,6 +4844,22 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 								m_self->DeduceGenericTypesRecursive(ctx.m_member_types[i], c_ctx.m_member_types[i], m_map, m_visited);
 							}
 						}
+					}
+				}
+			}
+		}
+		void operator()(const MidoriType::AssociatedType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::AssociatedType>())
+			{
+				const MidoriType::AssociatedType& c_associated = m_concrete_type->GetType<MidoriType::AssociatedType>();
+				if (p_var.m_class_name == c_associated.m_class_name &&
+					p_var.m_name == c_associated.m_name &&
+					p_var.m_type_args.size() == c_associated.m_type_args.size())
+				{
+					for (size_t i = 0uz; i < p_var.m_type_args.size(); i += 1uz)
+					{
+						m_self->DeduceGenericTypesRecursive(p_var.m_type_args[i], c_associated.m_type_args[i], m_map, m_visited);
 					}
 				}
 			}
@@ -5366,6 +5407,25 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 				new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ std::move(substituted_members), member_ctx.m_tag });
 			}
 			return new_union;
+		}
+		std::shared_ptr<MidoriType> operator()(const MidoriType::AssociatedType& type_variant) const
+		{
+			std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
+			bool changed = false;
+			for (const std::shared_ptr<MidoriType>& type_arg : type_variant.m_type_args)
+			{
+				std::shared_ptr<MidoriType> substituted = m_substitute(type_arg);
+				substituted_type_args.push_back(substituted);
+				if (substituted != type_arg)
+				{
+					changed = true;
+				}
+			}
+			if (changed)
+			{
+				return MidoriType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(substituted_type_args));
+			}
+			return m_current;
 		}
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UndecidedType&) const { return m_current; }
