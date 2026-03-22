@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -21,6 +22,12 @@ class TypeChecker
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
+	enum class UnifyDiagnosticMode
+	{
+		Symmetric,
+		ActualExpected,
+		ExpectedActual
+	};
 
 	struct ClassInfo
 	{
@@ -40,6 +47,7 @@ private:
 	using GenericFunctionNames = std::unordered_set<std::string>;
 	using GenericStructNames = std::unordered_set<std::string>;
 	using GenericUnionNames = std::unordered_set<std::string>;
+	using TypeDefinitionMap = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	struct FresheningContext
 	{
 		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_generic_params;
@@ -81,6 +89,8 @@ private:
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;
+	TypeDefinitionMap m_struct_type_definitions;
+	TypeDefinitionMap m_union_type_definitions;
 	std::vector<MidoriType::ClassConstraint> m_active_constraints;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
@@ -138,7 +148,21 @@ private:
 
 	bool OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited);
 
-	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right);
+	std::string DescribeConstraint(const MidoriType::ClassConstraint& constraint) const;
+
+	CompilerError MakeConstraintFailureError(const Token& token, const MidoriType::ClassConstraint& constraint, std::optional<std::string_view> suggestion = std::nullopt) const;
+
+	CompilerError MakeUnificationError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode) const;
+
+	CompilerError MakeFunctionArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const;
+
+	CompilerError MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const;
+
+	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> ResolveGenericTypeArguments(const std::shared_ptr<MidoriType>& prototype, const std::shared_ptr<MidoriType>& concrete_type) const;
+
+	std::optional<CompilerError> TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const;
+
+	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::ExpressionStatement& simple);
 

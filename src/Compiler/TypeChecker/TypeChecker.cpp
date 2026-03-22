@@ -398,7 +398,264 @@ const std::array<Token::Name, 5u> TypeChecker::kBinaryBitwiseOperators{
 	Token::Name::LEFT_SHIFT
 };
 
-MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right)
+std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& constraint) const
+{
+	if (constraint.m_type_args.empty())
+	{
+		return constraint.m_class_name;
+	}
+
+	std::string rendered = constraint.m_class_name + "<"s;
+	for (size_t idx = 0u; idx < constraint.m_type_args.size(); idx += 1u)
+	{
+		if (idx > 0u)
+		{
+			rendered += ", "s;
+		}
+		rendered += constraint.m_type_args[idx]->ToString();
+	}
+	rendered += ">"s;
+	return rendered;
+}
+
+CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const MidoriType::ClassConstraint& constraint, std::optional<std::string_view> suggestion) const
+{
+	std::string message;
+	if (!constraint.m_type_args.empty())
+	{
+		message = std::format
+		(
+			"Type {} does not satisfy constraint {} - no matching instance found",
+			constraint.m_type_args[0u]->ToString(),
+			DescribeConstraint(constraint)
+		);
+	}
+	else
+	{
+		message = std::format("Constraint {} is not satisfied - no matching instance found", DescribeConstraint(constraint));
+	}
+
+	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines, suggestion);
+}
+
+CompilerError TypeChecker::MakeFunctionArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
+{
+	std::string message;
+	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
+	{
+		message = std::format("Function expects {} argument(s) but got {}", right_count, left_count);
+	}
+	else if (diagnostic_mode == UnifyDiagnosticMode::ExpectedActual)
+	{
+		message = std::format("Function expects {} argument(s) but got {}", left_count, right_count);
+	}
+	else
+	{
+		message = std::format("Function type mismatch: {} argument(s) in one context but {} in another", left_count, right_count);
+	}
+
+	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+}
+
+CompilerError TypeChecker::MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
+{
+	std::string message;
+	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
+	{
+		message = std::format("Tuple expects {} element(s) but got {}", right_count, left_count);
+	}
+	else if (diagnostic_mode == UnifyDiagnosticMode::ExpectedActual)
+	{
+		message = std::format("Tuple expects {} element(s) but got {}", left_count, right_count);
+	}
+	else
+	{
+		message = std::format("Tuple type mismatch: {} element(s) in one context but {} in another", left_count, right_count);
+	}
+
+	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+}
+
+std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> TypeChecker::ResolveGenericTypeArguments(const std::shared_ptr<MidoriType>& prototype, const std::shared_ptr<MidoriType>& concrete_type) const
+{
+	std::vector<std::string> param_names;
+	if (prototype->IsType<MidoriType::StructType>())
+	{
+		param_names = prototype->GetType<MidoriType::StructType>().m_generic_params;
+	}
+	else if (prototype->IsType<MidoriType::UnionType>())
+	{
+		param_names = prototype->GetType<MidoriType::UnionType>().m_generic_params;
+	}
+	else
+	{
+		return std::nullopt;
+	}
+
+	if (param_names.empty())
+	{
+		return std::nullopt;
+	}
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+	if (!MatchInstanceTypeArg(prototype, concrete_type, substitutions, visited))
+	{
+		return std::nullopt;
+	}
+
+	std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>> resolved_args;
+	resolved_args.reserve(param_names.size());
+	for (const std::string& param_name : param_names)
+	{
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator it = substitutions.find(param_name);
+		if (it == substitutions.cend())
+		{
+			return std::nullopt;
+		}
+
+		resolved_args.emplace_back(param_name, it->second);
+	}
+
+	return resolved_args;
+}
+
+std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const
+{
+	std::shared_ptr<MidoriType> prototype;
+	std::string type_name;
+
+	if (left->IsType<MidoriType::StructType>() && right->IsType<MidoriType::StructType>())
+	{
+		const MidoriType::StructType& left_struct = left->GetType<MidoriType::StructType>();
+		const MidoriType::StructType& right_struct = right->GetType<MidoriType::StructType>();
+		if (left_struct.m_name != right_struct.m_name)
+		{
+			return std::nullopt;
+		}
+
+		type_name = left_struct.m_name;
+		TypeDefinitionMap::const_iterator it = m_struct_type_definitions.find(type_name);
+		if (it == m_struct_type_definitions.cend())
+		{
+			return std::nullopt;
+		}
+		prototype = it->second;
+	}
+	else if (left->IsType<MidoriType::UnionType>() && right->IsType<MidoriType::UnionType>())
+	{
+		const MidoriType::UnionType& left_union = left->GetType<MidoriType::UnionType>();
+		const MidoriType::UnionType& right_union = right->GetType<MidoriType::UnionType>();
+		if (left_union.m_name != right_union.m_name)
+		{
+			return std::nullopt;
+		}
+
+		type_name = left_union.m_name;
+		TypeDefinitionMap::const_iterator it = m_union_type_definitions.find(type_name);
+		if (it == m_union_type_definitions.cend())
+		{
+			return std::nullopt;
+		}
+		prototype = it->second;
+	}
+	else
+	{
+		return std::nullopt;
+	}
+
+	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> left_args = ResolveGenericTypeArguments(prototype, left);
+	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> right_args = ResolveGenericTypeArguments(prototype, right);
+	if (!left_args.has_value() || !right_args.has_value() || left_args->size() != right_args->size())
+	{
+		return std::nullopt;
+	}
+
+	std::vector<std::string> generic_param_names;
+	generic_param_names.reserve(left_args->size());
+	for (const auto& [param_name, _] : *left_args)
+	{
+		generic_param_names.emplace_back(param_name);
+	}
+
+	std::string type_signature = type_name;
+	if (!generic_param_names.empty())
+	{
+		type_signature += "<"s;
+		for (size_t idx = 0u; idx < generic_param_names.size(); idx += 1u)
+		{
+			if (idx > 0u)
+			{
+				type_signature += ", "s;
+			}
+			type_signature += generic_param_names[idx];
+		}
+		type_signature += ">"s;
+	}
+
+	for (size_t idx = 0u; idx < left_args->size(); idx += 1u)
+	{
+		const std::string& param_name = left_args->at(idx).first;
+		const std::shared_ptr<MidoriType>& left_arg = left_args->at(idx).second;
+		const std::shared_ptr<MidoriType>& right_arg = right_args->at(idx).second;
+		if (*left_arg == *right_arg)
+		{
+			continue;
+		}
+
+		std::unordered_set<const MidoriType*> left_visited;
+		std::unordered_set<const MidoriType*> right_visited;
+		if (HasTypeVariables(left_arg, left_visited) || HasTypeVariables(right_arg, right_visited)
+			|| left_arg->IsType<MidoriType::UndecidedType>() || right_arg->IsType<MidoriType::UndecidedType>())
+		{
+			continue;
+		}
+
+		const std::string message = std::format
+		(
+			"In type {}: parameter '{}' is {} in one context but {} in another",
+			type_signature,
+			param_name,
+			left_arg->ToString(),
+			right_arg->ToString()
+		);
+		return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+	}
+
+	return std::nullopt;
+}
+
+CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode) const
+{
+	if (std::optional<CompilerError> generic_mismatch = TryMakeGenericParameterMismatchError(token, left, right))
+	{
+		return std::move(*generic_mismatch);
+	}
+
+	auto build_expected_message = [](const std::shared_ptr<MidoriType>& expected, const std::shared_ptr<MidoriType>& actual)
+	{
+		return std::format("Expected type '{}' but got '{}'", expected->ToString(), actual->ToString());
+	};
+
+	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(build_expected_message(right, left), token, m_file_name, m_source_lines);
+	}
+	if (diagnostic_mode == UnifyDiagnosticMode::ExpectedActual)
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(build_expected_message(left, right), token, m_file_name, m_source_lines);
+	}
+
+	return MidoriError::GenerateTypeCheckerErrorWithContext
+	(
+		std::format("Type mismatch between '{}' and '{}'", left->ToString(), right->ToString()),
+		token,
+		m_file_name,
+		m_source_lines
+	);
+}
+
+MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode)
 {
 	// Apply current substitutions first
 	std::shared_ptr<MidoriType> left_subst = ApplySubstitution(left);
@@ -496,7 +753,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 	else if (left_subst->IsType<MidoriType::ArrayType>() && right_subst->IsType<MidoriType::ArrayType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type);
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
@@ -511,21 +768,21 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Function types must have the same number of parameters
 		if (left_func.m_param_types.size() != right_func.m_param_types.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify function types with different parameter counts", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MakeFunctionArityError(token, left_func.m_param_types.size(), right_func.m_param_types.size(), diagnostic_mode));
 		}
 
 		MidoriResult::TypeResult result;
 
 		for (size_t idx : std::views::iota(0u, left_func.m_param_types.size()))
 		{
-			result = Unify(token, left_func.m_param_types[idx], right_func.m_param_types[idx]);
+			result = Unify(token, left_func.m_param_types[idx], right_func.m_param_types[idx], diagnostic_mode);
 			if (!result.has_value())
 			{
 				return result;
 			}
 		}
 
-		result = Unify(token, left_func.m_return_type, right_func.m_return_type);
+		result = Unify(token, left_func.m_return_type, right_func.m_return_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
@@ -540,13 +797,18 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Struct types must have the same name and same number of members
 		if (left_struct.m_name != right_struct.m_name || left_struct.m_member_types.size() != right_struct.m_member_types.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
+		}
+
+		if (std::optional<CompilerError> generic_mismatch = TryMakeGenericParameterMismatchError(token, left_subst, right_subst))
+		{
+			return std::unexpected(std::move(*generic_mismatch));
 		}
 
 		// Unify each member type
 		for (size_t idx : std::views::iota(0u, left_struct.m_member_types.size()))
 		{
-			MidoriResult::TypeResult result = Unify(token, left_struct.m_member_types[idx], right_struct.m_member_types[idx]);
+			MidoriResult::TypeResult result = Unify(token, left_struct.m_member_types[idx], right_struct.m_member_types[idx], diagnostic_mode);
 			if (!result.has_value())
 			{
 				return result;
@@ -563,7 +825,12 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Union types must have the same name and same members
 		if (left_union.m_name != right_union.m_name || left_union.m_member_info.size() != right_union.m_member_info.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
+		}
+
+		if (std::optional<CompilerError> generic_mismatch = TryMakeGenericParameterMismatchError(token, left_subst, right_subst))
+		{
+			return std::unexpected(std::move(*generic_mismatch));
 		}
 
 		for (auto& [member_name, left_ctx] : left_union.m_member_info)
@@ -571,18 +838,18 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
 			if (right_it == right_union.m_member_info.end())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+				return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 			}
 
 			MidoriType::UnionType::UnionMemberContext& right_ctx = right_it->second;
 			if (left_ctx.m_member_types.size() != right_ctx.m_member_types.size())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+				return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 			}
 
 			for (size_t idx : std::views::iota(0u, left_ctx.m_member_types.size()))
 			{
-				MidoriResult::TypeResult result = Unify(token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx]);
+				MidoriResult::TypeResult result = Unify(token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx], diagnostic_mode);
 				if (!result.has_value())
 				{
 					return result;
@@ -600,13 +867,13 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Tuple types must have the same number of elements
 		if (left_tuple.m_element_types.size() != right_tuple.m_element_types.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify tuples with different element counts", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MakeTupleArityError(token, left_tuple.m_element_types.size(), right_tuple.m_element_types.size(), diagnostic_mode));
 		}
 
 		// Unify each element type
 		for (size_t idx : std::views::iota(0u, left_tuple.m_element_types.size()))
 		{
-			MidoriResult::TypeResult result = Unify(token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx]);
+			MidoriResult::TypeResult result = Unify(token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx], diagnostic_mode);
 			if (!result.has_value())
 			{
 				return result;
@@ -617,7 +884,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 	else
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
+		return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 	}
 }
 
@@ -746,7 +1013,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					break;
 				}
 
-				return Unify(node.m_token, node.m_type_data, resolved_expected)
+				return Unify(node.m_token, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
 					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
 			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
@@ -1414,6 +1681,7 @@ TypeChecker::TypeChecker(
 			if (type->IsType<MidoriType::StructType>())
 			{
 				const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+				m_struct_type_definitions[struct_type.m_name] = type;
 				if (!struct_type.m_generic_params.empty())
 				{
 					m_generic_structs.insert(struct_type.m_name);
@@ -1422,6 +1690,7 @@ TypeChecker::TypeChecker(
 			else if (type->IsType<MidoriType::UnionType>())
 			{
 				const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+				m_union_type_definitions[union_type.m_name] = type;
 				if (!union_type.m_generic_params.empty())
 				{
 					m_generic_unions.insert(union_type.m_name);
@@ -1627,7 +1896,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		if (def.m_annotated_type.has_value())
 		{
 			std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
-			MidoriResult::TypeResult annotation_result = Unify(def.m_name, function_type, annotated_type);
+			MidoriResult::TypeResult annotation_result = Unify(def.m_name, function_type, annotated_type, UnifyDiagnosticMode::ActualExpected);
 			if (!annotation_result.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
@@ -1724,7 +1993,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 						);
 					}
 
-					return Unify(def.m_name, annotated_type, type)
+					return Unify(def.m_name, annotated_type, type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&def, &annotated_type, this](std::shared_ptr<MidoriType>&& unified_type)->MidoriResult::TypeResult
@@ -1893,7 +2162,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 					}
 					else
 					{
-						return Unify(defun.m_name, defun.m_return_type, function_return_value_type)
+						return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -1967,6 +2236,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 	std::shared_ptr<MidoriType> struct_constructor_type = MidoriType::MakeFunctionType(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
 	struct_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_stmt.m_constraints;
 	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
+	m_struct_type_definitions[struct_stmt.m_name.m_lexeme] = struct_constructor_type->GetType<MidoriType::FunctionType>().m_return_type;
 
 	return MidoriType::MakeUndecidedType();
 }
@@ -2017,6 +2287,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 		union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = union_stmt.m_constraints;
 		m_name_type_table.back()[member_name] = union_constructor_type;
 	}
+	m_union_type_definitions[union_stmt.m_name.m_lexeme] = union_stmt.m_self_type;
 
 	return MidoriType::MakeUndecidedType();
 }
@@ -2816,10 +3087,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext
-					(
-						std::format("No conversion from {} to {}. Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString(), expr_type->ToString(), as.m_to_type->ToString()), as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type)
-					);
+					MidoriType::ClassConstraint constraint("Convertable", { expr_type, as.m_to_type });
+					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString());
+					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
 
 				as.m_from_type = expr_type;
@@ -2916,7 +3186,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 												if (!has_orderable_instance && !has_orderable_constraint)
 												{
-													return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Comparison operator requires numeric type or Orderable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+													MidoriType::ClassConstraint constraint(std::string(ORDERABLE_CLASS_NAME), { resolved_self });
+													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
 												}
 
 												binary.m_uses_orderable = true;
@@ -2969,7 +3240,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 
 												if (!has_equatable_instance && !has_equatable_constraint)
 												{
-													return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Equality operator requires primitive type or Equatable<{}>", resolved_self->ToString()), binary.m_op, m_file_name, m_source_lines));
+													MidoriType::ClassConstraint constraint(std::string(EQUATABLE_CLASS_NAME), { resolved_self });
+													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
 												}
 
 												binary.m_uses_equatable = true;
@@ -3117,9 +3389,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 
 					if (!has_countable_instance && !has_countable_constraint)
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(
-							std::format("Count operator '#' requires array, list, map, set, or Countable<{}>", resolved_type->ToString()),
-							unary.m_op, m_file_name, m_source_lines, resolved_type));
+						MidoriType::ClassConstraint constraint(std::string(COUNTABLE_CLASS_NAME), { resolved_type });
+						return std::unexpected(MakeConstraintFailureError(unary.m_op, constraint));
 					}
 
 					unary.m_uses_countable = has_countable_instance || has_countable_constraint;
@@ -3266,7 +3537,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					{
 						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
 						std::shared_ptr<MidoriType>& param_type = param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
 						if (!result.has_value())
 						{
 							return result;
@@ -3374,7 +3645,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					{
 						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
 						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
 						if (!result.has_value())
 						{
 							return result;
@@ -3428,7 +3699,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					{
 						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
 						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
 						if (!result.has_value())
 						{
 							return result;
@@ -3476,15 +3747,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				}
 
 				std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
-				for (size_t idx : std::views::iota(0u, arg_results.size()))
-				{
-					std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
-					std::shared_ptr<MidoriType>& param_type = param_types[idx];
-					MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type);
-					if (!result.has_value())
+					for (size_t idx : std::views::iota(0u, arg_results.size()))
 					{
-						return result;
-					}
+						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
+						std::shared_ptr<MidoriType>& param_type = param_types[idx];
+						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
+						if (!result.has_value())
+						{
+							return result;
+						}
 				}
 
 				call.m_is_foreign = function_type.m_is_foreign;
@@ -3551,7 +3822,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAssignm
 					(
 						[&set, &member_type, this](std::shared_ptr<MidoriType>&& value_type) -> MidoriResult::TypeResult
 						{
-							return Unify(set.m_member_name, member_type, value_type)
+							return Unify(set.m_member_name, member_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 								.and_then
 								(
 									[&set](std::shared_ptr<MidoriType>&& result_type) -> MidoriResult::TypeResult
@@ -3643,7 +3914,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& b
 				std::shared_ptr<MidoriType>* binding = FindNameType(bind.m_name.m_lexeme);
 				if (binding != nullptr)
 				{
-					return Unify(bind.m_name, *binding, actual_type)
+					return Unify(bind.m_name, *binding, actual_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&bind, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -3691,7 +3962,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, append_assign.m_name, m_file_name, m_source_lines));
 						}
 
-						return Unify(append_assign.m_name, element_type, value_type)
+						return Unify(append_assign.m_name, element_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -3705,7 +3976,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::AppendAssign&
 					{
 						// Text can only be appended with Text
 						std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
-						return Unify(append_assign.m_name, text_type, value_type)
+						return Unify(append_assign.m_name, text_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&append_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -3775,7 +4046,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ExtendAssign&
 
 					if (target_type->IsType<MidoriType::ArrayType>())
 					{
-						return Unify(extend_assign.m_name, target_type, value_type)
+						return Unify(extend_assign.m_name, target_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&extend_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -3827,7 +4098,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, prepend_assign.m_name, m_file_name, m_source_lines));
 						}
 
-						return Unify(prepend_assign.m_name, element_type, value_type)
+						return Unify(prepend_assign.m_name, element_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -3841,7 +4112,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::PrependAssign
 					{
 						// Text can only be prepended with Text
 						std::shared_ptr<MidoriType> text_type = MidoriType::MakeLiteralType<MidoriType::TextType>();
-						return Unify(prepend_assign.m_name, text_type, value_type)
+						return Unify(prepend_assign.m_name, text_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&prepend_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -3926,7 +4197,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, compound_assign.m_op, m_file_name, m_source_lines));
 						}
 
-						return Unify(compound_assign.m_op, target_type, value_type)
+						return Unify(compound_assign.m_op, target_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 							.and_then
 							(
 								[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -4032,7 +4303,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 					}
 
 					// Unify value type with target type
-					return Unify(compound_assign.m_op, target_type, value_type)
+					return Unify(compound_assign.m_op, target_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&compound_assign, &target_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
@@ -4143,7 +4414,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	if (m_expected_expr_type != nullptr)
 	{
 		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
-		MidoriResult::TypeResult expected_result = Unify(function.m_function_keyword, function.m_type_data, expected_type);
+		MidoriResult::TypeResult expected_result = Unify(function.m_function_keyword, function.m_type_data, expected_type, UnifyDiagnosticMode::ActualExpected);
 		if (!expected_result.has_value())
 		{
 			return expected_result;
@@ -4169,7 +4440,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 			(
 				[&function, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
-					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type)
+					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&function, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -4240,7 +4511,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (construct.m_has_explicit_type_args)
 	{
-		MidoriResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type);
+		MidoriResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type, UnifyDiagnosticMode::ActualExpected);
 		if (!explicit_type_result.has_value())
 		{
 			return explicit_type_result;
@@ -4249,7 +4520,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	else if (m_expected_expr_type != nullptr)
 	{
 		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
-		MidoriResult::TypeResult expected_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, expected_type);
+		MidoriResult::TypeResult expected_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, expected_type, UnifyDiagnosticMode::ActualExpected);
 		if (!expected_type_result.has_value())
 		{
 			return expected_type_result;
@@ -4272,7 +4543,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 		}
 
 		std::shared_ptr<MidoriType> param_type = constructor_type.m_param_types[idx];
-		MidoriResult::TypeResult unify_result = Unify(construct.m_data_name, param_result.value(), param_type);
+		MidoriResult::TypeResult unify_result = Unify(construct.m_data_name, param_result.value(), param_type, UnifyDiagnosticMode::ActualExpected);
 		if (!unify_result.has_value())
 		{
 			return unify_result;
@@ -4432,7 +4703,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAssignme
 								array_var_type = array_var_type->GetType<MidoriType::ArrayType>().m_element_type;
 							}
 
-							return Unify(array_set.m_op, array_var_type, value_type)
+							return Unify(array_set.m_op, array_var_type, value_type, UnifyDiagnosticMode::ExpectedActual)
 								.and_then
 								(
 									[&array_set](std::shared_ptr<MidoriType>&& result_type) -> MidoriResult::TypeResult
@@ -4537,7 +4808,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 			[&if_else, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
 			{
 				std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-				return Unify(if_else.m_if_token, bool_type, actual_type)
+				return Unify(if_else.m_if_token, bool_type, actual_type, UnifyDiagnosticMode::ExpectedActual)
 					.and_then
 					(
 						[&if_else, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
@@ -4612,7 +4883,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 				(
 					[&block, this](std::shared_ptr<MidoriType>&& final_value) -> MidoriResult::TypeResult
 					{
-						return Unify(block.m_right_brace, block.m_type_data, final_value);
+						return Unify(block.m_right_brace, block.m_type_data, final_value, UnifyDiagnosticMode::ExpectedActual);
 					}
 				);
 		}
@@ -4654,7 +4925,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_
 				// Unify the break value's type with the expected break type for the current loop
 				if (m_expected_break_type)
 				{
-					return Unify(break_expr.m_keyword, type, m_expected_break_type)
+					return Unify(break_expr.m_keyword, type, m_expected_break_type, UnifyDiagnosticMode::ActualExpected)
 						.and_then
 						(
 							[&break_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -4688,7 +4959,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 			{
 				if (m_expected_return_type)
 				{
-					return Unify(return_expr.m_keyword, m_expected_return_type, type)
+					return Unify(return_expr.m_keyword, m_expected_return_type, type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&return_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
@@ -4700,7 +4971,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& retur
 				}
 				else
 				{
-					return Unify(return_expr.m_keyword, return_expr.m_type_data, type);
+					return Unify(return_expr.m_keyword, return_expr.m_type_data, type, UnifyDiagnosticMode::ActualExpected);
 				}
 			}
 		);
