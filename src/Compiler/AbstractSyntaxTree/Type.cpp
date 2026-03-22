@@ -3,6 +3,7 @@
 #include <functional>
 #include <numeric>
 #include <unordered_set>
+#include <utility>
 
 #include "Common/Constant/Constant.h"
 
@@ -11,6 +12,17 @@ using namespace std::string_literals;
 namespace
 {
 	using TypePtr = std::shared_ptr<MidoriType>;
+
+	struct TypeConstPairHash
+	{
+		std::size_t operator()(const std::pair<const void*, const void*>& p) const noexcept
+		{
+			std::size_t h1 = std::hash<const void*>{}(p.first);
+			std::size_t h2 = std::hash<const void*>{}(p.second);
+			return h1 ^ (h2 << 32u | h2 >> 32u);
+		}
+	};
+
 	using SubstitutionMap = std::unordered_map<std::string, TypePtr>;
 	using TypeCache = std::unordered_map<const MidoriType*, TypePtr>;
 	using JoinWithCommaFn = std::function<std::string(const std::string&, const std::string&)>;
@@ -332,11 +344,29 @@ struct MidoriType::TypeEqualityVisitor
 		}
 		else if constexpr (std::is_same_v<TypeA, MidoriType::StructType>)
 		{
-			return MidoriType::CompareStructTypes(a, b);
+			thread_local std::unordered_set<std::pair<const void*, const void*>, TypeConstPairHash> s_visiting;
+			std::pair<const void*, const void*> key{&a, &b};
+			if (s_visiting.contains(key))
+			{
+				return true;
+			}
+			s_visiting.insert(key);
+			bool result = MidoriType::CompareStructTypes(a, b);
+			s_visiting.erase(key);
+			return result;
 		}
 		else if constexpr (std::is_same_v<TypeA, MidoriType::UnionType>)
 		{
-			return MidoriType::CompareUnionTypes(a, b);
+			thread_local std::unordered_set<std::pair<const void*, const void*>, TypeConstPairHash> s_visiting;
+			std::pair<const void*, const void*> key{&a, &b};
+			if (s_visiting.contains(key))
+			{
+				return true;
+			}
+			s_visiting.insert(key);
+			bool result = MidoriType::CompareUnionTypes(a, b);
+			s_visiting.erase(key);
+			return result;
 		}
 		else
 		{
@@ -570,7 +600,7 @@ bool MidoriType::CompareInstantiatedStructs(const StructType& a, const StructTyp
 		b.m_member_types,
 		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
 		{
-			return left->ToString() == right->ToString();
+			return *left == *right;
 		}
 	);
 }
@@ -661,7 +691,7 @@ bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& 
 				b_ctx.m_member_types,
 				[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
 				{
-					return left->ToString() == right->ToString();
+					return *left == *right;
 				}
 			);
 		};

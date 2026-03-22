@@ -69,6 +69,10 @@ namespace
 		{
 			return HasTypeVariables(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
 		}
+		else if (type->IsType<MidoriType::RangeType>())
+		{
+			return HasTypeVariables(type->GetType<MidoriType::RangeType>().m_element_type, visited);
+		}
 		else if (type->IsType<MidoriType::FunctionType>())
 		{
 			MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
@@ -538,7 +542,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 
-		for (const auto& [member_name, left_ctx] : left_union.m_member_info)
+		for (auto& [member_name, left_ctx] : left_union.m_member_info)
 		{
 			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
 			if (right_it == right_union.m_member_info.end())
@@ -546,7 +550,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
 			}
 
-			const MidoriType::UnionType::UnionMemberContext& right_ctx = right_it->second;
+			MidoriType::UnionType::UnionMemberContext& right_ctx = right_it->second;
 			if (left_ctx.m_member_types.size() != right_ctx.m_member_types.size())
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unable to unify", token, m_file_name, m_source_lines, left_subst, right_subst));
@@ -554,9 +558,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 			for (size_t idx : std::views::iota(0u, left_ctx.m_member_types.size()))
 			{
-				std::shared_ptr<MidoriType> left_member = left_ctx.m_member_types[idx];
-				std::shared_ptr<MidoriType> right_member = right_ctx.m_member_types[idx];
-				MidoriResult::TypeResult result = Unify(token, left_member, right_member);
+				MidoriResult::TypeResult result = Unify(token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx]);
 				if (!result.has_value())
 				{
 					return result;
@@ -936,14 +938,6 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 	if (type->IsType<MidoriType::UndecidedType>() || type->IsType<MidoriType::TypeVariable>())
 	{
-		// Preserve identity within the same freshening context so linked types
-		// (e.g., generic param used in both param and return positions) stay linked.
-		std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = context.m_type_cache.find(type.get());
-		if (cache_it != context.m_type_cache.end())
-		{
-			return cache_it->second;
-		}
-
 		std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
 		context.m_type_cache[type.get()] = fresh_var;
 		return fresh_var;
@@ -970,6 +964,11 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 	{
 		MidoriType::ArrayType& array_type = type->GetType<MidoriType::ArrayType>();
 		return MidoriType::MakeArrayType(Freshen(array_type.m_element_type, context));
+	}
+	else if (type->IsType<MidoriType::RangeType>())
+	{
+		MidoriType::RangeType& range_type = type->GetType<MidoriType::RangeType>();
+		return MidoriType::MakeRangeType(Freshen(range_type.m_element_type, context));
 	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
@@ -1072,7 +1071,10 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			type->IsType<MidoriType::FloatType>() || 
 			type->IsType<MidoriType::BoolType>() || 
 			type->IsType<MidoriType::UnitType>() || 
-			type->IsType<MidoriType::TextType>()
+			type->IsType<MidoriType::TextType>() || 
+			type->IsType<MidoriType::ByteType>() || 
+			type->IsType<MidoriType::WordType>() || 
+			type->IsType<MidoriType::NeverType>()
 		)
 	{
 		return type;
@@ -1109,6 +1111,16 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		if (element_type != array_type.m_element_type)
 		{
 			return MidoriType::MakeArrayType(element_type);
+		}
+		return type;
+	}
+	else if (type->IsType<MidoriType::RangeType>())
+	{
+		MidoriType::RangeType& range_type = type->GetType<MidoriType::RangeType>();
+		std::shared_ptr<MidoriType> element_type = ApplySubstitution(range_type.m_element_type, cache);
+		if (element_type != range_type.m_element_type)
+		{
+			return MidoriType::MakeRangeType(element_type);
 		}
 		return type;
 	}
@@ -1263,6 +1275,10 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	else if (subst_type->IsType<MidoriType::ArrayType>())
 	{
 		return OccursCheck(var_id, subst_type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+	}
+	else if (subst_type->IsType<MidoriType::RangeType>())
+	{
+		return OccursCheck(var_id, subst_type->GetType<MidoriType::RangeType>().m_element_type, visited);
 	}
 	else if (subst_type->IsType<MidoriType::FunctionType>())
 	{

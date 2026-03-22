@@ -107,7 +107,7 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
 				if left == len && right == len
 				then
 				{
-					output = output ++= acc;
+					output ++= [acc];
 					return ();
 				}
 				else
@@ -178,7 +178,7 @@ defun TestSorting(size : Int) : Unit =>
 					if val < pivot
 					then
 					{
-						less ++= val;
+						less ++= [val];
 						less_len = less_len + 1;
 					}
 					else
@@ -186,12 +186,12 @@ defun TestSorting(size : Int) : Unit =>
 						if val == pivot
 						then
 						{
-							equal ++= val;
+							equal ++= [val];
 							equal_len = equal_len + 1;
 						}
 						else
 						{
-							greater ++= val;
+							greater ++= [val];
 							greater_len = greater_len + 1;
 						}
 					};
@@ -214,7 +214,7 @@ defun TestSorting(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			test_array ++= i;
+			test_array ++= [i];
 			array_len = array_len + 1;
 			i = i - 1;
 		}
@@ -260,7 +260,7 @@ defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
 		then break ()
 		else
 		{
-			sorted_array ++= i;
+			sorted_array ++= [i];
 			arr_len = arr_len + 1;
 			i = i + 1;
 		}
