@@ -4,14 +4,15 @@ A statically-typed functional programming language featuring algebraic data type
 
 ## Key Features
 
-- **Static Type System** - Strong static typing with type inference and generics
-- **Pattern Matching** - Exhaustive pattern matching on algebraic data types
+- **Static Type System** - Strong static typing with bidirectional inference, generics, and constraints
+- **Pattern Matching** - Exhaustive pattern matching on unions and `Bool`
 - **Algebraic Data Types** - Structs (product types) and unions (sum types)
 - **Type Aliases** - Create readable names for complex types
-- **Typeclasses** - Haskell-style constrained generics for polymorphism
+- **Typeclasses** - Constrained generics with associated types and instance dispatch
+- **Deriving** - Generate structural and container helpers from type declarations
 - **Module System** - Explicit imports/exports with privacy enforcement
 - **Package System** - Third-party packages with native FFI bindings
-- **Pipe Operator** - Functional composition with `|>` operator
+- **Pipe Operator** - Functional composition with `|>`, inferred lambdas, and `|> match with`
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
 - **Expression-Oriented** - Everything is an expression with a value
@@ -113,11 +114,12 @@ def x_coord = origin.x;
 
 ### Unions (Sum Types)
 ```midori
-union Option<T> = Some(T) | None;
+union Option<T> = None | Some(T);
 
 union List<T> = Cons(T, List<T>) | Nil;
 
 def maybe_value = new Option::Some(42);
+def empty_value : Option<Int> = new Option::None();
 def empty_list = new List::Nil();
 ```
 
@@ -151,7 +153,6 @@ defun handle_result<T>(result: Result<T, Text>) : Text => {
     return match result with
         case Result::Ok(value) => "Success: " ++ (value as Text)
         case Result::Err(msg) => "Error: " ++ msg
-        default => "Unknown"
     ;
 };
 ```
@@ -176,6 +177,31 @@ defun display<T>(value: T) : Text where Show<T> => {
 };
 
 def message = display(42);  // "42"
+```
+
+### Associated Types
+```midori
+union Option<T> = None | Some(T);
+
+class Iterable<Iter> {
+    type Item;
+    Next: fn(iter: Iter) -> Option<Item>;
+};
+
+defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
+    where Iterable<Iter> => {
+    return Iterable::Next(iter);
+};
+```
+
+### Deriving
+```midori
+struct Point {
+    x: Int,
+    y: Int
+} deriving (Equatable, Hashable);
+
+union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 ```
 
 ### Module System
@@ -228,12 +254,22 @@ See [Package System](docs/package-system.md) for complete documentation on creat
 ### Pipe Operator
 ```midori
 defun double(x: Int) : Int => x * 2;
-defun add_ten(x: Int) : Int => x + 10;
+union Result<T, E> = Err(E) | Ok(T);
 
-def result = 5
+defun transform(value: Int) : Result<Int, Text> => {
+    if value > 10
+    then new Result::Ok(value + 1)
+    else new Result::Err("too small")
+};
+
+def result =
+    5
     |> double
-    |> add_ten
-    |> double;  // ((5 * 2) + 10) * 2 = 40
+    |> fn(x) => { x + 1 }
+    |> transform
+    |> match with
+        case Result::Ok(value) => value
+        case Result::Err(_) => 0;
 ```
 
 ### Closures
@@ -254,13 +290,15 @@ def second = counter();  // 2
 ## Language Features
 
 ### Type System
-- **Primitive Types**: `Int`, `Float`, `Bool`, `Text`, `Unit`
+- **Primitive Types**: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit`
 - **Composite Types**: `Array<T>`, structs, unions
 - **Function Types**: `fn(T1, T2) -> R`
 - **Type Aliases**: `type UserId = Int;` for readable type names
 - **Generic Parameters**: Single and multiple type parameters
-- **Type Constraints**: Class constraints with `where`
-- **Type Inference**: Automatic type deduction at instantiation
+- **Type Constraints**: `where` constraints on functions, structs, and unions
+- **Associated Types**: Projections such as `Iterable::Item<Iter>`
+- **Deriving**: `Equatable`, `Hashable`, `Map`, `Bind`, and `Unwrap`
+- **Type Inference**: Automatic type deduction for instantiation, constructors, and context-aware lambdas
 
 #### Numeric Limits
 
@@ -304,11 +342,13 @@ items = [value] ++ items;
 ### Advanced Features
 - **Recursive Data Types**: Self-referential unions for lists, trees
 - **Exhaustive Matching**: Compiler-enforced pattern coverage
+- **Constructor Inference**: Generic constructor arguments can be inferred from arguments and context
+- **Pipe Into Match**: Pipelines can flow directly into `match with`
 - **Range Expressions**: `start..step..end` with positive/negative steps
 - **Array Iteration**: `for x in array` iterates over elements
 - **Float Ranges**: Support for decimal step values
 - **Nested Generics**: Complex generic type compositions
-- **Cross-Module Classes**: Import and use classes across modules
+- **Cross-Module Classes**: Import and use classes, instances, and associated types across modules
 
 ## Standard Library
 
@@ -617,7 +657,7 @@ union Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
 defun height<T>(tree: Tree<T>) : Int => {
     return match tree with
-        case Tree::Leaf(value) => 1
+        case Tree::Leaf(_) => 1
         case Tree::Node(left, right) => {
             def left_height = height(left);
             def right_height = height(right);
@@ -625,7 +665,6 @@ defun height<T>(tree: Tree<T>) : Int => {
                         then left_height
                         else right_height);
         }
-        default => 0
     ;
 };
 ```
@@ -638,7 +677,6 @@ defun length<T>(list: List<T>) : Int => {
     return match list with
         case List::Cons(head, tail) => 1 + length(tail)
         case List::Nil => 0
-        default => 0
     ;
 };
 
@@ -647,8 +685,6 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
         case List::Cons(head, tail) =>
             new List::Cons(f(head), map(tail, f))
         case List::Nil =>
-            new List::Nil()
-        default =>
             new List::Nil()
     ;
 };

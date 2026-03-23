@@ -80,7 +80,7 @@ Each token contains:
 1. **Character scanning** - Read characters one at a time
 2. **Whitespace/comment skipping** - Ignore spaces, tabs, `//` and `/* */` comments
 3. **Token recognition**:
-   - Keywords (`def`, `defun`, `if`, `then`, `else`, `match`, `struct`, `union`, `class`, `instance`, etc.)
+   - Keywords (`def`, `defun`, `if`, `then`, `else`, `match`, `struct`, `union`, `class`, `instance`, `type`, `deriving`, etc.)
    - Identifiers (variable/function names)
    - Literals (integers, floats, strings, booleans)
    - Operators (`+`, `-`, `*`, `/`, `==`, `|>`, `++`, etc.)
@@ -190,7 +190,11 @@ The parser implements a **recursive descent parser** with:
 - **Expression-oriented** - Most constructs are expressions with values
 - **Scoped name resolution** - Variables resolved to local/global/captured
 - **Generic parameter parsing** - `<T, U>` syntax for generics
-- **Constraint parsing** - `where Show<T>` for type class constraints
+- **Constraint parsing** - `where Show<T>` on functions and type definitions
+- **Associated type parsing** - `type Item;` in classes and `type Item = Int;` in instances
+- **Deriving support** - `deriving (...)` clauses synthesize helper declarations during parsing
+- **Pipe rewriting** - `x |> f(y)` rewrites to `f(x, y)`, including `|> match with ...`
+- **Bidirectional lambda/constructor syntax** - omitted lambda annotations and constructor type arguments are preserved for later type inference
 
 ## Phase 4: Type Checking (TypeChecker)
 
@@ -209,21 +213,23 @@ See [Type System Documentation](type-system.md) for detailed information.
 ### Processing Steps
 
 1. **Environment setup** - Initialize type environment with primitives and imports
-2. **Declaration processing** - Register structs, unions, classes, instances
-3. **Type inference** - Hindley-Milner Algorithm W:
+2. **Declaration processing** - Register structs, unions, type-definition constraints, classes, associated types, and instances
+3. **Type inference** - Hindley-Milner Algorithm W with bidirectional expected-type context:
    - Generate fresh type variables
    - Collect constraints through AST traversal
    - Unify constraints
    - Apply substitution
-4. **Type class resolution** - Resolve method calls to concrete instances
-5. **Exhaustiveness checking** - Verify pattern matches cover all cases
+4. **Type class resolution** - Resolve method calls, associated type projections, and constrained constructions to concrete instances
+5. **Exhaustiveness checking** - Verify `match` expressions on unions and `Bool` cover all required cases unless `default` is present
 
 ### Key Features
 
 - **Full type inference** - No annotations required in most cases
 - **Polymorphism** - Parametric and ad-hoc (via type classes)
 - **Occurs check** - Prevent infinite types
-- **Constraint propagation** - Type class constraints flow through calls
+- **Constraint propagation** - Type class constraints flow through calls and constrained type definitions
+- **Associated type resolution** - Type projections like `Iterable::Item<Iter>` resolve through matching instances
+- **Derived declarations** - Structural/container deriving produces additional functions and instances before later passes
 
 ## Phase 5: Static Analysis (StaticAnalyzerManager)
 

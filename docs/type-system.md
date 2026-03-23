@@ -1,399 +1,443 @@
 # Midori Type System
 
-Midori implements a **Hindley-Milner (HM) based type system** with extensions for type classes, algebraic data types, and parametric polymorphism. The implementation follows **Algorithm W**, the classic inference algorithm for ML-family languages.
+Midori uses a Hindley-Milner based, nominal type system with bidirectional inference. The implementation follows Algorithm W and extends it with algebraic data types, type classes, associated types, deriving, type-definition constraints, and exhaustive pattern matching.
 
 ## Overview
 
 The type system provides:
 
-- **Full type inference** - Type annotations are optional in most cases
-- **Parametric polymorphism** - Generic functions and data types
-- **Ad-hoc polymorphism** - Haskell-style type classes
-- **Algebraic data types** - Structs (product types) and unions (sum types)
-- **Type aliases** - Alternative names for existing types
-- **Static type safety** - All type errors are caught at compile time
+- **Full local inference** for most expressions
+- **Bidirectional inference** for constructors and lambdas when an expected type is available
+- **Parametric polymorphism** for functions, structs, unions, and aliases
+- **Ad-hoc polymorphism** through type classes and instances
+- **Associated types** for type classes whose output types are determined by an input type
+- **Nominal algebraic data types** through structs and unions
+- **Deriving** for common structural and container operations
+- **Constraint propagation** from both function signatures and type definitions
+- **Compile-time exhaustiveness checking** for `match` on unions and `Bool`
 
 ## Primitive Types
 
 | Type | Description |
 |------|-------------|
 | `Int` | 64-bit signed integer |
-| `Float` | 64-bit floating point (IEEE 754 double) |
+| `Float` | 64-bit IEEE 754 double |
 | `Byte` | 8-bit unsigned integer |
 | `Word` | 64-bit unsigned integer |
-| `Bool` | Boolean (`true` or `false`) |
+| `Bool` | `true` or `false` |
 | `Text` | UTF-8 string |
-| `Unit` | Unit type (similar to `void`) |
+| `Unit` | Unit value type |
 
 ## Composite Types
 
 ### Arrays
 
-Homogeneous, dynamically-sized collections:
+Homogeneous arrays use `Array<T>`:
 
-```
-[Int]           -- Array of integers
-[[Text]]        -- Array of arrays of text
+```midori
+Array<Int>
+Array<Array<Text>>
 ```
 
-**Length Operator**: Use `#` to get array length:
+Empty array literals require context:
+
+```midori
+def values : Array<Int> = [];
 ```
+
+Use `#` to get the length:
+
+```midori
 def arr = [1, 2, 3, 4, 5];
-def len = #arr;  -- 5
+def len = #arr;
 ```
 
-**Array Iteration**: Arrays can be used directly in for-loops:
-```
-def names = ["Alice", "Bob", "Charlie"];
-for name in names {
-    PrintLine(name);  -- Iterates over elements
+Arrays are iterable:
+
+```midori
+for name in ["Alice", "Bob", "Charlie"] {
+    IO::PrintLine(name);
 };
 ```
 
 ### Tuples
 
-Fixed-size, heterogeneous collections:
+Tuples are fixed-size heterogeneous values:
 
-```
-(Int, Text)           -- Pair of integer and text
-(Bool, Int, Float)    -- Triple
+```midori
+(Int, Text)
+(Bool, Int, Float)
 ```
 
 ### Functions
 
-First-class function types:
+Function types are first-class:
 
-```
-fn(Int) -> Bool              -- Function taking Int, returning Bool
-fn(Int, Int) -> Int          -- Function taking two Ints
-fn() -> Unit                 -- Thunk (no parameters)
-fn(fn(Int) -> Int) -> Int    -- Higher-order function
+```midori
+fn(Int) -> Bool
+fn(Int, Int) -> Int
+fn() -> Unit
+fn(fn(Int) -> Int) -> Int
 ```
 
 ### Ranges
 
-Iterator types for numeric sequences:
+Ranges are used directly in `for` loops:
 
-```
-Int..Int      -- Integer range
-Float..Float  -- Float range
-```
-
-Ranges are created with the `start..step..end` syntax and used in for-loops:
-```
-for i in 0..1..10 {    -- 0, 1, 2, ..., 9
-    PrintLine(i as Text);
+```midori
+for i in 0..1..10 {
+    IO::PrintLine(i as Text);
 };
 
-for i in 10..-1..0 {   -- 10, 9, 8, ..., 1 (backward)
-    PrintLine(i as Text);
+for i in 10..-1..0 {
+    IO::PrintLine(i as Text);
 };
 ```
 
-Both ranges and arrays are valid iterables for `for` expressions. You can also define custom iteration by implementing `Iterable<Iter, Item>` with a `Next` method that returns `Option<Item>`.
+Custom iteration is expressed through the `Iterable` type class and its associated `Item` type.
 
 ## Algebraic Data Types
 
-### Structs (Product Types)
+### Structs
 
-Named record types with labeled fields:
+Structs are nominal product types:
 
-```
-struct Point {
+```midori
+struct Point
+{
     x: Int,
     y: Int
-}
+};
 
-struct Person {
-    name: Text,
-    age: Int
-}
+struct Box<T>
+{
+    value: T
+};
 ```
 
-### Unions (Sum Types)
+### Unions
 
-Tagged union types (discriminated unions):
+Unions are nominal tagged sums:
 
+```midori
+union Option<T> = None | Some(T);
+union Result<T, E> = Err(E) | Ok(T);
 ```
-union Option<T> {
-    Some(T),
-    None
-}
 
-union Result<T, E> {
-    Ok(T),
-    Err(E)
-}
+### Constructor Type Argument Inference
+
+Generic constructors accept explicit type arguments, but Midori can infer omitted arguments from constructor arguments and the surrounding expected type:
+
+```midori
+def some_int = new Option::Some(42);
+def empty_int : Option<Int> = new Option::None();
+
+defun Wrap<T>(value: T) : Option<T> => new Option::Some(value);
 ```
+
+The explicit form remains available:
+
+```midori
+def exact = new Option::Some<Int>(42);
+```
+
+Inference must resolve every omitted type parameter. If no argument or expected type pins it down, construction fails:
+
+```midori
+def unresolved = new Option::None();  // error: missing type context
+```
+
+### Deriving
+
+Midori supports `deriving` on structs and unions for a focused set of generated operations.
+
+Structural deriving:
+
+```midori
+struct Point
+{
+    x: Int,
+    y: Int
+} deriving (Equatable, Hashable);
+```
+
+Container deriving on unions:
+
+```midori
+union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+
+def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
+```
+
+Current support is intentionally narrow:
+
+- `Equatable` and `Hashable` are supported structural derives
+- `Map`, `Bind`, and `Unwrap` are supported container derives
+- Structural deriving is limited to non-generic, non-recursive structs and unions
+- Container deriving maps only the first type parameter and supports pass-through variants, single-value variants, and recursive self fields
 
 ## Type Aliases
 
-Type aliases create alternative names for existing types, improving code readability and maintainability:
+Type aliases are transparent compile-time names for existing types:
 
-### Basic Type Aliases
-
-```
+```midori
 type UserId = Int;
 type Name = Text;
-type Score = Float;
-
-def user: UserId = 42;
-def name: Name = "Alice";
-```
-
-### Struct Type Aliases
-
-```
-struct Point {
-    x: Float,
-    y: Float
-}
-
-type Position = Point;
-type Coordinate = Point;
-
-def pos: Position = new Point(10.0, 20.0);
-```
-
-### Generic Type Aliases
-
-Type aliases can include generic parameters:
-
-```
-struct Pair<A, B> {
-    first: A,
-    second: B
-}
 
 type IntPair = Pair<Int, Int>;
-type StringPair = Pair<Text, Text>;
-
-def coords: IntPair = new Pair(10, 20);
+type IntArray = Array<Int>;
 ```
 
-### Type Aliases in Modules
+Aliases can be imported and exported like other symbols. They are fully interchangeable with the underlying type and have no runtime cost.
 
-Type aliases can be exported and imported like other symbols:
+## Generics and Constraints
 
-```
-// In library.mdr
-module MyLib
-public export { UserId, Name, createUser }
+Functions, structs, unions, and aliases can all be parameterized:
 
-type UserId = Int;
-type Name = Text;
+```midori
+defun identity<T>(value: T) : T => value;
 
-defun createUser(id: UserId, name: Name) : (UserId, Name) => (id, name);
-```
-
-```
-// In main.mdr
-import { "./library.mdr" }
-use MyLib.{UserId, Name, createUser}
-
-def id: UserId = 42;
-def name: Name = "Bob";
-
-// Qualified access also works
-def id2: MyLib::UserId = 100;
-```
-
-### Type Alias Semantics
-
-- Type aliases are **transparent** - they are fully interchangeable with their underlying type
-- Type aliases are resolved at **compile time** - no runtime overhead
-- Type aliases can reference other type aliases
-- Type aliases cannot be recursive (no `type List = (Int, List)`)
-
-## Generics (Parametric Polymorphism)
-
-Functions, structs, and unions can be parameterized over types:
-
-```
-fn identity<T>(x: T) -> T {
-    x
-}
-
-fn map<A, B>(arr: [A], f: (A) -> B) -> [B] {
-    -- implementation
-}
-
-struct Pair<A, B> {
+struct Pair<A, B>
+{
     first: A,
     second: B
-}
+};
 ```
-
-Generic type parameters are instantiated at call sites through type inference.
-
-## Type Classes (Ad-hoc Polymorphism)
-
-Type classes enable overloading and constrained polymorphism, similar to Haskell or Rust traits.
-
-### Defining a Type Class
-
-```
-class Eq<T> {
-    fn eq(self: T, other: T) -> Bool;
-}
-
-class Ord<T> : Eq<T> {
-    fn lt(self: T, other: T) -> Bool;
-    fn gt(self: T, other: T) -> Bool;
-}
-```
-
-### Implementing Instances
-
-```
-instance Eq<Int> {
-    fn eq(self: Int, other: Int) -> Bool {
-        -- built-in integer equality
-    }
-}
-
-instance Eq<Point> {
-    fn eq(self: Point, other: Point) -> Bool {
-        self.x == other.x && self.y == other.y
-    }
-}
-```
-
-### Constrained Polymorphism
 
 Functions can require type class constraints:
 
+```midori
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+defun Display<T>(value: T) : Text where Show<T> => {
+    return Show::show(value);
+};
 ```
-fn max<T : Ord>(a: T, b: T) -> T {
-    if a.gt(b) { a } else { b }
-}
+
+Type definitions can also carry constraints:
+
+```midori
+struct Box<T> where Show<T> {
+    value: T
+};
+
+defun ShowBox<T>(box: Box<T>) : Text => {
+    return Show::show(box.value);
+};
 ```
+
+Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
+
+## Type Classes
+
+Midori supports both single-parameter and multi-parameter type classes.
+
+### Class Definitions and Instances
+
+```midori
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    defun show(value: Int) : Text => {
+        return value as Text;
+    };
+};
+```
+
+Methods are accessed through qualified syntax:
+
+```midori
+def text = Show::show(42);
+```
+
+### Associated Types
+
+Associated types let a class determine a related type from its instance head:
+
+```midori
+class Iterable<Iter>
+{
+    type Item;
+    Next: fn(iter: Iter) -> Option<Item>;
+};
+```
+
+Instances bind the associated type:
+
+```midori
+struct Counter
+{
+    current: Int,
+    end: Int
+};
+
+instance Iterable<Counter>
+{
+    type Item = Int;
+
+    defun Next(counter: Counter) : Option<Int> => {
+        if counter.current >= counter.end
+        then new Option::None()
+        else {
+            def value = counter.current;
+            counter.current = counter.current + 1;
+            new Option::Some(value)
+        }
+    };
+};
+```
+
+Use projection syntax to refer to an associated type in other signatures:
+
+```midori
+defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
+    where Iterable<Iter> => {
+    return Iterable::Next(iter);
+};
+```
+
+Associated types are especially useful when one type parameter logically determines another, while multi-parameter type classes remain available for other cases.
+
+## Pattern Matching
+
+Pattern matching is expression-oriented:
+
+```midori
+defun Unwrap(option: Option<Int>) : Int => {
+    return match option with
+        case Option::Some(value) => value
+        case Option::None() => 0
+    ;
+};
+```
+
+### Exhaustiveness Rules
+
+`match` expressions are checked for exhaustiveness:
+
+- **Union scrutinees** must cover every variant unless a `default` arm is present
+- **`Bool` scrutinees** must cover both `true` and `false` unless a `default` arm is present
+- **Other scrutinee types** require `default`
+
+Coverage is currently tracked at the top-level pattern. For unions, matching a variant counts as covering that variant even if nested sub-patterns are not themselves exhaustive.
+
+### Pipe Into Match
+
+The pipe operator can feed directly into a `match`:
+
+```midori
+def pipeline_result =
+    5
+    |> fn(x) => { x + 1 }
+    |> Transform
+    |> match with
+        case Result::Ok(v) => v
+        case Result::Err(_) => 0;
+```
+
+This is equivalent to matching on the result of the previous pipeline stage.
 
 ## Type Inference
 
-Midori uses the Hindley-Milner type inference algorithm, which guarantees:
+Midori uses Hindley-Milner inference with unification and an occurs check.
 
-1. **Principal types** - The most general type is always inferred
-2. **Decidability** - Type inference always terminates
-3. **Completeness** - If a valid typing exists, it will be found
+### Core Inference Flow
 
-### How It Works
+1. Fresh type variables are created for unknown types.
+2. Constraints are collected while traversing the AST.
+3. Unification solves those constraints.
+4. Substitutions are applied to produce the final types.
 
-The inference process consists of several phases:
+### Bidirectional Inference
 
-#### 1. Fresh Type Variables
+Expected-type context is used in two especially common places:
 
-When encountering an expression with unknown type, a fresh type variable is generated:
+- **Constructors** infer omitted generic arguments from arguments and surrounding type context
+- **Lambdas** may omit parameter annotations and return types when a function type is already expected
 
-```
-let x = [];   -- x : [?0] where ?0 is a fresh type variable
-```
+Examples:
 
-#### 2. Constraint Generation
-
-As expressions are analyzed, equality constraints are collected:
-
-```
-let x = [1, 2, 3];  -- Generates constraint: ?0 = Int
+```midori
+def doubler : fn(Int) -> Int = fn(x) => { x * 2 };
+def mapped = OptionMap(new Option::Some(1), fn(x) => { x + 1 });
 ```
 
-#### 3. Unification
+Lambdas still need a surrounding function type when annotations are omitted:
 
-Constraints are solved through unification, which finds substitutions that make types equal:
-
-```
-Unify([?0], [Int])  -->  ?0 := Int
+```midori
+def identity = fn(x) => { x };  // error: no expected function type
 ```
 
-#### 4. Substitution Application
+The fully explicit lambda syntax remains valid:
 
-After solving, substitutions are applied to produce final types:
-
-```
-x : [Int]  -- After applying ?0 := Int
-```
-
-### Occurs Check
-
-The type system prevents infinite types through the occurs check:
-
-```
--- This would be rejected:
-fn f(x) { f }  -- Would require: ?0 = (?0) -> ?1 (infinite type)
+```midori
+fn(x: Int) : Int => { x + 1 }
 ```
 
 ## Special Types
 
-### Never Type
+### Never
 
-The `Never` type represents computations that don't return (bottom type):
-
-- `return` expressions in non-tail position
-- Infinite loops
+`Never` is the bottom type for computations that do not produce a normal value, such as non-returning control-flow paths.
 
 ### Undecided Type
 
-Internal representation for type holes during parsing, converted to type variables during type checking.
+During parsing, omitted annotations can temporarily be represented as undecided type slots. These become inference variables during type checking.
 
 ## Implementation Architecture
 
-The type system is implemented across several components:
+The type system is implemented primarily in `src/Compiler/TypeChecker/` and the shared type representation in `src/Common/`.
 
-### Type Representation (`Type.h`)
+### Type Representation
 
-Types are represented as a variant (tagged union) of possible type forms:
+Types include:
 
-- Primitive types (Int, Float, Bool, etc.)
-- Type variables (for inference)
-- Generic parameters (for polymorphism)
-- Composite types (Array, Function, Struct, Union, Tuple)
-- Class constraints (for type classes)
+- Primitive types
+- Type variables
+- Generic parameters
+- Arrays, tuples, functions, structs, and unions
+- Type class constraints and associated type projections
 
-### Type Checker (`TypeChecker.cpp`)
+### Type Checker Responsibilities
 
-The type checker implements:
+The type checker handles:
 
-- **Environment management** - Scoped symbol tables mapping names to types
-- **Unification** - Structural type equality with substitution
-- **Freshening** - Instantiation of polymorphic types
-- **Constraint solving** - Type class instance resolution
+- Scoped type environments
+- Unification and substitution
+- Freshening of polymorphic types
+- Constraint solving for type classes
+- Associated type resolution
+- Exhaustiveness checking for `match`
 
-### Key Data Structures
+### Key Runtime-Independent Registries
 
-- **Type Environment Stack** - Scoped mappings from variable names to types
-- **Type Substitution** - Mapping from type variable IDs to their resolved types
-- **Class Registry** - Registered type classes and their methods
-- **Instance Registry** - Type class instances indexed by class name and concrete types
-- **Active Constraints** - Type class constraints in the current scope
-
-## Comparison with Other Systems
-
-| Feature | Midori | Haskell | OCaml | Rust |
-|---------|--------|---------|-------|------|
-| HM Inference | Yes | Yes | Yes | Partial |
-| Type Classes | Yes | Yes | No* | Yes (traits) |
-| Higher-Kinded Types | No | Yes | Yes | No |
-| Row Polymorphism | No | No | Yes | No |
-| Subtyping | No | No | No | Yes (lifetimes) |
-| GADTs | No | Yes | Yes | No |
-
-*OCaml has modular implicits as an alternative
+- **Type environment stack** for scoped bindings
+- **Type substitution map** for inference variables
+- **Class registry** for type class declarations and associated types
+- **Instance registry** for concrete instance resolution
+- **Active constraint set** for function and type-definition constraints
 
 ## Limitations
 
-Current limitations of the type system:
+Current limitations include:
 
-1. **No higher-kinded types** - Cannot abstract over type constructors (no `Functor`, `Monad`)
-2. **Nominal typing for ADTs** - Structs and unions are compared by name, not structure
-3. **No type-level computation** - No type families or associated types
-4. **No existential types** - Cannot hide type parameters in data types
-5. **No rank-N polymorphism** - Polymorphic types cannot appear in arbitrary positions
+1. **No higher-kinded types**: abstractions like `Functor` and `Monad` cannot be expressed directly.
+2. **Nominal ADTs**: structs and unions compare by name rather than by structure.
+3. **No GADTs or general type-level functions**: associated types are supported, but richer type-level computation is not.
+4. **No existential types**: type parameters cannot be hidden inside values.
+5. **No rank-N polymorphism**: polymorphic types cannot appear in arbitrary positions.
+6. **Top-level exhaustiveness only**: nested-pattern exhaustiveness is not fully checked yet.
+7. **Focused deriving support**: only the currently supported targets and shapes are derivable.
 
 ## Future Considerations
 
-Potential extensions that could be added:
+Likely extensions include:
 
-- **Associated types** in type classes
-- **Default method implementations**
-- **Multi-parameter type classes**
-- **Functional dependencies**
+- Richer unification error messages
+- Deeper nested-pattern exhaustiveness analysis
+- Broader deriving support
+- Default method implementations for type classes
