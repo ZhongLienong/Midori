@@ -416,67 +416,70 @@ int VirtualMachine::ExecuteLoop() noexcept
 	{
 
 #if MIDORI_ENABLE_STACK_TRACE
-		Printer::Print("          ");
-#ifdef __EMSCRIPTEN__
-		std::for_each
-		(
-			m_value_stack_begin,
-			m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
-			[](MidoriValue value) -> void
-			{
-				Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
-			}
-		);
-		std::for_each
-		(
-			m_value_stack_base_pointer,
-			m_value_stack_pointer,
-			[](MidoriValue value) -> void
-			{
-				Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
-			}
-		);
-#else
-		std::for_each
-		(
-			std::execution::seq,
-			m_value_stack_begin,
-			m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
-			[](MidoriValue value) -> void
-			{
-				Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
-			}
-		);
-		std::for_each
-		(
-			std::execution::seq,
-			m_value_stack_base_pointer,
-			m_value_stack_pointer,
-			[](MidoriValue value) -> void
-			{
-				Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
-			}
-		);
-#endif
-		Printer::Print("\n");
-		int dbg_instruction_pointer = -1;
-		int dbg_proc_index = -1;
-
-		for (int i : std::views::iota(0, m_executable->GetProcedureCount()))
+		if (MidoriBuild::ShouldEmitInternalDiagnostics())
 		{
-			const BytecodeStream& bytecode = m_executable->GetBytecodeStream(i);
-			const OpCode* start = &*bytecode.cbegin();
-			const OpCode* end = start + bytecode.GetByteCodeSize();
-
-			if (m_instruction_pointer >= start && m_instruction_pointer < end)
-			{
-				dbg_proc_index = i;
-				dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - start);
-			}
-		}
-#if MIDORI_ENABLE_DISASSEMBLY
-		Disassembler::DisassembleInstruction(*m_executable, dbg_proc_index, dbg_instruction_pointer);
+			Printer::Print("          ");
+#ifdef __EMSCRIPTEN__
+			std::for_each
+			(
+				m_value_stack_begin,
+				m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
+				[](MidoriValue value) -> void
+				{
+					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
+				}
+			);
+			std::for_each
+			(
+				m_value_stack_base_pointer,
+				m_value_stack_pointer,
+				[](MidoriValue value) -> void
+				{
+					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
+				}
+			);
+#else
+			std::for_each
+			(
+				std::execution::seq,
+				m_value_stack_begin,
+				m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
+				[](MidoriValue value) -> void
+				{
+					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
+				}
+			);
+			std::for_each
+			(
+				std::execution::seq,
+				m_value_stack_base_pointer,
+				m_value_stack_pointer,
+				[](MidoriValue value) -> void
+				{
+					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
+				}
+			);
 #endif
+			Printer::Print("\n");
+			int dbg_instruction_pointer = -1;
+			int dbg_proc_index = -1;
+
+			for (int i : std::views::iota(0, m_executable->GetProcedureCount()))
+			{
+				const BytecodeStream& bytecode = m_executable->GetBytecodeStream(i);
+				const OpCode* start = &*bytecode.cbegin();
+				const OpCode* end = start + bytecode.GetByteCodeSize();
+
+				if (m_instruction_pointer >= start && m_instruction_pointer < end)
+				{
+					dbg_proc_index = i;
+					dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - start);
+				}
+			}
+#if MIDORI_ENABLE_DISASSEMBLY
+			Disassembler::DisassembleInstruction(*m_executable, dbg_proc_index, dbg_instruction_pointer);
+#endif
+		}
 #endif
 		OpCode instruction = ReadByte(ip);
 

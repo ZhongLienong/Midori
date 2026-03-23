@@ -113,7 +113,10 @@ void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 		return;
 	}
 #if MIDORI_DEBUG_FULL
-	Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
+	if (MidoriBuild::ShouldEmitInternalDiagnostics())
+	{
+		Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
+	}
 #endif
 	child_ptr->Mark();
 	m_mark_stack.emplace_back(child_ptr);
@@ -187,27 +190,45 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 
 #if MIDORI_DEBUG_INFO
-	Printer::Print<Printer::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
-	PrintMemoryTelemetry();
+	const bool emit_gc_diagnostics = MidoriBuild::ShouldEmitInternalDiagnostics();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
-	TimePoint t0 = Clock::now();
+	TimePoint t0{};
+	TimePoint t_mark_start{};
+	TimePoint t_mark_end{};
+	TimePoint t_sweep_start{};
+	TimePoint t_sweep_end{};
+	if (emit_gc_diagnostics)
+	{
+		Printer::Print<Printer::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
+		PrintMemoryTelemetry();
+		t0 = Clock::now();
+	}
 #endif
 
 	size_t mark_count = 0u;
 #if MIDORI_DEBUG_INFO
-	TimePoint t_mark_start = Clock::now();
+	if (emit_gc_diagnostics)
+	{
+		t_mark_start = Clock::now();
+	}
 #endif
 	// Mark
 	Trace(roots);
 #if MIDORI_DEBUG_INFO
-	TimePoint t_mark_end = Clock::now();
+	if (emit_gc_diagnostics)
+	{
+		t_mark_end = Clock::now();
+	}
 #endif
 
 	size_t sweep_count = 0u;
 	size_t bytes_reclaimed = 0u;
 #if MIDORI_DEBUG_INFO
-	TimePoint t_sweep_start = Clock::now();
+	if (emit_gc_diagnostics)
+	{
+		t_sweep_start = Clock::now();
+	}
 #endif
 
 	size_t write_index = 0uz;
@@ -240,34 +261,37 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	m_traceables.resize(write_index);
 
 #if MIDORI_DEBUG_INFO
-	TimePoint t_sweep_end = Clock::now();
-	TimePoint t1 = Clock::now();
+	if (emit_gc_diagnostics)
+	{
+		t_sweep_end = Clock::now();
+		TimePoint t1 = Clock::now();
 
-	int64_t ns_mark = std::chrono::duration_cast<std::chrono::nanoseconds>(t_mark_end - t_mark_start).count();
-	int64_t ns_sweep = std::chrono::duration_cast<std::chrono::nanoseconds>(t_sweep_end - t_sweep_start).count();
-	int64_t ns_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+		int64_t ns_mark = std::chrono::duration_cast<std::chrono::nanoseconds>(t_mark_end - t_mark_start).count();
+		int64_t ns_sweep = std::chrono::duration_cast<std::chrono::nanoseconds>(t_sweep_end - t_sweep_start).count();
+		int64_t ns_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
 
-	Printer::Print<Printer::Color::BLUE>
-		(
-			std::format
+		Printer::Print<Printer::Color::BLUE>
 			(
-				"\n[GC] Mark time:    {}\n"
-				"[GC] Sweep time:   {}\n"
-				"[GC] Total time:   {}\n"
-				"[GC] Roots traced: {}\n"
-				"[GC] Survivors:    {}\n"
-				"[GC] Collected:    {} ({})\n",
-				FormatTime(ns_mark),
-				FormatTime(ns_sweep),
-				FormatTime(ns_total),
-				roots.size(),
-				mark_count,
-				sweep_count,
-				FormatBytes(bytes_reclaimed)
-			)
-		);
-	Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
-	PrintMemoryTelemetry();
+				std::format
+				(
+					"\n[GC] Mark time:    {}\n"
+					"[GC] Sweep time:   {}\n"
+					"[GC] Total time:   {}\n"
+					"[GC] Roots traced: {}\n"
+					"[GC] Survivors:    {}\n"
+					"[GC] Collected:    {} ({})\n",
+					FormatTime(ns_mark),
+					FormatTime(ns_sweep),
+					FormatTime(ns_total),
+					roots.size(),
+					mark_count,
+					sweep_count,
+					FormatBytes(bytes_reclaimed)
+				)
+			);
+		Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
+		PrintMemoryTelemetry();
+	}
 #endif
 
 	size_t new_threshold = static_cast<size_t>(static_cast<double>(m_total_bytes_allocated) * GC_GROWTH_FACTOR);

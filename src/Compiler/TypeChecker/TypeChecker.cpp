@@ -3795,9 +3795,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				as.m_from_type = expr_type;
 				as.m_type_data = as.m_to_type;
 
-				// Use Convertable code generation if there's an instance OR a constraint
-				// Constraints will be resolved via method resolution map during specialization
-				as.m_uses_convertable = has_convertable_instance || has_convertable_constraint;
+				// Prefer built-in code generation for concrete built-in casts so Convertable
+				// instances can implement Convert via `as` without recursing back into themselves.
+				// Constraints still require Convertable dispatch because the concrete conversion
+				// is only known during specialization.
+				as.m_uses_convertable = has_convertable_constraint || (has_convertable_instance && !is_builtin_conversion);
 				return as.m_type_data;
 			}
 		);
@@ -4598,7 +4600,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	const std::shared_ptr<MidoriType>* binding = FindNameType(variable.m_name.m_lexeme);
 	if (binding != nullptr)
 	{
-		if (m_generic_functions.contains(variable.m_name.m_lexeme) || variable.m_name.m_lexeme.find("::") != std::string::npos)
+		if (m_generic_functions.contains(variable.m_name.m_lexeme)
+			|| variable.m_name.m_lexeme.find("::") != std::string::npos
+			|| (binding->get()->IsType<MidoriType::FunctionType>() && binding->get()->GetType<MidoriType::FunctionType>().m_is_foreign))
 		{
 			variable.m_type_data = Freshen(*binding);
 		}

@@ -232,6 +232,7 @@ namespace
 	{
 		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
 		const std::string short_path = std::filesystem::path(file_path).filename().string();
+		if (MidoriBuild::ShouldEmitInternalDiagnostics())
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
 			// Show tier info for multi-tier builds, just progress for single tier
@@ -1091,34 +1092,40 @@ namespace
 	static size_t ReportCompilationStart(std::mutex& print_mutex, const CompilationSchedule& schedule, size_t total_modules)
 	{
 		const size_t tier_count = schedule.m_tiers.size();
-		std::lock_guard<std::mutex> lock(print_mutex);
-		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-		Printer::PrintLabeled<Printer::Color::BRIGHT_CYAN, Printer::Color::WHITE>
-		(
-			"COMPILING",
-			std::format
+		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		{
+			std::lock_guard<std::mutex> lock(print_mutex);
+			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+			Printer::PrintLabeled<Printer::Color::BRIGHT_CYAN, Printer::Color::WHITE>
 			(
-				"{} module{} in {} tier{}\n",
-				total_modules,
-				total_modules == 1 ? "" : "s",
-				tier_count,
-				tier_count == 1u ? "" : "s"
-			)
-		);
-		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+				"COMPILING",
+				std::format
+				(
+					"{} module{} in {} tier{}\n",
+					total_modules,
+					total_modules == 1 ? "" : "s",
+					tier_count,
+					tier_count == 1u ? "" : "s"
+				)
+			);
+			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		}
 		return total_modules;
 	}
 
 	static std::chrono::milliseconds ReportCompilationSuccess(std::mutex& print_mutex, size_t total_modules, std::chrono::milliseconds duration)
 	{
-		std::lock_guard<std::mutex> lock(print_mutex);
-		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-		Printer::PrintLabeled<Printer::Color::BRIGHT_GREEN, Printer::Color::WHITE>
-		(
-			"SUCCESS",
-			std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", duration.count())
-		);
-		Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		{
+			std::lock_guard<std::mutex> lock(print_mutex);
+			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+			Printer::PrintLabeled<Printer::Color::BRIGHT_GREEN, Printer::Color::WHITE>
+			(
+				"SUCCESS",
+				std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", duration.count())
+			);
+			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+		}
 		return duration;
 	}
 
@@ -1199,10 +1206,13 @@ namespace
 				[](MidoriExecutable&& linked_executable) -> MidoriResult::CompilerResult
 				{
 #if MIDORI_ENABLE_DISASSEMBLY
-					for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
+					if (MidoriBuild::ShouldEmitInternalDiagnostics())
 					{
-						MidoriText variable_name = linked_executable.m_procedure_names[i];
-						Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.GetCString());
+						for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
+						{
+							MidoriText variable_name = linked_executable.m_procedure_names[i];
+							Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.GetCString());
+						}
 					}
 #endif
 					return linked_executable;

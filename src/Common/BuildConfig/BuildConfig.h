@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdlib>
+#include <string_view>
+
 // Cross-compiler force inline macro for hot path functions
 #if defined(_MSC_VER)
     #define MIDORI_FORCE_INLINE __forceinline
@@ -68,6 +71,47 @@
 #define MIDORI_DEBUG_FULL (MIDORI_DEBUG_LEVEL >= 3)
 #define MIDORI_DEBUG_INFO (MIDORI_DEBUG_LEVEL >= 2)
 #define MIDORI_DEBUG_MINIMAL (MIDORI_DEBUG_LEVEL >= 1)
+
+namespace MidoriBuild
+{
+    [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
+    {
+#ifdef _WIN32
+        char* value = nullptr;
+        size_t length = 0u;
+        if (_dupenv_s(&value, &length, name) != 0 || value == nullptr)
+        {
+            return false;
+        }
+#else
+        const char* value = std::getenv(name);
+        if (value == nullptr)
+        {
+            return false;
+        }
+#endif
+
+        const std::string_view view(value);
+        const bool enabled = !view.empty() && view != "0" && view != "false" && view != "False" && view != "FALSE";
+
+#ifdef _WIN32
+        free(value);
+#endif
+
+        return enabled;
+    }
+
+    [[nodiscard]] inline bool IsTestMode() noexcept
+    {
+        static const bool s_is_test_mode = EnvironmentFlagEnabledUncached("MIDORI_TEST_MODE");
+        return s_is_test_mode;
+    }
+
+    [[nodiscard]] inline bool ShouldEmitInternalDiagnostics() noexcept
+    {
+        return !IsTestMode();
+    }
+}
 
 // Feature flags based on build level
 #if (MIDORI_DEBUG_LEVEL >= 3)

@@ -84,7 +84,7 @@ class TestRunner:
             if not path.exists():
                 continue
 
-            validation_error = self.validate_executable(path)
+            validation_error = self.validate_executable(path, self.requested_build_config)
             if validation_error is None:
                 return path
             requested_errors.append(f"{path} ({validation_error})")
@@ -95,7 +95,7 @@ class TestRunner:
                 if not path.exists():
                     continue
 
-                validation_error = self.validate_executable(path)
+                validation_error = self.validate_executable(path, "Debug")
                 if validation_error is None:
                     self.build_config = "Debug"
                     self.executable_notice = (
@@ -116,7 +116,7 @@ class TestRunner:
             self.root_dir / f"out/build/x64-{build_name}/out/Midori.exe",
         ]
 
-    def validate_executable(self, path: Path) -> Optional[str]:
+    def validate_executable(self, path: Path, expected_build_config: Optional[str] = None) -> Optional[str]:
         build_dir = path.parent.parent
         cache_path = build_dir / "CMakeCache.txt"
         if not cache_path.exists():
@@ -127,11 +127,17 @@ class TestRunner:
         except OSError as exc:
             return f"could not read CMakeCache.txt: {exc}"
 
-        match = re.search(r'^CMAKE_GENERATOR:INTERNAL=(.+)$', cache_text, re.MULTILINE)
-        if match is None:
+        build_match = re.search(r'^CMAKE_BUILD_TYPE:STRING=(.+)$', cache_text, re.MULTILINE)
+        if expected_build_config is not None and build_match is not None:
+            actual_build_config = build_match.group(1).strip()
+            if actual_build_config.lower() != expected_build_config.lower():
+                return f"configured as {actual_build_config}, expected {expected_build_config}"
+
+        generator_match = re.search(r'^CMAKE_GENERATOR:INTERNAL=(.+)$', cache_text, re.MULTILINE)
+        if generator_match is None:
             return None
 
-        generator = match.group(1).strip()
+        generator = generator_match.group(1).strip()
         if generator == "Ninja":
             missing_files: List[str] = []
             if not (build_dir / "build.ninja").exists():
@@ -171,6 +177,8 @@ class TestRunner:
         try:
             import time
             start = time.time()
+            env = os.environ.copy()
+            env["MIDORI_TEST_MODE"] = "1"
 
             result = subprocess.run(
                 [str(self.midori_exe), str(test_path)],
@@ -178,7 +186,8 @@ class TestRunner:
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                timeout=30
+                timeout=30,
+                env=env
             )
 
             duration_ms = (time.time() - start) * 1000

@@ -1697,6 +1697,12 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							}
 						}
 
+						std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator concrete_tc_it = m_state.m_class_methods.find(qualifier);
+						if (concrete_tc_it != m_state.m_class_methods.cend() && concrete_tc_it->second.contains(symbol_name))
+						{
+							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
+						}
+
 						const bool using_new_path = (m_context.m_module_declarations == nullptr);
 
 						if (using_new_path)
@@ -3673,6 +3679,25 @@ MidoriResult::StatementResult Parser::ParseForeignStatement()
 												{
 													std::optional<int> local_index = RegisterOrUpdateLocalVariable(name.m_lexeme);
 													constexpr bool is_foreign = true;
+													BeginScope();
+													struct ForeignTypeScopeGuard
+													{
+														Parser* m_parser;
+														bool m_prev_allow_implicit_generic_params;
+
+														explicit ForeignTypeScopeGuard(Parser* parser)
+															: m_parser(parser),
+															  m_prev_allow_implicit_generic_params(parser->m_state.m_allow_implicit_generic_params)
+														{
+															m_parser->m_state.m_allow_implicit_generic_params = true;
+														}
+
+														~ForeignTypeScopeGuard()
+														{
+															m_parser->m_state.m_allow_implicit_generic_params = m_prev_allow_implicit_generic_params;
+															m_parser->EndScope();
+														}
+													} foreign_type_scope_guard(this);
 
 													return ParseType(is_foreign)
 														.and_then

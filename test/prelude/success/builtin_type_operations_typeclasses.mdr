@@ -1,0 +1,52 @@
+module BuiltinTypeOperationsTypeclasses
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Concatenable.mdr",
+    "../../../MidoriPrelude/Appendable.mdr",
+    "../../../MidoriPrelude/Prependable.mdr",
+    "../../../MidoriPrelude/Extendable.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+def arr = [2, 3];
+Appendable::Append(arr, 4);
+Prependable::Prepend(arr, 1);
+Extendable::Extend(arr, [5, 6]);
+
+if #arr == 6
+then ()
+else Panic::Panic("Array Append/Prepend/Extend should update the original array");
+
+if arr[0] == 1 && arr[5] == 6
+then ()
+else Panic::Panic("Array Append/Prepend/Extend should preserve element ordering");
+
+def combined = Concatenable::Concat(arr, [7, 8]);
+if #combined == 8
+then ()
+else Panic::Panic("Array Concat should return a larger array");
+
+if combined[0] == 1 && combined[7] == 8
+then ()
+else Panic::Panic("Array Concat should preserve both sides");
+
+if #arr == 6
+then ()
+else Panic::Panic("Array Concat should not mutate the left operand");
+
+def text = "core";
+Appendable::Append(text, "!");
+Prependable::Prepend(text, "mid-");
+
+if text == "mid-core!"
+then ()
+else Panic::Panic("Text Append/Prepend should mutate the original text");
+
+def joined = Concatenable::Concat(text, "?");
+if joined == "mid-core!?"
+then ()
+else Panic::Panic("Text Concat should return the combined text");
+
+IO::PrintLine("builtin_type_operations_typeclasses: PASS");

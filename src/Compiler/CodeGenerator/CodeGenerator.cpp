@@ -5044,9 +5044,16 @@ std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(con
 	}
 
 	std::shared_ptr<MidoriType> first_arg_type = nullptr;
-	if (!call.m_arguments.empty())
+	std::vector<std::shared_ptr<MidoriType>> actual_arg_types;
+	actual_arg_types.reserve(call.m_arguments.size());
+	for (const std::unique_ptr<MidoriExpression>& argument : call.m_arguments)
 	{
-		first_arg_type = GetConcreteTypeForExpression(call.m_arguments[0u]);
+		std::shared_ptr<MidoriType> arg_type = GetConcreteTypeForExpression(argument);
+		actual_arg_types.emplace_back(arg_type);
+		if (first_arg_type == nullptr)
+		{
+			first_arg_type = arg_type;
+		}
 	}
 
 	std::shared_ptr<MidoriType> return_type = call.m_type_data;
@@ -5060,17 +5067,46 @@ std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(con
 
 		TypeEnvironment substitutions;
 		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
-		if (first_arg_type != nullptr && !MatchInstanceTypeArg(candidate_args[0u], first_arg_type, substitutions, visited))
+		bool matched = true;
+		if (candidate_args.size() == 1u)
 		{
-			continue;
+			for (const std::shared_ptr<MidoriType>& actual_arg_type : actual_arg_types)
+			{
+				if (!MatchInstanceTypeArg(candidate_args[0u], actual_arg_type, substitutions, visited))
+				{
+					matched = false;
+					break;
+				}
+			}
+		}
+		else
+		{
+			size_t positional_count = std::min(candidate_args.size(), actual_arg_types.size());
+			for (size_t i = 0u; i < positional_count; i += 1u)
+			{
+				if (!MatchInstanceTypeArg(candidate_args[i], actual_arg_types[i], substitutions, visited))
+				{
+					matched = false;
+					break;
+				}
+			}
+
+			if (matched && actual_arg_types.size() + 1u == candidate_args.size() && return_type != nullptr)
+			{
+				if (!MatchInstanceTypeArg(candidate_args.back(), return_type, substitutions, visited))
+				{
+					matched = false;
+				}
+			}
+			else if (matched && actual_arg_types.size() < candidate_args.size())
+			{
+				matched = false;
+			}
 		}
 
-		if (candidate_args.size() > 1u && return_type != nullptr)
+		if (!matched)
 		{
-			if (!MatchInstanceTypeArg(candidate_args[1u], return_type, substitutions, visited))
-			{
-				continue;
-			}
+			continue;
 		}
 
 		std::string mangled_name_prefix = MidoriType::MangleInstanceMethodName(method_name, qualifier, candidate_args);

@@ -29,7 +29,7 @@ def opt_mapped = OptionMap(opt_value, inc);
 
 def opt_bound = OptionBind(opt_value, to_some);
 
-def opt_unwrap = OptionUnwrap(new Option::None(), 5);
+def opt_unwrap = OptionUnwrap(new Option::None<Int>(), 5);
 
 def opt_unwrap_panic = OptionUnwrapOrPanic(opt_value, "unexpected None");
 

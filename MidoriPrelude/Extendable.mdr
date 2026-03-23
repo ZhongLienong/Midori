@@ -1,0 +1,14 @@
+module Extendable
+public export { Extendable }
+
+class Extendable<C>
+{
+    Extend: fn(container: C, other: C) -> Unit;
+};
+
+foreign "MIDORI_FFI_ArrayExtend" ArrayExtend : fn(Array<T>, Array<T>) -> Unit;
+
+instance Extendable<Array<T>>
+{
+    defun Extend(container: Array<T>, other: Array<T>) : Unit => ArrayExtend(container, other);
+};
