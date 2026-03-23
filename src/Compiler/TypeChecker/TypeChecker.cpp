@@ -81,13 +81,37 @@ namespace
 			{
 				if (HasTypeVariables(param, visited)) return true;
 			}
-			return HasTypeVariables(func.m_return_type, visited);
+			if (HasTypeVariables(func.m_return_type, visited))
+			{
+				return true;
+			}
+			for (const MidoriType::ClassConstraint& constraint : func.m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (HasTypeVariables(type_arg, visited))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 		else if (type->IsType<MidoriType::StructType>())
 		{
 			for (const std::shared_ptr<MidoriType>& member : type->GetType<MidoriType::StructType>().m_member_types)
 			{
 				if (HasTypeVariables(member, visited)) return true;
+			}
+			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::StructType>().m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (HasTypeVariables(type_arg, visited))
+					{
+						return true;
+					}
+				}
 			}
 		}
 		else if (type->IsType<MidoriType::UnionType>())
@@ -97,6 +121,16 @@ namespace
 				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
 				{
 					if (HasTypeVariables(member, visited)) return true;
+				}
+			}
+			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::UnionType>().m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (HasTypeVariables(type_arg, visited))
+					{
+						return true;
+					}
 				}
 			}
 		}
@@ -146,7 +180,21 @@ namespace
 					return true;
 				}
 			}
-			return ContainsAssociatedTypes(func.m_return_type, visited);
+			if (ContainsAssociatedTypes(func.m_return_type, visited))
+			{
+				return true;
+			}
+			for (const MidoriType::ClassConstraint& constraint : func.m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (ContainsAssociatedTypes(type_arg, visited))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 		if (type->IsType<MidoriType::StructType>())
 		{
@@ -157,6 +205,16 @@ namespace
 					return true;
 				}
 			}
+			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::StructType>().m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (ContainsAssociatedTypes(type_arg, visited))
+					{
+						return true;
+					}
+				}
+			}
 		}
 		if (type->IsType<MidoriType::UnionType>())
 		{
@@ -165,6 +223,16 @@ namespace
 				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
 				{
 					if (ContainsAssociatedTypes(member, visited))
+					{
+						return true;
+					}
+				}
+			}
+			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::UnionType>().m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					if (ContainsAssociatedTypes(type_arg, visited))
 					{
 						return true;
 					}
@@ -188,6 +256,119 @@ namespace
 	{
 		std::unordered_set<const MidoriType*> visited;
 		return ContainsAssociatedTypes(type, visited);
+	}
+
+	bool ContainsConstraint(const std::vector<MidoriType::ClassConstraint>& constraints, const MidoriType::ClassConstraint& constraint)
+	{
+		return std::ranges::any_of
+		(
+			constraints,
+			[&constraint](const MidoriType::ClassConstraint& existing)
+			{
+				return existing == constraint;
+			}
+		);
+	}
+
+	void AppendUniqueConstraint(std::vector<MidoriType::ClassConstraint>& constraints, MidoriType::ClassConstraint&& constraint)
+	{
+		if (!ContainsConstraint(constraints, constraint))
+		{
+			constraints.push_back(std::move(constraint));
+		}
+	}
+
+	void CollectTypeConstraints(
+		const std::shared_ptr<MidoriType>& type,
+		std::vector<MidoriType::ClassConstraint>& constraints,
+		std::unordered_set<const MidoriType*>& visited
+	)
+	{
+		if (type == nullptr || !visited.insert(type.get()).second)
+		{
+			return;
+		}
+
+		if (type->IsType<MidoriType::ArrayType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::ArrayType>().m_element_type, constraints, visited);
+			return;
+		}
+
+		if (type->IsType<MidoriType::RangeType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::RangeType>().m_element_type, constraints, visited);
+			return;
+		}
+
+		if (type->IsType<MidoriType::TupleType>())
+		{
+			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
+			{
+				CollectTypeConstraints(element_type, constraints, visited);
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::FunctionType>())
+		{
+			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
+			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+			{
+				CollectTypeConstraints(param_type, constraints, visited);
+			}
+			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
+			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::StructType>())
+		{
+			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+			{
+				CollectTypeConstraints(member_type, constraints, visited);
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::UnionType>())
+		{
+			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			for (const auto& [_, member_ctx] : union_type.m_member_info)
+			{
+				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				{
+					CollectTypeConstraints(member_type, constraints, visited);
+				}
+			}
+		}
+	}
+
+	std::vector<MidoriType::ClassConstraint> CollectSignatureConstraints(
+		const std::vector<std::shared_ptr<MidoriType>>& param_types,
+		const std::shared_ptr<MidoriType>& return_type
+	)
+	{
+		std::vector<MidoriType::ClassConstraint> constraints;
+		std::unordered_set<const MidoriType*> visited;
+		for (const std::shared_ptr<MidoriType>& param_type : param_types)
+		{
+			CollectTypeConstraints(param_type, constraints, visited);
+		}
+		CollectTypeConstraints(return_type, constraints, visited);
+		return constraints;
 	}
 
 	std::string JoinSortedNames(std::vector<std::string> names)
@@ -631,6 +812,60 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 	}
 
 	return resolved_match;
+}
+
+MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type)
+{
+	for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+	{
+		MidoriType::ClassConstraint resolved_constraint;
+		resolved_constraint.m_class_name = constraint.m_class_name;
+		resolved_constraint.m_type_args.reserve(constraint.m_type_args.size());
+		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			resolved_constraint.m_type_args.emplace_back(ApplySubstitution(type_arg));
+		}
+
+		bool satisfied_by_active_constraint = false;
+		for (const MidoriType::ClassConstraint& active_constraint : m_active_constraints)
+		{
+			if (active_constraint.m_class_name != resolved_constraint.m_class_name || active_constraint.m_type_args.size() != resolved_constraint.m_type_args.size())
+			{
+				continue;
+			}
+
+			bool all_args_match = true;
+			for (size_t idx = 0u; idx < resolved_constraint.m_type_args.size(); idx += 1u)
+			{
+				std::shared_ptr<MidoriType> resolved_active_arg = ApplySubstitution(active_constraint.m_type_args[idx]);
+				if (*resolved_active_arg != *resolved_constraint.m_type_args[idx])
+				{
+					all_args_match = false;
+					break;
+				}
+			}
+
+			if (all_args_match)
+			{
+				satisfied_by_active_constraint = true;
+				break;
+			}
+		}
+
+		if (satisfied_by_active_constraint)
+		{
+			continue;
+		}
+
+		if (FindMatchingInstance(resolved_constraint.m_class_name, resolved_constraint.m_type_args).has_value())
+		{
+			continue;
+		}
+
+		return std::unexpected(MakeConstraintFailureError(token, resolved_constraint));
+	}
+
+	return MidoriType::MakeUndecidedType();
 }
 
 std::shared_ptr<MidoriType> TypeChecker::ResolveAssociatedType(const MidoriType::AssociatedType& associated_type)
@@ -1420,7 +1655,19 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 		std::shared_ptr<MidoriType> fresh_return = Freshen(func_type.m_return_type, context);
 		std::shared_ptr<MidoriType> fresh_function = MidoriType::MakeFunctionType(fresh_params, std::move(fresh_return), func_type.m_is_foreign);
-		fresh_function->GetType<MidoriType::FunctionType>().m_constraints = func_type.m_constraints;
+		std::vector<MidoriType::ClassConstraint> fresh_constraints;
+		fresh_constraints.reserve(func_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
+		{
+			MidoriType::ClassConstraint fresh_constraint;
+			fresh_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+			fresh_constraints.push_back(std::move(fresh_constraint));
+		}
+		fresh_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(fresh_constraints);
 		return fresh_function;
 	}
 	else if (type->IsType<MidoriType::StructType>())
@@ -1448,6 +1695,19 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 		// Update the fresh struct with freshened members
 		fresh_struct->GetType<MidoriType::StructType>().m_member_types = std::move(fresh_member_types);
+		std::vector<MidoriType::ClassConstraint> fresh_constraints;
+		fresh_constraints.reserve(struct_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+		{
+			MidoriType::ClassConstraint fresh_constraint;
+			fresh_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+			fresh_constraints.push_back(std::move(fresh_constraint));
+		}
+		fresh_struct->GetType<MidoriType::StructType>().m_constraints = std::move(fresh_constraints);
 
 		return fresh_struct;
 	}
@@ -1461,6 +1721,19 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
 		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation;
+		std::vector<MidoriType::ClassConstraint> fresh_constraints;
+		fresh_constraints.reserve(union_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+		{
+			MidoriType::ClassConstraint fresh_constraint;
+			fresh_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+			fresh_constraints.push_back(std::move(fresh_constraint));
+		}
+		fresh_union_ref.m_constraints = std::move(fresh_constraints);
 
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
@@ -1618,10 +1891,28 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			changed = true;
 		}
 
+		std::vector<MidoriType::ClassConstraint> new_constraints;
+		new_constraints.reserve(func_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
+		{
+			MidoriType::ClassConstraint substituted_constraint;
+			substituted_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
+				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
+				if (substituted_type_arg != type_arg)
+				{
+					changed = true;
+				}
+			}
+			new_constraints.push_back(std::move(substituted_constraint));
+		}
+
 		if (changed)
 		{
 			std::shared_ptr<MidoriType> new_function = MidoriType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
-			new_function->GetType<MidoriType::FunctionType>().m_constraints = func_type.m_constraints;
+			new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
 			return new_function;
 		}
 		return type;
@@ -1633,7 +1924,8 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		// Create new struct and add to cache BEFORE recursing to handle cycles
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy));
+		std::vector<std::string> generic_params_copy = struct_type.m_generic_params;
+		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
 		cache[type.get()] = new_struct;
 
 		bool changed = false;
@@ -1649,9 +1941,28 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			}
 		}
 
+		std::vector<MidoriType::ClassConstraint> new_constraints;
+		new_constraints.reserve(struct_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+		{
+			MidoriType::ClassConstraint substituted_constraint;
+			substituted_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
+				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
+				if (substituted_type_arg != type_arg)
+				{
+					changed = true;
+				}
+			}
+			new_constraints.push_back(std::move(substituted_constraint));
+		}
+
 		if (changed)
 		{
 			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
+			new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(new_constraints);
 			// Mark this as a generic instantiation if the original had generic params
 			if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
 			{
@@ -1667,11 +1978,30 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 
 		// Create new union and add to cache BEFORE recursing to handle cycles
-		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name);
+		std::vector<std::string> generic_params_copy = union_type.m_generic_params;
+		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, std::move(generic_params_copy));
 		cache[type.get()] = new_union;
 		MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 
 		bool changed = false;
+		std::vector<MidoriType::ClassConstraint> new_constraints;
+		new_constraints.reserve(union_type.m_constraints.size());
+		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+		{
+			MidoriType::ClassConstraint substituted_constraint;
+			substituted_constraint.m_class_name = constraint.m_class_name;
+			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			{
+				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
+				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
+				if (substituted_type_arg != type_arg)
+				{
+					changed = true;
+				}
+			}
+			new_constraints.push_back(std::move(substituted_constraint));
+		}
+		new_union_ref.m_constraints = std::move(new_constraints);
 
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
@@ -1978,10 +2308,12 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
-						signatures[stmt.m_name.m_lexeme] = MidoriType::MakeFunctionType(
+						std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(
 							stmt.m_param_types,
 							std::shared_ptr<MidoriType>(stmt.m_return_type)
 						);
+						function_type->GetType<MidoriType::FunctionType>().m_constraints = stmt.m_constraints;
+						signatures[stmt.m_name.m_lexeme] = function_type;
 					}
 				}
 				else if constexpr (std::is_same_v<Node, MidoriStatement::Struct>)
@@ -2004,6 +2336,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 							{
 								std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
 								std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MidoriType>(stmt.m_self_type));
+								union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = stmt.m_constraints;
 								signatures[member_name] = union_constructor_type;
 							}
 						}
@@ -2113,6 +2446,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			function.m_param_types = resolved_function_type.m_param_types;
 			function.m_return_type = resolved_function_type.m_return_type;
 		}
+
+		std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+		def.m_value->GetType()->GetType<MidoriType::FunctionType>().m_constraints = function_constraints;
 
 		m_name_type_table.back().emplace(def.m_name.m_lexeme, def.m_value->GetType());
 		MidoriType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MidoriType::FunctionType>();
@@ -2280,6 +2616,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		}
 	}
 
+	std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(defun.m_param_types, defun.m_return_type);
+	for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+	{
+		AppendUniqueConstraint(defun.m_constraints, std::move(propagated_constraint));
+	}
+
 	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
 	{
 		if (!m_classes.contains(constraint.m_class_name))
@@ -2301,9 +2643,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		param_type = Freshen(param_type, freshening_context);
 	}
 	defun.m_return_type = Freshen(defun.m_return_type, freshening_context);
+	for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
+	{
+		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			type_arg = Freshen(type_arg, freshening_context);
+		}
+	}
 
 	std::shared_ptr<MidoriType> return_type_copy = defun.m_return_type;
-	m_name_type_table.back()[defun.m_name.m_lexeme] = MidoriType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
+	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
+	function_type->GetType<MidoriType::FunctionType>().m_constraints = defun.m_constraints;
+	m_name_type_table.back()[defun.m_name.m_lexeme] = function_type;
 	if (!defun.m_generic_params.empty())
 	{
 		m_generic_functions.insert(defun.m_name.m_lexeme);
@@ -2336,16 +2687,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 		size_t prev_constraints_size = m_active_constraints.size();
 
-		for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
+		for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
 		{
-			MidoriType::ClassConstraint freshened_constraint;
-			freshened_constraint.m_class_name = constraint.m_class_name;
-			for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+			if (!ContainsConstraint(m_active_constraints, constraint))
 			{
-				type_arg = Freshen(type_arg, freshening_context);
-				freshened_constraint.m_type_args.push_back(type_arg);
+				m_active_constraints.push_back(constraint);
 			}
-			m_active_constraints.push_back(std::move(freshened_constraint));
 		}
 
 		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
@@ -2438,6 +2785,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 		}
 	}
 
+	struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_constraints = struct_stmt.m_constraints;
 	std::shared_ptr<MidoriType> struct_constructor_type = MidoriType::MakeFunctionType(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
 	struct_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_stmt.m_constraints;
 	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
@@ -2485,6 +2833,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 	}
 
 	MidoriType::UnionType& union_type = union_stmt.m_self_type->GetType<MidoriType::UnionType>();
+	union_type.m_constraints = union_stmt.m_constraints;
 	for (auto& [member_name, member_ctx] : union_type.m_member_info)
 	{
 		std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
@@ -4003,6 +4352,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						}
 					}
 
+					MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
+					if (!constraint_result.has_value())
+					{
+						return constraint_result;
+					}
+
 					call.m_is_foreign = function_type.m_is_foreign;
 					call.m_type_data = ApplySubstitution(function_type.m_return_type);
 					return call.m_type_data;
@@ -4107,6 +4462,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						{
 							return result;
 						}
+				}
+
+				MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
+				if (!constraint_result.has_value())
+				{
+					return constraint_result;
 				}
 
 				call.m_is_foreign = function_type.m_is_foreign;
@@ -4216,6 +4577,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 				variable.m_type_data = Freshen(method_it->second);
 				return variable.m_type_data;
 			}
+		}
+
+		if (m_classes.contains(qualifier))
+		{
+			std::vector<std::string> active_classes;
+			active_classes.reserve(m_active_constraints.size());
+			for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+			{
+				active_classes.push_back(constraint.m_class_name);
+			}
+
+			std::string suggestion = active_classes.empty()
+				? "No matching class constraints are active in this scope."
+				: "Active constraints: " + JoinSortedNames(std::move(active_classes));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: class method is not available in the current constraint scope", variable.m_name, m_file_name, m_source_lines, suggestion));
 		}
 	}
 
@@ -4777,6 +5153,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		function.m_return_type = inferred_type.m_return_type;
 	}
 
+	std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+	function.m_type_data->GetType<MidoriType::FunctionType>().m_constraints = function_constraints;
+
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 	{
 		std::ranges::for_each
@@ -4785,12 +5164,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 			[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
 		);
 
+		size_t prev_constraints_size = m_active_constraints.size();
+		for (const MidoriType::ClassConstraint& constraint : function_constraints)
+		{
+			if (!ContainsConstraint(m_active_constraints, constraint))
+			{
+				m_active_constraints.push_back(constraint);
+			}
+		}
+
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&function, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
+					m_active_constraints.resize(prev_constraints_size);
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
@@ -4818,6 +5207,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 								return function.m_type_data;
 							}
 						);
+				}
+			).or_else
+			(
+				[prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				{
+					m_active_constraints.resize(prev_constraints_size);
+					return std::unexpected(std::move(error));
 				}
 			);
 	});
@@ -4899,6 +5295,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 		{
 			return unify_result;
 		}
+	}
+
+	MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(construct.m_data_name, constructor_type);
+	if (!constraint_result.has_value())
+	{
+		return constraint_result;
 	}
 
 	// For generic structs, apply substitution to the return type to get the monomorphized type

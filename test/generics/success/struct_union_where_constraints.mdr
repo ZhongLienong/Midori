@@ -27,12 +27,12 @@ instance Show<Text> {
 
 def boxed = new Box(10);
 
-defun show_box<T>(b: Box<T>) : Text where Show<T> => {
+defun show_box<T>(b: Box<T>) : Text => {
     return Show::show(b.value);
 };
 
 def text_result = show_box(boxed);
 
-def ok_val = new Result::Ok(1);
+def ok_val : Result<Int, Text> = new Result::Ok(1);
 
-def err_val = new Result::Err("fail");
+def err_val : Result<Int, Text> = new Result::Err("fail");

@@ -5357,6 +5357,23 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			{
 				changed = true;
 			}
+			std::vector<MidoriType::ClassConstraint> substituted_constraints;
+			substituted_constraints.reserve(type_variant.m_constraints.size());
+			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+			{
+				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
+				substituted_type_args.reserve(constraint.m_type_args.size());
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					std::shared_ptr<MidoriType> substituted = m_substitute(type_arg);
+					substituted_type_args.push_back(substituted);
+					if (substituted != type_arg)
+					{
+						changed = true;
+					}
+				}
+				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
+			}
 			if (changed)
 			{
 				return std::make_shared<MidoriType>
@@ -5365,7 +5382,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 					{
 						.m_param_types = std::move(substituted_params),
 						.m_return_type = substituted_return,
-						.m_constraints = type_variant.m_constraints,
+						.m_constraints = std::move(substituted_constraints),
 						.m_is_foreign = type_variant.m_is_foreign
 					}
 				);
@@ -5377,12 +5394,23 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 		{
 			std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 			std::vector<std::string> member_names_copy = type_variant.m_member_names;
-			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
+			std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
+			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
 			m_cache[m_current.get()] = new_struct;
 
 			std::vector<std::shared_ptr<MidoriType>> substituted_members;
 			std::ranges::transform(type_variant.m_member_types, std::back_inserter(substituted_members), m_substitute);
 			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(substituted_members);
+			std::vector<MidoriType::ClassConstraint> substituted_constraints;
+			substituted_constraints.reserve(type_variant.m_constraints.size());
+			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+			{
+				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
+				substituted_type_args.reserve(constraint.m_type_args.size());
+				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
+				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
+			}
+			new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(substituted_constraints);
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
@@ -5392,9 +5420,20 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UnionType& type_variant) const
 		{
-			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, {});
+			std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
+			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, std::move(generic_params_copy));
 			m_cache[m_current.get()] = new_union;
 			MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
+			std::vector<MidoriType::ClassConstraint> substituted_constraints;
+			substituted_constraints.reserve(type_variant.m_constraints.size());
+			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+			{
+				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
+				substituted_type_args.reserve(constraint.m_type_args.size());
+				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
+				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
+			}
+			new_union_ref.m_constraints = std::move(substituted_constraints);
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_union_ref.m_is_generic_instantiation = true;

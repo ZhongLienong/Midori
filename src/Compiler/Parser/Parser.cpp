@@ -69,6 +69,119 @@ namespace
 		return info;
 	}
 
+	bool ContainsConstraint(const std::vector<MidoriType::ClassConstraint>& constraints, const MidoriType::ClassConstraint& constraint)
+	{
+		return std::ranges::any_of
+		(
+			constraints,
+			[&constraint](const MidoriType::ClassConstraint& existing)
+			{
+				return existing == constraint;
+			}
+		);
+	}
+
+	void AppendUniqueConstraint(std::vector<MidoriType::ClassConstraint>& constraints, MidoriType::ClassConstraint&& constraint)
+	{
+		if (!ContainsConstraint(constraints, constraint))
+		{
+			constraints.push_back(std::move(constraint));
+		}
+	}
+
+	void CollectTypeConstraints(
+		const std::shared_ptr<MidoriType>& type,
+		std::vector<MidoriType::ClassConstraint>& constraints,
+		std::unordered_set<const MidoriType*>& visited
+	)
+	{
+		if (type == nullptr || !visited.insert(type.get()).second)
+		{
+			return;
+		}
+
+		if (type->IsType<MidoriType::ArrayType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::ArrayType>().m_element_type, constraints, visited);
+			return;
+		}
+
+		if (type->IsType<MidoriType::RangeType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::RangeType>().m_element_type, constraints, visited);
+			return;
+		}
+
+		if (type->IsType<MidoriType::TupleType>())
+		{
+			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
+			{
+				CollectTypeConstraints(element_type, constraints, visited);
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::FunctionType>())
+		{
+			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
+			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+			{
+				CollectTypeConstraints(param_type, constraints, visited);
+			}
+			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
+			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::StructType>())
+		{
+			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+			{
+				CollectTypeConstraints(member_type, constraints, visited);
+			}
+			return;
+		}
+
+		if (type->IsType<MidoriType::UnionType>())
+		{
+			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			}
+			for (const auto& [_, member_ctx] : union_type.m_member_info)
+			{
+				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				{
+					CollectTypeConstraints(member_type, constraints, visited);
+				}
+			}
+		}
+	}
+
+	std::vector<MidoriType::ClassConstraint> CollectSignatureConstraints(
+		const std::vector<std::shared_ptr<MidoriType>>& param_types,
+		const std::shared_ptr<MidoriType>& return_type
+	)
+	{
+		std::vector<MidoriType::ClassConstraint> constraints;
+		std::unordered_set<const MidoriType*> visited;
+		for (const std::shared_ptr<MidoriType>& param_type : param_types)
+		{
+			CollectTypeConstraints(param_type, constraints, visited);
+		}
+		CollectTypeConstraints(return_type, constraints, visited);
+		return constraints;
+	}
+
 	std::string_view TopLevelNamespace(std::string_view full_name)
 	{
 		size_t pos = full_name.find('.');
@@ -2393,7 +2506,20 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																	}
 
 																	constraints = std::move(constraints_result.value());
-																	m_state.m_active_constraints.insert(m_state.m_active_constraints.end(), constraints.begin(), constraints.end());
+																}
+
+																std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
+																for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+																{
+																	AppendUniqueConstraint(constraints, std::move(propagated_constraint));
+																}
+
+																for (const MidoriType::ClassConstraint& constraint : constraints)
+																{
+																	if (!ContainsConstraint(m_state.m_active_constraints, constraint))
+																	{
+																		m_state.m_active_constraints.push_back(constraint);
+																	}
 																}
 
 																ActiveConstraintGuard constraint_guard{ this, prev_constraints_size };
@@ -2571,6 +2697,7 @@ MidoriResult::StatementResult Parser::ParseStructDeclaration()
 																std::ranges::transform(generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
 																std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(struct_name.m_lexeme, std::move(member_types), std::move(member_names), std::move(generic_param_names));
+																struct_type->GetType<MidoriType::StructType>().m_constraints = constraints;
 
 																// End the generic param scope if it was created
 																if (has_generic_params)
@@ -2669,6 +2796,7 @@ MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 							int tag = 0;
 							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme, std::move(generic_param_names));
 							MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+							union_type_ref.m_constraints = constraints;
 							std::vector<Token> constructor_names;
 
 							size_t type_scope_idx = has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
@@ -3740,6 +3868,17 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 						(
 							[&params, &param_types, &return_type, &keyword, prev_total_locals, this](Token&&) ->MidoriResult::ExpressionResult
 							{
+								size_t prev_constraints_size = m_state.m_active_constraints.size();
+								std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
+								for (const MidoriType::ClassConstraint& constraint : propagated_constraints)
+								{
+									if (!ContainsConstraint(m_state.m_active_constraints, constraint))
+									{
+										m_state.m_active_constraints.push_back(constraint);
+									}
+								}
+								ActiveConstraintGuard constraint_guard{ this, prev_constraints_size };
+
 								auto finish_lambda = [&params, &param_types, &return_type, &keyword, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& return_value) -> MidoriResult::ExpressionResult
 								{
 									EndScope();

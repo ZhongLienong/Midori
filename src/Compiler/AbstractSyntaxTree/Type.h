@@ -88,6 +88,7 @@ public:
 		std::vector<std::string> m_member_names;
 		std::string m_name;
 		std::vector<std::string> m_generic_params;
+		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 	};
 
@@ -102,6 +103,7 @@ public:
 		std::unordered_map<std::string, UnionMemberContext> m_member_info;
 		std::string m_name;
 		std::vector<std::string> m_generic_params;
+		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 
 		UnionType(const std::string& name);

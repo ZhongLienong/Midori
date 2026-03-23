@@ -1,0 +1,15 @@
+module TypeDefinitionConstraintConstruction
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Box<T> where Show<T> {
+    value: T
+};
+
+struct Hidden {
+    value: Int
+};
+
+def bad = new Box(new Hidden(1));

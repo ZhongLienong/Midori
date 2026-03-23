@@ -63,19 +63,39 @@ namespace
 				std::vector<TypePtr> new_param_types;
 				std::ranges::transform(type_variant.m_param_types, std::back_inserter(new_param_types), substitute);
 				TypePtr new_function = MidoriType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
-				new_function->GetType<MidoriType::FunctionType>().m_constraints = type_variant.m_constraints;
+				std::vector<MidoriType::ClassConstraint> new_constraints;
+				new_constraints.reserve(type_variant.m_constraints.size());
+				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+				{
+					std::vector<TypePtr> new_type_args;
+					new_type_args.reserve(constraint.m_type_args.size());
+					std::ranges::transform(constraint.m_type_args, std::back_inserter(new_type_args), substitute);
+					new_constraints.emplace_back(constraint.m_class_name, std::move(new_type_args));
+				}
+				new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
 				return new_function;
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
 			{
 				std::vector<TypePtr> empty_member_types;
 				std::vector<std::string> member_names_copy = type_variant.m_member_names;
-				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), {});
+				std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
+				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
 				cache[current_type.get()] = new_struct;
 
 				std::vector<TypePtr> new_member_types;
 				std::ranges::transform(type_variant.m_member_types, std::back_inserter(new_member_types), substitute);
 				new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
+				std::vector<MidoriType::ClassConstraint> new_constraints;
+				new_constraints.reserve(type_variant.m_constraints.size());
+				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+				{
+					std::vector<TypePtr> new_type_args;
+					new_type_args.reserve(constraint.m_type_args.size());
+					std::ranges::transform(constraint.m_type_args, std::back_inserter(new_type_args), substitute);
+					new_constraints.emplace_back(constraint.m_class_name, std::move(new_type_args));
+				}
+				new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(new_constraints);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
@@ -84,8 +104,19 @@ namespace
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
 			{
-				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, {});
+				std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
+				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, std::move(generic_params_copy));
 				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
+				std::vector<MidoriType::ClassConstraint> new_constraints;
+				new_constraints.reserve(type_variant.m_constraints.size());
+				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+				{
+					std::vector<TypePtr> new_type_args;
+					new_type_args.reserve(constraint.m_type_args.size());
+					std::ranges::transform(constraint.m_type_args, std::back_inserter(new_type_args), substitute);
+					new_constraints.emplace_back(constraint.m_class_name, std::move(new_type_args));
+				}
+				new_union_ref.m_constraints = std::move(new_constraints);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_union_ref.m_is_generic_instantiation = true;
@@ -527,13 +558,14 @@ std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::
 
 std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_generic_params = std::move(generic_params)}));
+	return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_generic_params = std::move(generic_params), .m_constraints = {}}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, std::vector<std::string>&& generic_params)
 {
 	UnionType union_type(name);
 	union_type.m_generic_params = std::move(generic_params);
+	union_type.m_constraints = {};
 	return std::make_shared<MidoriType>(MidoriTypeUnion(std::move(union_type)));
 }
 
