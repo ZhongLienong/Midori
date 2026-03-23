@@ -110,8 +110,28 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetPlatform)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetProcessId)(void** args, void* ret) noexcept;
 
+	// Built-in Arrays
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayAppend)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPrepend)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayExtend)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPop)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept;
+
 	// Text
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextAppend)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextPrepend)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextLength)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextContains)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept;
 
 	// Hashing
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(HashText)(void** args, void* ret) noexcept;

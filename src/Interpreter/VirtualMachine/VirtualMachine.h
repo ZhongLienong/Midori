@@ -88,6 +88,7 @@ private:
     // FFI State
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
+    std::array<MidoriValue, UINT8_MAX> m_ffi_value_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
 	bool m_ffi_table_initialized = false;
 

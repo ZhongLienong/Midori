@@ -7,6 +7,7 @@
 #include <optional>
 #include <unordered_set>
 #include <variant>
+#include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
 
@@ -172,6 +173,18 @@ public:
 
 	MidoriText& Prepend(const MidoriText& other);
 
+	MidoriText Substring(int start, int end) const;
+
+	std::vector<MidoriText> Split(const MidoriText& delimiter) const;
+
+	MidoriText Reverse() const;
+
+	bool Contains(const MidoriText& other) const;
+
+	MidoriText Replace(const MidoriText& old_value, const MidoriText& new_value) const;
+
+	MidoriText Trim() const;
+
 	char operator[](int index) const;
 
 	bool operator==(const MidoriText& other) const;
@@ -254,6 +267,12 @@ public:
 	void Extend(const MidoriArray& other);
 
 	std::optional<MidoriValue> Pop();
+
+	MidoriArray Slice(int start, int end) const;
+
+	MidoriArray Reverse() const;
+
+	bool Contains(const MidoriValue& value) const;
 
 	int GetLength() const;
 

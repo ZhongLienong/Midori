@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,7 @@
 #include <mutex>
 #include <ranges>
 #include <string>
+#include <string_view>
 
 namespace
 {
@@ -752,6 +754,78 @@ std::optional<MidoriValue> MidoriArray::Pop()
 	}
 }
 
+MidoriArray MidoriArray::Slice(int start, int end) const
+{
+	const int len = GetLength();
+	start = std::clamp(start, 0, len);
+	end = std::clamp(end, 0, len);
+	if (end <= start)
+	{
+		return MidoriArray();
+	}
+
+	const int slice_len = end - start;
+	const MidoriValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
+
+	MidoriArray result;
+	if (slice_len <= SOO_CAPACITY)
+	{
+		result.SetShortSize(slice_len);
+		std::memcpy(result.m_short.m_buffer, source + start, static_cast<size_t>(slice_len) * sizeof(MidoriValue));
+	}
+	else
+	{
+		result.Expand(slice_len);
+		result.m_long.m_size = slice_len;
+		std::memcpy(result.m_long.m_ptr, source + start, static_cast<size_t>(slice_len) * sizeof(MidoriValue));
+	}
+
+	return result;
+}
+
+MidoriArray MidoriArray::Reverse() const
+{
+	const int len = GetLength();
+	if (len <= 1)
+	{
+		return MidoriArray(*this);
+	}
+
+	MidoriArray result;
+	if (len <= SOO_CAPACITY)
+	{
+		result.SetShortSize(len);
+		for (int idx = 0; idx < len; idx += 1)
+		{
+			result.m_short.m_buffer[idx] = (*this)[len - 1 - idx];
+		}
+	}
+	else
+	{
+		result.Expand(len);
+		result.m_long.m_size = len;
+		for (int idx = 0; idx < len; idx += 1)
+		{
+			result.m_long.m_ptr[idx] = (*this)[len - 1 - idx];
+		}
+	}
+
+	return result;
+}
+
+bool MidoriArray::Contains(const MidoriValue& value) const
+{
+	// This is a raw-value comparison for now; typeclass-driven equality comes later.
+	for (int idx = 0; idx < GetLength(); idx += 1)
+	{
+		if ((*this)[idx].GetRawBits() == value.GetRawBits())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void MidoriArray::AddFront(const MidoriValue& value)
 {
 	int len = GetLength();
@@ -928,6 +1002,7 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 		result.m_long.m_size = length;
 		result.m_long.m_capacity = length;
 		result.m_long.m_flag = 0;
+		result.m_short.m_size_flag = 0;
 	}
 
 	return result;
@@ -1634,6 +1709,133 @@ MidoriText& MidoriText::Prepend(char c)
 MidoriText& MidoriText::Prepend(const MidoriText& other)
 {
 	return Prepend(other.GetCString());
+}
+
+MidoriText MidoriText::Substring(int start, int end) const
+{
+	const int len = GetLength();
+	start = std::clamp(start, 0, len);
+	end = std::clamp(end, 0, len);
+	if (end <= start)
+	{
+		return MidoriText();
+	}
+
+	const char* source = GetCString();
+	const int byte_len = GetByteLength();
+	const int start_offset = UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
+	const int end_offset = UTF8::GetByteOffsetOfCodePoint(source, byte_len, end);
+	std::string slice(source + start_offset, source + end_offset);
+	return MidoriText(slice.c_str());
+}
+
+std::vector<MidoriText> MidoriText::Split(const MidoriText& delimiter) const
+{
+	std::vector<MidoriText> parts;
+	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
+	const std::string_view needle(delimiter.GetCString(), static_cast<size_t>(delimiter.GetByteLength()));
+
+	if (needle.empty())
+	{
+		if (source.empty())
+		{
+			parts.emplace_back("");
+			return parts;
+		}
+
+		for (size_t offset = 0u; offset < source.size();)
+		{
+			const int char_bytes = UTF8::GetCharacterByteCount(source.data() + offset);
+			parts.emplace_back(std::string(source.substr(offset, static_cast<size_t>(char_bytes))).c_str());
+			offset += static_cast<size_t>(char_bytes);
+		}
+		return parts;
+	}
+
+	size_t start = 0u;
+	while (true)
+	{
+		const size_t found = source.find(needle, start);
+		if (found == std::string_view::npos)
+		{
+			parts.emplace_back(std::string(source.substr(start)).c_str());
+			return parts;
+		}
+
+		parts.emplace_back(std::string(source.substr(start, found - start)).c_str());
+		start = found + needle.size();
+	}
+}
+
+MidoriText MidoriText::Reverse() const
+{
+	const char* source = GetCString();
+	const int byte_len = GetByteLength();
+	std::string reversed;
+	reversed.reserve(static_cast<size_t>(byte_len));
+
+	for (int end = byte_len; end > 0;)
+	{
+		const int start = UTF8::StepBackward(source, end);
+		reversed.append(source + start, static_cast<size_t>(end - start));
+		end = start;
+	}
+
+	return MidoriText(reversed.c_str());
+}
+
+bool MidoriText::Contains(const MidoriText& other) const
+{
+	return std::string_view(GetCString(), static_cast<size_t>(GetByteLength()))
+		.find(std::string_view(other.GetCString(), static_cast<size_t>(other.GetByteLength()))) != std::string_view::npos;
+}
+
+MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& new_value) const
+{
+	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
+	const std::string_view needle(old_value.GetCString(), static_cast<size_t>(old_value.GetByteLength()));
+	const std::string_view replacement(new_value.GetCString(), static_cast<size_t>(new_value.GetByteLength()));
+
+	if (needle.empty())
+	{
+		return MidoriText(*this);
+	}
+
+	std::string replaced;
+	size_t start = 0u;
+	while (true)
+	{
+		const size_t found = source.find(needle, start);
+		if (found == std::string_view::npos)
+		{
+			replaced.append(source.substr(start));
+			break;
+		}
+
+		replaced.append(source.substr(start, found - start));
+		replaced.append(replacement);
+		start = found + needle.size();
+	}
+
+	return MidoriText(replaced.c_str());
+}
+
+MidoriText MidoriText::Trim() const
+{
+	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
+	size_t start = 0u;
+	while (start < source.size() && std::isspace(static_cast<unsigned char>(source[start])) != 0)
+	{
+		start += 1u;
+	}
+
+	size_t end = source.size();
+	while (end > start && std::isspace(static_cast<unsigned char>(source[end - 1u])) != 0)
+	{
+		end -= 1u;
+	}
+
+	return MidoriText(std::string(source.substr(start, end - start)).c_str());
 }
 
 char MidoriText::operator[](int index) const

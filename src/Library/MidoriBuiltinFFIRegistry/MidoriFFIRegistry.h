@@ -9,30 +9,76 @@
 
 using FFIFunction = void(*)(void** args, void* ret);
 
+constexpr size_t MIDORI_FFI_MAX_ARITY = 4u;
+
+enum class FFIArgumentKind : uint8_t
+{
+	RawValue = 0,
+	CString,
+	ArrayView,
+	TraceableHandle,
+	ValueHandle
+};
+
+enum class FFIReturnKind : uint8_t
+{
+	RawValue = 0,
+	CString,
+	ArrayValues,
+	ArrayStrings,
+	Value
+};
+
+template<typename... Kinds>
+consteval std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> MakeFFIArgKinds(Kinds... kinds)
+{
+	static_assert(sizeof...(Kinds) <= MIDORI_FFI_MAX_ARITY);
+	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> result{};
+	FFIArgumentKind values[] = { kinds... };
+	for (size_t i = 0uz; i < sizeof...(Kinds); i += 1uz)
+	{
+		result[i] = values[i];
+	}
+	return result;
+}
+
 struct FFIEntry
 {
 	const char* m_name;
 	FFIFunction m_function;
+	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> m_arg_kinds{};
+	FFIReturnKind m_return_kind = FFIReturnKind::RawValue;
+
+	constexpr FFIEntry
+	(
+		const char* name,
+		FFIFunction function,
+		std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> arg_kinds = {},
+		FFIReturnKind return_kind = FFIReturnKind::RawValue
+	)
+		: m_name(name), m_function(function), m_arg_kinds(arg_kinds), m_return_kind(return_kind)
+	{
+	}
 };
 
 class MidoriFFIRegistry
 {
 private:
-	inline static constexpr std::array s_entries = 
+	inline static constexpr std::array s_entries =
 	{
-		FFIEntry{ "MIDORI_FFI_Print", &MIDORI_FFI_Print },
-		FFIEntry{ "MIDORI_FFI_PrintError", &MIDORI_FFI_PrintError },
-		FFIEntry{ "MIDORI_FFI_ReadInput", &MIDORI_FFI_ReadInput },
-		FFIEntry{ "MIDORI_FFI_ReadLine", &MIDORI_FFI_ReadLine },
-		FFIEntry{ "MIDORI_FFI_ReadFile", &MIDORI_FFI_ReadFile },
-		FFIEntry{ "MIDORI_FFI_WriteFile", &MIDORI_FFI_WriteFile },
-		FFIEntry{ "MIDORI_FFI_AppendToFile", &MIDORI_FFI_AppendToFile },
-		FFIEntry{ "MIDORI_FFI_ReadBinaryFile", &MIDORI_FFI_ReadBinaryFile },
-		FFIEntry{ "MIDORI_FFI_WriteBinaryFile", &MIDORI_FFI_WriteBinaryFile },
-		FFIEntry{ "MIDORI_FFI_FileExists", &MIDORI_FFI_FileExists },
-		FFIEntry{ "MIDORI_FFI_DeleteFile", &MIDORI_FFI_DeleteFile },
-		FFIEntry{ "MIDORI_FFI_RenameFile", &MIDORI_FFI_RenameFile },
-		FFIEntry{ "MIDORI_FFI_GetFileSize", &MIDORI_FFI_GetFileSize },
+		FFIEntry{ "MIDORI_FFI_Print", &MIDORI_FFI_Print, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_PrintError", &MIDORI_FFI_PrintError, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_ReadInput", &MIDORI_FFI_ReadInput, {}, FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_ReadLine", &MIDORI_FFI_ReadLine, {}, FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_ReadFile", &MIDORI_FFI_ReadFile, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_WriteFile", &MIDORI_FFI_WriteFile, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_AppendToFile", &MIDORI_FFI_AppendToFile, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_ReadBinaryFile", &MIDORI_FFI_ReadBinaryFile, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::ArrayValues },
+		FFIEntry{ "MIDORI_FFI_WriteBinaryFile", &MIDORI_FFI_WriteBinaryFile, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::ArrayView) },
+		FFIEntry{ "MIDORI_FFI_FileExists", &MIDORI_FFI_FileExists, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_DeleteFile", &MIDORI_FFI_DeleteFile, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_RenameFile", &MIDORI_FFI_RenameFile, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_GetFileSize", &MIDORI_FFI_GetFileSize, MakeFFIArgKinds(FFIArgumentKind::CString) },
 		FFIEntry{ "MIDORI_FFI_SquareRoot", &MIDORI_FFI_SquareRoot },
 		FFIEntry{ "MIDORI_FFI_Abs", &MIDORI_FFI_Abs },
 		FFIEntry{ "MIDORI_FFI_Pow", &MIDORI_FFI_Pow },
@@ -77,7 +123,7 @@ private:
 		FFIEntry{ "MIDORI_FFI_GetSecond", &MIDORI_FFI_GetSecond },
 		FFIEntry{ "MIDORI_FFI_GetDayOfWeek", &MIDORI_FFI_GetDayOfWeek },
 		FFIEntry{ "MIDORI_FFI_GetDayOfYear", &MIDORI_FFI_GetDayOfYear },
-		FFIEntry{ "MIDORI_FFI_FormatTime", &MIDORI_FFI_FormatTime },
+		FFIEntry{ "MIDORI_FFI_FormatTime", &MIDORI_FFI_FormatTime, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::CString },
 		FFIEntry{ "MIDORI_FFI_GetTimezoneOffset", &MIDORI_FFI_GetTimezoneOffset },
 		FFIEntry{ "MIDORI_FFI_GetUtcYear", &MIDORI_FFI_GetUtcYear },
 		FFIEntry{ "MIDORI_FFI_GetUtcMonth", &MIDORI_FFI_GetUtcMonth },
@@ -86,16 +132,34 @@ private:
 		FFIEntry{ "MIDORI_FFI_GetUtcMinute", &MIDORI_FFI_GetUtcMinute },
 		FFIEntry{ "MIDORI_FFI_GetUtcSecond", &MIDORI_FFI_GetUtcSecond },
 		FFIEntry{ "MIDORI_FFI_Exit", &MIDORI_FFI_Exit },
-		FFIEntry{ "MIDORI_FFI_GetEnv", &MIDORI_FFI_GetEnv },
-		FFIEntry{ "MIDORI_FFI_SetEnv", &MIDORI_FFI_SetEnv },
+		FFIEntry{ "MIDORI_FFI_GetEnv", &MIDORI_FFI_GetEnv, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_SetEnv", &MIDORI_FFI_SetEnv, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::CString) },
 		FFIEntry{ "MIDORI_FFI_Sleep", &MIDORI_FFI_Sleep },
-		FFIEntry{ "MIDORI_FFI_GetCurrentDirectory", &MIDORI_FFI_GetCurrentDirectory },
-		FFIEntry{ "MIDORI_FFI_SetCurrentDirectory", &MIDORI_FFI_SetCurrentDirectory },
-		FFIEntry{ "MIDORI_FFI_Execute", &MIDORI_FFI_Execute },
-		FFIEntry{ "MIDORI_FFI_GetPlatform", &MIDORI_FFI_GetPlatform },
+		FFIEntry{ "MIDORI_FFI_GetCurrentDirectory", &MIDORI_FFI_GetCurrentDirectory, {}, FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_SetCurrentDirectory", &MIDORI_FFI_SetCurrentDirectory, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_Execute", &MIDORI_FFI_Execute, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_GetPlatform", &MIDORI_FFI_GetPlatform, {}, FFIReturnKind::CString },
 		FFIEntry{ "MIDORI_FFI_GetProcessId", &MIDORI_FFI_GetProcessId },
-		FFIEntry{ "MIDORI_FFI_TextLength", &MIDORI_FFI_TextLength },
-		FFIEntry{ "MIDORI_FFI_HashText", &MIDORI_FFI_HashText },
+		FFIEntry{ "MIDORI_FFI_ArrayAppend", &MIDORI_FFI_ArrayAppend, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::ValueHandle) },
+		FFIEntry{ "MIDORI_FFI_ArrayPrepend", &MIDORI_FFI_ArrayPrepend, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::ValueHandle) },
+		FFIEntry{ "MIDORI_FFI_ArrayExtend", &MIDORI_FFI_ArrayExtend, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle) },
+		FFIEntry{ "MIDORI_FFI_ArrayConcat", &MIDORI_FFI_ArrayConcat, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle), FFIReturnKind::ArrayValues },
+		FFIEntry{ "MIDORI_FFI_ArrayLength", &MIDORI_FFI_ArrayLength, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle) },
+		FFIEntry{ "MIDORI_FFI_ArrayPop", &MIDORI_FFI_ArrayPop, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle), FFIReturnKind::Value },
+		FFIEntry{ "MIDORI_FFI_ArraySlice", &MIDORI_FFI_ArraySlice, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::ValueHandle, FFIArgumentKind::ValueHandle), FFIReturnKind::ArrayValues },
+		FFIEntry{ "MIDORI_FFI_ArrayReverse", &MIDORI_FFI_ArrayReverse, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle), FFIReturnKind::ArrayValues },
+		FFIEntry{ "MIDORI_FFI_ArrayContains", &MIDORI_FFI_ArrayContains, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::ValueHandle) },
+		FFIEntry{ "MIDORI_FFI_TextAppend", &MIDORI_FFI_TextAppend, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle) },
+		FFIEntry{ "MIDORI_FFI_TextPrepend", &MIDORI_FFI_TextPrepend, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle) },
+		FFIEntry{ "MIDORI_FFI_TextConcat", &MIDORI_FFI_TextConcat, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_TextLength", &MIDORI_FFI_TextLength, MakeFFIArgKinds(FFIArgumentKind::CString) },
+		FFIEntry{ "MIDORI_FFI_TextSubstring", &MIDORI_FFI_TextSubstring, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::ValueHandle, FFIArgumentKind::ValueHandle), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_TextSplit", &MIDORI_FFI_TextSplit, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle), FFIReturnKind::ArrayStrings },
+		FFIEntry{ "MIDORI_FFI_TextReverse", &MIDORI_FFI_TextReverse, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_TextContains", &MIDORI_FFI_TextContains, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle) },
+		FFIEntry{ "MIDORI_FFI_TextReplace", &MIDORI_FFI_TextReplace, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle, FFIArgumentKind::TraceableHandle), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_TextTrim", &MIDORI_FFI_TextTrim, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle), FFIReturnKind::CString },
+		FFIEntry{ "MIDORI_FFI_HashText", &MIDORI_FFI_HashText, MakeFFIArgKinds(FFIArgumentKind::CString) },
 		FFIEntry{ "MIDORI_FFI_HashFloat", &MIDORI_FFI_HashFloat },
 	};
 

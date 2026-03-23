@@ -2067,6 +2067,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
 
+			const FFIEntry& ffi_entry = MidoriFFIRegistry::GetEntry(ffi_index);
 			FFIFunction proc = m_ffi_table[ffi_index];
 
 			m_ffi_array_args.clear();
@@ -2078,19 +2079,28 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				size_t idx = static_cast<size_t>(i);
 				MidoriValue arg = Pop();
+				const FFIArgumentKind arg_kind = ffi_entry.m_arg_kinds[idx];
+				MidoriTraceable* ptr = arg.GetPointer();
+				const bool is_managed_traceable = ptr != nullptr && m_gc.Contains(ptr);
 
-				if (m_gc.Contains(arg.GetPointer()))
+				switch (arg_kind)
 				{
-					MidoriTraceable* ptr = arg.GetPointer();
-					if (ptr->IsTraceable<MidoriText>())
+				case FFIArgumentKind::CString:
+					if (is_managed_traceable && ptr->IsTraceable<MidoriText>())
 					{
 						m_ffi_args[idx] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
 					}
-					else if (ptr->IsTraceable<MidoriArray>())
+					else
+					{
+						m_ffi_args[idx] = nullptr;
+					}
+					break;
+				case FFIArgumentKind::ArrayView:
+					if (is_managed_traceable && ptr->IsTraceable<MidoriArray>())
 					{
 						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
 						FFIArrayArgument array_arg;
-						array_arg.data = &array[0u];
+						array_arg.data = array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr;
 						array_arg.length = array.GetLength();
 						m_ffi_array_args.push_back(array_arg);
 						m_ffi_args[idx] = &m_ffi_array_args.back();
@@ -2099,17 +2109,38 @@ int VirtualMachine::ExecuteLoop() noexcept
 					{
 						m_ffi_args[idx] = nullptr;
 					}
-				}
-				else
-				{
+					break;
+				case FFIArgumentKind::TraceableHandle:
+					m_ffi_args[idx] = is_managed_traceable ? ptr : nullptr;
+					break;
+				case FFIArgumentKind::ValueHandle:
+					m_ffi_value_args[idx] = arg;
+					m_ffi_args[idx] = &m_ffi_value_args[idx];
+					break;
+				case FFIArgumentKind::RawValue:
+				default:
 					std::memcpy(&m_ffi_args[idx], arg.GetRawDataPtr(), sizeof(double));
+					break;
 				}
 			}
 
 			MidoriValue return_val;
 			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
-			if (return_type == 1)
+			FFIReturnKind return_kind = ffi_entry.m_return_kind;
+			if (return_kind == FFIReturnKind::RawValue)
+			{
+				if (return_type == 1)
+				{
+					return_kind = FFIReturnKind::CString;
+				}
+				else if (return_type == 2)
+				{
+					return_kind = FFIReturnKind::ArrayValues;
+				}
+			}
+
+			if (return_kind == FFIReturnKind::CString)
 			{
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
@@ -2123,7 +2154,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					std::free(ffi_string);
 				}
 			}
-			else if (return_type == 2)
+			else if (return_kind == FFIReturnKind::ArrayValues)
 			{
 				struct FFIArray
 				{
@@ -2146,6 +2177,38 @@ int VirtualMachine::ExecuteLoop() noexcept
 					Push(AllocateTraceable(std::move(wrapped_array)));
 
 					std::free(ffi_array);
+				}
+			}
+			else if (return_kind == FFIReturnKind::ArrayStrings)
+			{
+				struct FFIArray
+				{
+					void* data;
+					int length;
+				};
+
+				int64_t ptr_val = return_val.GetInteger();
+				if (ptr_val == 0)
+				{
+					Push(AllocateTraceable(MidoriArray()));
+				}
+				else
+				{
+					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
+					char** ffi_strings = static_cast<char**>(ffi_array->data);
+					const int length = ffi_array->length;
+
+					MidoriArray wrapped_array(length);
+					for (int idx = 0; idx < length; idx += 1)
+					{
+						char* ffi_string = ffi_strings[idx];
+						wrapped_array[idx] = AllocateTraceable(ffi_string != nullptr ? ffi_string : "");
+						std::free(ffi_string);
+					}
+
+					std::free(ffi_strings);
+					std::free(ffi_array);
+					Push(AllocateTraceable(std::move(wrapped_array)));
 				}
 			}
 			else

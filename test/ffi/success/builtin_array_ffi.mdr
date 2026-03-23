@@ -1,0 +1,55 @@
+module BuiltinArrayFfi
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr",
+}
+
+foreign "MIDORI_FFI_ArrayAppend" ArrayAppendInt : fn(Array<Int>, Int) -> Unit;
+foreign "MIDORI_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
+foreign "MIDORI_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
+foreign "MIDORI_FFI_ArrayPop" ArrayPopInt : fn(Array<Int>) -> Int;
+foreign "MIDORI_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
+foreign "MIDORI_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
+foreign "MIDORI_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
+
+foreign "MIDORI_FFI_ArrayAppend" ArrayAppendText : fn(Array<Text>, Text) -> Unit;
+foreign "MIDORI_FFI_ArrayPop" ArrayPopText : fn(Array<Text>) -> Text;
+
+def arr = [1, 2];
+ArrayAppendInt(arr, 3);
+if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayAppend should grow the array");
+
+def combined = ArrayConcatInt(arr, [4, 5]);
+if ArrayLengthInt(combined) == 5 then () else Panic::Panic("ArrayConcat should return a larger array");
+if combined[3] == 4 then () else Panic::Panic("ArrayConcat should preserve right-hand ordering");
+
+def reversed = ArrayReverseInt(combined);
+if reversed[0] == 5 then () else Panic::Panic("ArrayReverse should place the last item first");
+if reversed[4] == 1 then () else Panic::Panic("ArrayReverse should place the first item last");
+
+def slice = ArraySliceInt(reversed, 1, 4);
+if ArrayLengthInt(slice) == 3 then () else Panic::Panic("ArraySlice should return the requested window");
+if slice[0] == 4 then () else Panic::Panic("ArraySlice should preserve the first sliced item");
+if slice[2] == 2 then () else Panic::Panic("ArraySlice should preserve the last sliced item");
+
+if ArrayContainsInt(slice, 3)
+then ()
+else Panic::Panic("ArrayContains should find existing values");
+
+if ArrayContainsInt(slice, 9)
+then Panic::Panic("ArrayContains should reject missing values")
+else ();
+
+def popped = ArrayPopInt(arr);
+if popped == 3 then () else Panic::Panic("ArrayPop should return the last element");
+if ArrayLengthInt(arr) == 2 then () else Panic::Panic("ArrayPop should shrink the array");
+
+def texts = ["alpha"];
+ArrayAppendText(texts, "beta");
+def popped_text = ArrayPopText(texts);
+if popped_text == "beta" then () else Panic::Panic("ArrayPop should preserve pointer-backed values");
+if texts[0] == "alpha" then () else Panic::Panic("ArrayAppend should keep existing text values intact");
+
+IO::PrintLine("builtin_array_ffi: PASS");
