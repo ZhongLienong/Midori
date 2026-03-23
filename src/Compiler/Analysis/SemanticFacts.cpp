@@ -777,7 +777,7 @@ namespace
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Binary>)
 				{
-					if (node.m_uses_equatable || node.m_uses_orderable)
+					if (node.m_uses_concatenable || node.m_uses_equatable || node.m_uses_orderable)
 					{
 						return false;
 					}

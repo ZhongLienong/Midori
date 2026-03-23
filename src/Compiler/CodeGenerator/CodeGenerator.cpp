@@ -989,6 +989,86 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 	EmitByte(static_cast<OpCode>((offset >> SHIFT_8_BITS) & BYTE_MASK), line);
 }
 
+bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line)
+{
+	std::string resolved_method_name;
+	bool found = false;
+
+	std::string qualified_method_name = std::string(CONCATENABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(CONCAT_METHOD_NAME);
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
+	if (resolution_it != m_method_resolution_map.end())
+	{
+		std::string operand_type_name = operand_type->ToString();
+		for (const ResolvedMethodCandidate& candidate : resolution_it->second)
+		{
+			if (candidate.m_first_type_name == operand_type_name && candidate.m_has_instance)
+			{
+				if (found && resolved_method_name != candidate.m_resolved_name)
+				{
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type_name + "'"s, line, m_file_name, m_source_lines));
+					return false;
+				}
+
+				resolved_method_name = candidate.m_resolved_name;
+				found = true;
+			}
+		}
+	}
+
+	if (!found)
+	{
+		TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(std::string(CONCATENABLE_CLASS_NAME));
+		if (instance_args_it != m_class_instance_type_args.end())
+		{
+			for (const std::vector<std::shared_ptr<MidoriType>>& candidate_args : instance_args_it->second)
+			{
+				if (candidate_args.size() != 1u)
+				{
+					continue;
+				}
+
+				TypeEnvironment substitutions;
+				std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+				if (!MatchInstanceTypeArg(candidate_args[0u], operand_type, substitutions, visited))
+				{
+					continue;
+				}
+
+				std::string candidate_base = MidoriType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), candidate_args);
+				std::optional<std::string> candidate_name = ResolveInstanceName(std::string(CONCATENABLE_CLASS_NAME), candidate_base);
+				if (!candidate_name.has_value())
+				{
+					continue;
+				}
+
+				if (found && resolved_method_name != candidate_name.value())
+				{
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type->ToString() + "'"s, line, m_file_name, m_source_lines));
+					return false;
+				}
+
+				resolved_method_name = candidate_name.value();
+				found = true;
+			}
+		}
+	}
+
+	if (!found)
+	{
+		std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(CONCAT_MANGLED_PREFIX) + operand_type->ToString();
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
+		return false;
+	}
+
+	if (!EmitResolvedNameGetGlobal(resolved_method_name, line))
+	{
+		return false;
+	}
+
+	EmitCall(2, line);
+	return true;
+}
+
 void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line)
 {
 	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(EQUALS_MANGLED_PREFIX) + operand_type->ToString();
@@ -2284,27 +2364,34 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::DOUBLE_PLUS:
 		{
-			if (operand_type->IsType<MidoriType::TextType>())
+			if (binary.m_uses_concatenable)
 			{
-				EmitByte(OpCode::CONCAT_TEXT, line);
-			}
-			else if (operand_type->IsType<MidoriType::ArrayType>())
-			{
-				EmitByte(OpCode::CONCAT_ARRAY, line);
+				EmitConcatenableConcat(operand_type, line);
 			}
 			else
 			{
-				const std::string actual_type = operand_type ? operand_type->ToString() : "Unknown";
-				AddError
-				(
-					MidoriError::GenerateCodeGeneratorErrorWithContext
+				if (operand_type->IsType<MidoriType::TextType>())
+				{
+					EmitByte(OpCode::CONCAT_TEXT, line);
+				}
+				else if (operand_type->IsType<MidoriType::ArrayType>())
+				{
+					EmitByte(OpCode::CONCAT_ARRAY, line);
+				}
+				else
+				{
+					const std::string actual_type = operand_type ? operand_type->ToString() : "Unknown";
+					AddError
 					(
-						std::format("Concatenation operator '++' requires Text or Array type (got {})", actual_type),
-						binary.m_op,
-						m_file_name,
-						m_source_lines
-					)
-				);
+						MidoriError::GenerateCodeGeneratorErrorWithContext
+						(
+							std::format("Concatenation operator '++' requires Text or Array type (got {})", actual_type),
+							binary.m_op,
+							m_file_name,
+							m_source_lines
+						)
+					);
+				}
 			}
 			break;
 		}

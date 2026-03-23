@@ -88,6 +88,10 @@ constexpr std::string_view ORDERABLE_CLASS_NAME = "Orderable";
 constexpr std::string_view COMPARE_METHOD_NAME = "Compare";
 constexpr std::string_view COMPARE_MANGLED_PREFIX = "Compare_Orderable_";
 
+constexpr std::string_view CONCATENABLE_CLASS_NAME = "Concatenable";
+constexpr std::string_view CONCAT_METHOD_NAME = "Concat";
+constexpr std::string_view CONCAT_MANGLED_PREFIX = "Concat_Concatenable_";
+
 constexpr std::string_view COUNTABLE_CLASS_NAME = "Countable";
 constexpr std::string_view COUNT_METHOD_NAME = "Count";
 constexpr std::string_view COUNT_MANGLED_PREFIX = "Count_Countable_";

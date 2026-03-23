@@ -175,6 +175,8 @@ private:
 
 	void EmitLoop(int loop_start, int line);
 
+	bool EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line);
+
 	void EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line);
 
 	void EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line);

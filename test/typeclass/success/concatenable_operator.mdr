@@ -1,0 +1,21 @@
+module ConcatenableOperator
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Concatenable.mdr" }
+
+struct Chunk {
+    text: Text
+};
+
+instance Concatenable<Chunk> {
+    defun Concat(left: Chunk, right: Chunk) : Chunk => new Chunk(left.text ++ right.text);
+};
+
+defun Join<T>(left: T, right: T) : T
+    where Concatenable<T> => left ++ right;
+
+def combined = new Chunk("mid") ++ new Chunk("ori");
+def joined = Join(new Chunk("type"), new Chunk("class"));
+
+if combined.text == "midori" && joined.text == "typeclass"
+then IO::PrintLine("concatenable_operator: PASS")
+else IO::PrintLine("concatenable_operator: FAIL");

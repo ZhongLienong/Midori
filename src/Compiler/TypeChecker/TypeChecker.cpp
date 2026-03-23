@@ -3963,9 +3963,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										}
 										else if (std::ranges::contains(kBinaryConcatenationOperators.cbegin(), kBinaryConcatenationOperators.cend(), binary.m_op.m_token_name))
 										{
-											if (!resolved_left->IsType<MidoriType::TextType>() && !resolved_left->IsType<MidoriType::ArrayType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
+											bool is_builtin_concat = resolved_left->IsType<MidoriType::TextType>() || resolved_left->IsType<MidoriType::ArrayType>();
+											if (!is_builtin_concat)
 											{
-												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected array or text", binary.m_op, m_file_name, m_source_lines, resolved_left));
+												bool has_concatenable_instance = FindMatchingInstance(std::string(CONCATENABLE_CLASS_NAME), { resolved_left }).has_value();
+												bool has_concatenable_constraint = false;
+												if (!has_concatenable_instance)
+												{
+													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+													{
+														if (constraint.m_class_name == CONCATENABLE_CLASS_NAME && constraint.m_type_args.size() == 1u && *constraint.m_type_args[0] == *resolved_left)
+														{
+															has_concatenable_constraint = true;
+															break;
+														}
+													}
+												}
+
+												if (!has_concatenable_instance && !has_concatenable_constraint)
+												{
+													MidoriType::ClassConstraint constraint(std::string(CONCATENABLE_CLASS_NAME), { resolved_left });
+													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
+												}
+
+												binary.m_uses_concatenable = true;
 											}
 										}
 

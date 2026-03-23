@@ -324,6 +324,7 @@ public:
 		Token m_op;
 		std::unique_ptr<MidoriExpression> m_left;
 		std::unique_ptr<MidoriExpression> m_right;
+		bool m_uses_concatenable = false; // True if using Concatenable typeclass for ++
 		bool m_uses_equatable = false;   // True if using Equatable typeclass for == or !=
 		bool m_uses_orderable = false;   // True if using Orderable typeclass for <, >, <=, >=
 
