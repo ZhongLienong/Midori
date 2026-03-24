@@ -8,8 +8,8 @@ import
 defun Check() : () =>
 {
     def items = [1];
-    def first = items ++= [2];
-    items ++= [3];
+    def first = items = items ++ [2];
+    items = items ++ [3];
 
     if #first == 2 then () else Panic::Panic("escaped concat-assign result should keep the old array after later mutations");
     if first[0] == 1 then () else Panic::Panic("escaped concat-assign result should preserve its prefix");

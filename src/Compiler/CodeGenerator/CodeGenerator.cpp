@@ -1604,9 +1604,6 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::UnaryPrefix& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::UnarySuffix& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Assignment& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::AppendAssign& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::ExtendAssign& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::PrependAssign& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::CompoundAssign& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::NameAccess& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Call& arg) const { (*m_self)(arg); }
@@ -2433,10 +2430,6 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			{
 				EmitByte(OpCode::MULTIPLY_WORD, line);
 			}
-			else if (operand_type->IsType<MidoriType::ArrayType>())
-			{
-				EmitByte(OpCode::DUP_ARRAY, line);
-			}
 			else
 			{
 				const std::string actual_type = operand_type ? operand_type->ToString() : "Unknown";
@@ -2444,7 +2437,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 				(
 					MidoriError::GenerateCodeGeneratorErrorWithContext
 					(
-						std::format("Binary '*' requires numeric or array type (got {})", actual_type),
+						std::format("Binary '*' requires numeric type (got {})", actual_type),
 						binary.m_op,
 						m_file_name,
 						m_source_lines
@@ -3282,199 +3275,9 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 	std::visit(NameAccessVisitor{ this, &variable }, variable.m_name_ctx);
 }
 
-void CodeGenerator::operator()(MidoriExpression::AppendAssign& append_assign)
-{
-	int line = append_assign.m_name.m_line;
-
-	if (append_assign.m_struct != nullptr)
-	{
-		Visit(append_assign.m_struct);
-		EmitByte(OpCode::DUP, line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
-		Visit(append_assign.m_value);
-
-		if (append_assign.m_type_data->IsType<MidoriType::ArrayType>())
-		{
-			EmitByte(OpCode::APPEND_ARRAY, line);
-		}
-		else if (append_assign.m_type_data->IsType<MidoriType::TextType>())
-		{
-			EmitByte(OpCode::APPEND_TEXT, line);
-		}
-
-		EmitByte(OpCode::SET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(append_assign.m_index), line);
-		return;
-	}
-
-	struct AppendAssignVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::AppendAssign* m_assign = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_assign->m_name.m_lexeme;
-			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
-		}
-	};
-
-	std::visit(AppendAssignVisitor{ this, &append_assign, line }, append_assign.m_name_ctx);
-
-	Visit(append_assign.m_value);
-
-	if (append_assign.m_type_data->IsType<MidoriType::ArrayType>())
-	{
-		EmitByte(OpCode::APPEND_ARRAY, line);
-	}
-	else if (append_assign.m_type_data->IsType<MidoriType::TextType>())
-	{
-		EmitByte(OpCode::APPEND_TEXT, line);
-	}
-}
-
-void CodeGenerator::operator()(MidoriExpression::ExtendAssign& extend_assign)
-{
-	int line = extend_assign.m_name.m_line;
-
-	struct ExtendAssignVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::ExtendAssign* m_assign = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_assign->m_name.m_lexeme;
-			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
-		}
-	};
-
-	std::visit(ExtendAssignVisitor{ this, &extend_assign, line }, extend_assign.m_name_ctx);
-
-	Visit(extend_assign.m_value);
-	EmitByte(OpCode::EXTEND_ARRAY, line);
-}
-
-void CodeGenerator::operator()(MidoriExpression::PrependAssign& prepend_assign)
-{
-	int line = prepend_assign.m_name.m_line;
-
-	if (prepend_assign.m_struct != nullptr)
-	{
-		Visit(prepend_assign.m_struct);
-		EmitByte(OpCode::DUP, line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
-		Visit(prepend_assign.m_value);
-
-		if (prepend_assign.m_type_data->IsType<MidoriType::ArrayType>())
-		{
-			EmitByte(OpCode::PREPEND_ARRAY, line);
-		}
-		else if (prepend_assign.m_type_data->IsType<MidoriType::TextType>())
-		{
-			EmitByte(OpCode::PREPEND_TEXT, line);
-		}
-
-		EmitByte(OpCode::SET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(prepend_assign.m_index), line);
-		return;
-	}
-
-	struct PrependAssignVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::PrependAssign* m_assign = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_assign->m_name.m_lexeme;
-			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
-		}
-	};
-
-	std::visit(PrependAssignVisitor{ this, &prepend_assign, line }, prepend_assign.m_name_ctx);
-
-	Visit(prepend_assign.m_value);
-
-	if (prepend_assign.m_type_data->IsType<MidoriType::ArrayType>())
-	{
-		EmitByte(OpCode::PREPEND_ARRAY, line);
-	}
-	else if (prepend_assign.m_type_data->IsType<MidoriType::TextType>())
-	{
-		EmitByte(OpCode::PREPEND_TEXT, line);
-	}
-}
-
 void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
 	int line = compound_assign.m_name.m_line;
-	const bool is_concat_assign = compound_assign.m_op.m_token_name == Token::Name::PLUS_PLUS_EQUAL;
-
-	auto emit_concat_opcode = [this, &compound_assign, line]() -> void
-	{
-		if (compound_assign.m_type_data->IsType<MidoriType::TextType>())
-		{
-			EmitByte(OpCode::CONCAT_TEXT, line);
-			return;
-		}
-		if (compound_assign.m_type_data->IsType<MidoriType::ArrayType>())
-		{
-			EmitByte(OpCode::CONCAT_ARRAY, line);
-			return;
-		}
-
-		const std::string actual_type = compound_assign.m_type_data ? compound_assign.m_type_data->ToString() : "Unknown";
-		AddError
-		(
-			MidoriError::GenerateCodeGeneratorErrorWithContext
-			(
-				std::format("Concat assignment operator '++=' requires Text or Array type (got {})", actual_type),
-				compound_assign.m_op,
-				m_file_name,
-				m_source_lines
-			)
-		);
-	};
 
 	if (compound_assign.m_struct != nullptr)
 	{
@@ -3483,16 +3286,6 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		EmitByte(OpCode::GET_MEMBER, line);
 		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
 		Visit(compound_assign.m_value);
-
-		if (is_concat_assign)
-		{
-			emit_concat_opcode();
-			EmitByte(OpCode::SET_MEMBER, line);
-			EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
-			EmitByte(OpCode::GET_MEMBER, line);
-			EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
-			return;
-		}
 
 		bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 		switch (compound_assign.m_op.m_token_name)
@@ -3617,13 +3410,6 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 	std::visit(CompoundAssignLoadVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 
 	Visit(compound_assign.m_value);
-
-	if (is_concat_assign)
-	{
-		emit_concat_opcode();
-		std::visit(CompoundAssignStoreVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
-		return;
-	}
 
 	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 	switch (compound_assign.m_op.m_token_name)

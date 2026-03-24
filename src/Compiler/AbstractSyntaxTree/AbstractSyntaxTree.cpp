@@ -141,49 +141,6 @@ MidoriExpression::Assignment::Assignment(const Token& name, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::AppendAssign::AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
-	: m_name(name),
-	m_struct(nullptr),
-	m_value(std::move(value)),
-	m_name_ctx(std::move(name_ctx)),
-	m_index(-1)
-{
-}
-
-MidoriExpression::AppendAssign::AppendAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
-	: m_name(member_name),
-	m_struct(std::move(struct_expr)),
-	m_value(std::move(value)),
-	m_name_ctx(NameContext::Global()),
-	m_index(index)
-{
-}
-
-MidoriExpression::ExtendAssign::ExtendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
-	: m_name(name),
-	m_value(std::move(value)),
-	m_name_ctx(std::move(name_ctx))
-{
-}
-
-MidoriExpression::PrependAssign::PrependAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
-	: m_name(name),
-	m_struct(nullptr),
-	m_value(std::move(value)),
-	m_name_ctx(std::move(name_ctx)),
-	m_index(-1)
-{
-}
-
-MidoriExpression::PrependAssign::PrependAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
-	: m_name(member_name),
-	m_struct(std::move(struct_expr)),
-	m_value(std::move(value)),
-	m_name_ctx(NameContext::Global()),
-	m_index(index)
-{
-}
-
 MidoriExpression::CompoundAssign::CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_op(op),

@@ -35,7 +35,6 @@ enum class OpCode : uint8_t
 	GET_TUPLE,
 	UNPACK_TUPLE,
 	SET_ARRAY,
-	DUP_ARRAY,
 	ADD_BACK_ARRAY,
 	ADD_FRONT_ARRAY,
 	GET_ARRAY_LENGTH,
@@ -102,15 +101,6 @@ enum class OpCode : uint8_t
 	// Concatenations
 	CONCAT_ARRAY,
 	CONCAT_TEXT,
-
-	// Array Mutations
-	APPEND_ARRAY,
-	PREPEND_ARRAY,
-	EXTEND_ARRAY,
-
-	// Text Mutations
-	APPEND_TEXT,
-	PREPEND_TEXT,
 
 	// Compound Assignment Operations
 	ADD_ASSIGN_INT,

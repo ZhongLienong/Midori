@@ -2,6 +2,7 @@ module MixedOperations
 
 import
 {
+	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
@@ -18,7 +19,7 @@ defun TestTextArrayCombination(iterations : Int) : Unit =>
 		then break ()
 		else
 		{
-			texts ++= ("Number: " ++ (i as Text));
+			Appendable::Append(texts, "Number: " ++ (i as Text));
 			i = i + 1;
 		}
 	};
@@ -51,7 +52,7 @@ defun TestArrayFilter(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -67,8 +68,8 @@ defun TestArrayFilter(size : Int) : Unit =>
 		else
 		{
 			if arr[j] % 2 == 0
-			then filtered ++= arr[j]
-			else 0;
+			then Appendable::Append(filtered, arr[j])
+			else ();
 			j = j + 1;
 		}
 	};
@@ -88,7 +89,7 @@ defun TestArrayMap(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -103,7 +104,7 @@ defun TestArrayMap(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			mapped ++= (arr[j] * 2);
+			Appendable::Append(mapped, arr[j] * 2);
 			j = j + 1;
 		}
 	};
@@ -125,7 +126,7 @@ defun TestStringBuilder(num_parts : Int) : Unit =>
 		then break ()
 		else
 		{
-			parts ++= ("Part" ++ (i as Text) ++ " ");
+			Appendable::Append(parts, "Part" ++ (i as Text) ++ " ");
 			i = i + 1;
 		}
 	};
@@ -138,7 +139,7 @@ defun TestStringBuilder(num_parts : Int) : Unit =>
 		then break ()
 		else
 		{
-			result ++= parts[j];
+			Appendable::Append(result, parts[j]);
 			j = j + 1;
 		}
 	};
@@ -164,7 +165,7 @@ defun TestComplexDataStructure() : Unit =>
 			def name = "User" ++ id;
 			def email = name ++ "@example.com";
 			def record = "ID:" ++ id ++ ",Name:" ++ name ++ ",Email:" ++ email;
-			records ++= record;
+			Appendable::Append(records, record);
 			i = i + 1;
 		}
 	};
@@ -184,7 +185,7 @@ defun TestArrayReversal(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -199,7 +200,7 @@ defun TestArrayReversal(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			reversed ++= arr[j];
+			Appendable::Append(reversed, arr[j]);
 			j = j - 1;
 		}
 	};
@@ -229,11 +230,11 @@ defun TestMemoryIntensive() : Unit =>
 				then break ()
 				else
 				{
-					inner ++= (i * 1000 + j);
+					Appendable::Append(inner, i * 1000 + j);
 					j = j + 1;
 				}
 			};
-			arrays ++= inner;
+			Appendable::Append(arrays, inner);
 			i = i + 1;
 		}
 	};

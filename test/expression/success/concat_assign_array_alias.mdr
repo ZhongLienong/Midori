@@ -7,9 +7,9 @@ import
 
 def items = [1];
 def alias = items;
-def result = items ++= [2];
+def result = items = items ++ [2];
 
 if #items == 2 then () else Panic::Panic("items should be rebound to a longer array");
 if #alias == 1 then () else Panic::Panic("array alias should keep the original array");
 if items[1] == 2 then () else Panic::Panic("items should contain the concatenated element");
-if result[1] == 2 then () else Panic::Panic("array ++= should return the updated array");
+if result[1] == 2 then () else Panic::Panic("explicit concat assignment should return the updated array");

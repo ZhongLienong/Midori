@@ -830,9 +830,6 @@ namespace
 					return false;
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Assignment>
-					|| std::is_same_v<T, MidoriExpression::AppendAssign>
-					|| std::is_same_v<T, MidoriExpression::ExtendAssign>
-					|| std::is_same_v<T, MidoriExpression::PrependAssign>
 					|| std::is_same_v<T, MidoriExpression::CompoundAssign>
 					|| std::is_same_v<T, MidoriExpression::Call>
 					|| std::is_same_v<T, MidoriExpression::MemberAssignment>
@@ -1197,38 +1194,6 @@ namespace
 		void Visit(const MidoriExpression::Assignment& node)
 		{
 			RecordLocalAssignment(node.m_name_ctx, false);
-			VisitExpression(*node.m_value);
-		}
-
-		void Visit(const MidoriExpression::AppendAssign& node)
-		{
-			if (node.m_struct != nullptr)
-			{
-				VisitExpression(*node.m_struct);
-			}
-			else
-			{
-				RecordLocalAssignment(node.m_name_ctx, true);
-			}
-			VisitExpression(*node.m_value);
-		}
-
-		void Visit(const MidoriExpression::ExtendAssign& node)
-		{
-			RecordLocalAssignment(node.m_name_ctx, true);
-			VisitExpression(*node.m_value);
-		}
-
-		void Visit(const MidoriExpression::PrependAssign& node)
-		{
-			if (node.m_struct != nullptr)
-			{
-				VisitExpression(*node.m_struct);
-			}
-			else
-			{
-				RecordLocalAssignment(node.m_name_ctx, true);
-			}
 			VisitExpression(*node.m_value);
 		}
 

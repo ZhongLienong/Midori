@@ -40,38 +40,6 @@ namespace
 			VisitExpression(assign.m_value);
 		}
 
-		void operator()(MidoriExpression::AppendAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				CheckAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::ExtendAssign& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::PrependAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				CheckAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
-
 		void operator()(MidoriExpression::CompoundAssign& assign) override
 		{
 			if (assign.m_struct != nullptr)
@@ -211,10 +179,7 @@ namespace
 				{
 					return &node.m_op;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Assignment>
-					|| std::is_same_v<T, MidoriExpression::AppendAssign>
-					|| std::is_same_v<T, MidoriExpression::ExtendAssign>
-					|| std::is_same_v<T, MidoriExpression::PrependAssign>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::Assignment>)
 				{
 					return &node.m_name;
 				}

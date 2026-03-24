@@ -150,29 +150,6 @@ void MidoriOptimizer::operator()(MidoriExpression::Assignment& bind)
 	VisitAndReplace(bind.m_value);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::AppendAssign& append_assign)
-{
-	if (append_assign.m_struct != nullptr)
-	{
-		VisitAndReplace(append_assign.m_struct);
-	}
-	VisitAndReplace(append_assign.m_value);
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::ExtendAssign& extend_assign)
-{
-	VisitAndReplace(extend_assign.m_value);
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::PrependAssign& prepend_assign)
-{
-	if (prepend_assign.m_struct != nullptr)
-	{
-		VisitAndReplace(prepend_assign.m_struct);
-	}
-	VisitAndReplace(prepend_assign.m_value);
-}
-
 void MidoriOptimizer::operator()(MidoriExpression::CompoundAssign& compound_assign)
 {
 	if (compound_assign.m_struct != nullptr)

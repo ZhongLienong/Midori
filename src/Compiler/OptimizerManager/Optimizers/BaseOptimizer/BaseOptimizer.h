@@ -68,9 +68,6 @@ protected:
 	virtual void operator()(MidoriExpression::MemberAssignment& set) override;
 	virtual void operator()(MidoriExpression::NameAccess& variable) override;
 	virtual void operator()(MidoriExpression::Assignment& bind) override;
-	virtual void operator()(MidoriExpression::AppendAssign& append_assign) override;
-	virtual void operator()(MidoriExpression::ExtendAssign& extend_assign) override;
-	virtual void operator()(MidoriExpression::PrependAssign& prepend_assign) override;
 	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
 	virtual void operator()(MidoriExpression::TextLiteral& text) override;
 	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr) override;

@@ -760,33 +760,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			m_value_stack_pointer = arr_slot + 1;
 			break;
 		}
-		case OpCode::DUP_ARRAY:
-		{
-			MidoriValue size_val = Pop();
-			MidoriValue arr_val = Pop();
-			MidoriArray& arr_ref = arr_val.GetPointer()->GetTraceable<MidoriArray>();
-
-			MidoriInteger original_size = arr_ref.GetLength();
-			MidoriInteger repeat_count = size_val.GetInteger();
-			MidoriInteger new_size = repeat_count * original_size;
-
-			int return_code = CheckNewArraySize(new_size);
-			if (return_code != 0)
-			{
-				m_instruction_pointer = ip;
-				return return_code;
-			}
-
-			MidoriArray new_arr(static_cast<int>(new_size));
-
-			for (int i = 0; i < static_cast<int>(new_size); i += 1)
-			{
-				new_arr[i] = arr_ref[i % original_size];
-			}
-
-			Push(AllocateTraceable(std::move(new_arr)));
-			break;
-		}
 		case OpCode::ADD_BACK_ARRAY:
 		{
 			MidoriValue val = Pop();
@@ -1253,91 +1226,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
 			left = AllocateTraceable(std::move(result));
-			TryCollect();
-			break;
-		}
-		case OpCode::APPEND_ARRAY:
-		{
-			MidoriValue value = Pop();
-			MidoriValue& array = Peek();
-
-#if MIDORI_DEBUG_FULL
-			if (!array.IsPointer() || !array.GetPointer() || !array.GetPointer()->IsTraceable<MidoriArray>())
-			{
-				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected array for APPEND_ARRAY, but got {}.", array.ToText().GetCString()), GetLine()));
-			}
-#endif
-
-			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
-			array_ref.AddBack(value);
-			TryCollect();
-			break;
-		}
-		case OpCode::EXTEND_ARRAY:
-		{
-			MidoriValue value = Pop();
-			MidoriValue& array = Peek();
-
-			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
-			MidoriArray& other_ref = value.GetPointer()->GetTraceable<MidoriArray>();
-			array_ref.Extend(other_ref);
-			TryCollect();
-			break;
-		}
-		case OpCode::PREPEND_ARRAY:
-		{
-			MidoriValue value = Pop();
-			MidoriValue& array = Peek();
-
-			MidoriArray& array_ref = array.GetPointer()->GetTraceable<MidoriArray>();
-			array_ref.AddFront(value);
-			TryCollect();
-			break;
-		}
-		case OpCode::APPEND_TEXT:
-		{
-			MidoriValue value = Pop();
-			MidoriValue& text = Peek();
-
-			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
-			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
-			const int value_len = value_text.GetByteLength();
-			if (value_len == 0)
-			{
-				break;
-			}
-			if (value_len == 1)
-			{
-				text_ref.Append(value_text.GetCString()[0]);
-			}
-			else
-			{
-				text_ref.Append(value_text);
-			}
-			TryCollect();
-			break;
-		}
-		case OpCode::PREPEND_TEXT:
-		{
-			MidoriValue value = Pop();
-			MidoriValue& text = Peek();
-
-			MidoriText& text_ref = text.GetPointer()->GetTraceable<MidoriText>();
-			MidoriText& value_text = value.GetPointer()->GetTraceable<MidoriText>();
-			const int value_len = value_text.GetByteLength();
-			if (value_len == 0)
-			{
-				break;
-			}
-			if (value_len == 1)
-			{
-				text_ref.Prepend(value_text.GetCString()[0]);
-			}
-			else
-			{
-				text_ref.Prepend(value_text);
-			}
 			TryCollect();
 			break;
 		}

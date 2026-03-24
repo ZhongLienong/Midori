@@ -12,16 +12,19 @@ struct Box
 
 def text = "mid";
 def text_alias = text;
-def text_result = text ++= "ori";
+def text_result = text = text ++ "ori";
 
 def box = new Box("cat");
 def member_alias = box.value;
-def member_result = box.value ++= "nip";
+def member_result = {
+    box.value = box.value ++ "nip";
+    box.value
+};
 
 if text_alias == "mid" then () else Panic::Panic("text alias should keep the original value");
 if text == "midori" then () else Panic::Panic("text should be rebound to the concatenated value");
-if text_result == "midori" then () else Panic::Panic("text ++= should return the updated value");
+if text_result == "midori" then () else Panic::Panic("explicit text concat assignment should return the updated value");
 
 if member_alias == "cat" then () else Panic::Panic("member alias should keep the original value");
 if box.value == "catnip" then () else Panic::Panic("member should be rebound to the concatenated value");
-if member_result == "catnip" then () else Panic::Panic("member ++= should return the updated value");
+if member_result == "catnip" then () else Panic::Panic("member concat assignment should return the updated value");

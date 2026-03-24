@@ -2,6 +2,7 @@ module TextOperations
 
 import
 {
+	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
@@ -40,7 +41,7 @@ defun TestTextAppend(iterations : Int) : Unit =>
 		then break ()
 		else
 		{
-			result ++= "x";
+			Appendable::Append(result, "x");
 			i = i + 1;
 		}
 	};

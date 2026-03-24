@@ -7,14 +7,14 @@ import
 
 defun LocalConcat() : Text => {
     def text = "lo";
-    def result = text ++= "cal";
+    def result = text = text ++ "cal";
     text ++ "|" ++ result
 };
 
 def makeConcat = fn() : fn() -> Text =>
 {
     def text = "mid";
-    fn() : Text => text ++= "ori"
+    fn() : Text => text = text ++ "ori"
 };
 
 def append = makeConcat();

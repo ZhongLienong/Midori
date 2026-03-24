@@ -253,12 +253,6 @@ private:
 
 	void operator()(MidoriExpression::Assignment& bind);
 
-	void operator()(MidoriExpression::AppendAssign& append_assign);
-
-	void operator()(MidoriExpression::ExtendAssign& extend_assign);
-
-	void operator()(MidoriExpression::PrependAssign& prepend_assign);
-
 	void operator()(MidoriExpression::CompoundAssign& compound_assign);
 
 	void operator()(MidoriExpression::TextLiteral& text);

@@ -421,39 +421,6 @@ public:
 		Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
 	};
 
-	struct AppendAssign : BaseExpression
-	{
-		Token m_name;
-		std::unique_ptr<MidoriExpression> m_struct;
-		std::unique_ptr<MidoriExpression> m_value;
-		NameContext::Tag m_name_ctx;
-		int m_index = -1;
-
-		AppendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
-		AppendAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
-	};
-
-	struct ExtendAssign : BaseExpression
-	{
-		Token m_name;
-		std::unique_ptr<MidoriExpression> m_value;
-		NameContext::Tag m_name_ctx;
-
-		ExtendAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
-	};
-
-	struct PrependAssign : BaseExpression
-	{
-		Token m_name;
-		std::unique_ptr<MidoriExpression> m_struct;
-		std::unique_ptr<MidoriExpression> m_value;
-		NameContext::Tag m_name_ctx;
-		int m_index = -1;
-
-		PrependAssign(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
-		PrependAssign(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
-	};
-
 	struct CompoundAssign : BaseExpression
 	{
 		Token m_name;
@@ -707,7 +674,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, AppendAssign, ExtendAssign, PrependAssign, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_variant;
 
 public:
@@ -813,10 +780,6 @@ public:
 				);
 
 				return node.m_callee->template Contains<Kind>() || has_arg;
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::ExtendAssign>)
-			{
-				return node.m_value->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 			{

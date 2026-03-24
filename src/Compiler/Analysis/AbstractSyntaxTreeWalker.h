@@ -48,9 +48,6 @@ protected:
 	virtual void operator()(MidoriExpression::MemberAssignment& set);
 	virtual void operator()(MidoriExpression::NameAccess& variable);
 	virtual void operator()(MidoriExpression::Assignment& bind);
-	virtual void operator()(MidoriExpression::AppendAssign& append_assign);
-	virtual void operator()(MidoriExpression::ExtendAssign& extend_assign);
-	virtual void operator()(MidoriExpression::PrependAssign& prepend_assign);
 	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign);
 	virtual void operator()(MidoriExpression::TextLiteral& text);
 	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr);

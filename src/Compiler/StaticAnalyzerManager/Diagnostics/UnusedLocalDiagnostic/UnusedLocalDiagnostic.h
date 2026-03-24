@@ -23,9 +23,6 @@ protected:
 	void operator()(MidoriStatement::ForeignDefinition& foreign) override;
 	void operator()(MidoriPattern::Binding& binding) override;
 	void operator()(MidoriExpression::NameAccess& access) override;
-	void operator()(MidoriExpression::AppendAssign& append_assign) override;
-	void operator()(MidoriExpression::ExtendAssign& extend_assign) override;
-	void operator()(MidoriExpression::PrependAssign& prepend_assign) override;
 	void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
 	void operator()(MidoriExpression::Function& function) override;
 	void operator()(MidoriExpression::Block& block) override;

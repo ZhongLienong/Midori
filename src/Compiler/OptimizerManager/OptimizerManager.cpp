@@ -6,7 +6,6 @@
 #include "Compiler/OptimizerManager/Optimizers/LocalConstantPropagation/LocalConstantPropagation.h"
 #include "Compiler/OptimizerManager/Optimizers/DeadCodeElimination/DeadCodeElimination.h"
 #include "Compiler/OptimizerManager/Optimizers/CanonicalizationCleanup/CanonicalizationCleanup.h"
-#include "Compiler/OptimizerManager/Optimizers/SelfConcatOptimization/SelfConcatOptimization.h"
 #include "Compiler/OptimizerManager/Optimizers/ClosureLifting/ClosureLifting.h"
 #include "Compiler/OptimizerManager/Optimizers/TailCallOptimization/TailCallOptimization.h"
 #include "Common/BuildConfig/BuildConfig.h"
@@ -27,7 +26,6 @@ OptimizerManager::OptimizerManager(MidoriProgramTree&& program_tree)
 	AddOptimizer(std::make_unique<LocalConstantPropagation>());
 	AddOptimizer(std::make_unique<DeadCodeElimination>());
 	AddOptimizer(std::make_unique<CanonicalizationCleanup>());
-	AddOptimizer(std::make_unique<SelfConcatOptimization>());
 	AddOptimizer(std::make_unique<ClosureLifting>());
 	AddOptimizer(std::make_unique<TailCallOptimization>());
 }

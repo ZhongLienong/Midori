@@ -110,38 +110,6 @@ public:
 			VisitExpression(assign.m_value);
 		}
 
-		void operator()(MidoriExpression::AppendAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				RewriteAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::ExtendAssign& assign) override
-		{
-			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::PrependAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				RewriteAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
-
 		void operator()(MidoriExpression::CompoundAssign& assign) override
 		{
 			if (assign.m_struct != nullptr)

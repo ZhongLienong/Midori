@@ -111,23 +111,6 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::AppendAssign& node) const
-			{
-				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
-					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
-			bool operator()(const MidoriExpression::ExtendAssign& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
-			bool operator()(const MidoriExpression::PrependAssign& node) const
-			{
-				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
-					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
 			bool operator()(const MidoriExpression::CompoundAssign& node) const
 			{
 				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))

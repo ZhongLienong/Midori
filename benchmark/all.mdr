@@ -2,6 +2,7 @@ module All
 
 import 
 {
+	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
@@ -38,10 +39,10 @@ defun TestPrimeNumbers() : Unit =>
 			if IsPrime(count)
 			then
 			{
-				prime_count = prime_count + 1;
+				prime_count += 1;
 			}
 			else ();
-			count = count + 1;
+			count += 1;
 		}
 	};
 
@@ -75,8 +76,8 @@ defun TestStringManipulation() : Unit =>
 		then break ()
 		else
 		{
-			test_string = test_string ++= "a";
-			count = count + 1;
+			Appendable::Append(test_string, "a");
+			count += 1;
 		}
 	};
 
@@ -107,7 +108,7 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
 				if left == len && right == len
 				then
 				{
-					output ++= [acc];
+					Appendable::Append(output, acc);
 					return ();
 				}
 				else
@@ -178,24 +179,24 @@ defun TestSorting(size : Int) : Unit =>
 					if val < pivot
 					then
 					{
-						less ++= [val];
-						less_len = less_len + 1;
+						Appendable::Append(less, val);
+						less_len += 1;
 					}
 					else
 					{
 						if val == pivot
 						then
 						{
-							equal ++= [val];
+							Appendable::Append(equal, val);
 							equal_len = equal_len + 1;
 						}
 						else
 						{
-							greater ++= [val];
+							Appendable::Append(greater, val);
 							greater_len = greater_len + 1;
 						}
 					};
-					i = i + 1;
+					i += 1;
 				}
 			};
 
@@ -214,9 +215,9 @@ defun TestSorting(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			test_array ++= [i];
+			Appendable::Append(test_array, i);
 			array_len = array_len + 1;
-			i = i - 1;
+			i -= 1;
 		}
 	};
 
@@ -260,9 +261,9 @@ defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
 		then break ()
 		else
 		{
-			sorted_array ++= [i];
-			arr_len = arr_len + 1;
-			i = i + 1;
+			Appendable::Append(sorted_array, i);
+			arr_len += 1;
+			i += 1;
 		}
 	};
 
@@ -279,7 +280,7 @@ defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
 			if result != -1
 			then found_count = found_count + 1
 			else 0;
-			j = j + 1;
+			j += 1;
 		}
 	};
 

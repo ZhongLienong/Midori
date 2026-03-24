@@ -1099,7 +1099,7 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 							}
 						);
 				}
-				else if (Match(Token::Name::PLUS_PLUS_EQUAL, Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
+				else if (Match(Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
 				{
 					Token& op = Previous();
 					return ParseBind()
@@ -1142,9 +1142,13 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 							}
 						);
 				}
+				else if (Match(Token::Name::PLUS_PLUS_EQUAL))
+				{
+					return std::unexpected(GenerateParserError("Concatenation assignment syntax '++=' is no longer supported. Write x = x ++ y, or use Appendable::Append / Extendable::Extend.", Previous()));
+				}
 				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
 				{
-					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Write x = prefix ++ x instead.", Previous()));
+					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Write x = prefix ++ x, or use Prependable::Prepend.", Previous()));
 				}
 
 				return left_expr;

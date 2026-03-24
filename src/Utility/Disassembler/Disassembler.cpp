@@ -568,9 +568,6 @@ namespace Disassembler
 		case OpCode::SET_ARRAY:
 			IndexedAccessInstruction("SET_ARRAY", executable, proc_index, offset);
 			break;
-		case OpCode::DUP_ARRAY:
-			SimpleInstruction("DUP_ARRAY", offset);
-			break;
 		case OpCode::ADD_BACK_ARRAY:
 			SimpleInstruction("ADD_BACK_ARRAY", offset);
 			break;
@@ -738,21 +735,6 @@ namespace Disassembler
 			break;
 		case OpCode::CONCAT_TEXT:
 			SimpleInstruction("CONCAT_TEXT", offset);
-			break;
-		case OpCode::APPEND_ARRAY:
-			SimpleInstruction("APPEND_ARRAY", offset);
-			break;
-		case OpCode::EXTEND_ARRAY:
-			SimpleInstruction("EXTEND_ARRAY", offset);
-			break;
-		case OpCode::PREPEND_ARRAY:
-			SimpleInstruction("PREPEND_ARRAY", offset);
-			break;
-		case OpCode::APPEND_TEXT:
-			SimpleInstruction("APPEND_TEXT", offset);
-			break;
-		case OpCode::PREPEND_TEXT:
-			SimpleInstruction("PREPEND_TEXT", offset);
 			break;
 		case OpCode::ADD_ASSIGN_INT:
 			SimpleInstruction("ADD_ASSIGN_INT", offset);

@@ -52,7 +52,7 @@ defun MakeSetBuckets<T>(capacity: Int) : Array<SetSlot<T>> => {
         if i >= capacity
         then break ()
         else {
-            buckets ++= [new SetSlot::Empty<T>()];
+            buckets = buckets ++ [new SetSlot::Empty<T>()];
             i = i + 1;
         }
     };
@@ -291,7 +291,7 @@ defun SetToArray<T>(set: Set<T>) : Array<T> => {
         else {
             def entry = set.buckets[i];
             match entry with
-                case SetSlot::Occupied(elem) => { values ++= [elem]; () }
+                case SetSlot::Occupied(elem) => { values = values ++ [elem]; () }
                 default => ()
             ;
             i = i + 1;

@@ -2,6 +2,7 @@ module ComprehensiveBenchmarks
 
 import
 {
+	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
@@ -36,7 +37,7 @@ defun TestTextAppend(iterations : Int) : Unit =>
 		then break ()
 		else
 		{
-			result ++= "x";
+			Appendable::Append(result, "x");
 			i = i + 1;
 		}
 	};
@@ -74,7 +75,7 @@ defun TestArrayAppend(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -111,7 +112,7 @@ defun TestArrayAccess(size : Int, num_accesses : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -144,7 +145,7 @@ defun TestArrayIteration(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -177,7 +178,7 @@ defun TestArrayOfText(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= ("Item " ++ (i as Text));
+			Appendable::Append(arr, "Item " ++ (i as Text));
 			i = i + 1;
 		}
 	};
@@ -204,11 +205,11 @@ defun TestNestedArrays(outer_size : Int, inner_size : Int) : Unit =>
 				then break ()
 				else
 				{
-					inner ++= (i * inner_size + j);
+					Appendable::Append(inner, i * inner_size + j);
 					j = j + 1;
 				}
 			};
-			outer ++= inner;
+			Appendable::Append(outer, inner);
 			i = i + 1;
 		}
 	};
@@ -226,7 +227,7 @@ defun TestArrayFilter(size : Int) : Unit =>
 		then break ()
 		else
 		{
-			arr ++= i;
+			Appendable::Append(arr, i);
 			i = i + 1;
 		}
 	};
@@ -241,8 +242,8 @@ defun TestArrayFilter(size : Int) : Unit =>
 		else
 		{
 			if arr[j] % 2 == 0
-			then filtered ++= arr[j]
-			else [0];
+			then Appendable::Append(filtered, arr[j])
+			else ();
 			j = j + 1;
 		}
 	};

@@ -97,12 +97,6 @@ private:
 
 	void operator()(MidoriExpression::Assignment& bind) override;
 
-	void operator()(MidoriExpression::AppendAssign& append_assign) override;
-
-	void operator()(MidoriExpression::ExtendAssign& extend_assign) override;
-
-	void operator()(MidoriExpression::PrependAssign& prepend_assign) override;
-
 	void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
 
 	void operator()(MidoriExpression::Call& call) override;
