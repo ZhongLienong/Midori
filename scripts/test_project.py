@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""
+Midori project test runner.
+
+Wraps the existing unit-test and regression-test entry points so contributors can
+configure, build, and run the test layers from one command.
+
+Examples:
+    python scripts/test_project.py
+    python scripts/test_project.py --mode unit --build Debug
+    python scripts/test_project.py --mode unit --unit-tag "[runtime]"
+    python scripts/test_project.py --mode regression --category closure
+    python scripts/test_project.py --mode all --build Release
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def is_windows() -> bool:
+    return os.name == "nt"
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def load_cmake_presets(root: Path) -> dict[str, dict[str, Any]]:
+    presets_path = root / "CMakePresets.json"
+    contents = json.loads(presets_path.read_text(encoding="utf-8-sig"))
+    configure_presets = contents.get("configurePresets", [])
+    return {
+        str(preset["name"]): preset
+        for preset in configure_presets
+        if isinstance(preset, dict) and "name" in preset
+    }
+
+
+def resolve_preset_definition(
+    preset_name: str,
+    presets: dict[str, dict[str, Any]],
+    visited: set[str] | None = None,
+) -> dict[str, Any]:
+    if preset_name not in presets:
+        available = ", ".join(sorted(presets))
+        raise RuntimeError(f"Unknown CMake configure preset '{preset_name}'. Available presets: {available}")
+
+    if visited is None:
+        visited = set()
+
+    if preset_name in visited:
+        raise RuntimeError(f"Cyclic CMake preset inheritance detected at '{preset_name}'.")
+
+    visited.add(preset_name)
+    preset = presets[preset_name]
+    resolved: dict[str, Any] = {}
+
+    inherited = preset.get("inherits", [])
+    if isinstance(inherited, str):
+        inherited_names = [inherited]
+    elif isinstance(inherited, list):
+        inherited_names = [str(name) for name in inherited]
+    else:
+        inherited_names = []
+
+    for inherited_name in inherited_names:
+        resolved.update(resolve_preset_definition(inherited_name, presets, visited.copy()))
+
+    resolved.update(preset)
+    return resolved
+
+
+def expand_preset_path(template: str, preset_name: str, root: Path) -> Path:
+    expanded = template.replace("${sourceDir}", str(root)).replace("${presetName}", preset_name)
+    return Path(expanded).resolve()
+
+
+def resolve_binary_dir(preset_name: str, presets: dict[str, dict[str, Any]], root: Path) -> Path:
+    resolved_preset = resolve_preset_definition(preset_name, presets)
+    binary_dir = resolved_preset.get("binaryDir")
+    if not isinstance(binary_dir, str) or binary_dir.strip() == "":
+        raise RuntimeError(f"Preset '{preset_name}' does not define a binaryDir.")
+    return expand_preset_path(binary_dir, preset_name, root)
+
+
+def resolve_build_type(preset_name: str, presets: dict[str, dict[str, Any]], fallback_build: str) -> str:
+    resolved_preset = resolve_preset_definition(preset_name, presets)
+    cache_variables = resolved_preset.get("cacheVariables", {})
+    if isinstance(cache_variables, dict):
+        build_type = cache_variables.get("CMAKE_BUILD_TYPE")
+        if isinstance(build_type, str) and build_type.strip() != "":
+            return build_type
+
+    return fallback_build
+
+
+def default_preset_name(build_config: str, presets: dict[str, dict[str, Any]]) -> str:
+    candidate = ("x64-" if is_windows() else "linux-") + build_config.lower()
+    if candidate in presets:
+        return candidate
+
+    available = ", ".join(sorted(presets))
+    raise RuntimeError(
+        f"Could not infer a preset for build '{build_config}'. "
+        f"Pass --preset explicitly. Available presets: {available}"
+    )
+
+
+def format_command(command: list[str]) -> str:
+    if is_windows():
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
+
+
+def run_command(command: list[str], root: Path) -> int:
+    print(f"\n> {format_command(command)}")
+    completed = subprocess.run(command, cwd=root, check=False)
+    return completed.returncode
+
+
+def build_targets_for_mode(mode: str) -> list[str]:
+    if mode == "unit":
+        return ["MidoriUnitTests"]
+    if mode == "regression":
+        return ["Midori"]
+    return ["Midori", "MidoriUnitTests"]
+
+
+def unit_test_executable(binary_dir: Path) -> Path:
+    executable_name = "MidoriUnitTests.exe" if is_windows() else "MidoriUnitTests"
+    return binary_dir / "out" / executable_name
+
+
+def build_config_for_regressions(build_config: str) -> str:
+    supported = {"Debug", "Development", "Release"}
+    if build_config in supported:
+        return build_config
+
+    supported_list = ", ".join(sorted(supported))
+    raise RuntimeError(
+        f"Regression tests do not support build '{build_config}'. "
+        f"Use one of: {supported_list}"
+    )
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Configure, build, and run Midori unit tests, regression tests, or both."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["all", "unit", "regression"],
+        default="all",
+        help="Which test layers to run (default: all).",
+    )
+    parser.add_argument(
+        "--build",
+        choices=["Debug", "Development", "Release", "Experimental"],
+        default="Development",
+        help="Build configuration used to infer the default preset (default: Development).",
+    )
+    parser.add_argument(
+        "--preset",
+        default="",
+        help="Explicit CMake configure/build preset. Overrides --build preset inference.",
+    )
+    parser.add_argument(
+        "--skip-configure",
+        action="store_true",
+        help="Skip the configure step and reuse the existing build tree.",
+    )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help="Skip the build step and reuse the existing binaries.",
+    )
+    parser.add_argument(
+        "--unit-regex",
+        default="",
+        help="CTest name regex for unit tests, for example 'TypeChecker' or 'ImportResolver'.",
+    )
+    parser.add_argument(
+        "--unit-tag",
+        default="",
+        help="Catch2 tag expression for unit tests, for example '[runtime]'. Runs MidoriUnitTests directly.",
+    )
+    parser.add_argument(
+        "--category",
+        default="",
+        help="Regression-test category passed through to scripts/run_tests.py.",
+    )
+    parser.add_argument(
+        "--pattern",
+        default="",
+        help="Regression-test filename pattern passed through to scripts/run_tests.py.",
+    )
+    parser.add_argument(
+        "--test",
+        default="",
+        help="Specific regression test path/name passed through to scripts/run_tests.py.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose regression-test output.",
+    )
+    args = parser.parse_args(argv)
+
+    root = repo_root()
+    presets = load_cmake_presets(root)
+    preset_name = args.preset if args.preset else default_preset_name(args.build, presets)
+    binary_dir = resolve_binary_dir(preset_name, presets, root)
+    effective_build = resolve_build_type(preset_name, presets, args.build)
+
+    needs_unit = args.mode in {"all", "unit"}
+    needs_regression = args.mode in {"all", "regression"}
+
+    if args.skip_configure is False:
+        configure_command = ["cmake", "--preset", preset_name]
+        if needs_unit and effective_build == "Release":
+            configure_command.append("-DMIDORI_BUILD_TESTS=ON")
+
+        configure_exit_code = run_command(configure_command, root)
+        if configure_exit_code != 0:
+            return configure_exit_code
+
+    if args.skip_build is False:
+        build_command = ["cmake", "--build", "--preset", preset_name, "--target", *build_targets_for_mode(args.mode)]
+        build_exit_code = run_command(build_command, root)
+        if build_exit_code != 0:
+            return build_exit_code
+
+    if needs_unit:
+        if args.unit_tag:
+            unit_executable = unit_test_executable(binary_dir)
+            if unit_executable.exists() is False:
+                raise RuntimeError(f"Unit test executable not found: {unit_executable}")
+            unit_command = [str(unit_executable), args.unit_tag]
+        else:
+            if binary_dir.exists() is False:
+                raise RuntimeError(f"CTest build directory not found: {binary_dir}")
+            unit_command = ["ctest", "--test-dir", str(binary_dir), "--output-on-failure"]
+            if args.unit_regex:
+                unit_command.extend(["-R", args.unit_regex])
+
+        unit_exit_code = run_command(unit_command, root)
+        if unit_exit_code != 0:
+            return unit_exit_code
+
+    if needs_regression:
+        regression_build = build_config_for_regressions(effective_build)
+        regression_command = [sys.executable, str(root / "scripts" / "run_tests.py"), "--build", regression_build]
+        if args.category:
+            regression_command.extend(["--category", args.category])
+        if args.pattern:
+            regression_command.extend(["--pattern", args.pattern])
+        if args.test:
+            regression_command.extend(["--test", args.test])
+        if args.verbose:
+            regression_command.append("--verbose")
+
+        regression_exit_code = run_command(regression_command, root)
+        if regression_exit_code != 0:
+            return regression_exit_code
+
+    print("\nAll requested test steps completed successfully.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

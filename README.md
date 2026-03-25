@@ -622,6 +622,13 @@ Native preset builds write the executable to `out/build/ninja/<preset>/out/Midor
 
 Debug and Development preset builds enable `MIDORI_BUILD_TESTS` by default. Release preset builds leave unit tests off unless you opt in with `-DMIDORI_BUILD_TESTS=ON`.
 
+See [Testing Guide](docs/testing.md) for the `tests/` vs `test/` split, helper usage, and the full command matrix.
+
+For a single entry point that configures, builds, and runs tests, use:
+```bash
+python scripts/test_project.py
+```
+
 Configure and build the unit test target:
 ```bash
 cmake --preset x64-debug
@@ -641,6 +648,8 @@ ctest --test-dir out/build/ninja/x64-development --output-on-failure
 ```
 
 ### Running Regression Tests
+
+See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` instead of `test/`, plus filtering examples for both harnesses.
 
 Run all file-based language regression tests:
 ```bash
@@ -729,3 +738,4 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
 - [Runtime Architecture](docs/runtime-architecture.md) - VM execution, closure capture, and garbage collection
+- [Testing Guide](docs/testing.md) - Choosing between implementation tests and regression tests, with helper and command references
