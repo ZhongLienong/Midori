@@ -324,19 +324,16 @@ def second = counter();  // 2
 - **Concatenation**: `++` for `Text` and `Array<T>`
 - **Pipe**: `|>` (function composition)
 - **Length**: `#` (array length)
-- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `++=` where `x ++= y` means `x = x ++ y`
+- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`
 
-For concatenation, `++=` is concat-assign rather than a distinct append syntax:
-
-- `Text ++= Text`
-- `Array<T> ++= Array<T>`
-- `Array<T> ++= T` is invalid
-
-Append and prepend remain optimizer concerns, not language-level syntax. Write these forms explicitly:
+Concatenation assignment is explicit rather than a dedicated operator:
 
 ```midori
-items ++= [value];
-items = [value] ++ items;
+items = items ++ [value];
+text = text ++ suffix;
+Prependable::Prepend(items, value);
+Appendable::Append(items, value);
+Extendable::Extend(items, other_items);
 ```
 
 ### Advanced Features

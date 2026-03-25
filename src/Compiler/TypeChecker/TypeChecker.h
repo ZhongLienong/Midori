@@ -150,6 +150,8 @@ private:
 
 	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type, FresheningContext& context);
 
+	FresheningContext MakeLambdaFresheningContext();
+
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);

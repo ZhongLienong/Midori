@@ -150,6 +150,131 @@ namespace
 		return HasTypeVariables(type, visited);
 	}
 
+	void CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type, std::unordered_set<int>& type_variable_ids, std::unordered_set<const MidoriType*>& visited)
+	{
+		if (type == nullptr || !visited.insert(type.get()).second)
+		{
+			return;
+		}
+
+		if (type->IsType<MidoriType::TypeVariable>())
+		{
+			type_variable_ids.insert(type->GetType<MidoriType::TypeVariable>().m_id);
+			return;
+		}
+		if (type->IsType<MidoriType::ArrayType>())
+		{
+			CollectTypeVariableIds(type->GetType<MidoriType::ArrayType>().m_element_type, type_variable_ids, visited);
+			return;
+		}
+		if (type->IsType<MidoriType::RangeType>())
+		{
+			CollectTypeVariableIds(type->GetType<MidoriType::RangeType>().m_element_type, type_variable_ids, visited);
+			return;
+		}
+		if (type->IsType<MidoriType::TupleType>())
+		{
+			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
+			{
+				CollectTypeVariableIds(element_type, type_variable_ids, visited);
+			}
+			return;
+		}
+		if (type->IsType<MidoriType::FunctionType>())
+		{
+			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
+			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+			{
+				CollectTypeVariableIds(param_type, type_variable_ids, visited);
+			}
+			CollectTypeVariableIds(function_type.m_return_type, type_variable_ids, visited);
+			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
+				}
+			}
+			return;
+		}
+		if (type->IsType<MidoriType::StructType>())
+		{
+			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+			{
+				CollectTypeVariableIds(member_type, type_variable_ids, visited);
+			}
+			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
+				}
+			}
+			return;
+		}
+		if (type->IsType<MidoriType::UnionType>())
+		{
+			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+			for (const auto& [_, member_ctx] : union_type.m_member_info)
+			{
+				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				{
+					CollectTypeVariableIds(member_type, type_variable_ids, visited);
+				}
+			}
+			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+			{
+				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				{
+					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
+				}
+			}
+			return;
+		}
+		if (type->IsType<MidoriType::AssociatedType>())
+		{
+			for (const std::shared_ptr<MidoriType>& type_arg : type->GetType<MidoriType::AssociatedType>().m_type_args)
+			{
+				CollectTypeVariableIds(type_arg, type_variable_ids, visited);
+			}
+			return;
+		}
+		if (type->IsType<MidoriType::ClassConstraint>())
+		{
+			for (const std::shared_ptr<MidoriType>& type_arg : type->GetType<MidoriType::ClassConstraint>().m_type_args)
+			{
+				CollectTypeVariableIds(type_arg, type_variable_ids, visited);
+			}
+		}
+	}
+
+	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type)
+	{
+		std::unordered_set<int> type_variable_ids;
+		std::unordered_set<const MidoriType*> visited;
+		CollectTypeVariableIds(type, type_variable_ids, visited);
+		return type_variable_ids;
+	}
+
+	std::string FormatTypeVariableIds(const std::unordered_set<int>& type_variable_ids)
+	{
+		std::vector<int> sorted_ids(type_variable_ids.cbegin(), type_variable_ids.cend());
+		std::ranges::sort(sorted_ids);
+
+		std::string result = "{";
+		for (size_t idx = 0; idx < sorted_ids.size(); idx += 1u)
+		{
+			if (idx != 0u)
+			{
+				result += ", ";
+			}
+			result += std::to_string(sorted_ids[idx]);
+		}
+		result += "}";
+		return result;
+	}
+
 	bool ContainsAssociatedTypes(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
 	{
 		if (visited.contains(type.get()))
@@ -1777,6 +1902,31 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(fresh_type_args));
 	}
 	return type;
+}
+
+TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
+{
+	FresheningContext context;
+	for (TypeEnvironmentStack::const_reverse_iterator scope_it = m_name_type_table.crbegin(); scope_it != m_name_type_table.crend(); ++scope_it)
+	{
+		for (const auto& [name, bound_type] : *scope_it)
+		{
+			if (context.m_generic_params.contains(name))
+			{
+				continue;
+			}
+
+			std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(bound_type);
+			if (!resolved_type->IsType<MidoriType::TypeVariable>())
+			{
+				continue;
+			}
+
+			context.m_generic_params.emplace(name, resolved_type);
+			context.m_type_cache.emplace(resolved_type.get(), resolved_type);
+		}
+	}
+	return context;
 }
 
 std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type)
@@ -4614,7 +4764,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	const std::shared_ptr<MidoriType>* binding = FindNameType(variable.m_name.m_lexeme);
 	if (binding != nullptr)
 	{
-		if (m_generic_functions.contains(variable.m_name.m_lexeme)
+		const bool binding_is_generic_function =
+			m_generic_functions.contains(variable.m_name.m_lexeme)
+			&& binding->get()->IsType<MidoriType::FunctionType>();
+		if (binding_is_generic_function
 			|| variable.m_name.m_lexeme.find("::") != std::string::npos
 			|| (binding->get()->IsType<MidoriType::FunctionType>() && binding->get()->GetType<MidoriType::FunctionType>().m_is_foreign))
 		{
@@ -4811,12 +4964,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: lambda expressions cannot have generic parameters. Use 'defun' instead.", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
+	// Preserve visible generic type variables when a lambda annotation refers to them.
+	FresheningContext freshening_context = MakeLambdaFresheningContext();
+
 	// Freshen any UndecidedType parameters to TypeVariables
 	for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
 	{
-		param_type = Freshen(param_type);
+		param_type = Freshen(param_type, freshening_context);
 	}
-	function.m_return_type = Freshen(function.m_return_type);
+	function.m_return_type = Freshen(function.m_return_type, freshening_context);
 
 	// Create the function type and store it so it can be returned
 	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
@@ -4835,6 +4991,34 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		const MidoriType::FunctionType& inferred_type = function.m_type_data->GetType<MidoriType::FunctionType>();
 		function.m_param_types = inferred_type.m_param_types;
 		function.m_return_type = inferred_type.m_return_type;
+	}
+
+	std::unordered_set<int> outer_visible_type_vars;
+	for (const TypeEnvironment& scope : m_name_type_table)
+	{
+		for (const auto& [_, bound_type] : scope)
+		{
+			std::unordered_set<int> scope_type_vars = CollectTypeVariableIds(ApplySubstitution(bound_type));
+			outer_visible_type_vars.insert(scope_type_vars.cbegin(), scope_type_vars.cend());
+		}
+	}
+	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	{
+		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			std::unordered_set<int> constraint_type_vars = CollectTypeVariableIds(ApplySubstitution(type_arg));
+			outer_visible_type_vars.insert(constraint_type_vars.cbegin(), constraint_type_vars.cend());
+		}
+	}
+	if (m_expected_expr_type != nullptr)
+	{
+		std::unordered_set<int> expected_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_expr_type));
+		outer_visible_type_vars.insert(expected_type_vars.cbegin(), expected_type_vars.cend());
+	}
+	if (m_expected_return_type != nullptr)
+	{
+		std::unordered_set<int> expected_return_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_return_type));
+		outer_visible_type_vars.insert(expected_return_type_vars.cbegin(), expected_return_type_vars.cend());
 	}
 
 	std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
@@ -4861,13 +5045,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&function, &outer_visible_type_vars, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
 					m_active_constraints.resize(prev_constraints_size);
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&function, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &outer_visible_type_vars, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
 								function.m_type_data = ApplySubstitution(function.m_type_data);
 								const MidoriType::FunctionType& resolved_type = function.m_type_data->GetType<MidoriType::FunctionType>();
@@ -4876,16 +5060,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 
 								if (HasTypeVariables(function.m_type_data))
 								{
-									return std::unexpected
-									(
-										MidoriError::GenerateTypeCheckerErrorWithContext
+									std::unordered_set<int> unresolved_type_vars = CollectTypeVariableIds(function.m_type_data);
+									bool only_outer_type_vars_remain = true;
+									for (int type_var_id : unresolved_type_vars)
+									{
+										if (!outer_visible_type_vars.contains(type_var_id))
+										{
+											only_outer_type_vars_remain = false;
+											break;
+										}
+									}
+
+									if (!only_outer_type_vars_remain)
+									{
+										return std::unexpected
 										(
-											"Function expression type error: could not infer all lambda parameter or return types",
-											function.m_function_keyword,
-											m_file_name,
-											m_source_lines
-										)
-									);
+											MidoriError::GenerateTypeCheckerErrorWithContext
+											(
+												"Function expression type error: could not infer all lambda parameter or return types",
+												function.m_function_keyword,
+												m_file_name,
+												m_source_lines
+											)
+										);
+									}
 								}
 
 								return function.m_type_data;
