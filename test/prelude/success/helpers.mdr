@@ -46,20 +46,20 @@ match opt_bound with
 PrintLine("opt unwrap: " ++ (opt_unwrap as Text));
 PrintLine("opt unwrap panic: " ++ (opt_unwrap_panic as Text));
 
-def ok_value : Result<Int, Text> = new Result::OK(7);
+def ok_value : Result<Int, Text> = new Result::Ok(7);
 
-def err_value : Result<Int, Text> = new Result::Error("nope");
+def err_value : Result<Int, Text> = new Result::Err("nope");
 
-def ok_unwrap_panic = ResultUnwrapOrPanic(ok_value, "unexpected Error");
+def ok_unwrap_panic = ResultUnwrapOrPanic(ok_value, "unexpected error");
 
 match ResultMap(ok_value, inc) with
-    case Result::OK(v) => PrintLine("result map: " ++ (v as Text))
-    case Result::Error(e) => PrintLine("result map err: " ++ e)
+    case Result::Ok(v) => PrintLine("result map: " ++ (v as Text))
+    case Result::Err(e) => PrintLine("result map err: " ++ e)
 ;
 
-match ResultBind(err_value, fn(x: Int) : Result<Int, Text> => new Result::OK(x + 1)) with
-    case Result::OK(v) => PrintLine("result bind: " ++ (v as Text))
-    case Result::Error(e) => PrintLine("result bind err: " ++ e)
+match ResultBind(err_value, fn(x: Int) : Result<Int, Text> => new Result::Ok(x + 1)) with
+    case Result::Ok(v) => PrintLine("result bind: " ++ (v as Text))
+    case Result::Err(e) => PrintLine("result bind err: " ++ e)
 ;
 
 PrintLine("result unwrap: " ++ (ResultUnwrap(err_value, 42) as Text));

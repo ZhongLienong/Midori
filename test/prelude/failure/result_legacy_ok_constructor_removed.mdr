@@ -1,0 +1,6 @@
+module ResultLegacyOkConstructorRemoved
+
+import { "../../../MidoriPrelude/Prelude/Result.mdr" }
+use Result.{Result}
+
+def value : Result<Int, Text> = new Result::OK(1);

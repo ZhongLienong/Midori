@@ -254,7 +254,7 @@ See [Package System](docs/package-system.md) for complete documentation on creat
 ### Pipe Operator
 ```midori
 defun double(x: Int) : Int => x * 2;
-union Result<T, E> = Err(E) | Ok(T);
+union Result<T, E> = Ok(T) | Err(E);
 
 defun transform(value: Int) : Result<Int, Text> => {
     if value > 10
@@ -356,6 +356,8 @@ The `MidoriPrelude` directory contains standard modules:
 - **IO.mdr** - Input/output operations (`IO::PrintLine`)
 - **Math.mdr** - Mathematical functions
 - **DateTime.mdr** - Timing and date operations
+
+`Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are no longer part of the public prelude API.
 
 ## Foreign Function Interface (FFI)
 

@@ -121,7 +121,7 @@ Unions are nominal tagged sums:
 
 ```midori
 union Option<T> = None | Some(T);
-union Result<T, E> = Err(E) | Ok(T);
+union Result<T, E> = Ok(T) | Err(E);
 ```
 
 ### Constructor Type Argument Inference
