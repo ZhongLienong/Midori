@@ -30,6 +30,17 @@ endif()
 # Performance tuning options (Experimental is an aggressive, non-portable speed profile)
 option(MIDORI_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
 
+set(MIDORI_BUILD_TESTS_DEFAULT ON)
+if(EMSCRIPTEN)
+    set(MIDORI_BUILD_TESTS_DEFAULT OFF)
+elseif(NOT CMAKE_GENERATOR_MULTI_CONFIG)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" MIDORI_BUILD_TYPE_UPPER)
+    if(MIDORI_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+        set(MIDORI_BUILD_TESTS_DEFAULT OFF)
+    endif()
+endif()
+option(MIDORI_BUILD_TESTS "Build Midori implementation unit tests" ${MIDORI_BUILD_TESTS_DEFAULT})
+
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "Use static MSVC runtime (/MT, /MTd in Debug)" FORCE)
 endif()
@@ -52,6 +63,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(toml11)
 
+if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
+    enable_testing()
+
+    FetchContent_Declare(
+        catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.13.0
+    )
+    FetchContent_MakeAvailable(catch2)
+endif()
+
 # ============================================================================
 # Platform Detection
 # ============================================================================
@@ -65,10 +87,9 @@ set(MIDORI_ENDIAN_DEFINES
 )
 
 function(midori_configure_target target_name)
-    target_include_directories(${target_name} PRIVATE
+    target_include_directories(${target_name} PUBLIC
         ${CMAKE_SOURCE_DIR}/src
     )
-    target_link_libraries(${target_name} PRIVATE toml11::toml11)
     target_compile_definitions(${target_name} PRIVATE ${MIDORI_ENDIAN_DEFINES})
 endfunction()
 
@@ -94,6 +115,24 @@ file(GLOB_RECURSE LIBRARY_SOURCES CONFIGURE_DEPENDS
     "src/Library/*.cpp"
 )
 
+file(GLOB_RECURSE LIBRARY_HEADERS CONFIGURE_DEPENDS
+    "src/Library/*.h"
+)
+
+add_library(MidoriCore STATIC
+    ${COMMON_HEADERS}
+    ${COMMON_SOURCES}
+    ${LIBRARY_HEADERS}
+    ${LIBRARY_SOURCES}
+)
+
+midori_configure_target(MidoriCore)
+target_link_libraries(MidoriCore PRIVATE toml11::toml11)
+
+if(UNIX)
+    target_link_libraries(MidoriCore PUBLIC ${CMAKE_DL_LIBS})
+endif()
+
 # ============================================================================
 # WebAssembly Build Configuration
 # ============================================================================
@@ -114,27 +153,32 @@ if(EMSCRIPTEN)
 
     # Create WASM executable (no main() needed)
     add_executable(Midori
-        ${COMMON_HEADERS}
-        ${COMMON_SOURCES}
-        ${LIBRARY_SOURCES}
         ${WASM_FILES}
     )
+    target_link_libraries(Midori PRIVATE MidoriCore)
 
-    midori_configure_target(Midori)
+    set(MIDORI_WASM_COMPILE_TARGETS
+        MidoriCore
+        Midori
+    )
 
-    target_compile_definitions(Midori PRIVATE MIDORI_WASM=1)
-    if(MIDORI_WASM64)
-        target_compile_definitions(Midori PRIVATE MIDORI_WASM64=1)
-    endif()
+    foreach(target_name IN LISTS MIDORI_WASM_COMPILE_TARGETS)
+        target_compile_definitions(${target_name} PRIVATE MIDORI_WASM=1)
+        if(MIDORI_WASM64)
+            target_compile_definitions(${target_name} PRIVATE MIDORI_WASM64=1)
+        endif()
+    endforeach()
 
     # Target-specific compile options
-    target_compile_options(Midori PRIVATE
-        -fexceptions
-        -O3
-        -Wno-deprecated-literal-operator
-        $<$<BOOL:${MIDORI_ENABLE_LTO}>:-flto>
-        ${MIDORI_WASM64_FLAGS}
-    )
+    foreach(target_name IN LISTS MIDORI_WASM_COMPILE_TARGETS)
+        target_compile_options(${target_name} PRIVATE
+            -fexceptions
+            -O3
+            -Wno-deprecated-literal-operator
+            $<$<BOOL:${MIDORI_ENABLE_LTO}>:-flto>
+            ${MIDORI_WASM64_FLAGS}
+        )
+    endforeach()
 
     # Emscripten linker options
     target_link_options(Midori PRIVATE
@@ -168,20 +212,16 @@ if(EMSCRIPTEN)
 else()
     message(STATUS "Configuring for native build")
 
-    # Collect library headers for static linking
-    file(GLOB_RECURSE LIBRARY_HEADERS CONFIGURE_DEPENDS
-        "src/Library/*.h"
-    )
-
-    # Create main executable with statically linked FFI functions
+    # Create the thin CLI executable that links against MidoriCore
     add_executable(Midori
-        ${COMMON_HEADERS}
-        ${COMMON_SOURCES}
-        ${LIBRARY_HEADERS}
-        ${LIBRARY_SOURCES}
         "src/Midori.cpp"
     )
-    set(MIDORI_NATIVE_TARGETS Midori)
+    target_link_libraries(Midori PRIVATE MidoriCore)
+    set(MIDORI_NATIVE_COMPILE_TARGETS
+        MidoriCore
+        Midori
+    )
+    set(MIDORI_NATIVE_LINK_TARGETS Midori)
 
     # Detect AVX2 compiler flag for Experimental configuration
     set(MIDORI_HAS_AVX2_FLAG FALSE)
@@ -210,20 +250,8 @@ else()
         message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
     endif()
 
-    foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
-        midori_configure_target(${target_name})
-    endforeach()
-
-    # Link platform-specific dynamic loading libraries
-    if(WIN32)
-    elseif(UNIX)
-        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
-            target_link_libraries(${target_name} PRIVATE ${CMAKE_DL_LIBS})
-        endforeach()
-    endif()
-
     # Target-specific compile definitions
-    foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+    foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PRIVATE
             $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
             $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
@@ -247,7 +275,7 @@ else()
         endforeach()
 
         # Common MSVC flags for Midori executable
-        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+        foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
@@ -276,7 +304,7 @@ else()
         endforeach()
 
         # MSVC linker flags
-        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+        foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
                 $<$<CONFIG:Development>:/DEBUG>
                 $<$<CONFIG:Development>:/OPT:REF>
@@ -291,7 +319,7 @@ else()
     endif()
 
     if(NOT MSVC)
-        foreach(target_name IN LISTS MIDORI_NATIVE_TARGETS)
+        foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
                 $<$<CONFIG:Development>:-O2>
                 $<$<CONFIG:Development>:-g>
@@ -302,10 +330,17 @@ else()
                 $<$<CONFIG:Experimental>:-funroll-loops>
                 $<$<CONFIG:Experimental>:-ffast-math>
             )
+        endforeach()
+
+        foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
                 $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
             )
         endforeach()
     endif()
 
+endif()
+
+if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
+    add_subdirectory(tests)
 endif()

@@ -1,17 +1,12 @@
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
 
 #include "Common/Printer/Printer.h"
-#include "Compiler/Compiler.h"
-#include "Interpreter/VirtualMachine/VirtualMachine.h"
+#include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Project/ProjectManifest.h"
-
-using namespace std::string_literals;
 
 namespace
 {
@@ -106,26 +101,6 @@ namespace
 	}
 }
 
-std::string ReadFile(const char* filename)
-{
-	std::ifstream file(filename);
-	if (!file.is_open())
-	{
-		Printer::Print<Printer::Color::RED>(std::format("Could not open file: {}\n", filename));
-		std::exit(EXIT_FAILURE);
-	}
-
-	std::ostringstream buffer;
-	buffer << file.rdbuf();
-	if (!buffer)
-	{
-		Printer::Print<Printer::Color::RED>(std::format("Could not read file to buffer: {}\n", filename));
-		std::exit(EXIT_FAILURE);
-	}
-
-	return buffer.str();
-}
-
 int main(int argc, char* argv[])
 {
 	if (argc < 2)
@@ -146,34 +121,12 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
-	std::string file_name = argv[1u];
-	std::error_code path_error;
-	std::filesystem::path input_path = std::filesystem::absolute(std::filesystem::path(file_name), path_error);
-	if (path_error)
+	const MidoriDriver::DriverResult run_result = MidoriDriver::CompileAndRunFile(std::filesystem::path(argv[1u]));
+	if (!run_result.has_value())
 	{
-		input_path = std::filesystem::path(file_name);
+		Printer::Print<Printer::Color::RED>(run_result.error().Rendered());
+		return EXIT_FAILURE;
 	}
-	MidoriProject::ApplyProjectManifestToEnvironment(input_path);
-	std::string file_content = ReadFile(file_name.data());
 
-	return Compiler(std::move(file_content), std::move(file_name))
-		.Compile()
-		.and_then
-		(
-			[](MidoriExecutable&& executable) -> std::expected<int, CompilerError>
-			{
-				VirtualMachine vm(std::move(executable));
-				return vm.Execute();
-			}
-		)
-		.or_else
-		(
-			[](CompilerError&& compilation_error) -> std::expected<int, CompilerError>
-			{
-				Printer::Print<Printer::Color::RED>("Compilation failed :( \n");
-				Printer::Print<Printer::Color::RED>(std::format("{}", compilation_error));
-				return EXIT_FAILURE;
-			}
-		)
-		.value();
+	return run_result.value();
 }

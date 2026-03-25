@@ -618,14 +618,36 @@ Native preset builds write the executable to `out/build/ninja/<preset>/out/Midor
 .\out\build\ninja\x64-development\out\Midori.exe path\to\program.mdr
 ```
 
-### Running Tests
+### Running Unit Tests
 
-Run all tests:
+Debug and Development preset builds enable `MIDORI_BUILD_TESTS` by default. Release preset builds leave unit tests off unless you opt in with `-DMIDORI_BUILD_TESTS=ON`.
+
+Configure and build the unit test target:
+```bash
+cmake --preset x64-debug
+cmake --build --preset x64-debug --target MidoriUnitTests
+```
+
+Run the registered Catch2 suites through CTest:
+```bash
+ctest --test-dir out/build/ninja/x64-debug --output-on-failure
+```
+
+You can also build and run the Development preset:
+```bash
+cmake --preset x64-development
+cmake --build --preset x64-development --target MidoriUnitTests
+ctest --test-dir out/build/ninja/x64-development --output-on-failure
+```
+
+### Running Regression Tests
+
+Run all file-based language regression tests:
 ```bash
 python scripts/run_tests.py --build Development
 ```
 
-Run specific tests:
+Run specific regression tests:
 ```bash
 python scripts/run_tests.py --test closure/simple.mdr --build Development
 python scripts/run_tests.py --category typeclass --build Development
