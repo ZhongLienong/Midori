@@ -4,8 +4,15 @@ import
 {
     "../../../MidoriPrelude/Collections/Set.mdr",
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/Iterable.mdr"
+    "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
 
 def set : Set::Set<Int> = Set::SetNew();
 Set::SetInsert(set, 1);
@@ -13,11 +20,14 @@ Set::SetInsert(set, 2);
 
 def iter = Set::SetIterNew(set);
 def total = 0;
+def seen = 0;
 
 for value in iter {
     total = total + value;
+    seen = seen + 1;
 };
 
-if total == 3
-then IO::PrintLine("iterable_set: PASS")
-else IO::PrintLine("iterable_set: FAIL");
+Expect(seen == 2, "Set iteration should visit every occupied element exactly once");
+Expect(total == 3, "Set iteration should expose the inserted values");
+
+IO::PrintLine("iterable_set: PASS");

@@ -4,51 +4,49 @@ import
 {
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Collections/Map.mdr",
-    "../../../MidoriPrelude/Prelude/Option.mdr"
+    "../../../MidoriPrelude/Prelude/Option.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
 use Option.{Option}
 
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+defun ExpectSomeInt(result: Option<Int>, expected: Int, message: Text) : Unit => {
+    match result with
+        case Option::Some(value) => Expect(value == expected, message)
+        case Option::None() => Panic::Panic(message)
+};
+
+defun ExpectNoneInt(result: Option<Int>, message: Text) : Unit => {
+    match result with
+        case Option::Some(_) => Panic::Panic(message)
+        case Option::None() => ()
+};
+
 def scores : Map::Map<Text, Int> = Map::MapNew();
 
-Map::MapInsert(scores, "Alice", 100);
-Map::MapInsert(scores, "Bob", 85);
-Map::MapInsert(scores, "Charlie", 92);
+Expect(Map::MapInsert(scores, "Alice", 100), "MapInsert should add Alice");
+Expect(Map::MapInsert(scores, "Bob", 85), "MapInsert should add Bob");
+Expect(Map::MapInsert(scores, "Charlie", 92), "MapInsert should add Charlie");
 
-IO::PrintLine("=== MapGet with Option ===");
-def alice_score = Map::MapGet(scores, "Alice");
-match alice_score with
-    case Option::Some(score) => IO::PrintLine("Alice: " ++ (score as Text))
-    case Option::None() => IO::PrintLine("Alice not found")
-;
+ExpectSomeInt(Map::MapGet(scores, "Alice"), 100, "MapGet should return Alice's score");
+Expect(Map::MapGetOr(scores, "Dave", 0) == 0, "MapGetOr should use the default for missing keys");
+Expect(Map::MapGetOr(scores, "Bob", 0) == 85, "MapGetOr should return the stored value for existing keys");
 
-IO::PrintLine("=== MapGetOr with default ===");
-def dave_score = Map::MapGetOr(scores, "Dave", 0);
-IO::PrintLine("Dave (default): " ++ (dave_score as Text));
+ExpectSomeInt(Map::MapUpdate(scores, "Alice", 105), 100, "MapUpdate should return Alice's previous score");
+ExpectSomeInt(Map::MapGet(scores, "Alice"), 105, "MapUpdate should replace Alice's stored value");
+ExpectNoneInt(Map::MapUpdate(scores, "Dana", 88), "MapUpdate should not insert missing keys");
+Expect(!Map::MapContains(scores, "Dana"), "MapUpdate should leave missing keys absent");
 
-def bob_score = Map::MapGetOr(scores, "Bob", 0);
-IO::PrintLine("Bob: " ++ (bob_score as Text));
-
-IO::PrintLine("=== MapUpdate returns old value ===");
-def old_alice = Map::MapUpdate(scores, "Alice", 105);
-match old_alice with
-    case Option::Some(old) => IO::PrintLine("Alice old score: " ++ (old as Text))
-    case Option::None() => IO::PrintLine("Alice had no previous score")
-;
-
-def new_alice = Map::MapGet(scores, "Alice");
-match new_alice with
-    case Option::Some(score) => IO::PrintLine("Alice new score: " ++ (score as Text))
-    case Option::None() => ()
-;
-
-IO::PrintLine("=== MapIsEmpty ===");
-IO::PrintLine(if Map::MapIsEmpty(scores) then "Map is empty" else "Map has entries");
-
-IO::PrintLine("=== MapClear ===");
+Expect(!Map::MapIsEmpty(scores), "MapIsEmpty should report false for a populated map");
 Map::MapClear(scores);
-IO::PrintLine("After clear, size: " ++ (Map::MapCount(scores) as Text));
-IO::PrintLine(if Map::MapIsEmpty(scores) then "Map is now empty" else "Map still has entries");
+Expect(Map::MapCount(scores) == 0, "MapClear should reset the count to zero");
+Expect(Map::MapIsEmpty(scores), "MapClear should leave the map empty");
 
 IO::PrintLine("improved_api_demo: PASS");
 

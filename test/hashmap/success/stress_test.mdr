@@ -1,54 +1,40 @@
 module StressTest
 
-// Test HashMap with many elements to trigger rehashing
-import 
+import
 {
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Collections/Map.mdr",
-    "../../../MidoriPrelude/Prelude/Option.mdr"
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
-use Option.{Option}
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
 
 def numbers : Map::Map<Int, Int> = Map::MapNew();
+def inserted = 0;
 
-// Insert 100 key-value pairs (key -> key * 2)
 for i in 0..1..100 {
-    Map::MapInsert(numbers, i, i * 2);
+    if Map::MapInsert(numbers, i, i * 2)
+    then { inserted = inserted + 1; }
+    else Panic::Panic("Stress setup should insert a new key for " ++ (i as Text));
 };
 
-IO::PrintLine("Size after 100 inserts: " ++ (Map::MapCount(numbers) as Text));
+Expect(Map::MapCount(numbers) == inserted, "Stress insertions should match the reported map count");
 
-// Verify all values are correct
-def all_correct = {
-    def count = 0;
-    for i in 0..1..100 {
-        match Map::MapGet(numbers, i) with
-            case Option::Some(value) => {
-                if value == i * 2 then {
-                    count = count + 1;
-                } else {
-                    ()
-                }
-            }
-            case Option::None() => ()
-        ;
-    };
-    count
+for i in 0..1..100 {
+    Expect(
+        Map::MapGetOr(numbers, i, -1) == i * 2,
+        "MapGetOr should return the stress-test value for key " ++ (i as Text)
+    );
 };
 
-IO::PrintLine("Correct values: " ++ (all_correct as Text));
-
-// Check non-existent keys
-match Map::MapGet(numbers, 200) with
-    case Option::Some(_) => IO::PrintLine("Found 200: true")
-    case Option::None() => IO::PrintLine("Found 200: false")
-;
-
-match Map::MapGet(numbers, -1) with
-    case Option::Some(_) => IO::PrintLine("Found -1: true")
-    case Option::None() => IO::PrintLine("Found -1: false")
-;
+Expect(!Map::MapContains(numbers, 200), "MapContains should reject a missing large key");
+Expect(!Map::MapContains(numbers, -1), "MapContains should reject a missing negative key");
+Expect(!Map::MapInsert(numbers, 10, 999), "MapInsert should remain insert-only after rehashing");
+Expect(Map::MapGetOr(numbers, 10, -1) == 20, "Duplicate insertion after rehashing should preserve the stored value");
 
 IO::PrintLine("hashmap_stress: PASS");
 

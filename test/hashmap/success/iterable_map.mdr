@@ -4,8 +4,15 @@ import
 {
     "../../../MidoriPrelude/Collections/Map.mdr",
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/Iterable.mdr"
+    "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
 
 def map : Map::Map<Int, Int> = Map::MapNew();
 Map::MapInsert(map, 1, 10);
@@ -13,11 +20,14 @@ Map::MapInsert(map, 2, 20);
 
 def iter = Map::MapIterNew(map);
 def total = 0;
+def seen = 0;
 
 for entry in iter {
     total = total + entry.value;
+    seen = seen + 1;
 };
 
-if total == 30
-then IO::PrintLine("iterable_map: PASS")
-else IO::PrintLine("iterable_map: FAIL");
+Expect(seen == 2, "Map iteration should visit every occupied entry exactly once");
+Expect(total == 30, "Map iteration should expose the stored values");
+
+IO::PrintLine("iterable_map: PASS");

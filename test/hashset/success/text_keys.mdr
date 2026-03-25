@@ -1,34 +1,31 @@
 module TextKeys
 
-// Test HashSet with Text keys
-import 
+import
 {
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/Collections/Set.mdr"
+    "../../../MidoriPrelude/Collections/Set.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
 
 def names : Set::Set<Text> = Set::SetNew();
 
-// Insert strings
-Set::SetInsert(names, "Alice");
-Set::SetInsert(names, "Bob");
-Set::SetInsert(names, "Charlie");
+Expect(Set::SetInsert(names, "Alice"), "SetInsert should add Alice");
+Expect(Set::SetInsert(names, "Bob"), "SetInsert should add Bob");
+Expect(Set::SetInsert(names, "Charlie"), "SetInsert should add Charlie");
+Expect(Set::SetCount(names) == 3, "SetCount should reflect the inserted text values");
 
-IO::PrintLine("Size: " ++ (Set::SetCount(names) as Text));
+Expect(Set::SetContains(names, "Alice"), "SetContains should find Alice");
+Expect(!Set::SetContains(names, "Dave"), "SetContains should reject missing text values");
 
-// Test contains
-def has_alice = Set::SetContains(names, "Alice");
-def has_dave = Set::SetContains(names, "Dave");
-
-IO::PrintLine(if has_alice then "Has Alice: true" else "Has Alice: false");
-IO::PrintLine(if has_dave then "Has Dave: true" else "Has Dave: false");
-
-// Remove and check
-Set::SetRemove(names, "Bob");
-def has_bob = Set::SetContains(names, "Bob");
-IO::PrintLine(if has_bob then "Has Bob after remove: true" else "Has Bob after remove: false");
-
-IO::PrintLine("Final size: " ++ (Set::SetCount(names) as Text));
+Expect(Set::SetRemove(names, "Bob"), "SetRemove should remove Bob");
+Expect(!Set::SetContains(names, "Bob"), "Removed text values should no longer be present");
+Expect(Set::SetCount(names) == 2, "SetCount should decrease after removing Bob");
 
 IO::PrintLine("hashset_text: PASS");
 

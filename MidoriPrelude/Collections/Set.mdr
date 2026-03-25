@@ -93,16 +93,33 @@ defun FindSetInsertSlot<T>(set: Set<T>, elem: T, hash: Int) : Int
     where Equatable<T> => {
     def idx = hash % set.capacity;
     if idx < 0 then idx = 0 - idx else 0;
+    def first_deleted = -1;
     def i = 0;
     loop {
         if i >= set.capacity
-        then break -1
+        then {
+            if first_deleted >= 0
+            then break first_deleted
+            else break -1
+        }
         else {
             def probe_idx = (idx + i) % set.capacity;
             def entry = set.buckets[probe_idx];
             match entry with
-                case SetSlot::Empty() => break probe_idx
-                case SetSlot::Deleted() => break probe_idx
+                case SetSlot::Empty() => {
+                    if first_deleted >= 0
+                    then break first_deleted
+                    else break probe_idx
+                }
+                case SetSlot::Deleted() => {
+                    if first_deleted < 0
+                    then {
+                        first_deleted = probe_idx;
+                        ()
+                    }
+                    else ();
+                    i = i + 1;
+                }
                 case SetSlot::Occupied(e) => {
                     if Equatable::Equals(e, elem)
                     then break probe_idx

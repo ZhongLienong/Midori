@@ -99,16 +99,33 @@ defun FindMapInsertSlot<K, V>(map: Map<K, V>, key: K, hash: Int) : Int
     where Equatable<K> => {
     def idx = hash % map.capacity;
     if idx < 0 then idx = 0 - idx else 0;
+    def first_deleted = -1;
     def i = 0;
     loop {
         if i >= map.capacity
-        then break -1
+        then {
+            if first_deleted >= 0
+            then break first_deleted
+            else break -1
+        }
         else {
             def probe_idx = (idx + i) % map.capacity;
             def entry = map.buckets[probe_idx];
             match entry with
-                case MapSlot::Empty() => break probe_idx
-                case MapSlot::Deleted() => break probe_idx
+                case MapSlot::Empty() => {
+                    if first_deleted >= 0
+                    then break first_deleted
+                    else break probe_idx
+                }
+                case MapSlot::Deleted() => {
+                    if first_deleted < 0
+                    then {
+                        first_deleted = probe_idx;
+                        ()
+                    }
+                    else ();
+                    i = i + 1;
+                }
                 case MapSlot::Occupied(k, _value) => {
                     if Equatable::Equals(k, key)
                     then break probe_idx
@@ -126,13 +143,13 @@ defun MapInsertNoRehash<K, V>(map: Map<K, V>, key: K, value: V) : Bool
     then false
     else {
         def existing = map.buckets[slot];
-        def was_new = match existing with
+        match existing with
             case MapSlot::Occupied(_key, _value) => false
-            default => true
-        ;
-        map.buckets[slot] = new MapSlot::Occupied<K, V>(key, value);
-        if was_new then map.count = map.count + 1 else 0;
-        was_new
+            default => {
+                map.buckets[slot] = new MapSlot::Occupied<K, V>(key, value);
+                map.count = map.count + 1;
+                true
+            }
     }
 };
 
