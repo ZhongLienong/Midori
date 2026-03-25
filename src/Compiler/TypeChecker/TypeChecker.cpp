@@ -28,6 +28,10 @@ namespace
 				{
 					return node.m_name;
 				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
+				{
+					return node.m_token;
+				}
 				else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 				{
 					return node.m_token;
@@ -1490,6 +1494,11 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				m_name_type_table.back()[node.m_name.m_lexeme] = resolved_expected;
 				return node.m_type_data;
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
+			{
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 			{
 				switch (node.m_kind)
@@ -1647,6 +1656,10 @@ bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::
 		{
 			using Node = std::decay_t<T>;
 			if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
+			{
+				return true;
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
 			{
 				return true;
 			}

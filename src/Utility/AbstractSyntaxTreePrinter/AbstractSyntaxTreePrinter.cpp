@@ -550,6 +550,13 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Binding& binding, 
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Wildcard& wildcard, int depth) const
+{
+	PrintWithIndentation(depth, "WildcardPattern {");
+	PrintWithIndentation(depth + 1, wildcard.m_token.m_lexeme);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Literal& literal, int depth) const
 {
 	PrintWithIndentation(depth, "LiteralPattern {");

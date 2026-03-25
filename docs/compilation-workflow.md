@@ -194,6 +194,7 @@ The parser implements a **recursive descent parser** with:
 - **Associated type parsing** - `type Item;` in classes and `type Item = Int;` in instances
 - **Deriving support** - `deriving (...)` clauses synthesize helper declarations during parsing
 - **Pipe rewriting** - `x |> f(y)` rewrites to `f(x, y)`, including `|> match with ...`
+- **Contextual wildcard patterns** - `_` inside `match` patterns becomes a binding-free wildcard while remaining a normal identifier elsewhere
 - **Bidirectional lambda/constructor syntax** - omitted lambda annotations and constructor type arguments are preserved for later type inference
 
 ## Phase 4: Type Checking (TypeChecker)

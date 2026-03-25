@@ -216,6 +216,11 @@ namespace
 			return 1;
 		}
 
+		int operator()(const MidoriPattern::Wildcard&) const
+		{
+			return 0;
+		}
+
 		int operator()(const MidoriPattern::Literal&) const
 		{
 			return 0;
@@ -4125,6 +4130,11 @@ MidoriResult::PatternResult Parser::ParsePattern()
 	if (Match(Token::Name::IDENTIFIER_LITERAL))
 	{
 		Token identifier = Previous();
+		if (identifier.m_lexeme == "_")
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(identifier));
+		}
+
 		return MatchNameResolution()
 			.and_then
 			(

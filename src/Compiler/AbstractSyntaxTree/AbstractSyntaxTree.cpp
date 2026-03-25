@@ -37,6 +37,11 @@ MidoriPattern::Binding::Binding(const Token& name, std::optional<int> local_inde
 {
 }
 
+MidoriPattern::Wildcard::Wildcard(const Token& token)
+	: m_token(token)
+{
+}
+
 MidoriPattern::Literal::Literal(const Token& token, LiteralKind kind)
 	: m_token(token),
 	m_kind(kind)

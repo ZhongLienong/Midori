@@ -1196,6 +1196,10 @@ int CodeGenerator::CountPatternBindings(const MidoriPattern& pattern) const
 	{
 		return 1;
 	}
+	if (pattern.IsPattern<MidoriPattern::Wildcard>())
+	{
+		return 0;
+	}
 	if (pattern.IsPattern<MidoriPattern::Literal>())
 	{
 		return 0;
@@ -1339,6 +1343,11 @@ void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<i
 			m_self->EmitByte(OpCode::POP, node.m_name.m_line);
 		}
 
+		void operator()(const MidoriPattern::Wildcard& node) const
+		{
+			m_self->EmitByte(OpCode::POP, node.m_token.m_line);
+		}
+
 		void operator()(const MidoriPattern::Literal& node) const
 		{
 			const int line = node.m_token.m_line;
@@ -1467,6 +1476,11 @@ void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
 			{
 				m_self->EmitByte(OpCode::POP, line);
 			}
+		}
+
+		void operator()(const MidoriPattern::Wildcard& node) const
+		{
+			m_self->EmitByte(OpCode::POP, node.m_token.m_line);
 		}
 
 		void operator()(const MidoriPattern::Literal& node) const

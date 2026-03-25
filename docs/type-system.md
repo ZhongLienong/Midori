@@ -340,6 +340,7 @@ def pipeline_result =
 ```
 
 This is equivalent to matching on the result of the previous pipeline stage.
+In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a valid identifier.
 
 ## Type Inference
 

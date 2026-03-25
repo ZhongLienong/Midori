@@ -197,6 +197,13 @@ public:
 		Binding(const Token& name, std::optional<int> local_index);
 	};
 
+	struct Wildcard : BasePattern
+	{
+		Token m_token;
+
+		Wildcard(const Token& token);
+	};
+
 	enum class LiteralKind
 	{
 		Bool,
@@ -244,7 +251,7 @@ public:
 	};
 
 private:
-	using PatternUnion = std::variant<Binding, Literal, Tuple, Array, Constructor>;
+	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor>;
 	PatternUnion m_variant;
 
 public:

@@ -96,6 +96,8 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriPattern::Binding& binding, int depth = 0) const;
 
+	void operator()(const MidoriPattern::Wildcard& wildcard, int depth = 0) const;
+
 	void operator()(const MidoriPattern::Literal& literal, int depth = 0) const;
 
 	void operator()(const MidoriPattern::Tuple& tuple, int depth = 0) const;

@@ -272,6 +272,8 @@ def result =
         case Result::Err(_) => 0;
 ```
 
+In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a normal identifier.
+
 ### Closures
 ```midori
 defun make_counter() : fn() -> Int => {

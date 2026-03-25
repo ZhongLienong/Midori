@@ -192,6 +192,10 @@ namespace
 				{
 					return true;
 				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Wildcard>)
+				{
+					return true;
+				}
 				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
 				{
 					const std::optional<ConstantValue> pattern_value = TryGetPatternLiteralValue(node);
@@ -1050,6 +1054,9 @@ namespace
 					{
 						RecordDefinition(m_summary, node.m_local_index);
 					}
+					else if constexpr (std::is_same_v<T, MidoriPattern::Wildcard>)
+					{
+					}
 					else if constexpr (std::is_same_v<T, MidoriPattern::Tuple> || std::is_same_v<T, MidoriPattern::Array>)
 					{
 						for (const std::unique_ptr<MidoriPattern>& element : node.m_elements)
@@ -1631,6 +1638,10 @@ namespace MidoriAnalysis
 				if constexpr (std::is_same_v<T, MidoriPattern::Binding>)
 				{
 					return false;
+				}
+				else if constexpr (std::is_same_v<T, MidoriPattern::Wildcard>)
+				{
+					return true;
 				}
 				else if constexpr (std::is_same_v<T, MidoriPattern::Literal>)
 				{

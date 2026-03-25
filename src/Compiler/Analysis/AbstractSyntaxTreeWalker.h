@@ -32,6 +32,7 @@ protected:
 	virtual void operator()(MidoriStatement::TypeAlias& type_alias);
 
 	virtual void operator()(MidoriPattern::Binding& binding);
+	virtual void operator()(MidoriPattern::Wildcard& wildcard);
 	virtual void operator()(MidoriPattern::Literal& literal);
 	virtual void operator()(MidoriPattern::Tuple& tuple);
 	virtual void operator()(MidoriPattern::Array& array);
