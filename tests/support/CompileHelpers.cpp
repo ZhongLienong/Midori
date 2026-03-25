@@ -1,9 +1,11 @@
 #include "support/CompileHelpers.h"
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
+#include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MidoriDriver.h"
 
@@ -86,9 +88,18 @@ namespace MidoriTest
 	{
 	}
 
-	ExecutedSnippet::ExecutedSnippet(SourceFixture source, int exit_code)
+	AnalyzedSnippet::AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::vector<CompilerError>&& errors)
 		: m_source(std::move(source)),
-		m_exit_code(exit_code)
+		m_program(std::move(program)),
+		m_warnings(std::move(warnings)),
+		m_errors(std::move(errors))
+	{
+	}
+
+	ExecutedSnippet::ExecutedSnippet(SourceFixture source, int exit_code, CapturedOutput output)
+		: m_source(std::move(source)),
+		m_exit_code(exit_code),
+		m_output(std::move(output))
 	{
 	}
 
@@ -145,27 +156,44 @@ namespace MidoriTest
 		return TypedSnippet(std::move(parsed.m_source), std::move(typecheck_result.value()), std::move(parsed.m_warnings));
 	}
 
+	std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name)
+	{
+		std::expected<TypedSnippet, CompilerError> typed_result = TypeCheckSnippet(std::move(source_code), std::move(file_name));
+		if (!typed_result.has_value())
+		{
+			return std::unexpected(std::move(typed_result.error()));
+		}
+
+		TypedSnippet typed = std::move(typed_result.value());
+		StaticAnalysisResult analysis_result = StaticAnalyzerManager().Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
+		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(analysis_result.m_warnings), std::move(analysis_result.m_errors));
+	}
+
 	MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
 	{
+		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
 		return MidoriDriver::CompileSource(std::move(source_code), std::move(file_name));
 	}
 
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
+		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
 		MidoriResult::CompilerResult compile_result = MidoriDriver::CompileSource(std::string(source.SourceCode()), source.FileName());
 		if (!compile_result.has_value())
 		{
 			return std::unexpected(std::move(compile_result.error()));
 		}
 
+		OutputCapture capture;
 		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compile_result.value()));
+		CapturedOutput output = capture.Stop();
 		if (!run_result.has_value())
 		{
 			return std::unexpected(std::move(run_result.error()));
 		}
 
-		return ExecutedSnippet(std::move(source), run_result.value());
+		return ExecutedSnippet(std::move(source), run_result.value(), std::move(output));
 	}
 
 	std::vector<Token::Name> CollectTokenNames(const TokenStream& tokens, bool include_whitespace, bool include_end_of_file)

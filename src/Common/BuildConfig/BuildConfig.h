@@ -101,16 +101,25 @@ namespace MidoriBuild
         return enabled;
     }
 
-    [[nodiscard]] inline bool IsTestMode() noexcept
+    class ScopedTestModeOverride
     {
-        static const bool s_is_test_mode = EnvironmentFlagEnabledUncached("MIDORI_TEST_MODE");
-        return s_is_test_mode;
-    }
+    private:
+        int m_previous_value = -1;
 
-    [[nodiscard]] inline bool ShouldEmitInternalDiagnostics() noexcept
-    {
-        return !IsTestMode();
-    }
+    public:
+        explicit ScopedTestModeOverride(bool enabled) noexcept;
+
+        ~ScopedTestModeOverride() noexcept;
+
+        ScopedTestModeOverride(const ScopedTestModeOverride&) = delete;
+        ScopedTestModeOverride& operator=(const ScopedTestModeOverride&) = delete;
+        ScopedTestModeOverride(ScopedTestModeOverride&&) = delete;
+        ScopedTestModeOverride& operator=(ScopedTestModeOverride&&) = delete;
+    };
+
+    [[nodiscard]] bool IsTestMode() noexcept;
+
+    [[nodiscard]] bool ShouldEmitInternalDiagnostics() noexcept;
 }
 
 // Feature flags based on build level
