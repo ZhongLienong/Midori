@@ -1,0 +1,49 @@
+module PreludeDateTimeWrappers
+
+import
+{
+    "../../../MidoriPrelude/DateTime.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+defun ExpectRange(value: Int, minimum: Int, maximum: Int, message: Text) : Unit => {
+    Expect(value >= minimum && value <= maximum, message)
+};
+
+def local = DateTime::LocalNow();
+def utc = DateTime::UtcNow();
+def unix_millis = DateTime::NowUnixMillis();
+def formatted_year = DateTime::FormatLocal("%Y");
+
+Expect(unix_millis > 0, "NowUnixMillis should return a positive Unix timestamp");
+
+ExpectRange(local.year, 1970, 9999, "LocalNow should return a plausible year");
+ExpectRange(local.month, 1, 12, "LocalNow should return a month in the 1-12 range");
+ExpectRange(local.day, 1, 31, "LocalNow should return a day in the 1-31 range");
+ExpectRange(local.hour, 0, 23, "LocalNow should return an hour in the 0-23 range");
+ExpectRange(local.minute, 0, 59, "LocalNow should return a minute in the 0-59 range");
+ExpectRange(local.second, 0, 60, "LocalNow should return a second in the 0-60 range");
+ExpectRange(local.day_of_week, 0, 6, "LocalNow should return a day_of_week in the 0-6 range");
+ExpectRange(local.day_of_year, 1, 366, "LocalNow should return a day_of_year in the 1-366 range");
+ExpectRange(local.timezone_offset_minutes, -1439, 1439, "LocalNow should include a bounded timezone offset");
+
+ExpectRange(utc.year, 1970, 9999, "UtcNow should return a plausible year");
+ExpectRange(utc.month, 1, 12, "UtcNow should return a month in the 1-12 range");
+ExpectRange(utc.day, 1, 31, "UtcNow should return a day in the 1-31 range");
+ExpectRange(utc.hour, 0, 23, "UtcNow should return an hour in the 0-23 range");
+ExpectRange(utc.minute, 0, 59, "UtcNow should return a minute in the 0-59 range");
+ExpectRange(utc.second, 0, 60, "UtcNow should return a second in the 0-60 range");
+ExpectRange(utc.day_of_week, 0, 6, "UtcNow should return a day_of_week in the 0-6 range");
+ExpectRange(utc.day_of_year, 1, 366, "UtcNow should return a day_of_year in the 1-366 range");
+
+Expect(local.timezone_offset_minutes == DateTime::TimezoneOffsetMinutes(), "TimezoneOffsetMinutes should match the value carried by LocalNow");
+Expect(formatted_year == (local.year as Text), "FormatLocal should format the current local year");
+
+IO::PrintLine("prelude_datetime_wrappers: PASS");

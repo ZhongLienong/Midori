@@ -100,6 +100,8 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcHour)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcMinute)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcSecond)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfWeek)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfYear)(void** args, void* ret) noexcept;
 
 	// System
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Exit)(void** args, void* ret) noexcept;

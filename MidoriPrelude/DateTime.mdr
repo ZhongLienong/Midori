@@ -1,43 +1,104 @@
 module DateTime
 public export
 {
-    GetTime,
-    GetYear, GetMonth, GetDay, GetHour, GetMinute, GetSecond,
-    GetDayOfWeek, GetDayOfYear,
-    FormatTime, GetTimezoneOffset,
-    GetUtcYear, GetUtcMonth, GetUtcDay, GetUtcHour, GetUtcMinute, GetUtcSecond
+    LocalTimeParts, UtcTimeParts,
+    NowUnixMillis, TimezoneOffsetMinutes,
+    LocalNow, UtcNow,
+    FormatLocal
 }
 
-foreign "MIDORI_FFI_GetTime" GetTime : fn() -> Float;
+struct LocalTimeParts
+{
+    year: Int,
+    month: Int,
+    day: Int,
+    hour: Int,
+    minute: Int,
+    second: Int,
+    day_of_week: Int,
+    day_of_year: Int,
+    timezone_offset_minutes: Int
+};
 
-foreign "MIDORI_FFI_GetYear" GetYear : fn() -> Int;
+struct UtcTimeParts
+{
+    year: Int,
+    month: Int,
+    day: Int,
+    hour: Int,
+    minute: Int,
+    second: Int,
+    day_of_week: Int,
+    day_of_year: Int
+};
 
-foreign "MIDORI_FFI_GetMonth" GetMonth : fn() -> Int;
+foreign "MIDORI_FFI_GetTime" GetTimeRaw : fn() -> Float;
 
-foreign "MIDORI_FFI_GetDay" GetDay : fn() -> Int;
+foreign "MIDORI_FFI_GetYear" GetYearRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetHour" GetHour : fn() -> Int;
+foreign "MIDORI_FFI_GetMonth" GetMonthRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetMinute" GetMinute : fn() -> Int;
+foreign "MIDORI_FFI_GetDay" GetDayRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetSecond" GetSecond : fn() -> Int;
+foreign "MIDORI_FFI_GetHour" GetHourRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetDayOfWeek" GetDayOfWeek : fn() -> Int;
+foreign "MIDORI_FFI_GetMinute" GetMinuteRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetDayOfYear" GetDayOfYear : fn() -> Int;
+foreign "MIDORI_FFI_GetSecond" GetSecondRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_FormatTime" FormatTime : fn(Text) -> Text;
+foreign "MIDORI_FFI_GetDayOfWeek" GetDayOfWeekRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetTimezoneOffset" GetTimezoneOffset : fn() -> Int;
+foreign "MIDORI_FFI_GetDayOfYear" GetDayOfYearRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetUtcYear" GetUtcYear : fn() -> Int;
+foreign "MIDORI_FFI_FormatTime" FormatTimeRaw : fn(Text) -> Text;
 
-foreign "MIDORI_FFI_GetUtcMonth" GetUtcMonth : fn() -> Int;
+foreign "MIDORI_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetUtcDay" GetUtcDay : fn() -> Int;
+foreign "MIDORI_FFI_GetUtcYear" GetUtcYearRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetUtcHour" GetUtcHour : fn() -> Int;
+foreign "MIDORI_FFI_GetUtcMonth" GetUtcMonthRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinute : fn() -> Int;
+foreign "MIDORI_FFI_GetUtcDay" GetUtcDayRaw : fn() -> Int;
 
-foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecond : fn() -> Int;
+foreign "MIDORI_FFI_GetUtcHour" GetUtcHourRaw : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinuteRaw : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecondRaw : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw : fn() -> Int;
+
+foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw : fn() -> Int;
+
+defun NowUnixMillis() : Int => GetTimeRaw() as Int;
+
+defun TimezoneOffsetMinutes() : Int => GetTimezoneOffsetRaw();
+
+defun LocalNow() : LocalTimeParts => {
+    new LocalTimeParts(
+        GetYearRaw(),
+        GetMonthRaw(),
+        GetDayRaw(),
+        GetHourRaw(),
+        GetMinuteRaw(),
+        GetSecondRaw(),
+        GetDayOfWeekRaw(),
+        GetDayOfYearRaw(),
+        TimezoneOffsetMinutes()
+    )
+};
+
+defun UtcNow() : UtcTimeParts => {
+    new UtcTimeParts(
+        GetUtcYearRaw(),
+        GetUtcMonthRaw(),
+        GetUtcDayRaw(),
+        GetUtcHourRaw(),
+        GetUtcMinuteRaw(),
+        GetUtcSecondRaw(),
+        GetUtcDayOfWeekRaw(),
+        GetUtcDayOfYearRaw()
+    )
+};
+
+defun FormatLocal(format: Text) : Text => FormatTimeRaw(format);

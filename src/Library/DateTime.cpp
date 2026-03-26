@@ -190,5 +190,19 @@ extern "C"
 		const int64_t second = static_cast<int64_t>(utc_tm.tm_sec);
 		std::memcpy(ret, &second, sizeof(int64_t));
 	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfWeek)(void**, void* ret) noexcept
+	{
+		const std::tm utc_tm = GetUtcTime();
+		const int64_t day_of_week = static_cast<int64_t>(utc_tm.tm_wday);
+		std::memcpy(ret, &day_of_week, sizeof(int64_t));
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfYear)(void**, void* ret) noexcept
+	{
+		const std::tm utc_tm = GetUtcTime();
+		const int64_t day_of_year = static_cast<int64_t>(utc_tm.tm_yday + 1);
+		std::memcpy(ret, &day_of_year, sizeof(int64_t));
+	}
 }
 

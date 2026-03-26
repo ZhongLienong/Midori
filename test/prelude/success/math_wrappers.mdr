@@ -1,0 +1,75 @@
+module PreludeMathWrappers
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Math.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+def epsilon = 0.0001;
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+defun ExpectApprox(actual: Float, expected: Float, tolerance: Float, message: Text) : Unit => {
+    Expect(Math::Abs(actual - expected) <= tolerance, message)
+};
+
+ExpectApprox(Math::Tau, Math::Pi * 2.0, epsilon, "Tau should be twice Pi");
+ExpectApprox(Math::E, Math::Exp(1.0), epsilon, "E should match Exp(1.0)");
+
+ExpectApprox(Math::SquareRoot(81.0), 9.0, epsilon, "SquareRoot should return the square root");
+ExpectApprox(Math::Abs(-4.5), 4.5, epsilon, "Abs should return the absolute value");
+ExpectApprox(Math::Pow(2.0, 3.0), 8.0, epsilon, "Pow should raise a value to a power");
+ExpectApprox(Math::Exp(2.0), Math::E * Math::E, epsilon, "Exp should exponentiate");
+ExpectApprox(Math::Log(Math::E), 1.0, epsilon, "Log should be the natural logarithm");
+ExpectApprox(Math::Log10(1000.0), 3.0, epsilon, "Log10 should compute base-10 logarithms");
+ExpectApprox(Math::Log2(8.0), 3.0, epsilon, "Log2 should compute base-2 logarithms");
+
+ExpectApprox(Math::Sin(Math::Pi / 2.0), 1.0, epsilon, "Sin should compute sine");
+ExpectApprox(Math::Cos(0.0), 1.0, epsilon, "Cos should compute cosine");
+ExpectApprox(Math::Tan(0.0), 0.0, epsilon, "Tan should compute tangent");
+ExpectApprox(Math::Asin(1.0), Math::Pi / 2.0, epsilon, "Asin should compute inverse sine");
+ExpectApprox(Math::Acos(1.0), 0.0, epsilon, "Acos should compute inverse cosine");
+ExpectApprox(Math::Atan(1.0), Math::Pi / 4.0, epsilon, "Atan should compute inverse tangent");
+ExpectApprox(Math::Atan2(1.0, 0.0), Math::Pi / 2.0, epsilon, "Atan2 should compute the quadrant-aware arc tangent");
+
+ExpectApprox(Math::Sinh(0.0), 0.0, epsilon, "Sinh should compute hyperbolic sine");
+ExpectApprox(Math::Cosh(0.0), 1.0, epsilon, "Cosh should compute hyperbolic cosine");
+ExpectApprox(Math::Tanh(0.0), 0.0, epsilon, "Tanh should compute hyperbolic tangent");
+
+ExpectApprox(Math::Floor(3.9), 3.0, epsilon, "Floor should round down");
+ExpectApprox(Math::Ceil(3.1), 4.0, epsilon, "Ceil should round up");
+ExpectApprox(Math::Round(3.5), 4.0, epsilon, "Round should round to the nearest integer");
+ExpectApprox(Math::Trunc(-3.9), -3.0, epsilon, "Trunc should drop the fractional component");
+
+ExpectApprox(Math::Min(2.0, 5.0), 2.0, epsilon, "Min should return the smaller value");
+ExpectApprox(Math::Max(2.0, 5.0), 5.0, epsilon, "Max should return the larger value");
+ExpectApprox(Math::Clamp(15.0, 0.0, 10.0), 10.0, epsilon, "Clamp should clamp values above the range");
+ExpectApprox(Math::Sign(-10.0), -1.0, epsilon, "Sign should return -1 for negative values");
+ExpectApprox(Math::Sign(0.0), 0.0, epsilon, "Sign should return 0 for zero");
+ExpectApprox(Math::Sign(10.0), 1.0, epsilon, "Sign should return 1 for positive values");
+ExpectApprox(Math::Fmod(7.0, 4.0), 3.0, epsilon, "Fmod should compute the floating-point remainder");
+ExpectApprox(Math::Hypot(3.0, 4.0), 5.0, epsilon, "Hypot should compute the Euclidean norm");
+
+ExpectApprox(Math::ToRadians(180.0), Math::Pi, epsilon, "ToRadians should convert degrees to radians");
+ExpectApprox(Math::ToDegrees(Math::Pi), 180.0, epsilon, "ToDegrees should convert radians to degrees");
+
+Expect(Math::IsNaN(Math::SquareRoot(-1.0)), "IsNaN should detect NaN values");
+Expect(Math::IsInf(Math::Log(0.0)), "IsInf should detect infinite values");
+Expect(Math::IsFinite(Math::SquareRoot(16.0)), "IsFinite should report finite values");
+
+def random_value = Math::Random();
+Expect(random_value >= 0.0 && random_value <= 1.0, "Random should stay within the 0.0-1.0 range");
+
+def random_int = Math::RandomInt(5, 9);
+Expect(random_int >= 5 && random_int <= 9, "RandomInt should stay within the requested inclusive range");
+
+def random_float = Math::RandomFloat(-2.5, -1.5);
+Expect(random_float >= -2.5 && random_float <= -1.5, "RandomFloat should stay within the requested range");
+
+IO::PrintLine("prelude_math_wrappers: PASS");

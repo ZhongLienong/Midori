@@ -133,6 +133,8 @@ private:
 		FFIEntry{ "MIDORI_FFI_GetUtcHour", &MIDORI_FFI_GetUtcHour },
 		FFIEntry{ "MIDORI_FFI_GetUtcMinute", &MIDORI_FFI_GetUtcMinute },
 		FFIEntry{ "MIDORI_FFI_GetUtcSecond", &MIDORI_FFI_GetUtcSecond },
+		FFIEntry{ "MIDORI_FFI_GetUtcDayOfWeek", &MIDORI_FFI_GetUtcDayOfWeek },
+		FFIEntry{ "MIDORI_FFI_GetUtcDayOfYear", &MIDORI_FFI_GetUtcDayOfYear },
 		FFIEntry{ "MIDORI_FFI_Exit", &MIDORI_FFI_Exit },
 		FFIEntry{ "MIDORI_FFI_GetEnv", &MIDORI_FFI_GetEnv, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::CString },
 		FFIEntry{ "MIDORI_FFI_SetEnv", &MIDORI_FFI_SetEnv, MakeFFIArgKinds(FFIArgumentKind::CString, FFIArgumentKind::CString) },
