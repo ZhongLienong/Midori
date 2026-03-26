@@ -351,13 +351,24 @@ Extendable::Extend(items, other_items);
 
 ## Standard Library
 
-The `MidoriPrelude` directory contains standard modules:
+`MidoriPrelude` is the standard-library layer that ships with the repo. The main module groups are:
 
-- **IO.mdr** - Input/output operations (`IO::PrintLine`)
-- **Math.mdr** - Mathematical functions
-- **DateTime.mdr** - Timing and date operations
+- **Core ADTs** - `Prelude/Option.mdr`, `Prelude/Result.mdr`, `Prelude/List.mdr`
+- **Collections** - `Collections/Map.mdr`, `Collections/Set.mdr`
+- **Effects** - `IO.mdr`, `System.mdr`, `DateTime.mdr`
+- **Built-in helpers** - `TextUtil.mdr`, `ArrayUtil.mdr`, `Math.mdr`
 
-`Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are no longer part of the public prelude API.
+The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
+
+- `IO::TryReadFile`, `IO::TryWriteFile`, `IO::TryAppendToFile`, `IO::TryDeleteFile`, `IO::TryRenameFile`, and `IO::TryGetFileSize`
+- `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::CurrentPlatform`, and `System::CurrentProcessId`
+- `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, and `DateTime::FormatLocal`
+- `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`
+- `ArrayUtil::Append`, `ArrayUtil::Prepend`, `ArrayUtil::Extend`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse`
+
+`Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are removed from the public prelude API.
+
+See [Prelude](docs/prelude.md) for module-by-module notes and examples covering the typed `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` APIs.
 
 ## Foreign Function Interface (FFI)
 
@@ -736,6 +747,7 @@ See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execu
 See the [docs](docs/) folder for detailed technical documentation:
 
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
+- [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
