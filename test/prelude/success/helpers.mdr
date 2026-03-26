@@ -3,15 +3,16 @@ module PreludeHelpers
 import
 {
     "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr",
     "../../../MidoriPrelude/Prelude/Option.mdr",
     "../../../MidoriPrelude/Prelude/Result.mdr",
     "../../../MidoriPrelude/Prelude/List.mdr"
 }
 
 use IO.{PrintLine}
-use Option.{Option, OptionMap, OptionBind, OptionUnwrap, OptionUnwrapOrPanic}
-use Result.{Result, ResultMap, ResultBind, ResultUnwrap, ResultUnwrapOrPanic}
-use List.{List, ListMap, ListLength, ListAppend, ListFilter}
+use Option.{Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, OptionOrElse, OptionUnwrap, OptionUnwrapOrElse, OptionUnwrapOrPanic}
+use Result.{Result, ResultMap, ResultBind, ResultMapError, ResultIsOk, ResultIsError, ResultUnwrap, ResultUnwrapOrElse, ResultUnwrapOrPanic}
+use List.{List, ListMap, ListLength, ListAppend, ListFilter, ListReverse, ListFold, ListFromArray, ListToArray}
 
 defun inc(x: Int) : Int => x + 1;
 
@@ -23,54 +24,123 @@ defun to_some(x: Int) : Option<Int> => {
 
 defun is_even(x: Int) : Bool => x % 2 == 0;
 
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+defun ExpectSomeInt(option: Option<Int>, expected: Int, message: Text) : Unit => {
+    match option with
+        case Option::Some(value) => Expect(value == expected, message)
+        case Option::None() => Panic::Panic(message)
+};
+
+defun ExpectOkInt(result: Result<Int, Text>, expected: Int, message: Text) : Unit => {
+    match result with
+        case Result::Ok(value) => Expect(value == expected, message)
+        case Result::Err(_) => Panic::Panic(message)
+};
+
+defun ExpectErrText(result: Result<Int, Text>, expected: Text, message: Text) : Unit => {
+    match result with
+        case Result::Ok(_) => Panic::Panic(message)
+        case Result::Err(err) => Expect(err == expected, message)
+};
+
 def opt_value : Option<Int> = new Option::Some(1);
+def empty_option : Option<Int> = new Option::None();
 
-def opt_mapped = OptionMap(opt_value, inc);
+ExpectSomeInt(OptionMap(opt_value, inc), 2, "OptionMap should transform a present value");
+ExpectSomeInt(OptionBind(opt_value, to_some), 11, "OptionBind should flatten the mapped option");
+Expect(OptionUnwrap(empty_option, 5) == 5, "OptionUnwrap should return the default for None");
+Expect(OptionUnwrapOrPanic(opt_value, "unexpected None") == 1, "OptionUnwrapOrPanic should return the present value");
+Expect(OptionIsSome(opt_value), "OptionIsSome should report true for Some");
+Expect(!OptionIsSome(empty_option), "OptionIsSome should report false for None");
+Expect(OptionIsNone(empty_option), "OptionIsNone should report true for None");
+Expect(!OptionIsNone(opt_value), "OptionIsNone should report false for Some");
 
-def opt_bound = OptionBind(opt_value, to_some);
+def option_unwrap_or_else_calls = 0;
+def option_default = fn() : Int => {
+    option_unwrap_or_else_calls = option_unwrap_or_else_calls + 1;
+    9
+};
 
-def opt_unwrap = OptionUnwrap(new Option::None<Int>(), 5);
+Expect(OptionUnwrapOrElse(opt_value, option_default) == 1, "OptionUnwrapOrElse should preserve Some values");
+Expect(option_unwrap_or_else_calls == 0, "OptionUnwrapOrElse should not call the fallback for Some");
+Expect(OptionUnwrapOrElse(empty_option, option_default) == 9, "OptionUnwrapOrElse should compute the fallback for None");
+Expect(option_unwrap_or_else_calls == 1, "OptionUnwrapOrElse should call the fallback exactly once for None");
 
-def opt_unwrap_panic = OptionUnwrapOrPanic(opt_value, "unexpected None");
+def option_or_else_calls = 0;
+def option_fallback = fn() : Option<Int> => {
+    option_or_else_calls = option_or_else_calls + 1;
+    new Option::Some(12)
+};
 
-match opt_mapped with
-    case Option::Some(v) => PrintLine("opt map: " ++ (v as Text))
-    case Option::None() => PrintLine("opt map: none")
-;
-
-match opt_bound with
-    case Option::Some(v) => PrintLine("opt bind: " ++ (v as Text))
-    case Option::None() => PrintLine("opt bind: none")
-;
-
-PrintLine("opt unwrap: " ++ (opt_unwrap as Text));
-PrintLine("opt unwrap panic: " ++ (opt_unwrap_panic as Text));
+ExpectSomeInt(OptionOrElse(opt_value, option_fallback), 1, "OptionOrElse should preserve Some values");
+Expect(option_or_else_calls == 0, "OptionOrElse should not evaluate the fallback for Some");
+ExpectSomeInt(OptionOrElse(empty_option, option_fallback), 12, "OptionOrElse should use the fallback for None");
+Expect(option_or_else_calls == 1, "OptionOrElse should evaluate the fallback exactly once for None");
 
 def ok_value : Result<Int, Text> = new Result::Ok(7);
-
 def err_value : Result<Int, Text> = new Result::Err("nope");
 
-def ok_unwrap_panic = ResultUnwrapOrPanic(ok_value, "unexpected error");
+ExpectOkInt(ResultMap(ok_value, inc), 8, "ResultMap should transform Ok values");
+ExpectErrText(ResultBind(err_value, fn(x: Int) : Result<Int, Text> => new Result::Ok(x + 1)), "nope", "ResultBind should preserve Err values");
+Expect(ResultUnwrap(err_value, 42) == 42, "ResultUnwrap should return the default for Err");
+Expect(ResultUnwrapOrPanic(ok_value, "unexpected error") == 7, "ResultUnwrapOrPanic should return the Ok value");
+Expect(ResultIsOk(ok_value), "ResultIsOk should report true for Ok");
+Expect(!ResultIsOk(err_value), "ResultIsOk should report false for Err");
+Expect(ResultIsError(err_value), "ResultIsError should report true for Err");
+Expect(!ResultIsError(ok_value), "ResultIsError should report false for Ok");
 
-match ResultMap(ok_value, inc) with
-    case Result::Ok(v) => PrintLine("result map: " ++ (v as Text))
-    case Result::Err(e) => PrintLine("result map err: " ++ e)
-;
+def result_map_error_calls = 0;
+def map_error = fn(message: Text) : Text => {
+    result_map_error_calls = result_map_error_calls + 1;
+    "wrapped: " ++ message
+};
 
-match ResultBind(err_value, fn(x: Int) : Result<Int, Text> => new Result::Ok(x + 1)) with
-    case Result::Ok(v) => PrintLine("result bind: " ++ (v as Text))
-    case Result::Err(e) => PrintLine("result bind err: " ++ e)
-;
+ExpectOkInt(ResultMapError(ok_value, map_error), 7, "ResultMapError should preserve Ok values");
+Expect(result_map_error_calls == 0, "ResultMapError should not evaluate the mapper for Ok");
+ExpectErrText(ResultMapError(err_value, map_error), "wrapped: nope", "ResultMapError should transform Err values");
+Expect(result_map_error_calls == 1, "ResultMapError should evaluate the mapper exactly once for Err");
 
-PrintLine("result unwrap: " ++ (ResultUnwrap(err_value, 42) as Text));
-PrintLine("result unwrap panic: " ++ (ok_unwrap_panic as Text));
+def result_unwrap_or_else_calls = 0;
+def unwrap_error = fn(message: Text) : Int => {
+    result_unwrap_or_else_calls = result_unwrap_or_else_calls + 1;
+    if message == "nope"
+    then 4
+    else 0
+};
+
+Expect(ResultUnwrapOrElse(ok_value, unwrap_error) == 7, "ResultUnwrapOrElse should preserve Ok values");
+Expect(result_unwrap_or_else_calls == 0, "ResultUnwrapOrElse should not evaluate the fallback for Ok");
+Expect(ResultUnwrapOrElse(err_value, unwrap_error) == 4, "ResultUnwrapOrElse should compute the fallback from Err");
+Expect(result_unwrap_or_else_calls == 1, "ResultUnwrapOrElse should evaluate the fallback exactly once for Err");
 
 def list1 : List<Int> = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
-
 def list2 = ListMap(list1, inc);
-
 def list3 = ListAppend(list1, list2);
-
 def list4 = ListFilter(list3, is_even);
+def list2_values = ListToArray(list2);
+def list4_values = ListToArray(list4);
 
-PrintLine("list len: " ++ (ListLength(list4) as Text));
+Expect(ListLength(list4) == 3, "ListFilter should keep only the matching values");
+Expect(#list2_values == 3 && list2_values[0] == 2 && list2_values[1] == 3 && list2_values[2] == 4, "ListMap should preserve order while transforming elements");
+Expect(#list4_values == 3 && list4_values[0] == 2 && list4_values[1] == 2 && list4_values[2] == 4, "ListToArray should preserve the filtered order");
+
+def reversed_values = ListToArray(ListReverse(list1));
+Expect(#reversed_values == 3 && reversed_values[0] == 3 && reversed_values[1] == 2 && reversed_values[2] == 1, "ListReverse should invert element order");
+
+Expect(ListFold(list1, 0, fn(total: Int, value: Int) : Int => total + value) == 6, "ListFold should accumulate values from left to right");
+Expect(ListFold(new List::Nil<Int>(), 5, fn(total: Int, value: Int) : Int => total + value) == 5, "ListFold should return the initial value for an empty list");
+
+def from_array_values = ListFromArray([4, 5, 6]);
+def from_array_roundtrip = ListToArray(from_array_values);
+Expect(ListLength(from_array_values) == 3, "ListFromArray should create one list node per array element");
+Expect(#from_array_roundtrip == 3 && from_array_roundtrip[0] == 4 && from_array_roundtrip[1] == 5 && from_array_roundtrip[2] == 6, "ListFromArray and ListToArray should round-trip array ordering");
+
+def even_sum = ListFold(ListFilter(ListFromArray([1, 2, 3, 4, 5]), is_even), 0, fn(total: Int, value: Int) : Int => total + value);
+Expect(even_sum == 6, "The new List helpers should compose for ordinary data-processing code");
+
+PrintLine("prelude_helpers: PASS");

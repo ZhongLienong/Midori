@@ -1,10 +1,11 @@
 module List
-import { "../Iterable.mdr", "Option.mdr" }
+import { "../ArrayUtil.mdr", "../Iterable.mdr", "Option.mdr" }
 public export
 {
     List,
     ListIter, ListIterNew,
-    ListMap, ListLength, ListAppend, ListFilter
+    ListMap, ListLength, ListAppend, ListFilter,
+    ListReverse, ListFold, ListFromArray, ListToArray
 }
 use Option.{Option}
 
@@ -57,4 +58,40 @@ defun ListFilter<T>(list: List<T>, predicate: fn(T) -> Bool) : List<T> => {
             then new List::Cons<T>(head, filtered_tail)
             else filtered_tail
         }
+};
+
+defun ListReverseInto<T>(list: List<T>, reversed: List<T>) : List<T> => {
+    match list with
+        case List::Cons(head, tail) => ListReverseInto(tail, new List::Cons<T>(head, reversed))
+        case List::Nil => reversed
+};
+
+defun ListReverse<T>(list: List<T>) : List<T> => ListReverseInto(list, new List::Nil<T>());
+
+defun ListFold<T, A>(list: List<T>, initial: A, f: fn(A, T) -> A) : A => {
+    match list with
+        case List::Cons(head, tail) => ListFold(tail, f(initial, head), f)
+        case List::Nil => initial
+};
+
+defun ListFromArrayAt<T>(values: Array<T>, index: Int) : List<T> => {
+    if index >= #values
+    then new List::Nil<T>()
+    else new List::Cons<T>(values[index], ListFromArrayAt(values, index + 1))
+};
+
+defun ListFromArray<T>(values: Array<T>) : List<T> => ListFromArrayAt(values, 0);
+
+defun ListToArrayAppend<T>(list: List<T>, values: Array<T>) : Array<T> => {
+    match list with
+        case List::Cons(head, tail) => {
+            ArrayUtil::Append(values, head);
+            ListToArrayAppend(tail, values)
+        }
+        case List::Nil => values
+};
+
+defun ListToArray<T>(list: List<T>) : Array<T> => {
+    def values : Array<T> = [];
+    ListToArrayAppend(list, values)
 };

@@ -1,0 +1,34 @@
+module PreludeTextUtil
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/TextUtil.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+defun Expect(condition: Bool, message: Text) : Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+def split = TextUtil::Split("alpha--beta--", "--");
+def split_code_points = TextUtil::Split("go", "");
+
+Expect(TextUtil::Length("hello world") == 11, "TextUtil::Length should count code points");
+Expect(TextUtil::Contains("hello world", "lo wo"), "TextUtil::Contains should find existing substrings");
+Expect(!TextUtil::Contains("hello world", "zzz"), "TextUtil::Contains should reject missing substrings");
+Expect(TextUtil::Substring("abcdef", 1, 4) == "bcd", "TextUtil::Substring should use [start, end) semantics");
+Expect(TextUtil::Substring("abcdef", -3, 99) == "abcdef", "TextUtil::Substring should clamp out-of-range bounds");
+Expect(#split == 3, "TextUtil::Split should preserve trailing empty fields");
+Expect(split[0] == "alpha", "TextUtil::Split should preserve the first segment");
+Expect(split[1] == "beta", "TextUtil::Split should preserve the middle segment");
+Expect(split[2] == "", "TextUtil::Split should preserve the trailing empty segment");
+Expect(#split_code_points == 2, "TextUtil::Split should split into code points when the delimiter is empty");
+Expect(split_code_points[0] == "g" && split_code_points[1] == "o", "TextUtil::Split should preserve per-character ordering for an empty delimiter");
+Expect(TextUtil::Replace("one two one", "one", "1") == "1 two 1", "TextUtil::Replace should replace every match");
+Expect(TextUtil::Trim(" \t hi \n") == "hi", "TextUtil::Trim should strip ASCII edge whitespace");
+Expect(TextUtil::Reverse("stressed") == "desserts", "TextUtil::Reverse should reverse the text");
+
+IO::PrintLine("prelude_text_util: PASS");

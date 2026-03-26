@@ -3,7 +3,9 @@ import { "Panic.mdr" }
 public export
 {
     Result,
-    ResultMap, ResultBind, ResultUnwrap, ResultUnwrapOrPanic
+    ResultMap, ResultBind, ResultMapError,
+    ResultIsOk, ResultIsError,
+    ResultUnwrap, ResultUnwrapOrElse, ResultUnwrapOrPanic
 }
 
 union Result<T, E> = Ok(T) | Err(E);
@@ -20,10 +22,34 @@ defun ResultBind<A, B, E>(result: Result<A, E>, f: fn(A) -> Result<B, E>) : Resu
         case Result::Err(err) => new Result::Err<B, E>(err)
 };
 
+defun ResultMapError<T, E, F>(result: Result<T, E>, f: fn(E) -> F) : Result<T, F> => {
+    match result with
+        case Result::Ok(value) => new Result::Ok<T, F>(value)
+        case Result::Err(err) => new Result::Err<T, F>(f(err))
+};
+
+defun ResultIsOk<T, E>(result: Result<T, E>) : Bool => {
+    match result with
+        case Result::Ok(_) => true
+        case Result::Err(_) => false
+};
+
+defun ResultIsError<T, E>(result: Result<T, E>) : Bool => {
+    match result with
+        case Result::Ok(_) => false
+        case Result::Err(_) => true
+};
+
 defun ResultUnwrap<T, E>(result: Result<T, E>, default_value: T) : T => {
     match result with
         case Result::Ok(value) => value
         case Result::Err(_) => default_value
+};
+
+defun ResultUnwrapOrElse<T, E>(result: Result<T, E>, f: fn(E) -> T) : T => {
+    match result with
+        case Result::Ok(value) => value
+        case Result::Err(err) => f(err)
 };
 
 defun ResultUnwrapOrPanic<T, E>(result: Result<T, E>, message: Text) : T => {
