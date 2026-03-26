@@ -6,7 +6,7 @@ public export
     MapNew, MapInsert, MapGet, MapGetOr, MapUpdate, MapRemove, MapContains,
     MapCount, MapSize, MapIsEmpty, MapClear, MapKeys, MapValues, MapEntries
 }
-import { "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+import { "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
 use Option.{Option}
 
 union MapSlot<K, V> = Empty | Deleted | Occupied(K, V);
@@ -44,7 +44,7 @@ instance Iterable<MapIter<K, V>>
                 iter.index = iter.index + 1;
                 def entry = iter.map.buckets[idx];
                 match entry with
-                    case MapSlot::Occupied(k, v) => break new Option::Some<Entry<K, V>>(new Entry<K, V>(k, v))
+                    case MapSlot::Occupied(key, value) => break new Option::Some<Entry<K, V>>(new Entry<K, V>(key, value))
                     default => ()
             }
         }
@@ -58,7 +58,7 @@ defun MakeMapBuckets<K, V>(capacity: Int) : Array<MapSlot<K, V>> => {
         if i >= capacity
         then break ()
         else {
-            buckets = buckets ++ [new MapSlot::Empty<K, V>()];
+            ArrayUtil::Append(buckets, new MapSlot::Empty<K, V>());
             i = i + 1;
         }
     };
@@ -74,63 +74,60 @@ defun MapNew<K, V>() : Map<K, V> => MapNewWithCapacity(16);
 
 defun FindMapSlot<K, V>(map: Map<K, V>, key: K, hash: Int) : Int
     where Equatable<K> => {
-    def idx = hash % map.capacity;
-    if idx < 0 then idx = 0 - idx else 0;
-    def i = 0;
+    def probe = OpenAddressing::ProbeStart(hash, map.capacity);
     loop {
-        if i >= map.capacity
-        then break -1
-        else {
-            def probe_idx = (idx + i) % map.capacity;
+        if OpenAddressing::ProbeHasNext(probe)
+        then {
+            def probe_idx = OpenAddressing::ProbeIndex(probe);
             def entry = map.buckets[probe_idx];
             match entry with
                 case MapSlot::Empty() => break -1
-                case MapSlot::Deleted() => { i = i + 1; }
-                case MapSlot::Occupied(k, _value) => {
-                    if Equatable::Equals(k, key)
+                case MapSlot::Deleted() => {
+                    OpenAddressing::ProbeAdvance(probe);
+                    ()
+                }
+                case MapSlot::Occupied(existing_key, _value) => {
+                    if Equatable::Equals(existing_key, key)
                     then break probe_idx
-                    else { i = i + 1; }
+                    else {
+                        OpenAddressing::ProbeAdvance(probe);
+                        ()
+                    }
                 }
         }
+        else break -1
     }
 };
 
 defun FindMapInsertSlot<K, V>(map: Map<K, V>, key: K, hash: Int) : Int
     where Equatable<K> => {
-    def idx = hash % map.capacity;
-    if idx < 0 then idx = 0 - idx else 0;
-    def first_deleted = -1;
-    def i = 0;
+    def probe = OpenAddressing::ProbeStart(hash, map.capacity);
     loop {
-        if i >= map.capacity
+        if OpenAddressing::ProbeHasNext(probe)
         then {
-            if first_deleted >= 0
-            then break first_deleted
-            else break -1
-        }
-        else {
-            def probe_idx = (idx + i) % map.capacity;
+            def probe_idx = OpenAddressing::ProbeIndex(probe);
             def entry = map.buckets[probe_idx];
             match entry with
-                case MapSlot::Empty() => {
-                    if first_deleted >= 0
-                    then break first_deleted
-                    else break probe_idx
-                }
+                case MapSlot::Empty() => break OpenAddressing::ProbeResolveInsertIndex(probe, probe_idx)
                 case MapSlot::Deleted() => {
-                    if first_deleted < 0
-                    then {
-                        first_deleted = probe_idx;
+                    OpenAddressing::ProbeRememberDeleted(probe, probe_idx);
+                    OpenAddressing::ProbeAdvance(probe);
+                    ()
+                }
+                case MapSlot::Occupied(existing_key, _value) => {
+                    if Equatable::Equals(existing_key, key)
+                    then break probe_idx
+                    else {
+                        OpenAddressing::ProbeAdvance(probe);
                         ()
                     }
-                    else ();
-                    i = i + 1;
                 }
-                case MapSlot::Occupied(k, _value) => {
-                    if Equatable::Equals(k, key)
-                    then break probe_idx
-                    else { i = i + 1; }
-                }
+        }
+        else {
+            def deleted_idx = OpenAddressing::ProbeDeletedIndex(probe);
+            if deleted_idx >= 0
+            then break deleted_idx
+            else break -1
         }
     }
 };
@@ -167,7 +164,10 @@ defun MapRehash<K, V>(map: Map<K, V>, new_capacity: Int) : Unit
         else {
             def entry = old_buckets[i];
             match entry with
-                case MapSlot::Occupied(k, v) => { MapInsertNoRehash(map, k, v); () }
+                case MapSlot::Occupied(key, value) => {
+                    MapInsertNoRehash(map, key, value);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -194,7 +194,7 @@ defun MapGet<K, V>(map: Map<K, V>, key: K) : Option<V>
     else {
         def entry = map.buckets[slot];
         match entry with
-            case MapSlot::Occupied(_key, v) => new Option::Some<V>(v)
+            case MapSlot::Occupied(_key, value) => new Option::Some<V>(value)
             default => new Option::None<V>()
     }
 };
@@ -203,7 +203,7 @@ defun MapGetOr<K, V>(map: Map<K, V>, key: K, default_value: V) : V
     where Hashable<K>, Equatable<K> => {
     def result = MapGet(map, key);
     match result with
-        case Option::Some(v) => v
+        case Option::Some(value) => value
         case Option::None() => default_value
 };
 
@@ -216,7 +216,7 @@ defun MapUpdate<K, V>(map: Map<K, V>, key: K, value: V) : Option<V>
     else {
         def entry = map.buckets[slot];
         def old_value = match entry with
-            case MapSlot::Occupied(_key, v) => new Option::Some<V>(v)
+            case MapSlot::Occupied(_key, existing_value) => new Option::Some<V>(existing_value)
             default => new Option::None<V>()
         ;
         map.buckets[slot] = new MapSlot::Occupied<K, V>(key, value);
@@ -273,7 +273,10 @@ defun MapKeys<K, V>(map: Map<K, V>) : Array<K> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(k, _value) => { keys = keys ++ [k]; () }
+                case MapSlot::Occupied(key, _value) => {
+                    ArrayUtil::Append(keys, key);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -291,7 +294,10 @@ defun MapValues<K, V>(map: Map<K, V>) : Array<V> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(_key, v) => { values = values ++ [v]; () }
+                case MapSlot::Occupied(_key, value) => {
+                    ArrayUtil::Append(values, value);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -309,7 +315,10 @@ defun MapEntries<K, V>(map: Map<K, V>) : Array<Entry<K, V>> => {
         else {
             def entry = map.buckets[i];
             match entry with
-                case MapSlot::Occupied(k, v) => { entries = entries ++ [new Entry<K, V>(k, v)]; () }
+                case MapSlot::Occupied(key, value) => {
+                    ArrayUtil::Append(entries, new Entry<K, V>(key, value));
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;

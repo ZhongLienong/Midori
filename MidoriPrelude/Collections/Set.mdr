@@ -6,7 +6,7 @@ public export
     SetNew, SetInsert, SetContains, SetRemove,
     SetCount, SetSize, SetIsEmpty, SetClear, SetUnion, SetIntersection, SetDifference, SetToArray
 }
-import { "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+import { "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
 use Option.{Option}
 
 union SetSlot<T> = Empty | Deleted | Occupied(T);
@@ -52,7 +52,7 @@ defun MakeSetBuckets<T>(capacity: Int) : Array<SetSlot<T>> => {
         if i >= capacity
         then break ()
         else {
-            buckets = buckets ++ [new SetSlot::Empty<T>()];
+            ArrayUtil::Append(buckets, new SetSlot::Empty<T>());
             i = i + 1;
         }
     };
@@ -68,63 +68,60 @@ defun SetNew<T>() : Set<T> => SetNewWithCapacity(16);
 
 defun FindSetSlot<T>(set: Set<T>, elem: T, hash: Int) : Int
     where Equatable<T> => {
-    def idx = hash % set.capacity;
-    if idx < 0 then idx = 0 - idx else 0;
-    def i = 0;
+    def probe = OpenAddressing::ProbeStart(hash, set.capacity);
     loop {
-        if i >= set.capacity
-        then break -1
-        else {
-            def probe_idx = (idx + i) % set.capacity;
+        if OpenAddressing::ProbeHasNext(probe)
+        then {
+            def probe_idx = OpenAddressing::ProbeIndex(probe);
             def entry = set.buckets[probe_idx];
             match entry with
                 case SetSlot::Empty() => break -1
-                case SetSlot::Deleted() => { i = i + 1; }
-                case SetSlot::Occupied(e) => {
-                    if Equatable::Equals(e, elem)
+                case SetSlot::Deleted() => {
+                    OpenAddressing::ProbeAdvance(probe);
+                    ()
+                }
+                case SetSlot::Occupied(existing_elem) => {
+                    if Equatable::Equals(existing_elem, elem)
                     then break probe_idx
-                    else { i = i + 1; }
+                    else {
+                        OpenAddressing::ProbeAdvance(probe);
+                        ()
+                    }
                 }
         }
+        else break -1
     }
 };
 
 defun FindSetInsertSlot<T>(set: Set<T>, elem: T, hash: Int) : Int
     where Equatable<T> => {
-    def idx = hash % set.capacity;
-    if idx < 0 then idx = 0 - idx else 0;
-    def first_deleted = -1;
-    def i = 0;
+    def probe = OpenAddressing::ProbeStart(hash, set.capacity);
     loop {
-        if i >= set.capacity
+        if OpenAddressing::ProbeHasNext(probe)
         then {
-            if first_deleted >= 0
-            then break first_deleted
-            else break -1
-        }
-        else {
-            def probe_idx = (idx + i) % set.capacity;
+            def probe_idx = OpenAddressing::ProbeIndex(probe);
             def entry = set.buckets[probe_idx];
             match entry with
-                case SetSlot::Empty() => {
-                    if first_deleted >= 0
-                    then break first_deleted
-                    else break probe_idx
-                }
+                case SetSlot::Empty() => break OpenAddressing::ProbeResolveInsertIndex(probe, probe_idx)
                 case SetSlot::Deleted() => {
-                    if first_deleted < 0
-                    then {
-                        first_deleted = probe_idx;
+                    OpenAddressing::ProbeRememberDeleted(probe, probe_idx);
+                    OpenAddressing::ProbeAdvance(probe);
+                    ()
+                }
+                case SetSlot::Occupied(existing_elem) => {
+                    if Equatable::Equals(existing_elem, elem)
+                    then break probe_idx
+                    else {
+                        OpenAddressing::ProbeAdvance(probe);
                         ()
                     }
-                    else ();
-                    i = i + 1;
                 }
-                case SetSlot::Occupied(e) => {
-                    if Equatable::Equals(e, elem)
-                    then break probe_idx
-                    else { i = i + 1; }
-                }
+        }
+        else {
+            def deleted_idx = OpenAddressing::ProbeDeletedIndex(probe);
+            if deleted_idx >= 0
+            then break deleted_idx
+            else break -1
         }
     }
 };
@@ -163,7 +160,10 @@ defun SetRehash<T>(set: Set<T>, new_capacity: Int) : Unit
         else {
             def entry = old_buckets[i];
             match entry with
-                case SetSlot::Occupied(elem) => { SetInsertNoRehash(set, elem); () }
+                case SetSlot::Occupied(elem) => {
+                    SetInsertNoRehash(set, elem);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -231,7 +231,10 @@ defun SetUnion<T>(set1: Set<T>, set2: Set<T>) : Set<T>
         else {
             def entry = set1.buckets[i];
             match entry with
-                case SetSlot::Occupied(elem) => { SetInsert(result, elem); () }
+                case SetSlot::Occupied(elem) => {
+                    SetInsert(result, elem);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -244,7 +247,10 @@ defun SetUnion<T>(set1: Set<T>, set2: Set<T>) : Set<T>
         else {
             def entry = set2.buckets[i];
             match entry with
-                case SetSlot::Occupied(elem) => { SetInsert(result, elem); () }
+                case SetSlot::Occupied(elem) => {
+                    SetInsert(result, elem);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;
@@ -265,7 +271,10 @@ defun SetIntersection<T>(set1: Set<T>, set2: Set<T>) : Set<T>
             match entry with
                 case SetSlot::Occupied(elem) => {
                     if SetContains(set2, elem)
-                    then { SetInsert(result, elem); () }
+                    then {
+                        SetInsert(result, elem);
+                        ()
+                    }
                     else ()
                 }
                 default => ()
@@ -289,7 +298,10 @@ defun SetDifference<T>(set1: Set<T>, set2: Set<T>) : Set<T>
                 case SetSlot::Occupied(elem) => {
                     if SetContains(set2, elem)
                     then ()
-                    else { SetInsert(result, elem); () }
+                    else {
+                        SetInsert(result, elem);
+                        ()
+                    }
                 }
                 default => ()
             ;
@@ -308,7 +320,10 @@ defun SetToArray<T>(set: Set<T>) : Array<T> => {
         else {
             def entry = set.buckets[i];
             match entry with
-                case SetSlot::Occupied(elem) => { values = values ++ [elem]; () }
+                case SetSlot::Occupied(elem) => {
+                    ArrayUtil::Append(values, elem);
+                    ()
+                }
                 default => ()
             ;
             i = i + 1;

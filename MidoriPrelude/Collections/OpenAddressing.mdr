@@ -1,0 +1,61 @@
+module OpenAddressing
+public export
+{
+    ProbeState,
+    ProbeStart,
+    ProbeHasNext,
+    ProbeIndex,
+    ProbeAdvance,
+    ProbeRememberDeleted,
+    ProbeDeletedIndex,
+    ProbeResolveInsertIndex
+}
+
+struct ProbeState
+{
+    start: Int,
+    first_deleted: Int,
+    offset: Int,
+    capacity: Int
+};
+
+defun NormalizeProbeStart(hash: Int, capacity: Int) : Int => 
+{
+    def idx = hash % capacity;
+    if idx < 0
+    then 0 - idx
+    else idx
+};
+
+defun ProbeStart(hash: Int, capacity: Int) : ProbeState => new ProbeState(NormalizeProbeStart(hash, capacity), -1, 0, capacity);
+
+defun ProbeHasNext(state: ProbeState) : Bool => state.offset < state.capacity;
+
+defun ProbeIndex(state: ProbeState) : Int => (state.start + state.offset) % state.capacity;
+
+defun ProbeAdvance(state: ProbeState) : Unit => 
+{
+    state.offset = state.offset + 1;
+    ()
+};
+
+defun ProbeRememberDeleted(state: ProbeState, index: Int) : Unit => 
+{
+    if state.first_deleted < 0
+    then 
+    {
+        state.first_deleted = index;
+        ()
+    }
+    else ();
+    ()
+};
+
+defun ProbeDeletedIndex(state: ProbeState) : Int => state.first_deleted;
+
+defun ProbeResolveInsertIndex(state: ProbeState, empty_index: Int) : Int => 
+{
+    if state.first_deleted >= 0
+    then state.first_deleted
+    else empty_index
+};
