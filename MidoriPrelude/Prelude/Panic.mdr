@@ -1,8 +1,10 @@
 module Panic
-import { "../IO.mdr", "../System.mdr" }
 public export { Panic }
 
+foreign "MIDORI_FFI_PrintError" PrintErrorRaw : fn(Text) -> Unit;
+foreign "MIDORI_FFI_Exit" ExitRaw : fn(Int) -> Unit;
+
 defun Panic(message: Text) : Never => {
-    IO::PrintErrorLine(message);
-    loop { System::Exit(1); }
+    PrintErrorRaw(message ++ "\n");
+    loop { ExitRaw(1); }
 };

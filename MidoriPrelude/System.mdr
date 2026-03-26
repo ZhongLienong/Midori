@@ -1,25 +1,105 @@
 module System
+import { "./Prelude/Option.mdr", "./Prelude/Result.mdr" }
+use Option.{Option}
+use Result.{Result}
 public export
 {
-    Exit, GetEnv, SetEnv, Sleep,
-    GetCurrentDirectory, SetCurrentDirectory,
-    Execute, GetPlatform, GetProcessId
+    SystemError, Platform, ProcessResult,
+    Exit, Sleep,
+    TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory,
+    Run, CurrentPlatform, CurrentProcessId
 }
 
-foreign "MIDORI_FFI_Exit" Exit : fn(Int) -> Unit;
+union SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
 
-foreign "MIDORI_FFI_GetEnv" GetEnv : fn(Text) -> Text;
+union Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
 
-foreign "MIDORI_FFI_SetEnv" SetEnv : fn(Text, Text) -> Bool;
+struct ProcessResult
+{
+    exit_code: Int
+};
 
-foreign "MIDORI_FFI_Sleep" Sleep : fn(Int) -> Unit;
+foreign "MIDORI_FFI_Exit" ExitRaw : fn(Int) -> Unit;
+foreign "MIDORI_FFI_GetEnv" GetEnvRaw : fn(Text) -> Text;
+foreign "MIDORI_FFI_SetEnv" SetEnvRaw : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_Sleep" SleepRaw : fn(Int) -> Unit;
+foreign "MIDORI_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw : fn() -> Text;
+foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw : fn(Text) -> Bool;
+foreign "MIDORI_FFI_Execute" ExecuteRaw : fn(Text) -> Int;
+foreign "MIDORI_FFI_GetPlatform" GetPlatformRaw : fn() -> Text;
+foreign "MIDORI_FFI_GetProcessId" GetProcessIdRaw : fn() -> Int;
+foreign "MIDORI_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw : fn() -> Int;
+foreign "MIDORI_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw : fn() -> Text;
 
-foreign "MIDORI_FFI_GetCurrentDirectory" GetCurrentDirectory : fn() -> Text;
+defun Exit(code: Int) : Unit => ExitRaw(code);
 
-foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectory : fn(Text) -> Bool;
+defun Sleep(milliseconds: Int) : Unit => SleepRaw(milliseconds);
 
-foreign "MIDORI_FFI_Execute" Execute : fn(Text) -> Int;
+defun UnknownSystemContext(context: Text, message: Text) : Text => {
+    if message == ""
+    then context
+    else context ++ ": " ++ message
+};
 
-foreign "MIDORI_FFI_GetPlatform" GetPlatform : fn() -> Text;
+defun MakeSystemError(context: Text, error_kind: Int) : SystemError => {
+    def message = GetLastSystemErrorMessageRaw();
+    if error_kind == 2
+    then new SystemError::InvalidDirectory(context)
+    else new SystemError::UnknownSystem(UnknownSystemContext(context, message))
+};
 
-foreign "MIDORI_FFI_GetProcessId" GetProcessId : fn() -> Int;
+defun SystemResultFromStatus<T>(context: Text, value: T) : Result<T, SystemError> => {
+    def error_kind = GetLastSystemErrorKindRaw();
+    if error_kind == 0
+    then new Result::Ok<T, SystemError>(value)
+    else new Result::Err<T, SystemError>(MakeSystemError(context, error_kind))
+};
+
+defun TryGetEnv(name: Text) : Option<Text> => {
+    def value = GetEnvRaw(name);
+    if GetLastSystemErrorKindRaw() == 0
+    then new Option::Some<Text>(value)
+    else new Option::None<Text>()
+};
+
+defun SetEnv(name: Text, value: Text) : Result<Unit, SystemError> => {
+    SetEnvRaw(name, value);
+    SystemResultFromStatus(name, ())
+};
+
+defun CurrentDirectory() : Result<Text, SystemError> => {
+    def path = GetCurrentDirectoryRaw();
+    SystemResultFromStatus("current directory", path)
+};
+
+defun TrySetCurrentDirectory(path: Text) : Result<Unit, SystemError> => {
+    SetCurrentDirectoryRaw(path);
+    SystemResultFromStatus(path, ())
+};
+
+defun Run(command: Text) : Result<ProcessResult, SystemError> => {
+    def exit_code = ExecuteRaw(command);
+    def error_kind = GetLastSystemErrorKindRaw();
+    if error_kind != 0
+    then new Result::Err<ProcessResult, SystemError>(MakeSystemError(command, error_kind))
+    else if exit_code == 0
+    then new Result::Ok<ProcessResult, SystemError>(new ProcessResult(exit_code))
+    else new Result::Err<ProcessResult, SystemError>(new SystemError::CommandFailed(exit_code))
+};
+
+defun CurrentPlatform() : Platform => {
+    def platform = GetPlatformRaw();
+    if platform == "Windows"
+    then new Platform::Windows()
+    else if platform == "macOS"
+    then new Platform::MacOS()
+    else if platform == "Linux"
+    then new Platform::Linux()
+    else if platform == "WebAssembly"
+    then new Platform::WebAssembly()
+    else if platform == "WebAssembly (wasm64)"
+    then new Platform::WebAssembly()
+    else new Platform::Unknown(platform)
+};
+
+defun CurrentProcessId() : Int => GetProcessIdRaw();

@@ -1,59 +1,113 @@
 module IO
+import { "./Prelude/Result.mdr" }
+use Result.{Result}
 public export
 {
+    IOError,
     Print, PrintLine, PrintError, PrintErrorLine,
     ReadInput, ReadLine,
-    ReadFile, WriteFile, AppendToFile,
-    ReadBinaryFile, WriteBinaryFile,
-    FileExists, DeleteFile, RenameFile, GetFileSize
+    FileExists,
+    TryReadFile, TryWriteFile, TryAppendToFile,
+    TryReadBinaryFile, TryWriteBinaryFile,
+    TryDeleteFile, TryRenameFile, TryGetFileSize
 }
 
-/*
-* Console Output
-*/
+union IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
 
-foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MIDORI_FFI_Print" PrintRaw : fn(Text) -> Unit;
+foreign "MIDORI_FFI_PrintError" PrintErrorRaw : fn(Text) -> Unit;
+foreign "MIDORI_FFI_ReadInput" ReadInputRaw : fn() -> Text;
+foreign "MIDORI_FFI_ReadLine" ReadLineRaw : fn() -> Text;
+foreign "MIDORI_FFI_ReadFile" ReadFileRaw : fn(Text) -> Text;
+foreign "MIDORI_FFI_WriteFile" WriteFileRaw : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_AppendToFile" AppendToFileRaw : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFileRaw : fn(Text) -> Array<Byte>;
+foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFileRaw : fn(Text, Array<Byte>) -> Bool;
+foreign "MIDORI_FFI_FileExists" FileExistsRaw : fn(Text) -> Bool;
+foreign "MIDORI_FFI_DeleteFile" DeleteFileRaw : fn(Text) -> Bool;
+foreign "MIDORI_FFI_RenameFile" RenameFileRaw : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_GetFileSize" GetFileSizeRaw : fn(Text) -> Int;
+foreign "MIDORI_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw : fn() -> Int;
+foreign "MIDORI_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw : fn() -> Text;
 
-defun PrintLine(text: Text) : Unit => { Print(text ++ "\n"); };
+defun Print(text: Text) : Unit => PrintRaw(text);
 
-foreign "MIDORI_FFI_PrintError" PrintError : fn(Text) -> Unit;
+defun PrintLine(text: Text) : Unit => {
+    Print(text ++ "\n");
+};
 
-defun PrintErrorLine(text: Text) : Unit => { PrintError(text ++ "\n"); };
+defun PrintError(text: Text) : Unit => PrintErrorRaw(text);
 
-/*
-* Console Input
-*/
+defun PrintErrorLine(text: Text) : Unit => {
+    PrintError(text ++ "\n");
+};
 
-foreign "MIDORI_FFI_ReadInput" ReadInput : fn() -> Text;
+defun ReadInput() : Text => ReadInputRaw();
 
-foreign "MIDORI_FFI_ReadLine" ReadLine : fn() -> Text;
+defun ReadLine() : Text => ReadLineRaw();
 
-/*
-* File Operations
-*/
+defun FileExists(path: Text) : Bool => FileExistsRaw(path);
 
-foreign "MIDORI_FFI_ReadFile" ReadFile : fn(Text) -> Text;
+defun UnknownIOContext(path: Text, message: Text) : Text => {
+    if message == ""
+    then path
+    else path ++ ": " ++ message
+};
 
-foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
+defun MakeIOError(path: Text, error_kind: Int) : IOError => {
+    def message = GetLastIOErrorMessageRaw();
+    if error_kind == 1
+    then new IOError::NotFound(path)
+    else if error_kind == 2
+    then new IOError::PermissionDenied(path)
+    else if error_kind == 3
+    then new IOError::InvalidPath(path)
+    else new IOError::UnknownIO(UnknownIOContext(path, message))
+};
 
-foreign "MIDORI_FFI_AppendToFile" AppendToFile : fn(Text, Text) -> Bool;
+defun IOResultFromStatus<T>(path: Text, value: T) : Result<T, IOError> => {
+    def error_kind = GetLastIOErrorKindRaw();
+    if error_kind == 0
+    then new Result::Ok<T, IOError>(value)
+    else new Result::Err<T, IOError>(MakeIOError(path, error_kind))
+};
 
-/*
-* Binary File Operations
-*/
+defun TryReadFile(path: Text) : Result<Text, IOError> => {
+    def content = ReadFileRaw(path);
+    IOResultFromStatus(path, content)
+};
 
-foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+defun TryWriteFile(path: Text, content: Text) : Result<Unit, IOError> => {
+    WriteFileRaw(path, content);
+    IOResultFromStatus(path, ())
+};
 
-foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFile : fn(Text, Array<Byte>) -> Bool;
+defun TryAppendToFile(path: Text, content: Text) : Result<Unit, IOError> => {
+    AppendToFileRaw(path, content);
+    IOResultFromStatus(path, ())
+};
 
-/*
-* File System Utilities
-*/
+defun TryReadBinaryFile(path: Text) : Result<Array<Byte>, IOError> => {
+    def bytes = ReadBinaryFileRaw(path);
+    IOResultFromStatus(path, bytes)
+};
 
-foreign "MIDORI_FFI_FileExists" FileExists : fn(Text) -> Bool;
+defun TryWriteBinaryFile(path: Text, bytes: Array<Byte>) : Result<Unit, IOError> => {
+    WriteBinaryFileRaw(path, bytes);
+    IOResultFromStatus(path, ())
+};
 
-foreign "MIDORI_FFI_DeleteFile" DeleteFile : fn(Text) -> Bool;
+defun TryDeleteFile(path: Text) : Result<Unit, IOError> => {
+    DeleteFileRaw(path);
+    IOResultFromStatus(path, ())
+};
 
-foreign "MIDORI_FFI_RenameFile" RenameFile : fn(Text, Text) -> Bool;
+defun TryRenameFile(old_path: Text, new_path: Text) : Result<Unit, IOError> => {
+    RenameFileRaw(old_path, new_path);
+    IOResultFromStatus(old_path, ())
+};
 
-foreign "MIDORI_FFI_GetFileSize" GetFileSize : fn(Text) -> Int;
+defun TryGetFileSize(path: Text) : Result<Int, IOError> => {
+    def size = GetFileSizeRaw(path);
+    IOResultFromStatus(path, size)
+};
