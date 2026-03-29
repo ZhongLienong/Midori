@@ -3644,21 +3644,29 @@ MidoriResult::StatementResult Parser::ParseContinueStatement()
 
 MidoriResult::StatementResult Parser::ParseSimpleStatement()
 {
-	return ParseExpression()
-		.and_then
-		(
-			[this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::StatementResult
-			{
-				return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after expression.")
-					.and_then
-					(
-						[&expr](Token&& semi_colon) ->MidoriResult::StatementResult
-						{
-							return std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semi_colon, std::move(expr)));
-						}
-					);
-			}
-		);
+	ParseState checkpoint = m_state;
+
+	MidoriResult::ExpressionResult expr_result = ParseExpression();
+	if (!expr_result.has_value())
+	{
+		return std::unexpected(std::move(expr_result.error()));
+	}
+
+	std::unique_ptr<MidoriExpression> expr = std::move(expr_result.value());
+	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after expression.");
+	if (!semicolon_result.has_value())
+	{
+		if (Check(Token::Name::RIGHT_BRACE, 0))
+		{
+			m_state = std::move(checkpoint);
+			return NoMatch<std::unique_ptr<MidoriStatement>>();
+		}
+
+		return std::unexpected(std::move(semicolon_result.error()));
+	}
+
+	Token semi_colon = std::move(semicolon_result.value());
+	return std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semi_colon, std::move(expr)));
 }
 
 MidoriResult::StatementResult Parser::ParseForeignStatement()
@@ -4825,6 +4833,12 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 MidoriResult::StatementResult Parser::ParseDeclaration()
 {
+	// End of current block: no further declarations to parse here.
+	if (Check(Token::Name::RIGHT_BRACE, 0))
+	{
+		return NoMatch<std::unique_ptr<MidoriStatement>>();
+	}
+
 	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
 		[this]() -> MidoriResult::StatementResult
 		{

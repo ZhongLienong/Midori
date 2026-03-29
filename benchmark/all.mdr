@@ -26,7 +26,7 @@ defun TestPrimeNumbers() : Unit =>
 		if n <= 1 then false else IsPrimeHelper(n, 2)
 	};
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
 	def prime_count = 0;
 	def count = 0;
@@ -46,7 +46,7 @@ defun TestPrimeNumbers() : Unit =>
 		}
 	};
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
@@ -55,18 +55,18 @@ defun TestFib(n : Int) : Unit =>
 {
 	defun fib(n : Int) : Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
 	def fib_n = fib(n);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
 defun TestStringManipulation() : Unit =>
 {
-    def start = DateTime::GetTime();
+    def start = DateTime::NowUnixMillis();
 
     def test_string = "";
 	def count = 0;
@@ -81,7 +81,7 @@ defun TestStringManipulation() : Unit =>
 		}
 	};
 
-    def end = DateTime::GetTime();
+    def end = DateTime::NowUnixMillis();
 
     IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
@@ -120,11 +120,11 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
 		}
     };
 
-    def start = DateTime::GetTime();
+    def start = DateTime::NowUnixMillis();
 
     BackTrack(max_len, 0, 0, "");
 
-    def end = DateTime::GetTime();
+    def end = DateTime::NowUnixMillis();
 
     IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
@@ -143,11 +143,11 @@ defun TestAckermann(m : Int, n : Int) : Unit =>
 		}
 	};
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
 	def result = Ackermann(m, n);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
@@ -204,7 +204,7 @@ defun TestSorting(size : Int) : Unit =>
 		}
 	};
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
 	def test_array : Array<Int> = [];
 	def array_len = 0;
@@ -223,7 +223,7 @@ defun TestSorting(size : Int) : Unit =>
 
 	def sorted = QuickSort(test_array, array_len);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
@@ -250,7 +250,7 @@ defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
 		}
 	};
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
 	def sorted_array : Array<Int> = [];
 	def arr_len = 0;
@@ -284,7 +284,7 @@ defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
 		}
 	};
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };

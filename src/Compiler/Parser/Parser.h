@@ -387,9 +387,14 @@ private:
 			)
 			.or_else
 			(
-				[&acc, this](CompilerError&&) mutable -> std::expected<std::vector<OutputType>, CompilerError>
+				[&acc, this](CompilerError&& try_parser_error) mutable -> std::expected<std::vector<OutputType>, CompilerError>
 				{
-					return std::move(acc);
+					if (IsNoMatchError(try_parser_error))
+					{
+						return std::move(acc);
+					}
+
+					return std::unexpected(std::move(try_parser_error));
 				}
 			);
 	}
