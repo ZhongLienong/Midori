@@ -51,13 +51,17 @@ private:
 
 	int ComputeStatementEnd(const TokenStream& tokens, int start, StatementType type);
 
-	std::tuple<std::string, std::vector<ModuleExport>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MidoriResult::VoidResult ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
+
+	MidoriResult::Result<std::string> ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const;
+
+	MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
 	std::vector<std::pair<std::string, int>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	std::vector<UseImport> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MidoriResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
+	static void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
 
 	static bool IsKeyword(Token::Name token_name);
 

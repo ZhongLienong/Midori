@@ -1,8 +1,7 @@
-// Test: module declaration with code before it (should work at global scope)
+// Test: module declaration stays in the file preamble while exports remain flexible
+module FlexMod
 
 defun helper(x: Float): Float => { x + 1.0 };
-
-module FlexMod
 
 defun Exported1(x: Float): Float => { helper(x) * 2.0 };
 

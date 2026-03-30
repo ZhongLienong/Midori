@@ -114,6 +114,7 @@ Links multiple modules into executable:
 - Resolves cross-module references
 - Patches bytecode with correct addresses
 - Creates bootstrap procedure
+- Uses the declared entry module name for bootstrap/debug labeling when available
 
 ## Module Syntax
 
@@ -232,7 +233,9 @@ For `import { "utils/helpers.mdr" }`:
 
 **Location**: `src/Compiler/ModuleManager/ModuleManager.cpp:41-48`
 
-**All `.mdr` files must begin with an explicit `module` declaration.** Files without a module declaration are rejected:
+**All `.mdr` files must contain exactly one explicit `module` declaration, and it must be the first top-level statement in the file.** Leading comments and whitespace are allowed, but any code, `import`, `use`, or export statement before `module` is rejected.
+
+Files without a module declaration are rejected:
 
 ```midori
 // ❌ This file will be rejected
@@ -241,7 +244,7 @@ defun add(a: Int, b: Int): Int => a + b;
 
 **Error:**
 ```
-Module declaration required. All .mdr files must begin with an explicit 'module ModuleName' declaration.
+Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.
 ```
 
 **Correct approach:**
@@ -252,7 +255,21 @@ module MyHelper
 defun add(a: Int, b: Int): Int => a + b;
 ```
 
-This ensures clarity and prevents confusion about module identity.
+Late or duplicate module declarations are also rejected:
+
+```midori
+// âŒ Rejected: module declaration is not first
+def helper = 1;
+module Helpers
+```
+
+```midori
+// âŒ Rejected: multiple module declarations
+module Helpers
+module Helpers.Internal
+```
+
+This keeps module identity deterministic and prevents silent preamble stripping from changing program structure.
 
 ## Cross-Module Access
 
@@ -779,8 +796,20 @@ At line 3 in module_b.mdr
 
 **Missing module declaration**:
 ```
-Module declaration required. All .mdr files must begin with an explicit 'module ModuleName' declaration.
+Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.
 At line 1 in my_file.mdr
+```
+
+**Late module declaration**:
+```
+Module declaration must be the first top-level statement in the file.
+At line 2 in my_file.mdr
+```
+
+**Multiple module declarations**:
+```
+Multiple module declarations found. Each .mdr file must contain exactly one 'module ModuleName' declaration.
+At line 2 in my_file.mdr
 ```
 
 **Duplicate module name**:
@@ -835,7 +864,7 @@ Duplicate export: 'compute' exported by both 'Math' and 'Calculator'
 bool m_has_module_declaration;
 ```
 
-Tracks whether file has explicit `module` declaration. **As of the current implementation, this is always `true` for successfully compiled modules** since explicit module declarations are required.
+Tracks whether file has explicit `module` declaration. **As of the current implementation, this is always `true` for successfully compiled modules** because successful builds require exactly one top-level `module` declaration per file.
 
 Historical note: This field previously supported implicit module names (filename-based), but that feature was removed to ensure clarity and prevent bugs.
 

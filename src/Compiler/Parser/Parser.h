@@ -103,6 +103,28 @@ private:
 		ActiveConstraintGuard& operator=(const ActiveConstraintGuard&) = delete;
 	};
 
+	enum class ImportedSymbolAccess
+	{
+		Accessible,
+		ModuleNotFound,
+		SymbolNotExported,
+		PrivateInaccessible
+	};
+
+	enum class UseImportResolutionStatus
+	{
+		NotImported,
+		Resolved,
+		Ambiguous
+	};
+
+	struct UseImportResolution
+	{
+		UseImportResolutionStatus m_status = UseImportResolutionStatus::NotImported;
+		std::string m_module_name;
+		std::vector<std::string> m_conflicting_modules;
+	};
+
 	ParseContext m_context;
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
@@ -434,6 +456,14 @@ private:
 	bool CanAccessSymbol(const std::string& symbol_name) const;
 
 	bool IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const;
+
+	UseImportResolution ResolveUseImport(const std::string& symbol_name) const;
+
+	std::string BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
+
+	ImportedSymbolAccess ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const;
+
+	std::string BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const;
 
 	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 

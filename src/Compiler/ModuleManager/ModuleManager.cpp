@@ -30,6 +30,22 @@ namespace
 
 		return source_lines;
 	}
+
+	std::string JoinDottedSegments(const std::vector<std::string>& segments, size_t count)
+	{
+		std::string result;
+		for (size_t i = 0u; i < count; i += 1u)
+		{
+			if (!result.empty())
+			{
+				result.push_back('.');
+			}
+
+			result.append(segments[i]);
+		}
+
+		return result;
+	}
 }
 
 ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines)
@@ -52,22 +68,13 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 	{
 		std::vector<StatementSpan> spans = ScanModuleStatements(m_main_token_stream);
 
-		std::tuple<std::string, std::vector<ModuleExport>> module_result = ExtractModuleDeclaration(m_main_token_stream, spans);
-		std::string module_name = std::get<0>(module_result);
-		std::vector<ModuleExport> exports = std::get<1>(module_result);
-
-		if (module_name.empty())
+		MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> module_result = ExtractModuleDeclaration(m_main_token_stream, spans);
+		if (!module_result.has_value())
 		{
-			return std::unexpected
-			(
-				MidoriError::GenerateModuleErrorWithContext
-				(
-					"Module declaration required. All .mdr files must begin with an explicit 'module ModuleName' declaration.",
-					1,
-					m_main_file_name
-				)
-			);
+			return std::unexpected(std::move(module_result.error()));
 		}
+
+		auto [module_name, exports] = std::move(module_result.value());
 
 		if (build_graph.m_module_name_to_file.contains(module_name))
 		{
@@ -100,7 +107,12 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 		m_module_declarations[m_main_file_name] = std::move(module_decl);
 
 		std::vector<std::pair<std::string, int>> import_paths = ExtractImports(m_main_token_stream, spans);
-		std::vector<UseImport> use_imports = ExtractUseStatements(m_main_token_stream, spans);
+		MidoriResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
+		if (!use_import_result.has_value())
+		{
+			return std::unexpected(std::move(use_import_result.error()));
+		}
+		std::vector<UseImport> use_imports = std::move(use_import_result.value());
 
 		std::ranges::sort(spans, [](const StatementSpan& a, const StatementSpan& b) { return a.m_start > b.m_start; });
 
@@ -406,8 +418,29 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 
 	if (type == StatementType::MODULE)
 	{
-		while (current < tokens.Size() && (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL || tokens[current].m_token_name == Token::Name::SINGLE_DOT))
+		bool expect_identifier = true;
+		while (current < tokens.Size())
 		{
+			const Token::Name token_name = tokens[current].m_token_name;
+			if (expect_identifier)
+			{
+				if (token_name != Token::Name::IDENTIFIER_LITERAL && !IsKeyword(token_name))
+				{
+					break;
+				}
+
+				expect_identifier = false;
+				current += 1;
+				SkipWhiteSpace(tokens, current);
+				continue;
+			}
+
+			if (token_name != Token::Name::SINGLE_DOT)
+			{
+				break;
+			}
+
+			expect_identifier = true;
 			current += 1;
 			SkipWhiteSpace(tokens, current);
 		}
@@ -465,13 +498,14 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 	}
 	else if (type == StatementType::USE)
 	{
-		while (current < tokens.Size() && tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
-		{
-			current += 1;
-			SkipWhiteSpace(tokens, current);
-		}
-
-		if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::SINGLE_DOT)
+		while
+		(
+			current < tokens.Size() &&
+			(
+				tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL ||
+				tokens[current].m_token_name == Token::Name::SINGLE_DOT
+			)
+		)
 		{
 			current += 1;
 			SkipWhiteSpace(tokens, current);
@@ -525,39 +559,202 @@ bool ModuleManager::IsKeyword(Token::Name token_name)
 	       static_cast<int>(token_name) >= static_cast<int>(Token::Name::ELSE);
 }
 
-std::tuple<std::string, std::vector<ModuleExport>> ModuleManager::ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const
 {
-	std::string module_name;
-	std::vector<ModuleExport> all_exports;
-
+	std::vector<const StatementSpan*> module_spans;
 	for (const StatementSpan& span : spans)
 	{
 		if (span.m_type == StatementType::MODULE)
 		{
-			int current = span.m_start + 1;
-			SkipWhiteSpace(tokens, current);
-
-			if (current < tokens.Size() && IsKeyword(tokens[current].m_token_name))
-			{
-				CompilerError error_message = MidoriError::GenerateModuleErrorWithContext("'" + tokens[current].m_lexeme + "' is a reserved keyword and cannot be used as a module name.", tokens[current].m_line, m_main_file_name);
-				Printer::Print<Printer::Color::RED>(std::string(error_message.Rendered()) + "\n");
-				std::exit(EXIT_FAILURE);
-			}
-
-			while (current < span.m_end && (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL || tokens[current].m_token_name == Token::Name::SINGLE_DOT))
-			{
-				if (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
-				{
-					module_name += tokens[current].m_lexeme;
-				}
-				else if (tokens[current].m_token_name == Token::Name::SINGLE_DOT)
-				{
-					module_name += '.';
-				}
-				current += 1;
-			}
+			module_spans.emplace_back(&span);
 		}
-		else if (span.m_type == StatementType::EXPORT)
+	}
+
+	if (module_spans.empty())
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
+				1,
+				m_main_file_name
+			)
+		);
+	}
+
+	if (module_spans.size() > 1u)
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Multiple module declarations found. Each .mdr file must contain exactly one 'module ModuleName' declaration.",
+				module_spans[1]->m_line,
+				m_main_file_name
+			)
+		);
+	}
+
+	int first_token = 0;
+	SkipWhiteSpace(tokens, first_token);
+	while (first_token < tokens.Size() && tokens[first_token].m_token_name == Token::Name::END_OF_FILE)
+	{
+		first_token += 1;
+	}
+
+	if (first_token != module_spans.front()->m_start)
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Module declaration must be the first top-level statement in the file.",
+				module_spans.front()->m_line,
+				m_main_file_name
+			)
+		);
+	}
+
+	return {};
+}
+
+MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const
+{
+	std::string module_name;
+	int current = module_span.m_start + 1;
+	SkipWhiteSpace(tokens, current);
+
+	if (current >= module_span.m_end)
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Expected module name after 'module'.",
+				module_span.m_line,
+				m_main_file_name
+			)
+		);
+	}
+
+	bool expect_identifier = true;
+	while (current < module_span.m_end)
+	{
+		const Token& token = tokens[current];
+		if (expect_identifier)
+		{
+			if (token.m_token_name == Token::Name::IDENTIFIER_LITERAL)
+			{
+				module_name.append(token.m_lexeme);
+				expect_identifier = false;
+				current += 1;
+				SkipWhiteSpace(tokens, current);
+				continue;
+			}
+
+			if (IsKeyword(token.m_token_name))
+			{
+				return std::unexpected
+				(
+					MidoriError::GenerateModuleErrorWithContext
+					(
+						"'" + token.m_lexeme + "' is a reserved keyword and cannot be used as a module name.",
+						token.m_line,
+						m_main_file_name
+					)
+				);
+			}
+
+			return std::unexpected
+			(
+				MidoriError::GenerateModuleErrorWithContext
+				(
+					"Expected identifier in module declaration.",
+					token.m_line,
+					m_main_file_name
+				)
+			);
+		}
+
+		if (token.m_token_name != Token::Name::SINGLE_DOT)
+		{
+			return std::unexpected
+			(
+				MidoriError::GenerateModuleErrorWithContext
+				(
+					"Unexpected token in module declaration.",
+					token.m_line,
+					m_main_file_name
+				)
+			);
+		}
+
+		module_name.push_back('.');
+		expect_identifier = true;
+		current += 1;
+		SkipWhiteSpace(tokens, current);
+	}
+
+	if (expect_identifier)
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Expected identifier after '.' in module declaration.",
+				module_span.m_line,
+				m_main_file_name
+			)
+		);
+	}
+
+	return module_name;
+}
+
+MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleManager::ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+{
+	std::vector<ModuleExport> all_exports;
+	MidoriResult::VoidResult validation_result = ValidateModuleDeclarationPolicy(tokens, spans);
+	if (!validation_result.has_value())
+	{
+		return std::unexpected(std::move(validation_result.error()));
+	}
+
+	const StatementSpan* module_span = nullptr;
+	for (const StatementSpan& span : spans)
+	{
+		if (span.m_type == StatementType::MODULE)
+		{
+			module_span = &span;
+			break;
+		}
+	}
+
+	if (module_span == nullptr)
+	{
+		return std::unexpected
+		(
+			MidoriError::GenerateModuleErrorWithContext
+			(
+				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
+				1,
+				m_main_file_name
+			)
+		);
+	}
+
+	MidoriResult::Result<std::string> module_name_result = ExtractModuleName(tokens, *module_span);
+	if (!module_name_result.has_value())
+	{
+		return std::unexpected(std::move(module_name_result.error()));
+	}
+
+	std::string module_name = std::move(module_name_result.value());
+
+	for (const StatementSpan& span : spans)
+	{
+		if (span.m_type == StatementType::EXPORT)
 		{
 			int current = span.m_start;
 			VisibilityLevel visibility = VisibilityLevel::Public;
@@ -608,7 +805,7 @@ std::tuple<std::string, std::vector<ModuleExport>> ModuleManager::ExtractModuleD
 		}
 	}
 
-	return { module_name, all_exports };
+	return std::make_tuple(std::move(module_name), std::move(all_exports));
 }
 
 std::vector<std::pair<std::string, int>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
@@ -686,7 +883,7 @@ std::vector<std::pair<std::string, int>> ModuleManager::ExtractImports(const Tok
 	return import_paths;
 }
 
-std::vector<UseImport> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<UseImport> use_imports;
 
@@ -699,29 +896,76 @@ std::vector<UseImport> ModuleManager::ExtractUseStatements(const TokenStream& to
 
 			if (current >= tokens.Size() || tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
 			{
-				continue;
+				return std::unexpected
+				(
+					MidoriError::GenerateModuleErrorWithContext
+					(
+						"Expected module name after 'use'.",
+						span.m_line,
+						m_main_file_name
+					)
+				);
 			}
 
-			std::string module_name = tokens[current].m_lexeme;
+			std::vector<std::string> segments;
+			segments.emplace_back(tokens[current].m_lexeme);
 			current += 1;
 			SkipWhiteSpace(tokens, current);
 
-			if (current >= tokens.Size() || tokens[current].m_token_name != Token::Name::SINGLE_DOT)
+			bool parsed_braced_use = false;
+			while (current < span.m_end && tokens[current].m_token_name == Token::Name::SINGLE_DOT)
 			{
-				continue;
-			}
-			current += 1;
-			SkipWhiteSpace(tokens, current);
-
-			if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-			{
+				const Token& dot_token = tokens[current];
 				current += 1;
 				SkipWhiteSpace(tokens, current);
 
-				while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+				if (current >= span.m_end)
 				{
-					if (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
+					return std::unexpected
+					(
+						MidoriError::GenerateModuleErrorWithContext
+						(
+							"Expected identifier or '{' after '.' in use statement.",
+							dot_token.m_line,
+							m_main_file_name
+						)
+					);
+				}
+
+				if (tokens[current].m_token_name == Token::Name::LEFT_BRACE)
+				{
+					const std::string module_name = JoinDottedSegments(segments, segments.size());
+					current += 1;
+					SkipWhiteSpace(tokens, current);
+
+					if (current < span.m_end && tokens[current].m_token_name == Token::Name::RIGHT_BRACE)
 					{
+						return std::unexpected
+						(
+							MidoriError::GenerateModuleErrorWithContext
+							(
+								"Expected at least one identifier in use import list.",
+								tokens[current].m_line,
+								m_main_file_name
+							)
+						);
+					}
+
+					while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+					{
+						if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
+						{
+							return std::unexpected
+							(
+								MidoriError::GenerateModuleErrorWithContext
+								(
+									"Expected identifier in use import list.",
+									tokens[current].m_line,
+									m_main_file_name
+								)
+							);
+						}
+
 						use_imports.emplace_back(module_name, tokens[current].m_lexeme);
 						current += 1;
 						SkipWhiteSpace(tokens, current);
@@ -731,16 +975,94 @@ std::vector<UseImport> ModuleManager::ExtractUseStatements(const TokenStream& to
 							current += 1;
 							SkipWhiteSpace(tokens, current);
 						}
+						else if (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+						{
+							return std::unexpected
+							(
+								MidoriError::GenerateModuleErrorWithContext
+								(
+									"Expected ',' or '}' in use import list.",
+									tokens[current].m_line,
+									m_main_file_name
+								)
+							);
+						}
 					}
-					else
+
+					if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 					{
-						current += 1;
+						return std::unexpected
+						(
+							MidoriError::GenerateModuleErrorWithContext
+							(
+								"Expected '}' to close use import list.",
+								span.m_line,
+								m_main_file_name
+							)
+						);
 					}
+
+					current += 1;
+					SkipWhiteSpace(tokens, current);
+					parsed_braced_use = true;
+					break;
 				}
+
+				if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
+				{
+					return std::unexpected
+					(
+						MidoriError::GenerateModuleErrorWithContext
+						(
+							"Expected identifier or '{' after '.' in use statement.",
+							tokens[current].m_line,
+							m_main_file_name
+						)
+					);
+				}
+
+				segments.emplace_back(tokens[current].m_lexeme);
+				current += 1;
+				SkipWhiteSpace(tokens, current);
 			}
-			else if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
+
+			if (!parsed_braced_use)
 			{
-				use_imports.emplace_back(module_name, tokens[current].m_lexeme);
+				if (segments.size() < 2u)
+				{
+					return std::unexpected
+					(
+						MidoriError::GenerateModuleErrorWithContext
+						(
+							"Expected imported symbol after module qualifier in use statement.",
+							span.m_line,
+							m_main_file_name
+						)
+					);
+				}
+
+				const std::string module_name = JoinDottedSegments(segments, segments.size() - 1u);
+				const std::string& symbol_name = segments.back();
+				use_imports.emplace_back(module_name, symbol_name);
+			}
+
+			if (current < span.m_end && tokens[current].m_token_name == Token::Name::SINGLE_SEMICOLON)
+			{
+				current += 1;
+				SkipWhiteSpace(tokens, current);
+			}
+
+			if (current < span.m_end)
+			{
+				return std::unexpected
+				(
+					MidoriError::GenerateModuleErrorWithContext
+					(
+						"Unexpected token in use statement.",
+						tokens[current].m_line,
+						m_main_file_name
+					)
+				);
 			}
 		}
 	}

@@ -475,24 +475,15 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	{
 		Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(lookup_name);
 
-		std::string module_name;
-		bool is_imported = IsInUseImports(lookup_name, module_name);
-
-		Token qualified_token = name_token;
-		if (is_imported)
-		{
-			qualified_token.m_lexeme = module_name + NameSeparator.data() + lookup_name;
-		}
-
 		// Global
 		if (IsGlobalName(found_scope_it))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 		}
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
 		}
 		// Cell
 		else
@@ -500,44 +491,45 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			int var_depth = find_result->second.m_function_depth.value();
 			int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Cell(cell_index)));
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Cell(cell_index)));
 		}
 	}
 
 	// Not found in local scopes - check imported modules (for bare imports)
-	// Iterate through all imported modules to find if any exports this symbol
+	const UseImportResolution use_import_resolution = ResolveUseImport(lookup_name);
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
+	{
+		return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_name, use_import_resolution.m_conflicting_modules), name_token));
+	}
+
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
+	{
+		const std::string& imported_module_name = use_import_resolution.m_module_name;
+		const ImportedSymbolAccess access = ResolveImportedSymbolAccess(imported_module_name, lookup_name);
+		if (access == ImportedSymbolAccess::Accessible)
+		{
+			Token qualified_token = name_token;
+			qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
+			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
+		}
+
+		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
+	}
+
 	for (const auto& [imported_module_name, symbol_table] : m_context.m_imported_symbols)
 	{
 		if (symbol_table.HasExport(lookup_name))
 		{
-			VisibilityLevel visibility = symbol_table.GetExportVisibility(lookup_name);
-
-			bool can_access = false;
-			if (visibility == VisibilityLevel::Public)
-			{
-				can_access = true;
-			}
-			else if (visibility == VisibilityLevel::Private)
-			{
-				// Private exports only accessible to modules in same namespace
-				if (m_context.m_current_module != nullptr && m_context.m_current_module->HasModuleDeclaration())
-				{
-					if (SharesNamespace(m_context.m_current_module->ModuleName(), imported_module_name))
-					{
-						can_access = true;
-					}
-				}
-			}
-
-			if (can_access)
+			const ImportedSymbolAccess access = ResolveImportedSymbolAccess(imported_module_name, lookup_name);
+			if (access == ImportedSymbolAccess::Accessible)
 			{
 				Token qualified_token = name_token;
 				qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
 				return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
 			}
-			else
+			else if (access == ImportedSymbolAccess::PrivateInaccessible)
 			{
-				return std::unexpected(GenerateParserError(std::format("Cannot access private symbol '{}' from module '{}'.", lookup_name, imported_module_name), name_token));
+				return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
 			}
 		}
 	}
@@ -623,11 +615,16 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 	// 1. Explicitly imported via 'use' statement, OR
 	// 2. Not exported by any module (i.e., foreign function)
 	// Check if symbol was explicitly imported via 'use'
-	std::string module_name;
-	if (IsInUseImports(symbol_name, module_name))
+	const UseImportResolution use_import_resolution = ResolveUseImport(symbol_name);
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
 	{
 		// Symbol is in use imports, verify it's actually exported by that module
-		return ResolveQualifiedSymbol(module_name, symbol_name);
+		return ResolveQualifiedSymbol(use_import_resolution.m_module_name, symbol_name);
+	}
+
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
+	{
+		return true;
 	}
 
 	// Check if symbol is exported by ANY module
@@ -654,34 +651,141 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 
 bool Parser::IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const
 {
-	// Check if the symbol was explicitly imported via 'use' statement
+	const UseImportResolution resolution = ResolveUseImport(symbol_name);
+	if (resolution.m_status == UseImportResolutionStatus::Resolved)
+	{
+		out_module_name = resolution.m_module_name;
+		return true;
+	}
+
+	return false;
+}
+
+Parser::UseImportResolution Parser::ResolveUseImport(const std::string& symbol_name) const
+{
+	UseImportResolution resolution;
+
 	for (const UseImport& use_import : m_state.m_current_use_imports)
 	{
-		if (use_import.m_symbol_name == symbol_name)
+		if
+		(
+			use_import.m_symbol_name == symbol_name &&
+			!std::ranges::contains(resolution.m_conflicting_modules, use_import.m_module_name)
+		)
 		{
-			out_module_name = use_import.m_module_name;
-			return true;
+			resolution.m_conflicting_modules.emplace_back(use_import.m_module_name);
 		}
 	}
-	return false;
+
+	if (resolution.m_conflicting_modules.empty())
+	{
+		return resolution;
+	}
+
+	std::ranges::sort(resolution.m_conflicting_modules);
+	if (resolution.m_conflicting_modules.size() == 1u)
+	{
+		resolution.m_status = UseImportResolutionStatus::Resolved;
+		resolution.m_module_name = resolution.m_conflicting_modules[0u];
+		return resolution;
+	}
+
+	resolution.m_status = UseImportResolutionStatus::Ambiguous;
+	return resolution;
+}
+
+std::string Parser::BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const
+{
+	std::string modules;
+	for (size_t i = 0u; i < module_names.size(); i += 1u)
+	{
+		if (i > 0u)
+		{
+			modules.append(", ");
+		}
+
+		modules.append("'").append(module_names[i]).append("'");
+	}
+
+	const std::string qualified_example =
+		module_names.empty()
+		? "ModuleName"s + NameSeparator.data() + symbol_name
+		: module_names[0u] + NameSeparator.data() + symbol_name;
+
+	return std::format
+	(
+		"Ambiguous use import for symbol '{}': imported from modules {}. Use qualified access like '{}' or remove one of the conflicting use imports.",
+		symbol_name,
+		modules,
+		qualified_example
+	);
+}
+
+Parser::ImportedSymbolAccess Parser::ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const
+{
+	const std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator module_it = m_context.m_imported_symbols.find(module_name);
+	if (module_it == m_context.m_imported_symbols.cend())
+	{
+		return ImportedSymbolAccess::ModuleNotFound;
+	}
+
+	const VisibilityLevel* visibility = module_it->second.FindExportVisibility(symbol_name);
+	if (visibility == nullptr)
+	{
+		return ImportedSymbolAccess::SymbolNotExported;
+	}
+
+	if (*visibility == VisibilityLevel::Public)
+	{
+		return ImportedSymbolAccess::Accessible;
+	}
+
+	if (*visibility == VisibilityLevel::Private)
+	{
+		if (m_context.m_current_module != nullptr &&
+			m_context.m_current_module->HasModuleDeclaration() &&
+			SharesNamespace(m_context.m_current_module->ModuleName(), module_name))
+		{
+			return ImportedSymbolAccess::Accessible;
+		}
+
+		return ImportedSymbolAccess::PrivateInaccessible;
+	}
+
+	return ImportedSymbolAccess::SymbolNotExported;
+}
+
+std::string Parser::BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const
+{
+	switch (access)
+	{
+	case ImportedSymbolAccess::Accessible:
+		return {};
+	case ImportedSymbolAccess::ModuleNotFound:
+		return std::format("Module '{}' not found.", module_name);
+	case ImportedSymbolAccess::SymbolNotExported:
+		return std::format("Symbol '{}' is not exported by module '{}'.", symbol_name, module_name);
+	case ImportedSymbolAccess::PrivateInaccessible:
+		if (m_context.m_current_module != nullptr && m_context.m_current_module->HasModuleDeclaration())
+		{
+			return std::format
+			(
+				"Symbol '{}' is private to module '{}' and is not accessible from current namespace '{}'.",
+				symbol_name,
+				module_name,
+				TopLevelNamespace(m_context.m_current_module->ModuleName())
+			);
+		}
+
+		return std::format("Symbol '{}' is private to module '{}' and is not accessible from the current module.", symbol_name, module_name);
+	}
+
+	return std::format("Symbol '{}' is not accessible from module '{}'.", symbol_name, module_name);
 }
 
 bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const
 {
-	const bool using_new_path = (m_context.m_module_declarations == nullptr);
-
-	if (using_new_path)
-	{
-		// New path: Check imported symbol tables (from per-module compilation)
-		std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_context.m_imported_symbols.find(module_name);
-		if (it != m_context.m_imported_symbols.cend())
-		{
-			// Check if the symbol is exported by this module
-			return it->second.HasExport(symbol_name);
-		}
-		return false;  // Module not found in imports
-	}
-	return false;  // Module not found
+	return ResolveImportedSymbolAccess(module_name, symbol_name) == ImportedSymbolAccess::Accessible;
 }
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
@@ -1395,21 +1499,15 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 					member_part = raw_name.substr(separator_pos);
 				}
 
-				bool is_imported = false;
-				std::string module_name;
-
-				for (const UseImport& use_import : m_state.m_current_use_imports)
+				const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
+				if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 				{
-					if (use_import.m_symbol_name == lookup_base)
-					{
-						is_imported = true;
-						module_name = use_import.m_module_name;
-						break;
-					}
+					return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), base_name_token));
 				}
 
-				if (is_imported)
+				if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
 				{
+					const std::string& module_name = use_import_resolution.m_module_name;
 					if (m_context.m_imported_type_signatures.contains(module_name))
 					{
 						std::string type_name = lookup_base;
@@ -1712,32 +1810,14 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
 
-						const bool using_new_path = (m_context.m_module_declarations == nullptr);
-
-						if (using_new_path)
+						const ImportedSymbolAccess access = ResolveImportedSymbolAccess(qualifier, symbol_name);
+						if (access == ImportedSymbolAccess::Accessible)
 						{
-							// New path: Use imported symbols
-							if (ResolveQualifiedSymbol(qualifier, symbol_name))
-							{
-								// Symbol is accessible - create a global reference
-								// (The symbol was defined in another module and is accessible)
-								// Keep the fully qualified name so the code generator can identify imports
-								return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
-							}
-							else
-							{
-								// Check if module exists in imports
-								std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator it = m_context.m_imported_symbols.find(qualifier);
-								if (it == m_context.m_imported_symbols.cend())
-								{
-									return std::unexpected(GenerateParserError("Module '"s + qualifier + "' not found"s, variable));
-								}
-								else
-								{
-									return std::unexpected(GenerateParserError("Symbol '"s + symbol_name + "' is not exported by module '"s + qualifier + "'"s, variable));
-								}
-							}
+							// Keep the fully qualified name so the code generator can identify imports
+							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
+
+						return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(qualifier, symbol_name, access), variable));
 					}
 
 					return ResolveQualifiedName(variable, mangled_name);
@@ -4219,17 +4299,18 @@ MidoriResult::PatternResult Parser::ParsePattern()
 							return false;
 						};
 
-						for (const UseImport& use_import : m_state.m_current_use_imports)
+						const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
+						if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 						{
-							if (use_import.m_symbol_name == lookup_base)
+							return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), identifier));
+						}
+
+						if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
+						{
+							const std::string& module_name = use_import_resolution.m_module_name;
+							if (m_context.m_imported_type_signatures.contains(module_name))
 							{
-								if (m_context.m_imported_type_signatures.contains(use_import.m_module_name))
-								{
-									if (resolve_imported_constructor(m_context.m_imported_type_signatures.at(use_import.m_module_name)))
-									{
-										break;
-									}
-								}
+								static_cast<void>(resolve_imported_constructor(m_context.m_imported_type_signatures.at(module_name)));
 							}
 						}
 
@@ -4641,19 +4722,21 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								}
 								else
 								{
-									for (const UseImport& use_import : m_state.m_current_use_imports)
+									const UseImportResolution use_import_resolution = ResolveUseImport(type_name.m_lexeme);
+									if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
 									{
-										if (use_import.m_symbol_name == type_name.m_lexeme)
+										return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(type_name.m_lexeme, use_import_resolution.m_conflicting_modules), type_name));
+									}
+
+									if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
+									{
+										std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(use_import_resolution.m_module_name);
+										if (module_it != m_context.m_imported_type_signatures.cend())
 										{
-											std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(use_import.m_module_name);
-											if (module_it != m_context.m_imported_type_signatures.cend())
+											TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
+											if (type_it != module_it->second.cend())
 											{
-												TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
-												if (type_it != module_it->second.cend())
-												{
-													base_type = type_it->second;
-													break;
-												}
+												base_type = type_it->second;
 											}
 										}
 									}

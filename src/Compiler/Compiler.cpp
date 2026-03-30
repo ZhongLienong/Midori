@@ -1196,9 +1196,19 @@ namespace
 		return bytecode_result;
 	}
 
-	static MidoriResult::CompilerResult LinkBytecodeModules(std::vector<BytecodeModule>&& all_bytecode_modules, const std::string& entry_file_name)
+	static std::string ResolveEntryModuleName(const BuildGraph& build_graph, const std::string& entry_file_name)
 	{
-		const std::string entry_module_name = std::filesystem::path(entry_file_name).stem().string();
+		std::unordered_map<std::string, ModuleDeclaration>::const_iterator entry_decl_it = build_graph.m_module_declarations.find(entry_file_name);
+		if (entry_decl_it != build_graph.m_module_declarations.end() && !entry_decl_it->second.ModuleName().empty())
+		{
+			return entry_decl_it->second.ModuleName();
+		}
+
+		return std::filesystem::path(entry_file_name).stem().string();
+	}
+
+	static MidoriResult::CompilerResult LinkBytecodeModules(std::vector<BytecodeModule>&& all_bytecode_modules, const std::string& entry_module_name)
+	{
 		return BytecodeLinker(std::move(all_bytecode_modules), entry_module_name)
 			.Link()
 			.and_then
@@ -1382,16 +1392,17 @@ MidoriResult::CompilerResult Compiler::Compile()
 		)
 		.and_then
 		(
-			[this](BuildGraph&& build_graph) -> MidoriResult::Result<std::vector<BytecodeModule>>
+			[this](BuildGraph&& build_graph) -> MidoriResult::CompilerResult
 			{
-				return CompileBuildGraph(std::move(build_graph));
-			}
-		)
-		.and_then
-		(
-			[this](std::vector<BytecodeModule>&& all_bytecode_modules) -> MidoriResult::CompilerResult
-			{
-				return LinkBytecodeModules(std::move(all_bytecode_modules), m_file_name);
+				const std::string entry_module_name = ResolveEntryModuleName(build_graph, m_file_name);
+				return CompileBuildGraph(std::move(build_graph))
+					.and_then
+					(
+						[entry_module_name](std::vector<BytecodeModule>&& all_bytecode_modules) -> MidoriResult::CompilerResult
+						{
+							return LinkBytecodeModules(std::move(all_bytecode_modules), entry_module_name);
+						}
+					);
 			}
 		);
 }

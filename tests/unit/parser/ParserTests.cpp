@@ -1,10 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Common/Constant/Constant.h"
 #include "Compiler/Token/Token.h"
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
 
 #include <expected>
+#include <format>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -128,6 +130,178 @@ def local_value = 1;
 	const MidoriProgramTree& program = parse_result->m_program;
 	REQUIRE(program.size() == 1u);
 	static_cast<void>(RequireVariableDefinition(program, 0u, "local_value"));
+}
+
+TEST_CASE("Parser rejects qualified access to private exports outside the current namespace", "[parser][module]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile(
+			"Secrets.mdr",
+			R"(module Secrets
+private export { hidden }
+def hidden = 7;
+)"),
+		MidoriTest::TempProjectFile(
+			"Main.mdr",
+			R"(module Main
+import { "./Secrets.mdr" }
+def value = Secrets::hidden;
+defun main(): Int => value;
+)")
+	});
+
+	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::string main_source_code =
+		R"(module Main
+import { "./Secrets.mdr" }
+def value = Secrets::hidden;
+defun main(): Int => value;
+)";
+
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE_FALSE(compile_result.has_value());
+
+	const CompilerError& error = compile_result.error();
+	CHECK(error.m_message.find("private to module 'Secrets'") != std::string::npos);
+	CHECK(error.m_message.find("current namespace 'Main'") != std::string::npos);
+}
+
+TEST_CASE("Parser resolves dotted use imports against the full module name", "[parser][module]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile
+		(
+			"MathVector.mdr",
+			R"(module Math.Vector
+public export { add }
+defun add(): Int => 41;
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Main.mdr",
+			R"(module Main
+import { "./MathVector.mdr" }
+use Math.Vector.{add}
+defun main(): Int => add();
+)"
+		)
+	});
+
+	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::string main_source_code =
+		R"(module Main
+import { "./MathVector.mdr" }
+use Math.Vector.{add}
+defun main(): Int => add();
+)";
+
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE(compile_result.has_value());
+}
+
+TEST_CASE("Parser rejects ambiguous use imports from different modules", "[parser][module]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile
+		(
+			"Left.mdr",
+			R"(module Left
+public export { value }
+defun value(): Int => 1;
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Right.mdr",
+			R"(module Right
+public export { value }
+defun value(): Int => 2;
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Main.mdr",
+			R"(module Main
+import { "./Left.mdr", "./Right.mdr" }
+use Left.{value}
+use Right.{value}
+defun main(): Int => value();
+)"
+		)
+	});
+
+	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::string main_source_code =
+		R"(module Main
+import { "./Left.mdr", "./Right.mdr" }
+use Left.{value}
+use Right.{value}
+defun main(): Int => value();
+)";
+
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE_FALSE(compile_result.has_value());
+
+	const CompilerError& error = compile_result.error();
+	CHECK(error.m_message.find("Ambiguous use import for symbol 'value'") != std::string::npos);
+	CHECK(error.m_message.find("Left::value") != std::string::npos);
+}
+
+TEST_CASE("Parser treats duplicate same-module use imports as idempotent", "[parser][module]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile
+		(
+			"Helper.mdr",
+			R"(module Helper
+public export { value }
+defun value(): Int => 7;
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Main.mdr",
+			R"(module Main
+import { "./Helper.mdr" }
+use Helper.{value}
+use Helper.{value}
+defun main(): Int => value();
+)"
+		)
+	});
+
+	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::string main_source_code =
+		R"(module Main
+import { "./Helper.mdr" }
+use Helper.{value}
+use Helper.{value}
+defun main(): Int => value();
+)";
+
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
+	REQUIRE(compile_result.has_value());
+}
+
+TEST_CASE("Compiler uses the declared entry module name for linked executable metadata", "[parser][module]")
+{
+	const std::string source_code =
+		R"(module App.Main
+defun main(): Int => 0;
+)";
+
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "EntryPoint.mdr");
+	REQUIRE(compile_result.has_value());
+
+	const MidoriExecutable& executable = compile_result.value();
+	CHECK(executable.GetFileName() == "App.Main");
+	REQUIRE_FALSE(executable.m_procedure_names.empty());
+	CHECK(std::string(executable.m_procedure_names[0u].GetCString()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
 }
 
 TEST_CASE("Parser builds constructor and wildcard match patterns without brittle tree snapshots", "[parser]")
