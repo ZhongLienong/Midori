@@ -131,6 +131,8 @@ namespace MidoriTest
 		MidoriResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{
+			// Test helpers still offer single-error adapters for legacy callers; preserve
+			// structured diagnostics upstream and narrow only at this boundary.
 			return std::unexpected(std::move(parse_result.error()).TakeFirst());
 		}
 
@@ -138,22 +140,46 @@ namespace MidoriTest
 		return ParsedSnippet(std::move(prepared.m_source), std::move(parse_result.value()), std::move(warnings), std::move(prepared.m_module_declaration), std::move(prepared.m_use_imports));
 	}
 
-	std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name)
+	std::expected<TypedSnippet, MidoriResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
-		std::expected<ParsedSnippet, CompilerError> parsed_result = ParseSnippet(std::move(source_code), std::move(file_name));
-		if (!parsed_result.has_value())
+		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.has_value())
 		{
-			return std::unexpected(std::move(parsed_result.error()));
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
 		}
 
-		ParsedSnippet parsed = std::move(parsed_result.value());
-		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parsed.m_program), parsed.m_source.FileName(), parsed.m_source.SourceLines()).TypeCheck();
+		PreparedModule prepared = std::move(prepared_result.value());
+		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
+			? &prepared.m_module_declaration.value()
+			: nullptr;
+		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
+		MidoriResult::ParserResult parse_result = parser.Parse();
+		if (!parse_result.has_value())
+		{
+			return std::unexpected(std::move(parse_result.error()));
+		}
+
+		std::vector<CompilerWarning> warnings = parser.GetWarnings();
+		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result.value()), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
 		if (!typecheck_result.has_value())
 		{
 			return std::unexpected(std::move(typecheck_result.error()));
 		}
 
-		return TypedSnippet(std::move(parsed.m_source), std::move(typecheck_result.value()), std::move(parsed.m_warnings));
+		return TypedSnippet(std::move(prepared.m_source), std::move(typecheck_result.value()), std::move(warnings));
+	}
+
+	std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name)
+	{
+		std::expected<TypedSnippet, MidoriResult::CompilerDiagnostics> typed_result = TypeCheckSnippetWithDiagnostics(std::move(source_code), std::move(file_name));
+		if (!typed_result.has_value())
+		{
+			// Test helpers still offer single-error adapters for legacy callers; preserve
+			// structured diagnostics upstream and narrow only at this boundary.
+			return std::unexpected(std::move(typed_result.error()).TakeFirst());
+		}
+
+		return std::move(typed_result.value());
 	}
 
 	std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name)

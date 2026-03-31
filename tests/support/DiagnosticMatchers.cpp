@@ -165,4 +165,42 @@ namespace MidoriTest
 
 		return std::addressof(*error_it);
 	}
+
+	const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerErrorCode code)
+	{
+		const std::vector<CompilerError>::const_iterator error_it = std::ranges::find_if
+		(
+			errors,
+			[code](const CompilerError& error)
+			{
+				return error.m_code == code;
+			}
+		);
+
+		if (error_it == errors.cend())
+		{
+			return nullptr;
+		}
+
+		return std::addressof(*error_it);
+	}
+
+	const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage, CompilerErrorCode code)
+	{
+		const std::vector<CompilerError>::const_iterator error_it = std::ranges::find_if
+		(
+			errors,
+			[stage, code](const CompilerError& error)
+			{
+				return error.m_stage == stage && error.m_code == code;
+			}
+		);
+
+		if (error_it == errors.cend())
+		{
+			return nullptr;
+		}
+
+		return std::addressof(*error_it);
+	}
 }

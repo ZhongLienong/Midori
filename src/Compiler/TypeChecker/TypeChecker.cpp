@@ -819,7 +819,7 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 		message = std::format("Constraint {} is not satisfied - no matching instance found", DescribeConstraint(constraint));
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines, suggestion);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
 }
 
 CompilerError TypeChecker::MakeFunctionArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
@@ -838,7 +838,7 @@ CompilerError TypeChecker::MakeFunctionArityError(const Token& token, size_t lef
 		message = std::format("Function type mismatch: {} argument(s) in one context but {} in another", left_count, right_count);
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
 }
 
 CompilerError TypeChecker::MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
@@ -857,7 +857,7 @@ CompilerError TypeChecker::MakeTupleArityError(const Token& token, size_t left_c
 		message = std::format("Tuple type mismatch: {} element(s) in one context but {} in another", left_count, right_count);
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
 }
 
 std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> TypeChecker::ResolveGenericTypeArguments(const std::shared_ptr<MidoriType>& prototype, const std::shared_ptr<MidoriType>& concrete_type) const
@@ -1127,7 +1127,7 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 			left_arg->ToString(),
 			right_arg->ToString()
 		);
-		return MidoriError::GenerateTypeCheckerErrorWithContext(message, token, m_file_name, m_source_lines);
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, message, token, m_file_name, m_source_lines);
 	}
 
 	return std::nullopt;
@@ -1147,15 +1147,16 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(build_expected_message(right, left), token, m_file_name, m_source_lines);
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(right, left), token, m_file_name, m_source_lines);
 	}
 	if (diagnostic_mode == UnifyDiagnosticMode::ExpectedActual)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(build_expected_message(left, right), token, m_file_name, m_source_lines);
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(left, right), token, m_file_name, m_source_lines);
 	}
 
 	return MidoriError::GenerateTypeCheckerErrorWithContext
 	(
+		CompilerErrorCode::TypeMismatch,
 		std::format("Type mismatch between '{}' and '{}'", left->ToString(), right->ToString()),
 		token,
 		m_file_name,
@@ -2432,7 +2433,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeCheckerResult
 	{
-		std::string errors;
+		std::vector<CompilerError> errors;
 
 		std::ranges::for_each
 		(
@@ -2442,7 +2443,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 				MidoriResult::TypeResult result = Evaluate(statement);
 				if (!result.has_value())
 				{
-					errors.append(result.error().Rendered()).append("\n");
+					errors.emplace_back(std::move(result.error()));
 				}
 			}
 		);
@@ -2451,7 +2452,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 		{
 			return std::move(m_program_tree);
 		}
-		return std::unexpected(std::move(errors));
+		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
 	});
 }
 
@@ -3387,7 +3388,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							MidoriResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
 							if (!unify_result.has_value())
 							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
+								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
 							}
 
 							prev_case_type = ApplySubstitution(resolved_prev_case_type);
@@ -3402,7 +3403,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						std::vector<std::string> missing_names(missing_cases.begin(), missing_cases.end());
 						const std::string missing_label = is_union ? "variants" : "cases";
 						const std::string message = std::format("Match expression type error: non-exhaustive match: missing {}: {}", missing_label, JoinSortedNames(std::move(missing_names)));
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(message, match.m_match_keyword, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
 					}
 				}
 				else
@@ -3414,7 +3415,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							&& IsIrrefutablePattern(*match.m_cases[0u]->GetExpression<MidoriExpression::Case>().m_pattern, resolved_arg_type);
 						if (!irrefutable)
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
 						}
 					}
 				}
@@ -4402,13 +4403,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(substituted_method_type);
 					if (!resolved_method_type->IsType<MidoriType::FunctionType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
 					}
 
 					MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
 					if (function_type.m_param_types.size() != arg_results.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 					}
 
 					std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
@@ -4571,13 +4572,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
 					if (!resolved_type->IsType<MidoriType::FunctionType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
 					}
 
 					MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
 					if (function_type.m_param_types.size() != call.m_arguments.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 					}
 
 					for (size_t idx : std::views::iota(0u, arg_results.size()))
@@ -4607,13 +4608,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 				if (!resolved_type->IsType<MidoriType::FunctionType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
 				}
 
 				MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
 				if (function_type.m_param_types.size() != call.m_arguments.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 				}
 
 				std::vector<std::shared_ptr<MidoriType>> arg_results;
@@ -4812,7 +4813,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		}
 	}
 
-	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
+	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& bind)
@@ -4836,7 +4837,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Assignment& b
 						);
 				}
 
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bind expression type error: variable not found", bind.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Bind expression type error: variable not found", bind.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -4922,7 +4923,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::CompoundAssig
 					return finish(ApplySubstitution(*binding));
 				}
 
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Compound assignment type error: variable not found", compound_assign.m_name, m_file_name, m_source_lines));
 			}
 		);
 }
@@ -5171,7 +5172,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: incorrect arity", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Construct expression type error: incorrect arity", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))

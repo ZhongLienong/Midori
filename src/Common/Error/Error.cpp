@@ -315,16 +315,18 @@ CompilerError CompilerError::NoMatch()
 	return error;
 }
 
-CompilerError CompilerError::Simple(CompilerStage stage, std::string_view message)
+CompilerError CompilerError::Simple(CompilerStage stage, std::string_view message, CompilerErrorCode code)
 {
 	CompilerError error(stage, std::string(message));
+	error.m_code = code;
 	return error;
 }
 
-CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line)
+CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line, CompilerErrorCode code)
 {
 	CompilerError error;
 	error.m_stage = stage;
+	error.m_code = code;
 	error.m_message = std::string(message);
 
 	CompilerErrorLocation location;
@@ -347,10 +349,10 @@ CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view m
 	return error;
 }
 
-CompilerError CompilerError::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError CompilerError::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerErrorCode code)
 {
 	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
-	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line);
+	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line, code);
 }
 
 bool CompilerError::IsNoMatch() const
@@ -430,7 +432,7 @@ std::string_view CompilerWarning::Rendered() const
 	return m_rendered.empty() ? std::string_view(m_message) : std::string_view(m_rendered);
 }
 
-CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion)
+CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, CompilerErrorCode code)
 {
 	std::optional<std::string_view> source_line = std::nullopt;
 	if (line > 0 && static_cast<size_t>(line) <= source_lines.size())
@@ -438,12 +440,12 @@ CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_vi
 		source_line = source_lines[line - 1];
 	}
 
-	return CompilerError::WithContext(stage, message, line, file_name, column, caret_length, suggestion, source_line);
+	return CompilerError::WithContext(stage, message, line, file_name, column, caret_length, suggestion, source_line, code);
 }
 
-CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerErrorCode code)
 {
-	return CompilerError::WithToken(stage, message, token, file_name, source_lines, suggestion);
+	return CompilerError::WithToken(stage, message, token, file_name, source_lines, suggestion, code);
 }
 
 CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
@@ -465,7 +467,12 @@ CompilerError MidoriError::GenerateLexerErrorWithContext(std::string_view messag
 
 CompilerError MidoriError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
-	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion);
+	return GenerateModuleErrorWithContext(CompilerErrorCode::None, message, line, file_name, suggestion);
+}
+
+CompilerError MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+{
+	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion, std::nullopt, code);
 }
 
 CompilerError MidoriError::GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
@@ -475,7 +482,12 @@ CompilerError MidoriError::GenerateParserErrorWithContext(std::string_view messa
 
 CompilerError MidoriError::GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	return GenerateRichError(CompilerStage::TypeChecker, message, token, file_name, source_lines, suggestion);
+	return GenerateTypeCheckerErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
+}
+
+CompilerError MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+{
+	return GenerateRichError(CompilerStage::TypeChecker, message, token, file_name, source_lines, suggestion, code);
 }
 
 std::string MidoriError::GenerateRuntimeError(std::string_view message, int line)

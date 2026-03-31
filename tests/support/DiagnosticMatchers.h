@@ -36,4 +36,6 @@ namespace MidoriTest
 	[[nodiscard]] const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code);
 
 	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage);
+	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerErrorCode code);
+	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage, CompilerErrorCode code);
 }

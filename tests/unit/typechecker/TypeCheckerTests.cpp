@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Compiler/TypeChecker/TypeChecker.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 
@@ -26,6 +27,14 @@ namespace
 		}
 
 		return nullptr;
+	}
+
+	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	{
+		std::string mismatch;
+		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		CAPTURE(mismatch);
+		REQUIRE(matched);
 	}
 }
 
@@ -118,12 +127,151 @@ def rendered = Display(new Hidden(1));
 	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "ConstraintFailure.mdr");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
-	std::string mismatch;
 	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeUnsatisfiedConstraint;
 	expectation.m_message_substrings = { "Type Hidden does not satisfy constraint Show<Hidden>", "no matching instance found" };
 	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mdr:13", "Display(new Hidden(1))" };
+	RequireErrorMatches(typecheck_result.error(), expectation);
+}
 
-	const bool matched = MidoriTest::Matches(typecheck_result.error(), expectation, &mismatch);
-	CAPTURE(mismatch);
-	REQUIRE(matched);
+TEST_CASE("TypeChecker exposes failures through shared diagnostics transport", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module SharedDiagnostics
+def number : Int = "oops";
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SharedDiagnostics.mdr");
+	REQUIRE(parse_result.has_value());
+
+	MidoriResult::TypeCheckerResult typecheck_result = TypeChecker
+	(
+		std::move(parse_result->m_program),
+		parse_result->m_source.FileName(),
+		parse_result->m_source.SourceLines()
+	).TypeCheck();
+
+	REQUIRE_FALSE(typecheck_result.has_value());
+	REQUIRE(typecheck_result.error().Size() == 1u);
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeMismatch;
+	expectation.m_line = 2;
+	expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "SharedDiagnostics.mdr:2" };
+	RequireErrorMatches(typecheck_result.error().First(), expectation);
+}
+
+TEST_CASE("TypeChecker preserves multiple top-level failures as separate diagnostics", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module MultipleDiagnostics
+def number : Int = "oops";
+def flag : Bool = 123;
+)";
+
+	std::expected<MidoriTest::TypedSnippet, MidoriResult::CompilerDiagnostics> typecheck_result =
+		MidoriTest::TypeCheckSnippetWithDiagnostics(source_code, "MultipleDiagnostics.mdr");
+	REQUIRE_FALSE(typecheck_result.has_value());
+	REQUIRE(typecheck_result.error().Size() == 2u);
+
+	MidoriTest::ErrorExpectation first_expectation;
+	first_expectation.m_stage = CompilerStage::TypeChecker;
+	first_expectation.m_code = CompilerErrorCode::TypeMismatch;
+	first_expectation.m_line = 2;
+	first_expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
+	first_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mdr:2" };
+	RequireErrorMatches(typecheck_result.error().m_errors[0u], first_expectation);
+
+	MidoriTest::ErrorExpectation second_expectation;
+	second_expectation.m_stage = CompilerStage::TypeChecker;
+	second_expectation.m_code = CompilerErrorCode::TypeMismatch;
+	second_expectation.m_line = 3;
+	second_expectation.m_message_substrings = { "Expected type 'Bool' but got 'Int'" };
+	second_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mdr:3" };
+	RequireErrorMatches(typecheck_result.error().m_errors[1u], second_expectation);
+}
+
+TEST_CASE("TypeChecker tags undefined names with a stable diagnostic code", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module UndefinedName
+def value = missing;
+)";
+
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "UndefinedName.mdr");
+	REQUIRE_FALSE(typecheck_result.has_value());
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeUndefinedName;
+	expectation.m_line = 2;
+	expectation.m_message_substrings = { "variable not found" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "UndefinedName.mdr:2" };
+	RequireErrorMatches(typecheck_result.error(), expectation);
+}
+
+TEST_CASE("TypeChecker tags non-callable values with a stable diagnostic code", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module NotCallable
+def value = 1;
+def result = value();
+)";
+
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NotCallable.mdr");
+	REQUIRE_FALSE(typecheck_result.has_value());
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeNotCallable;
+	expectation.m_line = 3;
+	expectation.m_message_substrings = { "not a callable" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "NotCallable.mdr:3" };
+	RequireErrorMatches(typecheck_result.error(), expectation);
+}
+
+TEST_CASE("TypeChecker tags incorrect arity with a stable diagnostic code", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module IncorrectArity
+defun id(value: Int): Int => value;
+def result = id();
+)";
+
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "IncorrectArity.mdr");
+	REQUIRE_FALSE(typecheck_result.has_value());
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeIncorrectArity;
+	expectation.m_line = 3;
+	expectation.m_message_substrings = { "incorrect arity" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "IncorrectArity.mdr:3" };
+	RequireErrorMatches(typecheck_result.error(), expectation);
+}
+
+TEST_CASE("TypeChecker tags non-exhaustive matches with a stable diagnostic code", "[typechecker][diagnostics]")
+{
+	const std::string source_code =
+		R"(module NonExhaustiveMatch
+union Option = None | Some(Int);
+def value = new Option::Some(1);
+def result = match value with
+    case Option::Some(x) => x
+;
+)";
+
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NonExhaustiveMatch.mdr");
+	REQUIRE_FALSE(typecheck_result.has_value());
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_code = CompilerErrorCode::TypeNonExhaustiveMatch;
+	expectation.m_line = 4;
+	expectation.m_message_substrings = { "non-exhaustive match", "None" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "NonExhaustiveMatch.mdr:4" };
+	RequireErrorMatches(typecheck_result.error(), expectation);
 }

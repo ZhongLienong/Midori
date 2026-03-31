@@ -5077,7 +5077,7 @@ MidoriResult::ParserResult Parser::Parse()
 			// Phase 2 recovery policy: Parse() is the single recovery boundary for hard parser errors.
 			// The parser still stops at the first hard error after synchronizing to the next declaration starter.
 			Synchronize();
-			return std::unexpected(MidoriResult::ParserDiagnostics(std::move(result.error())));
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(result.error())));
 		}
 	}
 

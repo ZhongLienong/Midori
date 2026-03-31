@@ -82,6 +82,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			if (existing_file != m_main_file_name)
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+					CompilerErrorCode::ModuleDeclarationDuplicate,
 					std::format
 					(
 						"Duplicate module declaration: '{}' is declared in multiple files:\n  First:  {}\n  Second: {}",
@@ -137,7 +138,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			std::optional<ImportResolver::ResolvedImport> resolved_opt = resolver.Resolve(import_specifier);
 			if (!resolved_opt.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Could not resolve import: "s + import_specifier, line, m_main_file_name));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportResolutionFailed, "Could not resolve import: "s + import_specifier, line, m_main_file_name));
 			}
 
 			std::string include_absolute_path_str = resolved_opt->m_absolute_path;
@@ -180,12 +181,12 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			std::ifstream include_file(include_absolute_path_str);
 			if (!include_file.is_open())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
 			}
 
 			if (HasCircularDependency())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Circular dependency detected: "s + include_absolute_path_str, line, m_main_file_name));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected: "s + include_absolute_path_str, line, m_main_file_name));
 			}
 
 			std::ostringstream include_file_stream;
@@ -196,7 +197,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			MidoriResult::LexerResult lex_result = Lexer(std::move(include_source), include_absolute_path_str).Lex();
 			if (!lex_result.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(lex_result.error().Rendered(), line, m_main_file_name));
+				return std::unexpected(std::move(lex_result.error()));
 			}
 
 			TokenStream imported_token_stream = std::move(lex_result.value());
@@ -205,7 +206,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(nested_build_graph_result.error().Rendered(), line, m_main_file_name));
+				return std::unexpected(std::move(nested_build_graph_result.error()));
 			}
 
 			BuildGraph& nested_build_graph = nested_build_graph_result.value();
@@ -244,7 +245,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 	if (HasCircularDependency())
 	{
-		return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Circular dependency detected in final build graph", 0, m_main_file_name));
+		return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected in final build graph", 0, m_main_file_name));
 	}
 
 	build_graph.m_module_declarations = m_module_declarations;
@@ -576,6 +577,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 		(
 			MidoriError::GenerateModuleErrorWithContext
 			(
+				CompilerErrorCode::ModuleDeclarationMissing,
 				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
 				1,
 				m_main_file_name
@@ -589,6 +591,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 		(
 			MidoriError::GenerateModuleErrorWithContext
 			(
+				CompilerErrorCode::ModuleDeclarationDuplicate,
 				"Multiple module declarations found. Each .mdr file must contain exactly one 'module ModuleName' declaration.",
 				module_spans[1]->m_line,
 				m_main_file_name
@@ -737,6 +740,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 		(
 			MidoriError::GenerateModuleErrorWithContext
 			(
+				CompilerErrorCode::ModuleDeclarationMissing,
 				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
 				1,
 				m_main_file_name

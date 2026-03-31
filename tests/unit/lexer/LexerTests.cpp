@@ -187,7 +187,13 @@ TEST_CASE("Lexer reports the dedicated =+ typo diagnostic", "[lexer]")
 
 	REQUIRE_FALSE(lex_result.has_value());
 
-	const std::string rendered_error = std::string(lex_result.error().Rendered());
+	const CompilerError& error = lex_result.error();
+	REQUIRE(error.m_stage == CompilerStage::Lexer);
+	REQUIRE(error.m_location.has_value());
+	CHECK(error.m_location->m_file_name == "EqualPlusTypo.mdr");
+	CHECK(error.m_location->m_line == 1);
+
+	const std::string rendered_error = std::string(error.Rendered());
 	CHECK_THAT(rendered_error, ContainsSubstring("Lexer Error"));
 	CHECK_THAT(rendered_error, ContainsSubstring("Unexpected character '=+' (did you mean '=++'?)"));
 	CHECK_THAT(rendered_error, ContainsSubstring("EqualPlusTypo.mdr:1"));

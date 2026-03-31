@@ -485,6 +485,8 @@ namespace
 		MidoriResult::ParserResult ast = parser.Parse();
 		if (!ast.has_value())
 		{
+			// Front-end stages can now preserve multiple structured diagnostics, but this
+			// compiler boundary still reports only the first one until the pipeline widens.
 			return std::unexpected(std::move(ast.error()).TakeFirst());
 		}
 
@@ -510,9 +512,17 @@ namespace
 		};
 	}
 
-	static MidoriResult::TypeCheckerResult TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
+	static MidoriResult::Result<MidoriProgramTree> TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
-		return TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings).TypeCheck();
+		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings).TypeCheck();
+		if (!typecheck_result.has_value())
+		{
+			// Front-end stages can now preserve multiple structured diagnostics, but this
+			// compiler boundary still reports only the first one until the pipeline widens.
+			return std::unexpected(std::move(typecheck_result.error()).TakeFirst());
+		}
+
+		return std::move(typecheck_result.value());
 	}
 
 	static StaticAnalysisResult StaticAnalyzeModule(MidoriProgramTree& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines)
@@ -698,7 +708,7 @@ namespace
 		{
 			if (!defined_exports.contains(exported_name))
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'", 0, file_path));
+				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleMissingExportedSymbol, "Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'", 0, file_path));
 			}
 		}
 

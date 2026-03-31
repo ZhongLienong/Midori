@@ -28,7 +28,19 @@ enum class CompilerStage
 enum class CompilerErrorCode
 {
 	None,
-	NoMatch
+	NoMatch,
+	ModuleImportResolutionFailed,
+	ModuleImportFileOpenFailed,
+	ModuleCircularDependency,
+	ModuleDeclarationMissing,
+	ModuleDeclarationDuplicate,
+	ModuleMissingExportedSymbol,
+	TypeUndefinedName,
+	TypeUnsatisfiedConstraint,
+	TypeNotCallable,
+	TypeIncorrectArity,
+	TypeMismatch,
+	TypeNonExhaustiveMatch
 };
 
 enum class CompilerWarningCode
@@ -65,9 +77,9 @@ struct CompilerError
 	CompilerError(CompilerStage stage, std::string message);
 
 	static CompilerError NoMatch();
-	static CompilerError Simple(CompilerStage stage, std::string_view message);
-	static CompilerError WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt);
-	static CompilerError WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError Simple(CompilerStage stage, std::string_view message, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
 
 	bool IsNoMatch() const;
 	std::string_view Rendered() const;
@@ -120,9 +132,9 @@ class MidoriError
 {
 private:
 
-	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column = std::nullopt, std::optional<size_t> caret_length = std::nullopt, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column = std::nullopt, std::optional<size_t> caret_length = std::nullopt, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
 
-	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
 
 public:
 	static CompilerError GenerateCodeGeneratorErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
@@ -132,13 +144,21 @@ public:
 	static CompilerError GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
 
 	static CompilerError GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion = std::nullopt);
 
 	static CompilerError GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
 
 	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
 
 	template <typename... ExpectedTypes>
 	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MidoriType>& actual = nullptr, ExpectedTypes&&... expected)
+	{
+		return GenerateTypeCheckerErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, actual, expected...);
+	}
+
+	template <typename... ExpectedTypes>
+	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MidoriType>& actual = nullptr, ExpectedTypes&&... expected)
 	{
 		std::string full_message = std::string(message);
 
@@ -166,7 +186,7 @@ public:
 			full_message = std::format("{}\nExpected {}, but got {}", message, expected_types, actual->ToString());
 		}
 
-		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines);
+		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines, std::nullopt, code);
 	}
 
 	static std::string GenerateRuntimeError(std::string_view message, int line);

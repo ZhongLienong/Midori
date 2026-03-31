@@ -16,20 +16,30 @@
 
 namespace MidoriResult
 {
-	struct ParserDiagnostics
+	struct CompilerDiagnostics
 	{
 		std::vector<CompilerError> m_errors;
 
-		ParserDiagnostics() = default;
+		CompilerDiagnostics() = default;
 
-		explicit ParserDiagnostics(CompilerError error)
+		explicit CompilerDiagnostics(CompilerError error)
 			: m_errors{ std::move(error) }
 		{
 		}
 
-		explicit ParserDiagnostics(std::vector<CompilerError>&& errors)
+		explicit CompilerDiagnostics(std::vector<CompilerError>&& errors)
 			: m_errors(std::move(errors))
 		{
+		}
+
+		[[nodiscard]] bool Empty() const
+		{
+			return m_errors.empty();
+		}
+
+		[[nodiscard]] size_t Size() const
+		{
+			return m_errors.size();
 		}
 
 		[[nodiscard]] const CompilerError& First() const
@@ -46,6 +56,9 @@ namespace MidoriResult
 	template<typename ValueType>
 	using Result = std::expected<ValueType, CompilerError>;
 
+	template<typename ValueType>
+	using DiagnosticsResult = std::expected<ValueType, CompilerDiagnostics>;
+
 	using Error = CompilerError;
 	using TokenResult = Result<Token>;
 	using TokenListResult = Result<std::vector<Token>>;
@@ -57,10 +70,10 @@ namespace MidoriResult
 	using ExpressionResult = Result<std::unique_ptr<MidoriExpression>>;
 	using PatternResult = Result<std::unique_ptr<MidoriPattern>>;
 	using StatementResult = Result<std::unique_ptr<MidoriStatement>>;
-	using ParserResult = std::expected<MidoriProgramTree, ParserDiagnostics>;
+	using ParserResult = DiagnosticsResult<MidoriProgramTree>;
 	using TypeResult = Result<std::shared_ptr<MidoriType>>;
 	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
-	using TypeCheckerResult = Result<MidoriProgramTree>;
+	using TypeCheckerResult = DiagnosticsResult<MidoriProgramTree>;
 	using OptimizerResult = Result<MidoriProgramTree>;
 	using CodeGeneratorResult = Result<BytecodeModule>;
 	using CompiledModuleResult = Result<CompiledModule>;
