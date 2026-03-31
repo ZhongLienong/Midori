@@ -64,7 +64,7 @@ TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[e
 
 TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warning][format]")
 {
-	const Token token(std::string("shadowed"), Token::Name::IDENTIFIER_LITERAL, 1, "Warning.mdr");
+	const Token token(std::string("shadowed"), Token::Name::IDENTIFIER_LITERAL, 1, "Warning.mdr", 4, 8u);
 	const std::vector<std::string> source_lines
 	{
 		"def shadowed = value"
@@ -87,6 +87,56 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		"  | Prefix with '_' if intentional\n";
 
 	REQUIRE(StripAnsiCodes(warning.Rendered()) == expected_render);
+}
+
+TEST_CASE("CompilerError WithToken uses the stored token span instead of searching the line text", "[error][format]")
+{
+	const Token token(std::string("alpha"), Token::Name::IDENTIFIER_LITERAL, 1, "Span.mdr", 20, 5u);
+	const std::vector<std::string> source_lines
+	{
+		"def alpha = alpha + alpha"
+	};
+
+	const CompilerError error = CompilerError::WithToken(
+		CompilerStage::Parser,
+		"Unexpected identifier",
+		token,
+		"Span.mdr",
+		source_lines);
+
+	const std::string expected_render =
+		"Parser Error at Span.mdr:1\n"
+		"  |\n"
+		"1 | def alpha = alpha + alpha\n"
+		"  | " + std::string(20u, ' ') + "^^^^^ Unexpected identifier\n"
+		"  |\n";
+
+	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
+}
+
+TEST_CASE("CompilerError WithToken renders a single caret for zero-length token spans", "[error][format]")
+{
+	const Token token(std::string{}, Token::Name::END_OF_FILE, 1, "Eof.mdr", 13, 0u);
+	const std::vector<std::string> source_lines
+	{
+		"def value = 1"
+	};
+
+	const CompilerError error = CompilerError::WithToken(
+		CompilerStage::Parser,
+		"Unexpected end of file",
+		token,
+		"Eof.mdr",
+		source_lines);
+
+	const std::string expected_render =
+		"Parser Error at Eof.mdr:1\n"
+		"  |\n"
+		"1 | def value = 1\n"
+		"  | " + std::string(13u, ' ') + "^ Unexpected end of file\n"
+		"  |\n";
+
+	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
 }
 
 TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warning][format]")

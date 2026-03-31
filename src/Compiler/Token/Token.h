@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -124,8 +125,12 @@ struct Token
 	std::string m_lexeme;
 	Name m_token_name;
 	int m_line;
+	std::optional<int> m_column = std::nullopt;
+	std::optional<size_t> m_source_length = std::nullopt;
 
-	Token(std::string&& lexeme, Name token_name, int line, std::string_view file_name) noexcept;
+	Token(std::string lexeme, Name token_name, int line, std::string_view file_name) noexcept;
+	Token(std::string lexeme, Name token_name, int line, std::string_view file_name, int column, size_t source_length) noexcept;
+	Token(std::string lexeme, Name token_name, const Token& anchor) noexcept;
 };
 
 class TokenStream

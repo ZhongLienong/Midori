@@ -485,7 +485,7 @@ namespace
 		MidoriResult::ParserResult ast = parser.Parse();
 		if (!ast.has_value())
 		{
-			return std::unexpected(ast.error());
+			return std::unexpected(std::move(ast.error()).TakeFirst());
 		}
 
 		std::unordered_set<std::string> export_set_for_types;

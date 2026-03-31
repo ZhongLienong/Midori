@@ -131,12 +131,24 @@ int Lexer::BeginColumn() const
 
 Token Lexer::MakeToken(Token::Name type) const
 {
-	return Token(m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin), type, m_cursor.m_line, m_source.m_file_name);
+	return Token(
+		m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin),
+		type,
+		m_cursor.m_line,
+		m_source.m_file_name,
+		BeginColumn(),
+		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin));
 }
 
 Token Lexer::MakeToken(Token::Name type, std::string&& lexeme) const
 {
-	return Token(std::move(lexeme), type, m_cursor.m_line, m_source.m_file_name);
+	return Token(
+		std::move(lexeme),
+		type,
+		m_cursor.m_line,
+		m_source.m_file_name,
+		BeginColumn(),
+		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin));
 }
 
 MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const

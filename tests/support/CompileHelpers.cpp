@@ -131,7 +131,7 @@ namespace MidoriTest
 		MidoriResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{
-			return std::unexpected(std::move(parse_result.error()));
+			return std::unexpected(std::move(parse_result.error()).TakeFirst());
 		}
 
 		std::vector<CompilerWarning> warnings = parser.GetWarnings();

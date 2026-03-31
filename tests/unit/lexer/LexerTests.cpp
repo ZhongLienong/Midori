@@ -108,6 +108,32 @@ def other = 2;
 	CHECK(other_token->m_line == 6);
 }
 
+TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
+{
+	const std::string source_code =
+		R"(def alpha = alpha + alpha;
+)";
+
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "TokenSpans.mdr");
+	if (!lex_result.has_value())
+	{
+		FAIL(std::string(lex_result.error().Rendered()));
+	}
+
+	const TokenStream& tokens = lex_result->m_tokens;
+	REQUIRE(tokens.Size() == 8);
+
+	CHECK(tokens[1].m_column == 4);
+	CHECK(tokens[1].m_source_length == 5u);
+	CHECK(tokens[3].m_column == 12);
+	CHECK(tokens[3].m_source_length == 5u);
+	CHECK(tokens[5].m_column == 20);
+	CHECK(tokens[5].m_source_length == 5u);
+	CHECK(tokens[7].m_token_name == Token::Name::END_OF_FILE);
+	CHECK(tokens[7].m_column == 26);
+	CHECK(tokens[7].m_source_length == 0u);
+}
+
 TEST_CASE("Lexer recognizes compound operator tokens used by later stages", "[lexer]")
 {
 	const std::string source_code =

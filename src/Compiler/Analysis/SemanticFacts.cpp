@@ -1483,34 +1483,34 @@ namespace MidoriAnalysis
 				{
 					if (literal_value)
 					{
-						return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("true", Token::Name::TRUE, source_token.m_line, source_token.m_file_name)));
+						return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("true", Token::Name::TRUE, source_token)));
 					}
 
-					return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("false", Token::Name::FALSE, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("false", Token::Name::FALSE, source_token)));
 				}
 				else if constexpr (std::is_same_v<T, MidoriInteger>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
 				}
 				else if constexpr (std::is_same_v<T, MidoriFloat>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token)));
 				}
 				else if constexpr (std::is_same_v<T, MidoriByte>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
 				}
 				else if constexpr (std::is_same_v<T, MidoriWord>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
 				}
 				else if constexpr (std::is_same_v<T, std::string>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(Token(std::string(literal_value), Token::Name::TEXT_LITERAL, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(Token(std::string(literal_value), Token::Name::TEXT_LITERAL, source_token)));
 				}
 				else
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Token("()", Token::Name::UNIT, source_token.m_line, source_token.m_file_name)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Token("()", Token::Name::UNIT, source_token)));
 				}
 			},
 			value.m_value

@@ -4,7 +4,31 @@
 #include <queue>
 #include <map>
 
-Token::Token(std::string&& lexeme, Name token_name, int line, std::string_view file_name) noexcept : m_lexeme(std::move(lexeme)), m_token_name(token_name), m_line(line), m_file_name(file_name)
+Token::Token(std::string lexeme, Name token_name, int line, std::string_view file_name) noexcept
+	: m_file_name(file_name),
+	m_lexeme(std::move(lexeme)),
+	m_token_name(token_name),
+	m_line(line)
+{
+}
+
+Token::Token(std::string lexeme, Name token_name, int line, std::string_view file_name, int column, size_t source_length) noexcept
+	: m_file_name(file_name),
+	m_lexeme(std::move(lexeme)),
+	m_token_name(token_name),
+	m_line(line),
+	m_column(column),
+	m_source_length(source_length)
+{
+}
+
+Token::Token(std::string lexeme, Name token_name, const Token& anchor) noexcept
+	: m_file_name(anchor.m_file_name),
+	m_lexeme(std::move(lexeme)),
+	m_token_name(token_name),
+	m_line(anchor.m_line),
+	m_column(anchor.m_column),
+	m_source_length(anchor.m_source_length)
 {
 }
 

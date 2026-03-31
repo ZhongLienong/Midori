@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "Common/Error/Error.h"
@@ -15,6 +16,33 @@
 
 namespace MidoriResult
 {
+	struct ParserDiagnostics
+	{
+		std::vector<CompilerError> m_errors;
+
+		ParserDiagnostics() = default;
+
+		explicit ParserDiagnostics(CompilerError error)
+			: m_errors{ std::move(error) }
+		{
+		}
+
+		explicit ParserDiagnostics(std::vector<CompilerError>&& errors)
+			: m_errors(std::move(errors))
+		{
+		}
+
+		[[nodiscard]] const CompilerError& First() const
+		{
+			return m_errors.front();
+		}
+
+		[[nodiscard]] CompilerError TakeFirst() &&
+		{
+			return std::move(m_errors.front());
+		}
+	};
+
 	template<typename ValueType>
 	using Result = std::expected<ValueType, CompilerError>;
 
@@ -29,7 +57,7 @@ namespace MidoriResult
 	using ExpressionResult = Result<std::unique_ptr<MidoriExpression>>;
 	using PatternResult = Result<std::unique_ptr<MidoriPattern>>;
 	using StatementResult = Result<std::unique_ptr<MidoriStatement>>;
-	using ParserResult = Result<MidoriProgramTree>;
+	using ParserResult = std::expected<MidoriProgramTree, ParserDiagnostics>;
 	using TypeResult = Result<std::shared_ptr<MidoriType>>;
 	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
 	using TypeCheckerResult = Result<MidoriProgramTree>;

@@ -65,8 +65,7 @@ namespace
 		(
 			std::format("__lifted_{}_{}", base_name, s_global_lift_id++),
 			Token::Name::IDENTIFIER_LITERAL,
-			source_token.m_line,
-			source_token.m_file_name
+			source_token
 		);
 	}
 

@@ -166,10 +166,26 @@ class TestRunner:
             return expected_file.read_text(encoding='utf-8')
         return None
 
+    def normalize_snapshot_text(self, text: str) -> str:
+        """Normalize diagnostic/output text before comparing it to a snapshot."""
+        clean = re.sub(r'\x1b\[[0-9;]*m', '', text)
+        clean = clean.replace('\r\n', '\n').replace('\r', '')
+
+        resolved_root = str(self.root_dir.resolve())
+        root_variants = {resolved_root, resolved_root.replace('\\', '/')}
+        for root in root_variants:
+            clean = clean.replace(root + "\\", "")
+            clean = clean.replace(root + "/", "")
+
+        clean = clean.replace('\\', '/')
+        clean = re.sub(r'(^\d+ \| .*)\n+(?=\s+\|)', r'\1\n', clean, flags=re.MULTILINE)
+        return '\n'.join(line.rstrip() for line in clean.split('\n'))
+
     def run_test(self, test_path: Path) -> TestResult:
         """Run a single test file."""
         relative_path = test_path.relative_to(self.test_dir)
         test_name = str(relative_path)
+        command_path = str(test_path.relative_to(self.root_dir))
 
         expected_to_fail = self.is_failure_test(test_path)
         expected_output = self.get_expected_output(test_path)
@@ -181,18 +197,20 @@ class TestRunner:
             env["MIDORI_TEST_MODE"] = "1"
 
             result = subprocess.run(
-                [str(self.midori_exe), str(test_path)],
+                [str(self.midori_exe), command_path],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
                 timeout=30,
-                env=env
+                env=env,
+                cwd=self.root_dir
             )
 
             duration_ms = (time.time() - start) * 1000
 
             output = result.stdout + result.stderr
+            normalized_output = self.normalize_snapshot_text(output)
 
             # Determine if test passed
             if expected_to_fail:
@@ -202,11 +220,10 @@ class TestRunner:
                 # Success tests should have zero exit code
                 passed = result.returncode == 0
 
-                # If there's expected output, verify it matches
-                if passed and expected_output is not None:
-                    # Remove ANSI color codes for comparison
-                    clean_output = re.sub(r'\x1b\[[0-9;]*m', '', output)
-                    passed = clean_output.strip() == expected_output.strip()
+            # Compare snapshots for both success and failure tests after normalizing
+            if passed and expected_output is not None:
+                normalized_expected = self.normalize_snapshot_text(expected_output)
+                passed = normalized_output.strip() == normalized_expected.strip()
 
             return TestResult(
                 name=test_name,

@@ -5,6 +5,13 @@
 
 namespace
 {
+	struct TokenLocationContext
+	{
+		std::optional<int> m_column = std::nullopt;
+		std::optional<size_t> m_caret_length = std::nullopt;
+		std::optional<std::string_view> m_source_line = std::nullopt;
+	};
+
 	std::string_view StageLabel(CompilerStage stage)
 	{
 		switch (stage)
@@ -255,6 +262,25 @@ namespace
 
 		return oss.str();
 	}
+
+	TokenLocationContext GetTokenLocationContext(const Token& token, const std::vector<std::string>& source_lines)
+	{
+		TokenLocationContext context;
+		if (token.m_line <= 0 || static_cast<size_t>(token.m_line) > source_lines.size())
+		{
+			return context;
+		}
+
+		context.m_source_line = source_lines[static_cast<size_t>(token.m_line - 1)];
+		if (!token.m_column.has_value())
+		{
+			return context;
+		}
+
+		context.m_column = token.m_column;
+		context.m_caret_length = std::max(token.m_source_length.value_or(0u), size_t(1u));
+		return context;
+	}
 }
 
 CompilerError::CompilerError(std::string message)
@@ -323,23 +349,8 @@ CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view m
 
 CompilerError CompilerError::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	// Find column position by searching for the token lexeme in the source line
-	std::optional<int> column = std::nullopt;
-	std::optional<size_t> caret_length = std::nullopt;
-	std::optional<std::string_view> source_line = std::nullopt;
-
-	if (token.m_line > 0 && static_cast<size_t>(token.m_line) <= source_lines.size())
-	{
-		source_line = source_lines[static_cast<size_t>(token.m_line - 1)];
-		size_t col_pos = source_line->find(token.m_lexeme);
-		if (col_pos != std::string::npos)
-		{
-			column = static_cast<int>(col_pos);
-			caret_length = std::max(token.m_lexeme.length(), size_t(1u));
-		}
-	}
-
-	return WithContext(stage, message, token.m_line, file_name, column, caret_length, suggestion, source_line);
+	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
+	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line);
 }
 
 bool CompilerError::IsNoMatch() const
@@ -410,22 +421,8 @@ CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_vi
 
 CompilerWarning CompilerWarning::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	std::optional<int> column = std::nullopt;
-	std::optional<size_t> caret_length = std::nullopt;
-	std::optional<std::string_view> source_line = std::nullopt;
-
-	if (token.m_line > 0 && static_cast<size_t>(token.m_line) <= source_lines.size())
-	{
-		source_line = source_lines[static_cast<size_t>(token.m_line - 1)];
-		size_t col_pos = source_line->find(token.m_lexeme);
-		if (col_pos != std::string::npos)
-		{
-			column = static_cast<int>(col_pos);
-			caret_length = std::max(token.m_lexeme.length(), size_t(1u));
-		}
-	}
-
-	return WithContext(stage, message, token.m_line, file_name, column, caret_length, suggestion, source_line);
+	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
+	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line);
 }
 
 std::string_view CompilerWarning::Rendered() const

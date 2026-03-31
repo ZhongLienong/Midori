@@ -805,8 +805,6 @@ bool Parser::IsAtGlobalScope() const
 
 CompilerError Parser::GenerateParserError(std::string&& message, const Token& token)
 {
-	Synchronize();
-	
 	// If the token is from a different file, read that file's source lines
 	if (token.m_file_name != m_context.m_file_name && !token.m_file_name.empty())
 	{
@@ -965,7 +963,7 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 	else
 	{
-		return std::unexpected(MidoriError::GenerateParserErrorWithContext(message, Peek(0), m_context.m_file_name, *m_context.m_source_lines));
+		return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 	}
 }
 
@@ -1891,12 +1889,13 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 			return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, {}));
 		}
 
-		// Look ahead to detect array comprehension [expr for x in range]
-		// If detected, we need to register the loop variable BEFORE parsing the transform expression
-		std::optional<int> comp_var_offset = DetectArrayComprehension();
-		if (comp_var_offset.has_value())
+		// Probe for comprehension intent before parsing the first element.
+		// This lets malformed comprehensions route into the dedicated diagnostics path
+		// without stealing arrays whose first element is itself a `for` expression.
+		ArrayComprehensionProbe comprehension_probe = ProbeArrayComprehension();
+		if (comprehension_probe.m_is_candidate)
 		{
-			return ParseArrayComprehension(op);
+			return ParseArrayComprehension(op, comprehension_probe);
 		}
 
 		// Otherwise, parse as normal array literal
@@ -2227,20 +2226,26 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 		);
 }
 
-std::optional<int> Parser::DetectArrayComprehension()
+Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 {
-	// Look ahead to find `for identifier in` pattern at bracket depth 0
-	// Returns offset to the identifier token if found, std::nullopt otherwise
-	// We're positioned right after '[', looking for: expr for identifier in range ]
+	// Look ahead for a likely comprehension boundary at bracket depth 0.
+	// Returning a candidate here means the array should be parsed through the
+	// comprehension path so syntax errors stay comprehension-specific.
 
 	int offset = 0;
 	int bracket_depth = 0;
 	int paren_depth = 0;
 	int brace_depth = 0;
 
-	while (!IsAtEnd())
+	while (true)
 	{
 		Token::Name current = Peek(offset).m_token_name;
+		if (current == Token::Name::END_OF_FILE)
+		{
+			return {};
+		}
+
+		const bool at_top_level = bracket_depth == 0 && paren_depth == 0 && brace_depth == 0;
 
 		// Track nesting
 		if (current == Token::Name::LEFT_BRACKET)
@@ -2249,10 +2254,9 @@ std::optional<int> Parser::DetectArrayComprehension()
 		}
 		else if (current == Token::Name::RIGHT_BRACKET)
 		{
-			if (bracket_depth == 0)
+			if (at_top_level)
 			{
-				// Reached end of array without finding comprehension
-				return std::nullopt;
+				return {};
 			}
 			bracket_depth -= 1;
 		}
@@ -2272,19 +2276,29 @@ std::optional<int> Parser::DetectArrayComprehension()
 		{
 			brace_depth -= 1;
 		}
-		else if (current == Token::Name::FOR && bracket_depth == 0 && paren_depth == 0 && brace_depth == 0)
+		else if (current == Token::Name::COMMA && at_top_level)
 		{
-			// Found 'for' at depth 0, check for 'identifier in' pattern
-			if (Peek(offset + 1).m_token_name == Token::Name::IDENTIFIER_LITERAL && Peek(offset + 2).m_token_name == Token::Name::IN)
-			{
-				// Return offset to the identifier
-				return offset + 1;
-			}
+			return {};
 		}
-		else if (current == Token::Name::COMMA && bracket_depth == 0 && paren_depth == 0 && brace_depth == 0)
+		else if (current == Token::Name::FOR && at_top_level)
 		{
-			// Comma at depth 0 means this is a regular array literal
-			return std::nullopt;
+			// `[for ...]` is an array whose first element is a for-expression, not a comprehension.
+			if (offset == 0)
+			{
+				return {};
+			}
+
+			ArrayComprehensionProbe probe;
+			probe.m_is_candidate = true;
+			if (Peek(offset + 1).m_token_name == Token::Name::IDENTIFIER_LITERAL)
+			{
+				probe.m_loop_variable_offset = offset + 1;
+			}
+			return probe;
+		}
+		else if (current == Token::Name::IDENTIFIER_LITERAL && at_top_level && offset > 0 && Peek(offset + 1).m_token_name == Token::Name::IN)
+		{
+			return ArrayComprehensionProbe{ true, offset };
 		}
 
 		offset += 1;
@@ -2292,83 +2306,97 @@ std::optional<int> Parser::DetectArrayComprehension()
 		// Safety limit to prevent infinite loop
 		if (offset > MAX_ARRAY_SIZE)
 		{
-			return std::nullopt;
+			return {};
 		}
 	}
-
-	return std::nullopt;
 }
 
-MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
+MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe)
 {
-	std::optional<int> var_offset = DetectArrayComprehension();
-	if (!var_offset.has_value())
-	{
-		return std::unexpected(GenerateParserError("Internal error: comprehension detection failed.", Peek(0)));
-	}
-
-	Token loop_variable = Peek(var_offset.value());
-
 	static int s_comp_counter = 0;
-	BeginScope();
+	bool scope_open = false;
+	auto close_scope = [this, &scope_open]()
+		{
+			if (scope_open)
+			{
+				EndScope();
+				scope_open = false;
+			}
+		};
 
-	// Register loop variable FIRST so it's in scope for the transform expression
-	std::string var_name(loop_variable.m_lexeme);
-	RegisterOrUpdateLocalVariable(var_name);
-	int var_index = m_state.m_total_variables - 1;
+	int var_index = -1;
+	int hidden_step_index = -1;
+	int hidden_end_index = -1;
+	int hidden_array_index = -1;
+	int result_array_index = -1;
 
-	// Reserve hidden variable slots (similar to For loop)
-	RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_step_index = m_state.m_total_variables - 1;
+	if (probe.m_loop_variable_offset.has_value())
+	{
+		Token loop_variable = Peek(probe.m_loop_variable_offset.value());
+		BeginScope();
+		scope_open = true;
 
-	RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_end_index = m_state.m_total_variables - 1;
+		// Register the loop variable before parsing the transform expression so
+		// comprehensions like `[i for i in range]` resolve `i` correctly.
+		RegisterOrUpdateLocalVariable(std::string(loop_variable.m_lexeme));
+		var_index = m_state.m_total_variables - 1;
 
-	RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter));
-	int hidden_array_index = m_state.m_total_variables - 1;
+		RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter));
+		hidden_step_index = m_state.m_total_variables - 1;
 
-	RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter));
-	int result_array_index = m_state.m_total_variables - 1;
+		RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter));
+		hidden_end_index = m_state.m_total_variables - 1;
 
-	s_comp_counter += 1;
+		RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter));
+		hidden_array_index = m_state.m_total_variables - 1;
+
+		RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter));
+		result_array_index = m_state.m_total_variables - 1;
+
+		s_comp_counter += 1;
+	}
 
 	return ParseExpression()
 		.and_then
 		(
-			[&bracket, &loop_variable, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
+			[&bracket, &close_scope, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
 			{
 				if (!Match(Token::Name::FOR))
 				{
-					EndScope();
-					return std::unexpected(GenerateParserError("Expected 'for' in array comprehension.", Peek(0)));
+					close_scope();
+					return std::unexpected(GenerateParserError("Expected 'for' in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 				}
 
 				if (!Match(Token::Name::IDENTIFIER_LITERAL))
 				{
-					EndScope();
+					close_scope();
 					return std::unexpected(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
 				}
 				Token actual_loop_var = Previous();
 
 				if (!Match(Token::Name::IN))
 				{
-					EndScope();
-					return std::unexpected(GenerateParserError("Expected 'in' after loop variable in array comprehension.", Peek(0)));
+					close_scope();
+					return std::unexpected(GenerateParserError("Expected 'in' after loop variable in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 				}
 				Token in_keyword = Previous();
 
 				return ParseExpression()
 					.and_then
 					(
-						[&bracket, &actual_loop_var, &in_keyword, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
+						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
 						{
-						if (!Match(Token::Name::RIGHT_BRACKET))
-						{
-							EndScope();
-							return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
-						}
+							if (!Match(Token::Name::RIGHT_BRACKET))
+							{
+								close_scope();
+								return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
+							}
 
-							EndScope();
+							close_scope();
+							if (var_index < 0 || hidden_step_index < 0 || hidden_end_index < 0 || hidden_array_index < 0 || result_array_index < 0)
+							{
+								return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
+							}
 
 							std::unique_ptr<MidoriExpression> comp_expr = std::make_unique<MidoriExpression>(MidoriExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
 
@@ -2381,7 +2409,23 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket)
 
 							return comp_expr;
 						}
+					)
+					.or_else
+					(
+						[&close_scope](CompilerError&& error) -> MidoriResult::ExpressionResult
+						{
+							close_scope();
+							return std::unexpected(std::move(error));
+						}
 					);
+			}
+		)
+		.or_else
+		(
+			[&close_scope](CompilerError&& error) -> MidoriResult::ExpressionResult
+			{
+				close_scope();
+				return std::unexpected(std::move(error));
 			}
 		);
 }
@@ -5013,7 +5057,6 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 MidoriResult::ParserResult Parser::Parse()
 {
 	MidoriProgramTree programTree;
-std::string errors;
 
 	while (!IsAtEnd() || !m_pending_statements.empty())
 	{
@@ -5031,14 +5074,14 @@ std::string errors;
 		}
 		else
 		{
-			errors.append(result.error().Rendered()).push_back('\n');
-			break;
+			// Phase 2 recovery policy: Parse() is the single recovery boundary for hard parser errors.
+			// The parser still stops at the first hard error after synchronizing to the next declaration starter.
+			Synchronize();
+			return std::unexpected(MidoriResult::ParserDiagnostics(std::move(result.error())));
 		}
 	}
 
-	return errors.empty()
-		? MidoriResult::ParserResult(std::move(programTree))
-		: std::unexpected(std::move(errors));
+	return MidoriResult::ParserResult(std::move(programTree));
 }
 
 MidoriResult::TokenResult Parser::MatchNameResolution()
@@ -5198,7 +5241,7 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 
 Token Parser::MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const
 {
-	return Token(std::move(lexeme), token_name, anchor.m_line, anchor.m_file_name);
+	return Token(std::move(lexeme), token_name, anchor);
 }
 
 std::string Parser::AppendSuffixToQualifiedName(std::string_view qualified_name, std::string_view suffix) const
@@ -5931,8 +5974,13 @@ Parser& Parser::Synchronize() &
 		switch (Peek(0).m_token_name)
 		{
 			case Token::Name::DEF:
+			case Token::Name::DEFUN:
 			case Token::Name::STRUCT:
 			case Token::Name::UNION:
+			case Token::Name::CLASS:
+			case Token::Name::INSTANCE:
+			case Token::Name::FOREIGN:
+			case Token::Name::TYPE:
 				return *this;
 			default:
 				Advance();

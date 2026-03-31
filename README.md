@@ -681,7 +681,8 @@ Test fixtures are file-based:
 ```bash
 # Add a new program test under test/<category>/<name>.mdr
 # Put tests under a failure/ directory when they should fail compilation
-# Add <name>.expected to assert stdout/stderr snapshots
+# Add <name>.expected to assert stdout/stderr or compile-fail diagnostic snapshots
+# Snapshot comparison strips ANSI codes and repo-root path prefixes first
 # Add <name>.warnings.json to assert warning code, line, and message fragments
 ```
 

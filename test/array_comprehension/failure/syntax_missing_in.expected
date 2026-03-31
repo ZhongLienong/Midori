@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/array_comprehension/failure/syntax_missing_in.mdr:4
+  |
+4 | def x = [i for i 0..1..10];
+  |                  ^ Expected 'in' after loop variable in array comprehension. Use '[expr for item in range]' syntax.
+  |

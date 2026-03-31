@@ -1,8 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Common/Constant/Constant.h"
+#include "Compiler/BuildGraph/BuildGraph.h"
+#include "Compiler/Lexer/Lexer.h"
+#include "Compiler/ModuleManager/ModuleManager.h"
+#include "Compiler/Parser/Parser.h"
 #include "Compiler/Token/Token.h"
 #include "support/CompileHelpers.h"
+#include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
 
 #include <expected>
@@ -10,6 +15,15 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+
+struct ParserTestAccess
+{
+	static Token::Name CurrentTokenName(Parser& parser)
+	{
+		return parser.Peek(0).m_token_name;
+	}
+};
 
 namespace
 {
@@ -38,6 +52,77 @@ namespace
 		REQUIRE(pattern != nullptr);
 		REQUIRE(pattern->template IsPattern<PatternType>());
 		return pattern->template GetPattern<PatternType>();
+	}
+
+	struct PreparedParser
+	{
+		MidoriTest::SourceFixture m_source;
+		std::optional<ModuleDeclaration> m_module_declaration;
+		std::vector<UseImport> m_use_imports;
+		Parser m_parser;
+
+		PreparedParser(MidoriTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+			: m_source(std::move(source)),
+			m_module_declaration(std::move(module_declaration)),
+			m_use_imports(std::move(use_imports)),
+			m_parser
+			(
+				std::move(tokens),
+				m_source.FileName(),
+				m_source.SourceLines(),
+				{},
+				{},
+				m_use_imports,
+				m_module_declaration.has_value() ? &m_module_declaration.value() : nullptr
+			)
+		{
+		}
+	};
+
+	std::expected<std::unique_ptr<PreparedParser>, CompilerError> PrepareParser(std::string source_code, std::string file_name)
+	{
+		MidoriTest::SourceFixture source(std::move(source_code), std::move(file_name));
+		MidoriResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
+		if (!lex_result.has_value())
+		{
+			return std::unexpected(std::move(lex_result.error()));
+		}
+
+		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines()).GenerateBuildGraph();
+		if (!build_graph_result.has_value())
+		{
+			return std::unexpected(std::move(build_graph_result.error()));
+		}
+
+		BuildGraph build_graph = std::move(build_graph_result.value());
+		std::unordered_map<std::string, BuildGraph::BuildNode>::iterator node_it = build_graph.m_nodes.find(source.FileName());
+		if (node_it == build_graph.m_nodes.end())
+		{
+			return std::unexpected(CompilerError::Simple(CompilerStage::Module, "Failed to locate the prepared parser module."));
+		}
+
+		std::optional<ModuleDeclaration> module_declaration = std::nullopt;
+		std::unordered_map<std::string, ModuleDeclaration>::const_iterator module_it = build_graph.m_module_declarations.find(source.FileName());
+		if (module_it != build_graph.m_module_declarations.end())
+		{
+			module_declaration = module_it->second;
+		}
+
+		return std::make_unique<PreparedParser>
+		(
+			std::move(source),
+			std::move(node_it->second.m_tokens),
+			std::move(module_declaration),
+			std::move(node_it->second.m_use_imports)
+		);
+	}
+
+	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	{
+		std::string mismatch;
+		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		CAPTURE(mismatch);
+		REQUIRE(matched);
 	}
 }
 
@@ -130,6 +215,176 @@ def local_value = 1;
 	const MidoriProgramTree& program = parse_result->m_program;
 	REQUIRE(program.size() == 1u);
 	static_cast<void>(RequireVariableDefinition(program, 0u, "local_value"));
+}
+
+TEST_CASE("Parser errors preserve parser stage and exact source metadata", "[parser][diagnostic]")
+{
+	const std::string source_code =
+		R"(module ParserFailure
+def value = ;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserFailure.mdr");
+	REQUIRE_FALSE(parse_result.has_value());
+
+	const CompilerError& error = parse_result.error();
+	RequireErrorMatches(
+		error,
+		MidoriTest::ErrorExpectation
+		{
+			.m_stage = CompilerStage::Parser,
+			.m_line = 2,
+			.m_rendered_substrings = { "Parser Error", "ParserFailure.mdr:2", "def value = ;" }
+		});
+
+	REQUIRE(error.m_location.has_value());
+	CHECK(error.m_location->m_file_name == "ParserFailure.mdr");
+	CHECK(error.m_location->m_line == 2);
+	CHECK(error.m_location->m_column == 12);
+	CHECK(error.m_location->m_caret_length == 1u);
+	CHECK(error.m_location->m_source_line == std::optional<std::string>("def value = ;"));
+}
+
+TEST_CASE("Parser reports array comprehension near-miss syntax before name resolution", "[parser][diagnostic]")
+{
+	SECTION("missing for")
+	{
+		const std::string source_code =
+			R"(module SyntaxMissingFor
+def value = [i i in 0..1..10];
+)";
+
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingFor.mdr");
+		REQUIRE_FALSE(parse_result.has_value());
+		const CompilerError& error = parse_result.error();
+		RequireErrorMatches(
+			error,
+			MidoriTest::ErrorExpectation
+			{
+				.m_stage = CompilerStage::Parser,
+				.m_line = 2,
+				.m_message_substrings = { "Expected 'for' in array comprehension." },
+				.m_rendered_substrings = { "SyntaxMissingFor.mdr:2", "def value = [i i in 0..1..10];" }
+			});
+
+		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
+		REQUIRE(error.m_location.has_value());
+		REQUIRE(error.m_location->m_column.has_value());
+		CHECK(error.m_location->m_column.value() == 15);
+	}
+
+	SECTION("missing in")
+	{
+		const std::string source_code =
+			R"(module SyntaxMissingIn
+def value = [i for i 0..1..10];
+)";
+
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingIn.mdr");
+		REQUIRE_FALSE(parse_result.has_value());
+		const CompilerError& error = parse_result.error();
+		RequireErrorMatches(
+			error,
+			MidoriTest::ErrorExpectation
+			{
+				.m_stage = CompilerStage::Parser,
+				.m_line = 2,
+				.m_message_substrings = { "Expected 'in' after loop variable in array comprehension." },
+				.m_rendered_substrings = { "SyntaxMissingIn.mdr:2", "def value = [i for i 0..1..10];" }
+			});
+
+		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
+		REQUIRE(error.m_location.has_value());
+		REQUIRE(error.m_location->m_column.has_value());
+		CHECK(error.m_location->m_column.value() == 21);
+	}
+}
+
+TEST_CASE("Parser keeps arrays whose first element is a for-expression out of the comprehension path", "[parser]")
+{
+	const std::string source_code =
+		R"(module ArrayForLiteral
+def value = [for i in 0..1..10 i];
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrayForLiteral.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriStatement::VariableDefinition& value_definition = RequireVariableDefinition(parse_result->m_program, 0u, "value");
+	const MidoriExpression::Array& array_expr = RequireExpression<MidoriExpression::Array>(value_definition.m_value);
+	REQUIRE(array_expr.m_elems.size() == 1u);
+	static_cast<void>(RequireExpression<MidoriExpression::For>(array_expr.m_elems[0u]));
+}
+
+TEST_CASE("Parser synchronizes consume failures to every top-level declaration starter in Phase 2", "[parser][recovery]")
+{
+	struct SyncCase
+	{
+		std::string_view m_name;
+		std::string_view m_next_declaration;
+		Token::Name m_expected_token;
+	};
+
+	const std::vector<SyncCase> cases =
+	{
+		{ "defun", "defun next(): Int => 0;\n", Token::Name::DEFUN },
+		{ "class", "class Next<T> {\n\tproject: fn(value: T) -> T;\n};\n", Token::Name::CLASS },
+		{ "instance", "instance Next<Int> {\n\tdefun project(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
+		{ "foreign", "foreign \"MIDORI_FFI_Next\" NextForeign : fn() -> Int;\n", Token::Name::FOREIGN },
+		{ "type", "type Alias = Int;\n", Token::Name::TYPE },
+	};
+
+	for (const SyncCase& sync_case : cases)
+	{
+		SECTION(std::string(sync_case.m_name))
+		{
+			const std::string source_code = std::format
+			(
+				R"(module ParserRecovery
+def value = 1
+{})",
+				sync_case.m_next_declaration
+			);
+
+			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, std::format("ParserRecovery_{}.mdr", sync_case.m_name));
+			if (!prepared_result.has_value())
+			{
+				FAIL(std::string(prepared_result.error().Rendered()));
+			}
+
+			PreparedParser& prepared = *prepared_result.value();
+			MidoriResult::ParserResult parse_result = prepared.m_parser.Parse();
+			REQUIRE_FALSE(parse_result.has_value());
+			CHECK(parse_result.error().First().m_message.find("Expected ';' after name binding.") != std::string::npos);
+			CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == sync_case.m_expected_token);
+		}
+	}
+}
+
+TEST_CASE("Parser recovers limited helper failures at the top-level parse boundary", "[parser][recovery]")
+{
+	const std::string source_code =
+		R"(module ParserRecoveryLimited
+defun broken(value next): Int => value;
+class Next<T> {
+	project: fn(value: T) -> T;
+};
+)";
+
+	std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, "ParserRecoveryLimited.mdr");
+	if (!prepared_result.has_value())
+	{
+		FAIL(std::string(prepared_result.error().Rendered()));
+	}
+
+	PreparedParser& prepared = *prepared_result.value();
+	MidoriResult::ParserResult parse_result = prepared.m_parser.Parse();
+	REQUIRE_FALSE(parse_result.has_value());
+	CHECK(parse_result.error().First().m_message.find("Expected ':' after parameter name.") != std::string::npos);
+	CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == Token::Name::CLASS);
 }
 
 TEST_CASE("Parser rejects qualified access to private exports outside the current namespace", "[parser][module]")

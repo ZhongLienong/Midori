@@ -103,6 +103,12 @@ private:
 		ActiveConstraintGuard& operator=(const ActiveConstraintGuard&) = delete;
 	};
 
+	struct ArrayComprehensionProbe
+	{
+		bool m_is_candidate = false;
+		std::optional<int> m_loop_variable_offset = std::nullopt;
+	};
+
 	enum class ImportedSymbolAccess
 	{
 		Accessible,
@@ -129,6 +135,8 @@ private:
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
 	std::queue<std::unique_ptr<MidoriStatement>> m_pending_statements;
+
+	friend struct ParserTestAccess;
 
 public:
 	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
@@ -279,7 +287,7 @@ private:
 			)
 			.or_else
 			(
-				[&acc, &end_cond, this](CompilerError&& try_parser_error)
+				[&acc, &end_cond](CompilerError&& try_parser_error)
 				{
 					return end_cond()
 						.and_then
@@ -291,10 +299,8 @@ private:
 						)
 						.or_else
 						(
-							[&try_parser_error, this](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
+							[&try_parser_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
-								Advance();
-								Synchronize();
 								return std::unexpected(std::move(try_parser_error));
 							}
 						);
@@ -372,7 +378,7 @@ private:
 			)
 			.or_else
 			(
-				[&acc, &end_cond, this](CompilerError&& try_parser_error)
+				[&acc, &end_cond](CompilerError&& try_parser_error)
 				{
 					return end_cond()
 						.and_then
@@ -384,10 +390,8 @@ private:
 						)
 						.or_else
 						(
-							[&try_parser_error, this](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
+							[&try_parser_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
 							{
-								Advance();
-								Synchronize();
 								return std::unexpected(std::move(try_parser_error));
 							}
 						);
@@ -503,7 +507,7 @@ private:
 
 	std::optional<int> RegisterHiddenLocal(const std::string&);
 
-	std::optional<int> DetectArrayComprehension();
+	ArrayComprehensionProbe ProbeArrayComprehension();
 
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
 
@@ -559,7 +563,7 @@ private:
 
 	MidoriResult::ExpressionResult ParseForExpression();
 
-	MidoriResult::ExpressionResult ParseArrayComprehension(Token& bracket);
+	MidoriResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
 
 	MidoriResult::ExpressionResult ParseReturnExpression();
 
