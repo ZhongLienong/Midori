@@ -147,6 +147,66 @@ namespace
 
 		return instance_inits_by_module;
 	}
+
+	std::string DiagnosticFileName(const BytecodeModule& module)
+	{
+		if (!module.m_source_path.empty())
+		{
+			return module.m_source_path.string();
+		}
+
+		return module.m_module_name;
+	}
+
+	std::string FormatModuleOrigin(const BytecodeModule& module, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
+	{
+		const std::string file_name = DiagnosticFileName(module);
+		if (!file_name.empty())
+		{
+			if (source_provenance.has_value() && source_provenance->m_line > 0)
+			{
+				return std::format("{}:{}", file_name, source_provenance->m_line);
+			}
+
+			return file_name;
+		}
+
+		if (!module.m_module_name.empty())
+		{
+			return std::format("module {}", module.m_module_name);
+		}
+
+		return "<unknown module>";
+	}
+
+	std::optional<std::string_view> ToOptionalStringView(const std::optional<std::string>& source_line)
+	{
+		if (!source_line.has_value())
+		{
+			return std::nullopt;
+		}
+
+		return std::string_view(source_line.value());
+	}
+
+	std::optional<CompilerError> MakeContextualLinkerError(CompilerErrorCode code, std::string_view message, const BytecodeModule& module, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
+	{
+		if (!source_provenance.has_value() || source_provenance->m_line <= 0)
+		{
+			return std::nullopt;
+		}
+
+		return CompilerError::WithContext(
+			CompilerStage::BytecodeLinker,
+			message,
+			source_provenance->m_line,
+			DiagnosticFileName(module),
+			source_provenance->m_column,
+			source_provenance->m_caret_length,
+			std::nullopt,
+			ToOptionalStringView(source_provenance->m_source_line),
+			code);
+	}
 }
 
 BytecodeLinker::BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name)
@@ -159,7 +219,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 {
 	if (m_modules.empty())
 	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, "Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)"));
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, "Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)", CompilerErrorCode::BytecodeLinkerNoModulesToLink));
 	}
 
 	AssignModuleBaseOffsets();
@@ -238,13 +298,29 @@ MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 		{
 			const std::string symbol_key = MakeSymbolKey(module.m_module_name, exp.m_name);
 			const size_t global_procedure_index = module_base + exp.m_procedure_index;
-
-			if (m_global_symbol_to_procedure.contains(symbol_key))
+			const std::unordered_map<std::string, LinkedExport>::const_iterator existing_it = m_global_symbol_table.find(symbol_key);
+			if (existing_it != m_global_symbol_table.end())
 			{
-				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Duplicate symbol export: {} from module {}", exp.m_name, module.m_module_name)));
+				const LinkedExport& existing_export = existing_it->second;
+				const std::string message = std::format(
+					"Duplicate symbol export: {} from module {}. Previous export defined at {}.",
+					exp.m_name,
+					module.m_module_name,
+					FormatModuleOrigin(*existing_export.m_module, existing_export.m_export->m_source_provenance));
+
+				if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, module, exp.m_source_provenance))
+				{
+					return std::unexpected(std::move(*contextual_error));
+				}
+				if (std::optional<CompilerError> fallback_context = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, *existing_export.m_module, existing_export.m_export->m_source_provenance))
+				{
+					return std::unexpected(std::move(*fallback_context));
+				}
+
+				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
 			}
 
-			m_global_symbol_to_procedure[symbol_key] = global_procedure_index;
+			m_global_symbol_table.emplace(symbol_key, LinkedExport{ global_procedure_index, &module, &exp });
 		}
 	}
 
@@ -508,22 +584,39 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
 {
 	const std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
-	if (m_global_symbol_to_procedure.contains(symbol_key))
+	if (m_global_symbol_table.contains(symbol_key))
 	{
 		return {};
 	}
 
+	const std::string message_with_origin = std::format(
+		"Unresolved import: {} from module {} (imported by {}).",
+		import.m_name,
+		import.m_from_module,
+		FormatModuleOrigin(module, import.m_source_provenance));
+	const std::string contextual_message = std::format("Unresolved import: {} from module {}.", import.m_name, import.m_from_module);
+
 	const BytecodeModule* imported_module = FindModule(import.m_from_module);
 	if (imported_module == nullptr)
 	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name)));
+		if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
+		{
+			return std::unexpected(std::move(*contextual_error));
+		}
+
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message_with_origin, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
 	const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
 	if (!global_result.has_value())
 	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Unresolved import: {} from module {} (imported by {})", import.m_name, import.m_from_module, module.m_module_name)));
+		if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
+		{
+			return std::unexpected(std::move(*contextual_error));
+		}
+
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message_with_origin, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	return {};

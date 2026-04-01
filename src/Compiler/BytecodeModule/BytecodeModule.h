@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -21,24 +22,36 @@ struct BytecodeModule
 		UNION_TYPE
 	};
 
+	struct SourceProvenance
+	{
+		int m_line = 0;
+		std::optional<int> m_column = std::nullopt;
+		std::optional<size_t> m_caret_length = std::nullopt;
+		std::optional<std::string> m_source_line = std::nullopt;
+
+		SourceProvenance() = default;
+		SourceProvenance(int line, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string> source_line);
+	};
+
 	struct ExportedSymbol
 	{
 		size_t m_procedure_index;  // Index into m_procedures for functions
 		size_t m_global_index;     // Index into m_global_variables where the symbol is stored
 		SymbolType m_type;
 		std::string m_name;
+		std::optional<SourceProvenance> m_source_provenance;
 
-		ExportedSymbol(std::string name, size_t proc_index, size_t global_index, SymbolType type);
+		ExportedSymbol(std::string name, size_t proc_index, size_t global_index, SymbolType type, std::optional<SourceProvenance> source_provenance = std::nullopt);
 
-		ExportedSymbol(std::string name, size_t index, SymbolType type);
+		ExportedSymbol(std::string name, size_t index, SymbolType type, std::optional<SourceProvenance> source_provenance = std::nullopt);
 	};
 	struct ImportedSymbol
 	{
 		std::string m_name;
 		std::string m_from_module;
-		std::vector<size_t> m_usage_locations;
+		std::optional<SourceProvenance> m_source_provenance;
 
-		ImportedSymbol(std::string name, std::string from_module);
+		ImportedSymbol(std::string name, std::string from_module, std::optional<SourceProvenance> source_provenance = std::nullopt);
 	};
 
 	using ProcedureList = std::vector<BytecodeStream>;

@@ -47,10 +47,47 @@ void CodeGenerator::EmitByte(OpCode byte, int line)
 	m_builder = std::move(m_builder).EmitByte(byte, line);
 }
 
-void CodeGenerator::AddError(const CompilerError& error)
+void CodeGenerator::AddError(CompilerError error)
 {
-	m_errors.append(error.Rendered());
-	m_errors.push_back('\n');
+	m_errors.m_errors.emplace_back(std::move(error));
+}
+
+std::optional<BytecodeModule::SourceProvenance> CodeGenerator::MakeSourceProvenance(const Token& token) const
+{
+	if (token.m_line <= 0)
+	{
+		return std::nullopt;
+	}
+
+	std::optional<std::string> source_line = std::nullopt;
+	if (token.m_line <= static_cast<int>(m_source_lines.size()))
+	{
+		source_line = m_source_lines[token.m_line - 1];
+	}
+
+	std::optional<size_t> caret_length = std::nullopt;
+	if (token.m_column.has_value())
+	{
+		caret_length = std::max(token.m_source_length.value_or(0uz), 1uz);
+	}
+
+	return BytecodeModule::SourceProvenance(token.m_line, token.m_column, caret_length, std::move(source_line));
+}
+
+std::optional<BytecodeModule::SourceProvenance> CodeGenerator::MakeSourceProvenance(int line) const
+{
+	if (line <= 0)
+	{
+		return std::nullopt;
+	}
+
+	std::optional<std::string> source_line = std::nullopt;
+	if (line <= static_cast<int>(m_source_lines.size()))
+	{
+		source_line = m_source_lines[line - 1];
+	}
+
+	return BytecodeModule::SourceProvenance(line, std::nullopt, std::nullopt, std::move(source_line));
 }
 
 void CodeGenerator::PopByte(int line)
@@ -62,7 +99,7 @@ void CodeGenerator::EmitTextConstant(std::string_view data, int line)
 {
 	if (m_builder.m_string_pool_index + 1 >= MAX_SIZE_OP_CONSTANT_LONG)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Too many text constants", line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, "Too many text constants", line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -495,7 +532,7 @@ void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 
 	if (variable_index > MAX_VARIABLES)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -605,7 +642,7 @@ void CodeGenerator::EmitCallGlobal(int global_index, int arity, int line)
 {
 	if (global_index > MAX_VARIABLES)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many global variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many global variables (max {})", MAX_VARIABLES), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -926,13 +963,17 @@ std::optional<std::string> CodeGenerator::ResolveInstanceName(const std::string&
 	return std::nullopt;
 }
 
-int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line)
+int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
 {
 	int import_slot = -1;
 	for (size_t i = 0u; i < m_tracked_imports.size(); i += 1u)
 	{
 		if (m_tracked_imports[i].m_from_module == module_name && m_tracked_imports[i].m_name == symbol_name)
 		{
+			if (!m_tracked_imports[i].m_source_provenance.has_value() && source_provenance.has_value())
+			{
+				m_tracked_imports[i].m_source_provenance = source_provenance;
+			}
 			import_slot = static_cast<int>(i);
 			break;
 		}
@@ -942,11 +983,11 @@ int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const st
 	{
 		if (m_tracked_imports.size() >= static_cast<size_t>(MAX_IMPORT_PLACEHOLDERS))
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many imports (max {})", MAX_IMPORT_PLACEHOLDERS), line, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many imports (max {})", MAX_IMPORT_PLACEHOLDERS), line, m_file_name, m_source_lines));
 			return -1;
 		}
 
-		m_tracked_imports.emplace_back(symbol_name, module_name);
+		m_tracked_imports.emplace_back(symbol_name, module_name, source_provenance);
 		import_slot = static_cast<int>(m_tracked_imports.size() - 1u);
 	}
 
@@ -1682,7 +1723,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 				const size_t procedure_index = m_self->m_builder.m_procedures.size() - 1u;
 				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[function_name]);
 
-				m_self->m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION);
+				m_self->m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION, m_self->MakeSourceProvenance(stmt.m_name));
 			}
 		}
 
@@ -1696,7 +1737,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 					struct_name,
 					0uz,
 					0uz,
-					BytecodeModule::SymbolType::STRUCT_TYPE
+					BytecodeModule::SymbolType::STRUCT_TYPE,
+					m_self->MakeSourceProvenance(stmt.m_name)
 				);
 			}
 		}
@@ -1711,7 +1753,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 					union_name,
 					0uz,
 					0uz,
-					BytecodeModule::SymbolType::UNION_TYPE
+					BytecodeModule::SymbolType::UNION_TYPE,
+					m_self->MakeSourceProvenance(stmt.m_name)
 				);
 			}
 		}
@@ -1727,7 +1770,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 					foreign_name,
 					0uz,
 					global_index,
-					BytecodeModule::SymbolType::FOREIGN_FUNCTION
+					BytecodeModule::SymbolType::FOREIGN_FUNCTION,
+					m_self->MakeSourceProvenance(stmt.m_function_name)
 				);
 			}
 		}
@@ -1743,7 +1787,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 					var_name,
 					0uz,
 					global_index,
-					BytecodeModule::SymbolType::GLOBAL_VARIABLE
+					BytecodeModule::SymbolType::GLOBAL_VARIABLE,
+					m_self->MakeSourceProvenance(stmt.m_name)
 				);
 			}
 		}
@@ -1774,7 +1819,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 	EmitByte(OpCode::OP_UNIT, 0);
 	EmitByte(OpCode::RETURN, 0);
 
-	if (!m_errors.empty())
+	if (!m_errors.Empty())
 	{
 		return std::unexpected(std::move(m_errors));
 	}
@@ -1962,7 +2007,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 	const MidoriType::FunctionType& type = foreign.m_type->GetType<MidoriType::FunctionType>();
 	if (!(type.m_return_type->IsType<MidoriType::IntegerType>() || type.m_return_type->IsType<MidoriType::FloatType>() || type.m_return_type->IsType<MidoriType::BoolType>() || type.m_return_type->IsType<MidoriType::UnitType>() || type.m_return_type->IsType<MidoriType::TextType>() || type.m_return_type->IsType<MidoriType::ArrayType>() || type.m_return_type->IsType<MidoriType::ByteType>() || type.m_return_type->IsType<MidoriType::WordType>()))
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported return type for foreign function", foreign.m_function_name, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -2209,7 +2254,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to float' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported 'cast to float' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::IntegerType>())
@@ -2236,7 +2281,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to int' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported 'cast to int' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::ByteType>())
@@ -2259,7 +2304,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to byte' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported 'cast to byte' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::WordType>())
@@ -2282,7 +2327,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to word' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported 'cast to word' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else if (target_type->IsType<MidoriType::UnitType>())
@@ -2315,12 +2360,12 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else
 		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported 'cast to text' instruction", as.m_as_keyword, m_file_name, m_source_lines));
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported 'cast to text' instruction", as.m_as_keyword, m_file_name, m_source_lines));
 		}
 	}
 	else
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Unsupported type casting instruction", as.m_as_keyword, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported type casting instruction", as.m_as_keyword, m_file_name, m_source_lines));
 	}
 }
 
@@ -2949,7 +2994,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 	int arity = static_cast<int>(call.m_arguments.size());
 	if (arity > MAX_FUNCTION_ARITY)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), call.m_paren, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), call.m_paren, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -3248,12 +3293,12 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 				const std::vector<ResolvedMethodCandidate>& candidates = resolution_it->second;
 				if (candidates.size() != 1u)
 				{
-					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name), line, m_self->m_file_name, m_self->m_source_lines));
+					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name), line, m_self->m_file_name, m_self->m_source_lines));
 					return;
 				}
 				if (!candidates[0u].m_has_instance)
 				{
-					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found.", name), line, m_self->m_file_name, m_self->m_source_lines));
+					m_self->AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found.", name), line, m_self->m_file_name, m_self->m_source_lines));
 					return;
 				}
 				m_self->EmitResolvedNameGetGlobal(candidates[0u].m_resolved_name, line);
@@ -3265,7 +3310,7 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 				size_t separator_pos = name.find(NameSeparator);
 				std::string module_name = name.substr(0u, separator_pos);
 				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, line);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, line, m_self->MakeSourceProvenance(m_variable->m_name));
 				if (import_placeholder < 0)
 				{
 					return;
@@ -3363,7 +3408,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 				size_t separator_pos = name.find(NameSeparator);
 				std::string module_name = name.substr(0u, separator_pos);
 				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_assign->m_name));
 				if (import_placeholder < 0)
 				{
 					return;
@@ -3402,7 +3447,7 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 				size_t separator_pos = name.find(NameSeparator);
 				std::string module_name = name.substr(0u, separator_pos);
 				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_assign->m_name));
 				if (import_placeholder < 0)
 				{
 					return;
@@ -3488,7 +3533,7 @@ void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
 				size_t separator_pos = name.find(NameSeparator);
 				std::string module_name = name.substr(0u, separator_pos);
 				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line);
+				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_bind->m_name));
 				if (import_placeholder < 0)
 				{
 					return;
@@ -4786,7 +4831,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(base_name);
 	if (generic_it == m_generic_functions.end())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Generic function '{}' not found", base_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Generic function '{}' not found", base_name), line, m_file_name, m_source_lines));
 		return -1;
 	}
 
@@ -4926,7 +4971,7 @@ std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(con
 	TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(qualifier);
 	if (instance_args_it == m_class_instance_type_args.end())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no instance metadata found.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Unresolved method '{}': no instance metadata found.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5012,17 +5057,17 @@ std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(con
 
 	if (candidates.empty())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching concrete instance found.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching concrete instance found.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 	if (candidates.size() != 1u)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': multiple concrete instances match this call.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple concrete instances match this call.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 	if (!candidates[0u].m_has_instance)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no emitted instance method was found.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Unresolved method '{}': no emitted instance method was found.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5050,7 +5095,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 			return candidates[0u].m_resolved_name;
 		}
 
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5061,7 +5106,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 			return candidates[0u].m_resolved_name;
 		}
 
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5085,7 +5130,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 		{
 			candidates_info += std::format("\nCandidate: {} (First: '{}', Instance: {})", candidate.m_resolved_name, candidate.m_first_type_name, candidate.m_has_instance);
 		}
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': no constraint matches argument type '{}'. Candidates:{}", callee_name, first_arg_type_name, candidates_info), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': no constraint matches argument type '{}'. Candidates:{}", callee_name, first_arg_type_name, candidates_info), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5112,7 +5157,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 
 	if (matching.size() != 1u)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5129,7 +5174,7 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 			}
 			suffix.append(")"s);
 		}
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 
@@ -5144,7 +5189,7 @@ std::optional<int> CodeGenerator::ResolveResolvedNameGlobalIndex(const std::stri
 		std::string symbol_name = resolved_name.substr(0u, at_pos);
 		std::string module_name = resolved_name.substr(at_pos + 1u);
 
-		int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line);
+		int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line, MakeSourceProvenance(line));
 		if (import_placeholder < 0)
 		{
 			return std::nullopt;
@@ -5438,12 +5483,12 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	int arity = static_cast<int>(params.size());
 	if (arity > MAX_FUNCTION_ARITY)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 	if (captured_count > MAX_CAPTURED_COUNT)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -5464,7 +5509,7 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 
 	if (m_builder.m_current_procedure_index > MAX_FUNCTION_COUNT)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
 		return;
 	}
 

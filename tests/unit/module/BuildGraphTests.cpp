@@ -500,5 +500,5 @@ defun main(): Int => 0;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleMissingExportedSymbol;
 	expectation.m_message_substrings = { "exported but not defined", "missing" };
-	RequireErrorMatches(compile_result.error(), expectation);
+	RequireErrorMatches(compile_result.error().First(), expectation);
 }

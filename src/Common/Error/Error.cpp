@@ -448,15 +448,25 @@ CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_vi
 	return CompilerError::WithToken(stage, message, token, file_name, source_lines, suggestion, code);
 }
 
+CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+{
+	return GenerateRichError(CompilerStage::CodeGenerator, message, token, file_name, source_lines, suggestion, code);
+}
+
 CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	return GenerateRichError(CompilerStage::CodeGenerator, message, token, file_name, source_lines, suggestion);
+	return GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
+}
+
+CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+{
+	// Use unified implementation without column info (no caret)
+	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
 }
 
 CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	// Use unified implementation without column info (no caret)
-	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion);
+	return GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::None, message, line, file_name, source_lines, suggestion);
 }
 
 CompilerError MidoriError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)

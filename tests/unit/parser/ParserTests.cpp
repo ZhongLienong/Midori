@@ -417,7 +417,7 @@ defun main(): Int => value;
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
 	REQUIRE_FALSE(compile_result.has_value());
 
-	const CompilerError& error = compile_result.error();
+	const CompilerError& error = compile_result.error().First();
 	CHECK(error.m_message.find("private to module 'Secrets'") != std::string::npos);
 	CHECK(error.m_message.find("current namespace 'Main'") != std::string::npos);
 }
@@ -501,7 +501,7 @@ defun main(): Int => value();
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
 	REQUIRE_FALSE(compile_result.has_value());
 
-	const CompilerError& error = compile_result.error();
+	const CompilerError& error = compile_result.error().First();
 	CHECK(error.m_message.find("Ambiguous use import for symbol 'value'") != std::string::npos);
 	CHECK(error.m_message.find("Left::value") != std::string::npos);
 }

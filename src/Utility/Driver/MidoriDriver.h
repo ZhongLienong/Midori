@@ -12,10 +12,12 @@ namespace MidoriDriver
 	struct DriverError
 	{
 		std::string m_message;
-		std::optional<CompilerError> m_compiler_error = std::nullopt;
+		std::optional<MidoriResult::CompilerDiagnostics> m_diagnostics = std::nullopt;
+		bool m_is_compilation_failure = false;
 
 		static DriverError FileSystem(std::string message);
-		static DriverError Compilation(CompilerError compiler_error);
+		static DriverError Compilation(MidoriResult::CompilerDiagnostics diagnostics);
+		static DriverError Diagnostics(MidoriResult::CompilerDiagnostics diagnostics);
 
 		[[nodiscard]] std::string Rendered() const;
 	};

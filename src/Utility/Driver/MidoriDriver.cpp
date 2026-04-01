@@ -34,18 +34,33 @@ namespace MidoriDriver
 		return error;
 	}
 
-	DriverError DriverError::Compilation(CompilerError compiler_error)
+	DriverError DriverError::Compilation(MidoriResult::CompilerDiagnostics diagnostics)
 	{
 		DriverError error;
-		error.m_compiler_error = std::move(compiler_error);
+		error.m_diagnostics = std::move(diagnostics);
+		error.m_is_compilation_failure = true;
+		return error;
+	}
+
+	DriverError DriverError::Diagnostics(MidoriResult::CompilerDiagnostics diagnostics)
+	{
+		DriverError error;
+		error.m_diagnostics = std::move(diagnostics);
 		return error;
 	}
 
 	std::string DriverError::Rendered() const
 	{
-		if (m_compiler_error.has_value())
+		if (m_diagnostics.has_value())
 		{
-			return std::format("Compilation failed :( \n{}", m_compiler_error.value());
+			std::string rendered;
+			if (m_is_compilation_failure)
+			{
+				rendered = "Compilation failed :( \n";
+			}
+
+			rendered += m_diagnostics->Rendered();
+			return rendered;
 		}
 
 		return m_message;
@@ -111,7 +126,7 @@ namespace MidoriDriver
 		RunResult run_result = RunExecutable(std::move(compile_result.value()));
 		if (!run_result.has_value())
 		{
-			return std::unexpected(DriverError::Compilation(std::move(run_result.error())));
+			return std::unexpected(DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(std::move(run_result.error()))));
 		}
 
 		return run_result.value();

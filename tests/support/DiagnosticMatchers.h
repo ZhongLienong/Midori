@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Error/Error.h"
+#include "Compiler/Result/Result.h"
 
 #include <optional>
 #include <string>
@@ -34,6 +34,10 @@ namespace MidoriTest
 	[[nodiscard]] bool Matches(const CompilerError& error, const ErrorExpectation& expectation, std::string* mismatch = nullptr);
 
 	[[nodiscard]] const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code);
+
+	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage);
+	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code);
+	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code);
 
 	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage);
 	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerErrorCode code);

@@ -2,6 +2,7 @@
 
 #include "Common/Error/Error.h"
 #include "Compiler/Token/Token.h"
+#include "Utility/Driver/MidoriDriver.h"
 
 #include <string>
 #include <string_view>
@@ -146,4 +147,60 @@ TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warni
 
 	REQUIRE(error.Rendered() == "Missing import");
 	REQUIRE(warning.Rendered() == "Dead store removed");
+}
+
+TEST_CASE("Driver renders compilation diagnostic collections behind one banner", "[compiler][driver][diagnostics]")
+{
+	std::vector<CompilerError> errors;
+	errors.emplace_back(CompilerError::WithContext(
+		CompilerStage::CodeGenerator,
+		"First lowering failure",
+		2,
+		"First.mdr",
+		5,
+		3u,
+		std::nullopt,
+		"def x = y;",
+		CompilerErrorCode::CodeGeneratorUnsupportedLowering));
+	errors.emplace_back(CompilerError::WithContext(
+		CompilerStage::BytecodeLinker,
+		"Second linker failure",
+		4,
+		"Second.mdr",
+		1,
+		4u,
+		std::nullopt,
+		"use Missing.{run};",
+		CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+
+	const MidoriDriver::DriverError error =
+		MidoriDriver::DriverError::Compilation(MidoriResult::CompilerDiagnostics(std::move(errors)));
+	const std::string rendered = StripAnsiCodes(error.Rendered());
+
+	REQUIRE(rendered.starts_with("Compilation failed :( \n"));
+
+	const size_t first_position = rendered.find("Code Generator Error at First.mdr:2");
+	const size_t second_position = rendered.find("Bytecode Linker Error at Second.mdr:4");
+	REQUIRE(first_position != std::string::npos);
+	REQUIRE(second_position != std::string::npos);
+	CHECK(first_position < second_position);
+}
+
+TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics", "[compiler][driver][diagnostics]")
+{
+	const MidoriDriver::DriverError error =
+		MidoriDriver::DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(
+			CompilerError::WithContext(
+				CompilerStage::Runtime,
+				"Division by zero",
+				8,
+				"Runtime.mdr",
+				10,
+				1u,
+				std::nullopt,
+				"return value / 0;")));
+
+	const std::string rendered = StripAnsiCodes(error.Rendered());
+	CHECK(rendered.find("Compilation failed :(") == std::string::npos);
+	CHECK(rendered.find("Runtime Error at Runtime.mdr:8") != std::string::npos);
 }

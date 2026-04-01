@@ -51,6 +51,22 @@ namespace MidoriResult
 		{
 			return std::move(m_errors.front());
 		}
+
+		[[nodiscard]] std::string Rendered() const
+		{
+			std::string rendered;
+			for (const CompilerError& error : m_errors)
+			{
+				const std::string_view error_rendered = error.Rendered();
+				rendered.append(error_rendered);
+				if (!rendered.empty() && rendered.back() != '\n')
+				{
+					rendered.push_back('\n');
+				}
+			}
+
+			return rendered;
+		}
 	};
 
 	template<typename ValueType>
@@ -75,9 +91,9 @@ namespace MidoriResult
 	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
 	using TypeCheckerResult = DiagnosticsResult<MidoriProgramTree>;
 	using OptimizerResult = Result<MidoriProgramTree>;
-	using CodeGeneratorResult = Result<BytecodeModule>;
-	using CompiledModuleResult = Result<CompiledModule>;
-	using CompilerResult = Result<MidoriExecutable>;
+	using CodeGeneratorResult = DiagnosticsResult<BytecodeModule>;
+	using CompiledModuleResult = DiagnosticsResult<CompiledModule>;
+	using CompilerResult = DiagnosticsResult<MidoriExecutable>;
 
 	// Generic result types
 	using VoidResult = Result<void>;

@@ -101,7 +101,9 @@ private:
 
 	MidoriExecutable m_executable;
 	std::stack<LoopContext> m_loop_contexts;
-	std::string m_errors;
+	// Code generation preserves recoverable per-module diagnostics when lowering can
+	// continue, but it does not promise recovery after arbitrary internal corruption.
+	MidoriResult::CompilerDiagnostics m_errors;
 	int m_local_count = 0;
 
 public:
@@ -113,7 +115,9 @@ public:
 
 private:
 
-	void AddError(const CompilerError& error);
+	void AddError(CompilerError error);
+	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
+	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(int line) const;
 
 	void PopByte(int line);
 
@@ -167,7 +171,7 @@ private:
 
 	bool EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter_type, const std::shared_ptr<MidoriType>& item_type, int line);
 
-	int GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line);
+	int GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line, const std::optional<BytecodeModule::SourceProvenance>& source_provenance = std::nullopt);
 
 	int EmitJump(OpCode op, int line);
 

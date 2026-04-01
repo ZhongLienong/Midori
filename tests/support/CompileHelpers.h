@@ -69,6 +69,8 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name = "Test.mdr");
 
+	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mdr");
+
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mdr");
 
 	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mdr");

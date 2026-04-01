@@ -2,6 +2,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
+#include "Compiler/CodeGenerator/CodeGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
@@ -9,7 +10,9 @@
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MidoriDriver.h"
 
+#include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace
@@ -26,6 +29,22 @@ namespace
 			m_tokens(std::move(tokens)),
 			m_module_declaration(std::move(module_declaration)),
 			m_use_imports(std::move(use_imports))
+		{
+		}
+	};
+
+	struct PreparedTypedModule
+	{
+		MidoriTest::SourceFixture m_source;
+		MidoriProgramTree m_program;
+		std::vector<CompilerWarning> m_warnings;
+		std::optional<ModuleDeclaration> m_module_declaration;
+
+		PreparedTypedModule(MidoriTest::SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration)
+			: m_source(std::move(source)),
+			m_program(std::move(program)),
+			m_warnings(std::move(warnings)),
+			m_module_declaration(std::move(module_declaration))
 		{
 		}
 	};
@@ -61,6 +80,44 @@ namespace
 		TokenStream tokens = std::move(node_it->second.m_tokens);
 		std::vector<UseImport> use_imports = std::move(node_it->second.m_use_imports);
 		return PreparedModule(std::move(source), std::move(tokens), std::move(module_declaration), std::move(use_imports));
+	}
+
+	std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> TypeCheckPreparedModuleWithDiagnostics(PreparedModule&& prepared)
+	{
+		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
+			? &prepared.m_module_declaration.value()
+			: nullptr;
+		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
+		MidoriResult::ParserResult parse_result = parser.Parse();
+		if (!parse_result.has_value())
+		{
+			return std::unexpected(std::move(parse_result.error()));
+		}
+
+		std::vector<CompilerWarning> warnings = parser.GetWarnings();
+		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result).value(), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
+		if (!typecheck_result.has_value())
+		{
+			return std::unexpected(std::move(typecheck_result.error()));
+		}
+
+		return PreparedTypedModule(std::move(prepared.m_source), std::move(typecheck_result).value(), std::move(warnings), std::move(prepared.m_module_declaration));
+	}
+
+	std::unordered_set<std::string> CollectExports(const std::optional<ModuleDeclaration>& module_declaration)
+	{
+		std::unordered_set<std::string> export_set;
+		if (!module_declaration.has_value())
+		{
+			return export_set;
+		}
+
+		for (const ModuleExport& export_entry : module_declaration->Exports())
+		{
+			export_set.insert(export_entry.m_symbol_name);
+		}
+
+		return export_set;
 	}
 }
 
@@ -148,25 +205,15 @@ namespace MidoriTest
 			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
 		}
 
-		PreparedModule prepared = std::move(prepared_result.value());
-		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
-			? &prepared.m_module_declaration.value()
-			: nullptr;
-		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
-		MidoriResult::ParserResult parse_result = parser.Parse();
-		if (!parse_result.has_value())
+		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
+		if (!typed_result.has_value())
 		{
-			return std::unexpected(std::move(parse_result.error()));
+			return std::unexpected(std::move(typed_result.error()));
 		}
 
-		std::vector<CompilerWarning> warnings = parser.GetWarnings();
-		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result.value()), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
-		if (!typecheck_result.has_value())
-		{
-			return std::unexpected(std::move(typecheck_result.error()));
-		}
-
-		return TypedSnippet(std::move(prepared.m_source), std::move(typecheck_result.value()), std::move(warnings));
+		PreparedTypedModule typed = std::move(typed_result.value());
+		return TypedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(typed.m_warnings));
 	}
 
 	std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name)
@@ -180,6 +227,40 @@ namespace MidoriTest
 		}
 
 		return std::move(typed_result.value());
+	}
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	{
+		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.has_value())
+		{
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
+		}
+
+		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
+		if (!typed_result.has_value())
+		{
+			return std::unexpected(std::move(typed_result.error()));
+		}
+
+		PreparedTypedModule typed = std::move(typed_result.value());
+		std::string module_name = typed.m_module_declaration.has_value()
+			? typed.m_module_declaration->ModuleName()
+			: std::filesystem::path(typed.m_source.FileName()).stem().string();
+
+		MidoriResult::CodeGeneratorResult codegen_result = CodeGenerator(
+			std::move(typed.m_program),
+			typed.m_source.FileName(),
+			typed.m_source.SourceLines(),
+			std::move(module_name),
+			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
+		if (!codegen_result.has_value())
+		{
+			return std::unexpected(std::move(codegen_result.error()));
+		}
+
+		return std::move(codegen_result).value();
 	}
 
 	std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name)
@@ -208,7 +289,9 @@ namespace MidoriTest
 		MidoriResult::CompilerResult compile_result = MidoriDriver::CompileSource(std::string(source.SourceCode()), source.FileName());
 		if (!compile_result.has_value())
 		{
-			return std::unexpected(std::move(compile_result.error()));
+			// Execution helpers keep a single-error surface for legacy tests; compile-time
+			// collections are narrowed explicitly at this boundary.
+			return std::unexpected(std::move(compile_result.error()).TakeFirst());
 		}
 
 		OutputCapture capture;
