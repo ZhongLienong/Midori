@@ -967,6 +967,31 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 }
 
+MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message)
+{
+	if (Check(Token::Name::RIGHT_ANGLE, 0))
+	{
+		return Advance();
+	}
+
+	if (Check(Token::Name::RIGHT_SHIFT, 0))
+	{
+		const Token anchor = Peek(0);
+		Token first_right_angle = MakeSyntheticToken(">", Token::Name::RIGHT_ANGLE, anchor);
+		Token second_right_angle = MakeSyntheticToken(">", Token::Name::RIGHT_ANGLE, anchor);
+
+		m_context.m_tokens[m_state.m_current_token_index] = std::move(first_right_angle);
+
+		TokenStream split_tokens;
+		split_tokens.AddToken(std::move(second_right_angle));
+		m_context.m_tokens.Insert(m_context.m_tokens.begin() + m_state.m_current_token_index + 1, std::move(split_tokens));
+
+		return Advance();
+	}
+
+	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
+}
+
 Parser& Parser::BeginScope() &
 {
 	m_state.m_scopes.emplace_back();
@@ -1450,7 +1475,7 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 					(
 						[this]() { return ParseType(); },
 						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-						[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+						[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 					);
 
 				if (!type_args_result.has_value())
@@ -3385,7 +3410,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			(
 				[this]() { return ParseType(); },
 				[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
-				[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+				[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 			);
 		if (!type_args_result.has_value())
 		{
@@ -4568,7 +4593,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									(
 										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
 										{
-											return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after array type.")
+											return ConsumeTypeRightAngle("Expected '>' after array type.")
 												.and_then
 												(
 													[&type](Token&&) -> MidoriResult::TypeResult
@@ -4733,7 +4758,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									(
 										[this]() { return ParseType(); },
 										[this]() { return Consume(Token::Name::COMMA, "Expected ',' after associated type argument."); },
-										[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after associated type arguments."); }
+										[this]() { return ConsumeTypeRightAngle("Expected '>' after associated type arguments."); }
 									);
 									if (!type_args_result.has_value())
 									{
@@ -4871,7 +4896,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										(
 											[this]() { return ParseType(); },
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-											[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+											[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 										);
 
 									if (!type_args_result.has_value())
@@ -5136,7 +5161,7 @@ MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 					);
 			},
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between generic parameters."); },
-			[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after generic parameters."); }
+			[this]() { return ConsumeTypeRightAngle("Expected '>' after generic parameters."); }
 		);
 }
 
@@ -5159,7 +5184,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 										(
 											[this]() { return ParseType(); },
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
-											[this]() { return Consume(Token::Name::RIGHT_ANGLE, "Expected '>' after type arguments."); }
+											[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
 										)
 										.and_then
 										(

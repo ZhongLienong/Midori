@@ -139,8 +139,11 @@ TEST_CASE("Lexer recognizes compound operator tokens used by later stages", "[le
 	const std::string source_code =
 		R"(value =++ next;
 total += 1;
-mask <~= 2;
-flags ~>= 3;
+bits << 2;
+bits >> 1;
+mask <<= 2;
+flags >>= 3;
+inverted = ~mask;
 stream |> sink;
 )";
 
@@ -161,6 +164,14 @@ stream |> sink;
 		Token::Name::INTEGER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON,
 		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::LEFT_SHIFT,
+		Token::Name::INTEGER_LITERAL,
+		Token::Name::SINGLE_SEMICOLON,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::RIGHT_SHIFT,
+		Token::Name::INTEGER_LITERAL,
+		Token::Name::SINGLE_SEMICOLON,
+		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::LEFT_SHIFT_EQUAL,
 		Token::Name::INTEGER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON,
@@ -169,12 +180,79 @@ stream |> sink;
 		Token::Name::INTEGER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON,
 		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::SINGLE_EQUAL,
+		Token::Name::TILDE,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::SINGLE_SEMICOLON,
+		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::BAR_BRACKET,
 		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON
 	};
 
-	REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == expected_names);
+	const TokenStream& tokens = lex_result->m_tokens;
+	const Token* left_shift_token = FindTokenByLexeme(tokens, "<<");
+	const Token* right_shift_token = FindTokenByLexeme(tokens, ">>");
+	const Token* left_shift_equal_token = FindTokenByLexeme(tokens, "<<=");
+	const Token* right_shift_equal_token = FindTokenByLexeme(tokens, ">>=");
+	const Token* tilde_token = FindTokenByLexeme(tokens, "~");
+
+	REQUIRE(MidoriTest::CollectTokenNames(tokens) == expected_names);
+	REQUIRE(left_shift_token != nullptr);
+	REQUIRE(right_shift_token != nullptr);
+	REQUIRE(left_shift_equal_token != nullptr);
+	REQUIRE(right_shift_equal_token != nullptr);
+	REQUIRE(tilde_token != nullptr);
+	CHECK(left_shift_token->m_token_name == Token::Name::LEFT_SHIFT);
+	CHECK(right_shift_token->m_token_name == Token::Name::RIGHT_SHIFT);
+	CHECK(left_shift_equal_token->m_token_name == Token::Name::LEFT_SHIFT_EQUAL);
+	CHECK(right_shift_equal_token->m_token_name == Token::Name::RIGHT_SHIFT_EQUAL);
+	CHECK(tilde_token->m_token_name == Token::Name::TILDE);
+}
+
+TEST_CASE("Lexer reports dedicated migration diagnostics for legacy shift operators", "[lexer]")
+{
+	struct LegacyShiftCase
+	{
+		std::string_view m_legacy_operator;
+		std::string_view m_replacement_operator;
+	};
+
+	const std::vector<LegacyShiftCase> cases
+	{
+		{"<~", "<<"},
+		{"<~=", "<<="},
+		{"~>", ">>"},
+		{"~>=", ">>="}
+	};
+
+	for (const LegacyShiftCase& test_case : cases)
+	{
+		CAPTURE(test_case.m_legacy_operator);
+
+		const std::string source_code = "def value = bits " + std::string(test_case.m_legacy_operator) + " 1;\n";
+		std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LegacyShiftSyntax.mdr");
+
+		REQUIRE_FALSE(lex_result.has_value());
+
+		const CompilerError& error = lex_result.error();
+		const std::string expected_message = "Legacy shift operator '" + std::string(test_case.m_legacy_operator) + "' is no longer supported.";
+		const std::string expected_suggestion = "Use '" + std::string(test_case.m_replacement_operator) + "' instead.";
+
+		REQUIRE(error.m_stage == CompilerStage::Lexer);
+		REQUIRE(error.m_location.has_value());
+		REQUIRE(error.m_suggestion.has_value());
+		CHECK(error.m_location->m_file_name == "LegacyShiftSyntax.mdr");
+		CHECK(error.m_location->m_line == 1);
+		CHECK(error.m_message == expected_message);
+		CHECK(*error.m_suggestion == expected_suggestion);
+
+		const std::string rendered_error = std::string(error.Rendered());
+		CHECK_THAT(rendered_error, ContainsSubstring("Lexer Error"));
+		CHECK_THAT(rendered_error, ContainsSubstring(expected_message));
+		CHECK_THAT(rendered_error, ContainsSubstring(expected_suggestion));
+		CHECK_THAT(rendered_error, ContainsSubstring("def value = bits " + std::string(test_case.m_legacy_operator) + " 1;"));
+	}
 }
 
 TEST_CASE("Lexer reports the dedicated =+ typo diagnostic", "[lexer]")

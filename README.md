@@ -32,8 +32,12 @@ python .\scripts\install.py --copy-binaries
 # python .\scripts\uninstall.py
 ```
 
+Every `.mdr` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
+
 ### Hello World
 ```midori
+module Main
+
 // Path import (relative or absolute)
 import { "../MidoriPrelude/IO.mdr" }
 
@@ -157,9 +161,9 @@ defun handle_result<T>(result: Result<T, Text>) : Text => {
 };
 ```
 
-### Classes
+### Typeclasses
 ```midori
-// Define a class
+// Define a typeclass
 class Show<T> {
     show: fn(value: T) -> Text;
 };
@@ -347,7 +351,7 @@ Extendable::Extend(items, other_items);
 - **Array Iteration**: `for x in array` iterates over elements
 - **Float Ranges**: Support for decimal step values
 - **Nested Generics**: Complex generic type compositions
-- **Cross-Module Classes**: Import and use classes, instances, and associated types across modules
+- **Cross-Module Typeclasses**: Import and use classes, instances, and associated types across modules
 
 ## Standard Library
 
@@ -736,10 +740,10 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 
 ## Architecture
 
-- **Frontend**: Lexer → Parser → Type Checker
-- **Optimizer**: Constant folding, tail call optimization, strength reduction
+- **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
+- **Optimizer**: Constant folding, strength reduction, closure lifting, tail call optimization
 - **Backend**: Bytecode generator → Linker
-- **Runtime**: Stack-based VM with mark-and-sweep garbage collection
+- **Runtime**: Single `VirtualMachine` execution path with mark-and-sweep garbage collection
 
 See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execution, closure capture, and memory management.
 

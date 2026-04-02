@@ -4,6 +4,8 @@
 
 The examples below assume a program that lives next to `MidoriPrelude/` in the repo or in a project with the same layout. If you expose top-level prelude modules on `MIDORI_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
 
+Complete `.mdr` source files still need an explicit `module` declaration even when a focused snippet below omits it.
+
 The documented examples in this file are mirrored by `test/prelude/success/documentation_examples.mdr`.
 
 ## Module Map

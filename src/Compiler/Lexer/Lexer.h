@@ -120,6 +120,8 @@ private:
 
 	MidoriResult::TokenResult MatchRightShift();
 
+	MidoriResult::TokenResult MakeLegacyShiftSyntaxError(std::string_view legacy_operator, std::string_view replacement_operator) const;
+
 	MidoriResult::TokenResult MatchLiteralOrIdentifier(char next_char);
 
 	MidoriResult::TokenResult MakeInvalidCharacterError(char next_char) const;

@@ -2,6 +2,8 @@
 
 Midori uses a Hindley-Milner based, nominal type system with bidirectional inference. The implementation follows Algorithm W and extends it with algebraic data types, type classes, associated types, deriving, type-definition constraints, and exhaustive pattern matching.
 
+Unless a snippet explicitly shows a full file, the examples below focus on the type-system surface only. Complete `.mdr` source files still need an explicit `module` declaration.
+
 ## Overview
 
 The type system provides:

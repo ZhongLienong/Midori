@@ -164,6 +164,68 @@ def tuple_value = (1 + 2, 3);
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_expr.m_elements[1u]).m_token.m_lexeme == "3");
 }
 
+TEST_CASE("Parser accepts nested generic closers in type contexts without affecting shift expressions", "[parser]")
+{
+	const std::string source_code =
+		R"(module ParserNestedGenericClosers
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Box<T> where Show<T> {
+    value: T
+};
+
+instance Show<Array<Array<Text>>> {
+    defun show(value: Array<Array<Text>>) : Text => "nested";
+};
+
+def nested : Array<Array<Text>> = [["hello"]];
+def boxed = new Box<Array<Array<Text>>>(nested);
+defun shift(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<Text>>> => value >> 1;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	REQUIRE(parse_result->m_program.size() == 6u);
+
+	const MidoriStatement::VariableDefinition& boxed_definition = RequireVariableDefinition(parse_result->m_program, 4u, "boxed");
+	const MidoriExpression::Construct& boxed_construct = RequireExpression<MidoriExpression::Construct>(boxed_definition.m_value);
+	REQUIRE(boxed_construct.m_has_explicit_type_args);
+
+	REQUIRE(parse_result->m_program[5] != nullptr);
+	REQUIRE(parse_result->m_program[5]->IsStatement<MidoriStatement::FunctionDefinition>());
+
+	const MidoriStatement::FunctionDefinition& shift_definition = parse_result->m_program[5]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Binary& shift_expr = RequireExpression<MidoriExpression::Binary>(shift_definition.m_body);
+	REQUIRE(shift_expr.m_op.m_token_name == Token::Name::RIGHT_SHIFT);
+}
+
+TEST_CASE("Parser accepts associated type arguments with nested generic closers", "[parser]")
+{
+	const std::string source_code =
+		R"(module ParserNestedAssociatedTypes
+class Iterable<Iter> {
+    type Item;
+    next: fn(iter: Iter) -> Iterable::Item<Iter>;
+};
+
+defun NextValue(iter: Array<Array<Int>>) : Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	REQUIRE(parse_result->m_program.size() == 2u);
+}
+
 TEST_CASE("Parser exposes module exports and use imports extracted from the module preamble", "[parser]")
 {
 	const MidoriTest::TempProject project

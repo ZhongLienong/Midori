@@ -487,6 +487,8 @@ private:
 
 	MidoriResult::TokenResult Consume(Token::Name type, std::string_view message);
 
+	MidoriResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
+
 	MidoriResult::TokenResult MatchNameResolution();
 
 	MidoriResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types = nullptr);

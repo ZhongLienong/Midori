@@ -600,6 +600,11 @@ MidoriResult::TokenResult Lexer::MatchEqualPlusPlus()
 
 MidoriResult::TokenResult Lexer::MatchGreater()
 {
+	if (MatchNext('>'))
+	{
+		return MatchRightShift();
+	}
+
 	return MatchNext('=')
 		? MakeTokenResult(Token::Name::GREATER_EQUAL)
 		: MakeTokenResult(Token::Name::RIGHT_ANGLE);
@@ -607,14 +612,24 @@ MidoriResult::TokenResult Lexer::MatchGreater()
 
 MidoriResult::TokenResult Lexer::MatchLess()
 {
+	if (MatchNext('<'))
+	{
+		return MatchLeftShift();
+	}
+
+	if (LookAhead(0) == '~')
+	{
+		return MakeLegacyShiftSyntaxError(
+			LookAhead(1) == '=' ? "<~=" : "<~",
+			LookAhead(1) == '=' ? "<<=" : "<<");
+	}
+
 	if (MatchNext('='))
 	{
 		return MakeTokenResult(Token::Name::LESS_EQUAL);
 	}
 
-	return MatchNext('~')
-		? MatchLeftShift()
-		: MakeTokenResult(Token::Name::LEFT_ANGLE);
+	return MakeTokenResult(Token::Name::LEFT_ANGLE);
 }
 
 MidoriResult::TokenResult Lexer::MatchLeftShift()
@@ -626,9 +641,14 @@ MidoriResult::TokenResult Lexer::MatchLeftShift()
 
 MidoriResult::TokenResult Lexer::MatchTilde()
 {
-	return MatchNext('>')
-		? MatchRightShift()
-		: MakeTokenResult(Token::Name::TILDE);
+	if (LookAhead(0) == '>')
+	{
+		return MakeLegacyShiftSyntaxError(
+			LookAhead(1) == '=' ? "~>=" : "~>",
+			LookAhead(1) == '=' ? ">>=" : ">>");
+	}
+
+	return MakeTokenResult(Token::Name::TILDE);
 }
 
 MidoriResult::TokenResult Lexer::MatchRightShift()
@@ -636,6 +656,18 @@ MidoriResult::TokenResult Lexer::MatchRightShift()
 	return MatchNext('=')
 		? MakeTokenResult(Token::Name::RIGHT_SHIFT_EQUAL)
 		: MakeTokenResult(Token::Name::RIGHT_SHIFT);
+}
+
+MidoriResult::TokenResult Lexer::MakeLegacyShiftSyntaxError(std::string_view legacy_operator, std::string_view replacement_operator) const
+{
+	return std::unexpected(
+		MidoriError::GenerateLexerErrorWithContext(
+			"Legacy shift operator '"s + std::string(legacy_operator) + "' is no longer supported.",
+			m_cursor.m_line,
+			BeginColumn(),
+			m_source.m_file_name,
+			m_source.m_lines,
+			"Use '"s + std::string(replacement_operator) + "' instead."));
 }
 
 MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)

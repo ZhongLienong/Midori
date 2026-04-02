@@ -1,0 +1,15 @@
+module NestedGenericShiftSyntax
+
+import { "../../MidoriPrelude/IO.mdr" }
+
+struct Box<T>
+{
+    value: T
+};
+
+def nested: Array<Array<Text>> = [["left"], ["right"]];
+def boxed = new Box<Array<Array<Text>>>(nested);
+
+defun shift_rows(value: Int, rows: Array<Array<Text>>) : Int => value >> (#rows - 1);
+
+IO::PrintLine("nested_generic_shift_syntax: " ++ (shift_rows(8, boxed.value) as Text));
