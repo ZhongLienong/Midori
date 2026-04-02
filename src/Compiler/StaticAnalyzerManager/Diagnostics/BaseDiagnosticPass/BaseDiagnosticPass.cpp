@@ -55,7 +55,5 @@ DiagnosticSink& AstDiagnosticPass::Sink() const
 
 void AstDiagnosticPass::EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, std::optional<std::string_view> suggestion)
 {
-	CompilerWarning warning = CompilerWarning::WithToken(CompilerStage::StaticAnalyzer, message, token, Context().m_file_name, Context().SourceLines(), suggestion);
-	warning.m_code = code;
-	Sink().AddWarning(std::move(warning));
+	Sink().AddWarning(CompilerWarning::WithToken(CompilerStage::StaticAnalyzer, message, token, Context().m_file_name, Context().SourceLines(), suggestion, code));
 }

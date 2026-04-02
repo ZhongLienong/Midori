@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <format>
+#include <print>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -124,7 +125,7 @@ int main(int argc, char* argv[])
 	const MidoriDriver::DriverResult run_result = MidoriDriver::CompileAndRunFile(std::filesystem::path(argv[1u]));
 	if (!run_result.has_value())
 	{
-		Printer::Print<Printer::Color::RED>(run_result.error().Rendered());
+		std::print("{}", run_result.error().Rendered());
 		return EXIT_FAILURE;
 	}
 

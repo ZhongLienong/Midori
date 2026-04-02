@@ -276,6 +276,22 @@ namespace MidoriTest
 		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(analysis_result.m_warnings), std::move(analysis_result.m_errors));
 	}
 
+	MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)
+	{
+		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
+		return MidoriDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name));
+	}
+
+	const MidoriResult::CompilerReport& CompilationReport(const MidoriResult::CompilationResult& compilation_result)
+	{
+		if (compilation_result.has_value())
+		{
+			return compilation_result->Report();
+		}
+
+		return compilation_result.error();
+	}
+
 	MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
 	{
 		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);

@@ -31,5 +31,6 @@ protected:
 public:
 	Compiler(std::string&& source_code, std::string&& file_name);
 
+	MidoriResult::CompilationResult CompileWithReport();
 	MidoriResult::CompilerResult Compile();
 };

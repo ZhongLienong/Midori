@@ -247,6 +247,8 @@ The static analyzer runs after type checking and before optimization. It walks t
 - `StaticAnalysisResult` containing warnings
 - The same typed AST continues into optimization
 
+Warnings remain structured after this phase. They are accumulated into the compile-level `MidoriResult::CompilerReport` and rendered once at the driver/CLI boundary instead of being printed immediately from the analyzer.
+
 ### Processing Steps
 
 1. **Shared semantic facts** - Reuse compiler-wide helpers from `src/Compiler/Analysis/`
@@ -266,6 +268,7 @@ The static analyzer runs after type checking and before optimization. It walks t
 - **Shared analysis ownership** - Optimizers and diagnostics consume the same semantic fact layer
 - **Typed-AST diagnostics** - Warnings run after name resolution and type checking
 - **Stable warning identity** - Diagnostics carry warning codes for regression testing
+- **Top-level reporting** - Successful and failed compiles can both preserve warnings in the same final report
 
 ## Phase 6: Optimization (OptimizerManager)
 
@@ -490,6 +493,8 @@ Each phase reports errors with:
 - Line and column numbers
 - Source code context
 - Descriptive error message
+
+Top-level compilation now preserves warnings and errors together in `MidoriResult::CompilerReport`. Human-readable rendering and machine-readable warning serialization are both derived from that same structured report.
 
 Errors use the `std::expected` pattern for monadic error propagation:
 

@@ -5,6 +5,7 @@ Midori Test Runner
 Runs all tests in the test/ directory and reports results.
 Supports:
 - Expected output verification (.expected files)
+- Structured warning verification (.warnings.json files)
 - Failure tests (tests in failure/ directories should fail compilation)
 - Success tests (tests in success/ directories should succeed)
 - Colored output with detailed reporting
@@ -24,6 +25,7 @@ import os
 import sys
 import subprocess
 import argparse
+import json
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional
@@ -166,10 +168,28 @@ class TestRunner:
             return expected_file.read_text(encoding='utf-8')
         return None
 
-    def normalize_snapshot_text(self, text: str) -> str:
-        """Normalize diagnostic/output text before comparing it to a snapshot."""
-        clean = re.sub(r'\x1b\[[0-9;]*m', '', text)
-        clean = clean.replace('\r\n', '\n').replace('\r', '')
+    def get_expected_warnings(self, test_path: Path) -> Optional[List[dict]]:
+        """Get expected machine-readable warnings from .warnings.json if it exists."""
+        warnings_file = test_path.with_suffix('.warnings.json')
+        if not warnings_file.exists():
+            return None
+
+        with warnings_file.open(encoding='utf-8') as handle:
+            warning_data = json.load(handle)
+
+        if not isinstance(warning_data, list):
+            raise ValueError(f"{warnings_file} must contain a JSON array of warning objects")
+
+        normalized_warnings: List[dict] = []
+        for warning in warning_data:
+            if not isinstance(warning, dict):
+                raise ValueError(f"{warnings_file} entries must be JSON objects")
+            normalized_warnings.append(self.normalize_warning_record(warning))
+
+        return normalized_warnings
+
+    def normalize_path_text(self, text: str) -> str:
+        clean = text.replace('\r\n', '\n').replace('\r', '')
 
         resolved_root = str(self.root_dir.resolve())
         root_variants = {resolved_root, resolved_root.replace('\\', '/')}
@@ -177,9 +197,38 @@ class TestRunner:
             clean = clean.replace(root + "\\", "")
             clean = clean.replace(root + "/", "")
 
-        clean = clean.replace('\\', '/')
+        return clean.replace('\\', '/')
+
+    def normalize_snapshot_text(self, text: str) -> str:
+        """Normalize diagnostic/output text before comparing it to a snapshot."""
+        clean = re.sub(r'\x1b\[[0-9;]*m', '', text)
+        clean = self.normalize_path_text(clean)
         clean = re.sub(r'(^\d+ \| .*)\n+(?=\s+\|)', r'\1\n', clean, flags=re.MULTILINE)
         return '\n'.join(line.rstrip() for line in clean.split('\n'))
+
+    def normalize_warning_record(self, warning: dict) -> dict:
+        normalized = dict(warning)
+        file_path = normalized.get("file_path")
+        if isinstance(file_path, str):
+            normalized["file_path"] = self.normalize_path_text(file_path)
+        return normalized
+
+    def split_machine_readable_warnings(self, output: str) -> tuple[List[dict], str]:
+        warning_records: List[dict] = []
+        non_warning_lines: List[str] = []
+
+        for line in output.splitlines():
+            if line.startswith("MIDORI_WARNING\t"):
+                payload = line.split("\t", 1)[1]
+                warning = json.loads(payload)
+                if not isinstance(warning, dict):
+                    raise ValueError("Machine-readable warning payload must be a JSON object")
+                warning_records.append(self.normalize_warning_record(warning))
+                continue
+
+            non_warning_lines.append(line)
+
+        return warning_records, '\n'.join(non_warning_lines)
 
     def run_test(self, test_path: Path) -> TestResult:
         """Run a single test file."""
@@ -191,10 +240,13 @@ class TestRunner:
         expected_output = self.get_expected_output(test_path)
 
         try:
+            expected_warnings = self.get_expected_warnings(test_path)
             import time
             start = time.time()
             env = os.environ.copy()
             env["MIDORI_TEST_MODE"] = "1"
+            if expected_warnings is not None:
+                env["MIDORI_TEST_WARNING_FORMAT"] = "machine"
 
             result = subprocess.run(
                 [str(self.midori_exe), command_path],
@@ -210,7 +262,9 @@ class TestRunner:
             duration_ms = (time.time() - start) * 1000
 
             output = result.stdout + result.stderr
-            normalized_output = self.normalize_snapshot_text(output)
+            actual_warnings, human_output = self.split_machine_readable_warnings(output)
+            normalized_output = self.normalize_snapshot_text(human_output)
+            failure_reason: Optional[str] = None
 
             # Determine if test passed
             if expected_to_fail:
@@ -220,10 +274,29 @@ class TestRunner:
                 # Success tests should have zero exit code
                 passed = result.returncode == 0
 
+            if not passed:
+                expected_status = "non-zero" if expected_to_fail else "zero"
+                failure_reason = f"Expected exit code {expected_status}, got {result.returncode}."
+
             # Compare snapshots for both success and failure tests after normalizing
             if passed and expected_output is not None:
                 normalized_expected = self.normalize_snapshot_text(expected_output)
-                passed = normalized_output.strip() == normalized_expected.strip()
+                if normalized_output.strip() != normalized_expected.strip():
+                    passed = False
+                    failure_reason = (
+                        "Output snapshot mismatch.\n"
+                        f"Expected:\n{normalized_expected}\n\n"
+                        f"Actual:\n{normalized_output}"
+                    )
+
+            if passed and expected_warnings is not None:
+                if actual_warnings != expected_warnings:
+                    passed = False
+                    failure_reason = (
+                        "Warning snapshot mismatch.\n"
+                        f"Expected:\n{json.dumps(expected_warnings, indent=2, ensure_ascii=False)}\n\n"
+                        f"Actual:\n{json.dumps(actual_warnings, indent=2, ensure_ascii=False)}"
+                    )
 
             return TestResult(
                 name=test_name,
@@ -232,6 +305,7 @@ class TestRunner:
                 expected_to_fail=expected_to_fail,
                 output=output,
                 exit_code=result.returncode,
+                error=failure_reason,
                 duration_ms=duration_ms
             )
 

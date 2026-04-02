@@ -37,6 +37,11 @@ const CompiledModule::TypeclassMetadataMap& CompiledModule::TypeclassMetadataByN
 	return m_typeclass_metadata;
 }
 
+const std::vector<CompilerWarning>& CompiledModule::Warnings() const
+{
+	return m_warnings;
+}
+
 const std::optional<BytecodeModule>& CompiledModule::Bytecode() const &
 {
 	return m_bytecode;
@@ -103,6 +108,12 @@ CompiledModule CompiledModule::WithTypeSignatures(TypeEnvironment type_signature
 CompiledModule CompiledModule::WithTypeclassMetadata(TypeclassMetadataMap typeclass_metadata) &&
 {
 	m_typeclass_metadata = std::move(typeclass_metadata);
+	return std::move(*this);
+}
+
+CompiledModule CompiledModule::WithWarnings(std::vector<CompilerWarning> warnings) &&
+{
+	m_warnings = std::move(warnings);
 	return std::move(*this);
 }
 

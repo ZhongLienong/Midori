@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/Error/Error.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/Module.h"
@@ -65,6 +66,8 @@ struct CompiledModule
 
 	[[nodiscard]] const TypeclassMetadataMap& TypeclassMetadataByName() const;
 
+	[[nodiscard]] const std::vector<CompilerWarning>& Warnings() const;
+
 	[[nodiscard]] const std::optional<BytecodeModule>& Bytecode() const &;
 
 	[[nodiscard]] BytecodeModule TakeBytecode() &&;
@@ -75,6 +78,8 @@ struct CompiledModule
 
 	[[nodiscard]] CompiledModule WithTypeclassMetadata(TypeclassMetadataMap typeclass_metadata) &&;
 
+	[[nodiscard]] CompiledModule WithWarnings(std::vector<CompilerWarning> warnings) &&;
+
 	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
 
 private:
@@ -83,5 +88,6 @@ private:
 	SymbolTable m_symbols;
 	TypeEnvironment m_type_signatures;
 	TypeclassMetadataMap m_typeclass_metadata;
+	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 };

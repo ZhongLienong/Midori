@@ -1,0 +1,12 @@
+[
+  {
+    "stage": "StaticAnalyzer",
+    "code": "UnusedLocal",
+    "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+    "line": 4,
+    "column": 4,
+    "caret_length": 6,
+    "message": "Binding 'unused' is never read.",
+    "suggestion": null
+  }
+]

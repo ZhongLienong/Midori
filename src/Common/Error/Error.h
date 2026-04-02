@@ -110,12 +110,17 @@ struct CompilerWarning
 	CompilerWarning(const char* message);
 	CompilerWarning(CompilerStage stage, std::string message);
 
-	static CompilerWarning Simple(CompilerStage stage, std::string_view message);
-	static CompilerWarning WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt);
-	static CompilerWarning WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
+	static CompilerWarning Simple(CompilerStage stage, std::string_view message, CompilerWarningCode code = CompilerWarningCode::None);
+	static CompilerWarning WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt, CompilerWarningCode code = CompilerWarningCode::None);
+	static CompilerWarning WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerWarningCode code = CompilerWarningCode::None);
 
 	std::string_view Rendered() const;
 };
+
+[[nodiscard]] std::string_view CompilerStageName(CompilerStage stage);
+[[nodiscard]] std::string_view CompilerWarningCodeName(CompilerWarningCode code);
+[[nodiscard]] std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file_path);
+[[nodiscard]] std::string SerializeMachineReadableWarning(const CompilerWarning& warning);
 
 namespace std
 {

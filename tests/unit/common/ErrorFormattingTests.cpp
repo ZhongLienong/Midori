@@ -1,7 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include "Common/Error/Error.h"
 #include "Compiler/Token/Token.h"
+#include "support/CompileHelpers.h"
+#include "support/DiagnosticMatchers.h"
 #include "Utility/Driver/MidoriDriver.h"
 
 #include <string>
@@ -77,7 +80,8 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		token,
 		"Warning.mdr",
 		source_lines,
-		"Prefix with '_' if intentional");
+		"Prefix with '_' if intentional",
+		CompilerWarningCode::UnusedLocal);
 
 	const std::string expected_render =
 		"Static Analyzer Warning at Warning.mdr:1\n"
@@ -88,6 +92,7 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		"  | Prefix with '_' if intentional\n";
 
 	REQUIRE(StripAnsiCodes(warning.Rendered()) == expected_render);
+	REQUIRE(warning.m_code == CompilerWarningCode::UnusedLocal);
 }
 
 TEST_CASE("CompilerError WithToken uses the stored token span instead of searching the line text", "[error][format]")
@@ -149,8 +154,74 @@ TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warni
 	REQUIRE(warning.Rendered() == "Dead store removed");
 }
 
-TEST_CASE("Driver renders compilation diagnostic collections behind one banner", "[compiler][driver][diagnostics]")
+TEST_CASE("Compiler report renders grouped warnings and structured machine-readable warnings", "[compiler][warning][report]")
 {
+	CompilerWarning alpha_warning = CompilerWarning::WithContext(
+		CompilerStage::StaticAnalyzer,
+		"Unused local",
+		3,
+		"C:/repo/Alpha.mdr",
+		4,
+		6u,
+		"Prefix with '_' if intentional",
+		"def unused = 1;",
+		CompilerWarningCode::UnusedLocal);
+
+	CompilerWarning second_alpha_warning = CompilerWarning::WithContext(
+		CompilerStage::StaticAnalyzer,
+		"Unreachable code",
+		5,
+		"C:/repo/Alpha.mdr",
+		1,
+		6u,
+		std::nullopt,
+		"return 1;",
+		CompilerWarningCode::UnreachableCode);
+
+	CompilerWarning beta_warning = CompilerWarning::WithContext(
+		CompilerStage::Parser,
+		"Shadowed name",
+		2,
+		"C:/repo/Beta.mdr",
+		2,
+		4u,
+		std::nullopt,
+		"def value = value;",
+		CompilerWarningCode::NameShadowing);
+
+	MidoriResult::CompilerReport report(MidoriResult::CompilerWarnings(std::vector<CompilerWarning>
+	{
+		alpha_warning,
+		second_alpha_warning,
+		beta_warning
+	}));
+
+	const std::string rendered = StripAnsiCodes(report.RenderedWarnings());
+	CHECK(rendered.find("[warning] 2 warning(s) in Alpha.mdr\n") != std::string::npos);
+	CHECK(rendered.find("[warning] 1 warning(s) in Beta.mdr\n") != std::string::npos);
+
+	const std::string machine = report.MachineReadableWarnings();
+	CHECK(machine.find("\"stage\":\"StaticAnalyzer\"") != std::string::npos);
+	CHECK(machine.find("\"code\":\"UnusedLocal\"") != std::string::npos);
+	CHECK(machine.find("\"file_path\":\"C:/repo/Alpha.mdr\"") != std::string::npos);
+	CHECK(machine.find("\"column\":4") != std::string::npos);
+	CHECK(machine.find("\"caret_length\":6") != std::string::npos);
+	CHECK(machine.find("\"suggestion\":\"Prefix with '_' if intentional\"") != std::string::npos);
+}
+
+TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[compiler][driver][diagnostics]")
+{
+	CompilerWarning warning = CompilerWarning::WithContext(
+		CompilerStage::StaticAnalyzer,
+		"Unused local",
+		3,
+		"Warn.mdr",
+		4,
+		6u,
+		std::nullopt,
+		"def unused = 1;",
+		CompilerWarningCode::UnusedLocal);
+
 	std::vector<CompilerError> errors;
 	errors.emplace_back(CompilerError::WithContext(
 		CompilerStage::CodeGenerator,
@@ -174,15 +245,20 @@ TEST_CASE("Driver renders compilation diagnostic collections behind one banner",
 		CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 
 	const MidoriDriver::DriverError error =
-		MidoriDriver::DriverError::Compilation(MidoriResult::CompilerDiagnostics(std::move(errors)));
+		MidoriDriver::DriverError::Compilation(MidoriResult::CompilerReport(
+			MidoriResult::CompilerWarnings(std::move(warning)),
+			MidoriResult::CompilerDiagnostics(std::move(errors))));
 	const std::string rendered = StripAnsiCodes(error.Rendered());
 
 	REQUIRE(rendered.starts_with("Compilation failed :( \n"));
 
+	const size_t warning_position = rendered.find("[warning] 1 warning(s) in Warn.mdr");
 	const size_t first_position = rendered.find("Code Generator Error at First.mdr:2");
 	const size_t second_position = rendered.find("Bytecode Linker Error at Second.mdr:4");
+	REQUIRE(warning_position != std::string::npos);
 	REQUIRE(first_position != std::string::npos);
 	REQUIRE(second_position != std::string::npos);
+	CHECK(warning_position < first_position);
 	CHECK(first_position < second_position);
 }
 
@@ -203,4 +279,34 @@ TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics
 	const std::string rendered = StripAnsiCodes(error.Rendered());
 	CHECK(rendered.find("Compilation failed :(") == std::string::npos);
 	CHECK(rendered.find("Runtime Error at Runtime.mdr:8") != std::string::npos);
+}
+
+TEST_CASE("Compiler report preserves static-analyzer warning metadata on successful compile", "[compiler][warning][report]")
+{
+	const std::string source_code =
+		R"(module CompileWarning
+defun Compute() : Int => {
+	def used = 1;
+	def unused = 2;
+	used
+};
+)";
+
+	MidoriResult::CompilationResult compile_result = MidoriTest::CompileSnippetWithReport(source_code, "CompileWarning.mdr");
+	if (!compile_result.has_value())
+	{
+		FAIL(MidoriTest::StripAnsiCodes(compile_result.error().Rendered()));
+	}
+
+	const MidoriResult::CompilerReport& report = MidoriTest::CompilationReport(compile_result);
+	REQUIRE(report.HasWarnings());
+	REQUIRE_FALSE(report.HasErrors());
+
+	const CompilerWarning* warning = MidoriTest::FindWarning(report, CompilerStage::StaticAnalyzer, CompilerWarningCode::UnusedLocal);
+	REQUIRE(warning != nullptr);
+	CHECK(warning->m_stage == CompilerStage::StaticAnalyzer);
+	CHECK(warning->m_code == CompilerWarningCode::UnusedLocal);
+	REQUIRE(warning->m_location.has_value());
+	CHECK(std::filesystem::path(warning->m_location->m_file_name).filename().string() == "CompileWarning.mdr");
+	CHECK(warning->m_location->m_line == 4);
 }

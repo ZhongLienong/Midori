@@ -1,10 +1,65 @@
 #include "Error.h"
 #include "Common/Printer/Printer.h"
 #include <algorithm>
+#include <filesystem>
 #include <sstream>
+
+std::string_view CompilerStageName(CompilerStage stage)
+{
+	switch (stage)
+	{
+	case CompilerStage::Lexer:
+		return "Lexer";
+	case CompilerStage::Parser:
+		return "Parser";
+	case CompilerStage::TypeChecker:
+		return "TypeChecker";
+	case CompilerStage::StaticAnalyzer:
+		return "StaticAnalyzer";
+	case CompilerStage::CodeGenerator:
+		return "CodeGenerator";
+	case CompilerStage::Module:
+		return "Module";
+	case CompilerStage::Optimizer:
+		return "Optimizer";
+	case CompilerStage::BytecodeLinker:
+		return "BytecodeLinker";
+	case CompilerStage::Compiler:
+		return "Compiler";
+	case CompilerStage::Runtime:
+		return "Runtime";
+	case CompilerStage::Unknown:
+	default:
+		return "Unknown";
+	}
+}
+
+std::string_view CompilerWarningCodeName(CompilerWarningCode code)
+{
+	switch (code)
+	{
+	case CompilerWarningCode::NameShadowing:
+		return "NameShadowing";
+	case CompilerWarningCode::UnusedLocal:
+		return "UnusedLocal";
+	case CompilerWarningCode::UnreachableCode:
+		return "UnreachableCode";
+	case CompilerWarningCode::CaptureEscape:
+		return "CaptureEscape";
+	case CompilerWarningCode::None:
+	default:
+		return "None";
+	}
+}
 
 namespace
 {
+	enum class DiagnosticSeverity
+	{
+		Error,
+		Warning
+	};
+
 	struct TokenLocationContext
 	{
 		std::optional<int> m_column = std::nullopt;
@@ -12,38 +67,38 @@ namespace
 		std::optional<std::string_view> m_source_line = std::nullopt;
 	};
 
-	std::string_view StageLabel(CompilerStage stage)
+	std::string_view StageLabel(CompilerStage stage, DiagnosticSeverity severity)
 	{
-		switch (stage)
+		if (severity == DiagnosticSeverity::Error)
 		{
-		case CompilerStage::Lexer:
-			return "Lexer Error";
-		case CompilerStage::Parser:
-			return "Parser Error";
-		case CompilerStage::TypeChecker:
-			return "Type Checker Error";
-		case CompilerStage::StaticAnalyzer:
-			return "Static Analyzer Error";
-		case CompilerStage::CodeGenerator:
-			return "Code Generator Error";
-		case CompilerStage::Module:
-			return "Module Error";
-		case CompilerStage::Optimizer:
-			return "Optimizer Error";
-		case CompilerStage::BytecodeLinker:
-			return "Bytecode Linker Error";
-		case CompilerStage::Compiler:
-			return "Compiler Error";
-		case CompilerStage::Runtime:
-			return "Runtime Error";
-		case CompilerStage::Unknown:
-		default:
-			return "Error";
+			switch (stage)
+			{
+			case CompilerStage::Lexer:
+				return "Lexer Error";
+			case CompilerStage::Parser:
+				return "Parser Error";
+			case CompilerStage::TypeChecker:
+				return "Type Checker Error";
+			case CompilerStage::StaticAnalyzer:
+				return "Static Analyzer Error";
+			case CompilerStage::CodeGenerator:
+				return "Code Generator Error";
+			case CompilerStage::Module:
+				return "Module Error";
+			case CompilerStage::Optimizer:
+				return "Optimizer Error";
+			case CompilerStage::BytecodeLinker:
+				return "Bytecode Linker Error";
+			case CompilerStage::Compiler:
+				return "Compiler Error";
+			case CompilerStage::Runtime:
+				return "Runtime Error";
+			case CompilerStage::Unknown:
+			default:
+				return "Error";
+			}
 		}
-	}
 
-	std::string_view StageWarningLabel(CompilerStage stage)
-	{
 		switch (stage)
 		{
 		case CompilerStage::Lexer:
@@ -72,131 +127,144 @@ namespace
 		}
 	}
 
-	std::string RenderCompilerError(const CompilerError& error)
+	Printer::Color DiagnosticAccentColor(DiagnosticSeverity severity)
 	{
-		if (!error.m_location.has_value())
-		{
-			return error.m_message;
-		}
+		return severity == DiagnosticSeverity::Error
+			? Printer::Color::BRIGHT_RED
+			: Printer::Color::BRIGHT_YELLOW;
+	}
 
-		const CompilerErrorLocation& location = error.m_location.value();
+	std::string RenderLabeledLine(Printer::Color label_color, Printer::Color message_color, std::string_view label, std::string_view message)
+	{
 		std::ostringstream oss;
-
-		// Error header with colors
-		oss << Printer::Detail::GetStyleCode(Printer::Style::BOLD);
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_RED);
-		oss << StageLabel(error.m_stage);
+		oss << Printer::Detail::GetColorCode(label_color);
+		oss << "[" << label << "] ";
+		oss << Printer::Detail::GetColorCode(message_color);
+		oss << message;
 		oss << "\033[0m";
-		oss << " at ";
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_CYAN);
-		oss << location.m_file_name << ":" << location.m_line;
-		oss << "\033[0m\n";
-
-		if (location.m_source_line.has_value() && location.m_line > 0)
-		{
-			std::string_view source_line = location.m_source_line.value();
-
-			// Line number gutter
-			std::string line_num_str = std::to_string(location.m_line);
-			int gutter_width = static_cast<int>(line_num_str.length()) + 1;
-
-			// Empty line with separator
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
-			for (int i = 0; i < gutter_width; i += 1)
-			{
-				oss << " ";
-			}
-			oss << "|\n";
-
-			// Source line
-			oss << line_num_str << " ";
-			oss << "|";
-			oss << "\033[0m";
-			oss << " " << source_line << "\n";
-
-			// Error pointer line (if column info provided)
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
-			for (int i = 0; i < gutter_width; i += 1)
-			{
-				oss << " ";
-			}
-			oss << "|";
-			oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_RED);
-
-			if (location.m_column.has_value())
-			{
-				oss << " ";
-
-				// Add spaces before the caret
-				for (int i = 0; i < location.m_column.value(); i += 1)
-				{
-					oss << " ";
-				}
-
-				// Add carets
-				size_t length = location.m_caret_length.value_or(1u);
-				for (size_t i = 0u; i < length; i += 1u)
-				{
-					oss << "^";
-				}
-				oss << " " << error.m_message;
-			}
-			else
-			{
-				oss << " " << error.m_message;
-			}
-
-			oss << "\033[0m\n";
-
-			// Empty line separator
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
-			for (int i = 0; i < gutter_width; i += 1)
-			{
-				oss << " ";
-			}
-			oss << "|\033[0m\n";
-		}
-		else
-		{
-			oss << "  " << error.m_message << "\n";
-		}
-
-		if (error.m_suggestion.has_value())
-		{
-			oss << Printer::Detail::GetColorCode(Printer::Color::YELLOW);
-			oss << "  | ";
-			oss << error.m_suggestion.value();
-			oss << "\033[0m\n";
-		}
-
 		return oss.str();
 	}
 
-	std::string RenderCompilerWarning(const CompilerWarning& warning)
+	std::string EscapeJsonString(std::string_view value)
 	{
-		if (!warning.m_location.has_value())
+		std::string escaped;
+		escaped.reserve(value.size());
+
+		for (const unsigned char ch : value)
 		{
-			return warning.m_message;
+			switch (ch)
+			{
+			case '\"':
+				escaped += "\\\"";
+				break;
+			case '\\':
+				escaped += "\\\\";
+				break;
+			case '\b':
+				escaped += "\\b";
+				break;
+			case '\f':
+				escaped += "\\f";
+				break;
+			case '\n':
+				escaped += "\\n";
+				break;
+			case '\r':
+				escaped += "\\r";
+				break;
+			case '\t':
+				escaped += "\\t";
+				break;
+			default:
+				if (ch < 0x20u)
+				{
+					escaped += std::format("\\u{:04X}", static_cast<unsigned int>(ch));
+				}
+				else
+				{
+					escaped.push_back(static_cast<char>(ch));
+				}
+				break;
+			}
 		}
 
-		const CompilerErrorLocation& location = warning.m_location.value();
+		return escaped;
+	}
+
+	void AppendJsonFieldPrefix(std::string& out, std::string_view key, bool& first_field)
+	{
+		if (!first_field)
+		{
+			out.push_back(',');
+		}
+		first_field = false;
+
+		out.push_back('\"');
+		out += key;
+		out += "\":";
+	}
+
+	void AppendJsonStringField(std::string& out, std::string_view key, std::optional<std::string_view> value, bool& first_field)
+	{
+		AppendJsonFieldPrefix(out, key, first_field);
+		if (!value.has_value())
+		{
+			out += "null";
+			return;
+		}
+
+		out.push_back('\"');
+		out += EscapeJsonString(*value);
+		out.push_back('\"');
+	}
+
+	void AppendJsonStringField(std::string& out, std::string_view key, std::string_view value, bool& first_field)
+	{
+		AppendJsonStringField(out, key, std::optional<std::string_view>(value), first_field);
+	}
+
+	template <typename NumberType>
+	void AppendJsonNumberField(std::string& out, std::string_view key, std::optional<NumberType> value, bool& first_field)
+	{
+		AppendJsonFieldPrefix(out, key, first_field);
+		if (!value.has_value())
+		{
+			out += "null";
+			return;
+		}
+
+		out += std::to_string(*value);
+	}
+
+	std::string RenderCompilerDiagnostic(
+		CompilerStage stage,
+		std::string_view message,
+		const std::optional<CompilerErrorLocation>& location,
+		const std::optional<std::string>& suggestion,
+		DiagnosticSeverity severity)
+	{
+		if (!location.has_value())
+		{
+			return std::string(message);
+		}
+
+		const CompilerErrorLocation& resolved_location = *location;
 		std::ostringstream oss;
 
 		oss << Printer::Detail::GetStyleCode(Printer::Style::BOLD);
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
-		oss << StageWarningLabel(warning.m_stage);
+		oss << Printer::Detail::GetColorCode(DiagnosticAccentColor(severity));
+		oss << StageLabel(stage, severity);
 		oss << "\033[0m";
 		oss << " at ";
 		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_CYAN);
-		oss << location.m_file_name << ":" << location.m_line;
+		oss << resolved_location.m_file_name << ":" << resolved_location.m_line;
 		oss << "\033[0m\n";
 
-		if (location.m_source_line.has_value() && location.m_line > 0)
+		if (resolved_location.m_source_line.has_value() && resolved_location.m_line > 0)
 		{
-			std::string_view source_line = location.m_source_line.value();
-
-			std::string line_num_str = std::to_string(location.m_line);
-			int gutter_width = static_cast<int>(line_num_str.length()) + 1;
+			std::string_view source_line = *resolved_location.m_source_line;
+			const std::string line_num_str = std::to_string(resolved_location.m_line);
+			const int gutter_width = static_cast<int>(line_num_str.length()) + 1;
 
 			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
@@ -205,8 +273,7 @@ namespace
 			}
 			oss << "|\n";
 
-			oss << line_num_str << " ";
-			oss << "|";
+			oss << line_num_str << " |";
 			oss << "\033[0m";
 			oss << " " << source_line << "\n";
 
@@ -216,26 +283,27 @@ namespace
 				oss << " ";
 			}
 			oss << "|";
-			oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
+			oss << Printer::Detail::GetColorCode(DiagnosticAccentColor(severity));
 
-			if (location.m_column.has_value())
+			if (resolved_location.m_column.has_value())
 			{
 				oss << " ";
-				for (int i = 0; i < location.m_column.value(); i += 1)
+				for (int i = 0; i < *resolved_location.m_column; i += 1)
 				{
 					oss << " ";
 				}
 
-				size_t length = location.m_caret_length.value_or(1u);
-				for (size_t i = 0u; i < length; i += 1u)
+				const size_t caret_length = resolved_location.m_caret_length.value_or(1u);
+				for (size_t i = 0u; i < caret_length; i += 1u)
 				{
 					oss << "^";
 				}
-				oss << " " << warning.m_message;
+
+				oss << " " << message;
 			}
 			else
 			{
-				oss << " " << warning.m_message;
+				oss << " " << message;
 			}
 
 			oss << "\033[0m\n";
@@ -249,14 +317,14 @@ namespace
 		}
 		else
 		{
-			oss << "  " << warning.m_message << "\n";
+			oss << "  " << message << "\n";
 		}
 
-		if (warning.m_suggestion.has_value())
+		if (suggestion.has_value())
 		{
 			oss << Printer::Detail::GetColorCode(Printer::Color::YELLOW);
 			oss << "  | ";
-			oss << warning.m_suggestion.value();
+			oss << *suggestion;
 			oss << "\033[0m\n";
 		}
 
@@ -280,6 +348,62 @@ namespace
 		context.m_column = token.m_column;
 		context.m_caret_length = std::max(token.m_source_length.value_or(0u), size_t(1u));
 		return context;
+	}
+}
+
+std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file_path)
+{
+	const std::string summary = file_path.empty()
+		? std::format("{} warning(s)\n", warning_count)
+		: std::format("{} warning(s) in {}\n", warning_count, std::filesystem::path(file_path).filename().string());
+	return RenderLabeledLine(Printer::Color::YELLOW, Printer::Color::WHITE, "warning", summary);
+}
+
+std::string SerializeMachineReadableWarning(const CompilerWarning& warning)
+{
+	std::string serialized = "MIDORI_WARNING\t{";
+	bool first_field = true;
+
+	AppendJsonStringField(serialized, "stage", CompilerStageName(warning.m_stage), first_field);
+	AppendJsonStringField(serialized, "code", CompilerWarningCodeName(warning.m_code), first_field);
+
+	std::optional<std::string_view> file_path = std::nullopt;
+	std::optional<int> line = std::nullopt;
+	std::optional<int> column = std::nullopt;
+	std::optional<size_t> caret_length = std::nullopt;
+	if (warning.m_location.has_value())
+	{
+		file_path = warning.m_location->m_file_name;
+		if (warning.m_location->m_line > 0)
+		{
+			line = warning.m_location->m_line;
+		}
+		column = warning.m_location->m_column;
+		caret_length = warning.m_location->m_caret_length;
+	}
+	const std::optional<std::string_view> suggestion =
+		warning.m_suggestion.has_value() ? std::optional<std::string_view>(*warning.m_suggestion) : std::optional<std::string_view>(std::nullopt);
+
+	AppendJsonStringField(serialized, "file_path", file_path, first_field);
+	AppendJsonNumberField(serialized, "line", line, first_field);
+	AppendJsonNumberField(serialized, "column", column, first_field);
+	AppendJsonNumberField(serialized, "caret_length", caret_length, first_field);
+	AppendJsonStringField(serialized, "message", std::string_view(warning.m_message), first_field);
+	AppendJsonStringField(serialized, "suggestion", suggestion, first_field);
+	serialized.push_back('}');
+	return serialized;
+}
+
+namespace
+{
+	std::string RenderCompilerError(const CompilerError& error)
+	{
+		return RenderCompilerDiagnostic(error.m_stage, error.m_message, error.m_location, error.m_suggestion, DiagnosticSeverity::Error);
+	}
+
+	std::string RenderCompilerWarning(const CompilerWarning& warning)
+	{
+		return RenderCompilerDiagnostic(warning.m_stage, warning.m_message, warning.m_location, warning.m_suggestion, DiagnosticSeverity::Warning);
 	}
 }
 
@@ -389,16 +513,18 @@ CompilerWarning::CompilerWarning(CompilerStage stage, std::string message)
 	m_rendered = RenderCompilerWarning(*this);
 }
 
-CompilerWarning CompilerWarning::Simple(CompilerStage stage, std::string_view message)
+CompilerWarning CompilerWarning::Simple(CompilerStage stage, std::string_view message, CompilerWarningCode code)
 {
 	CompilerWarning warning(stage, std::string(message));
+	warning.m_code = code;
 	return warning;
 }
 
-CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line)
+CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line, CompilerWarningCode code)
 {
 	CompilerWarning warning;
 	warning.m_stage = stage;
+	warning.m_code = code;
 	warning.m_message = std::string(message);
 
 	CompilerErrorLocation location;
@@ -421,10 +547,10 @@ CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_vi
 	return warning;
 }
 
-CompilerWarning CompilerWarning::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerWarning CompilerWarning::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerWarningCode code)
 {
 	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
-	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line);
+	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line, code);
 }
 
 std::string_view CompilerWarning::Rendered() const

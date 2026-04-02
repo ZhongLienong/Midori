@@ -73,6 +73,9 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mdr");
 
+	[[nodiscard]] MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name = "Test.mdr");
+	[[nodiscard]] const MidoriResult::CompilerReport& CompilationReport(const MidoriResult::CompilationResult& compilation_result);
+
 	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mdr");
 
 	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name = "Test.mdr");

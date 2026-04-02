@@ -128,6 +128,36 @@ namespace MidoriTest
 			mismatch);
 	}
 
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerWarningCode code)
+	{
+		return FindWarning(warnings.Warnings(), code);
+	}
+
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage)
+	{
+		return FindWarning(warnings.Warnings(), stage);
+	}
+
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code)
+	{
+		return FindWarning(warnings.Warnings(), stage, code);
+	}
+
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerWarningCode code)
+	{
+		return FindWarning(report.Warnings(), code);
+	}
+
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage)
+	{
+		return FindWarning(report.Warnings(), stage);
+	}
+
+	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code)
+	{
+		return FindWarning(report.Warnings(), stage, code);
+	}
+
 	const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code)
 	{
 		const std::vector<CompilerWarning>::const_iterator warning_it = std::ranges::find_if
@@ -136,6 +166,44 @@ namespace MidoriTest
 			[code](const CompilerWarning& warning)
 			{
 				return warning.m_code == code;
+			}
+		);
+
+		if (warning_it == warnings.cend())
+		{
+			return nullptr;
+		}
+
+		return std::addressof(*warning_it);
+	}
+
+	const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerStage stage)
+	{
+		const std::vector<CompilerWarning>::const_iterator warning_it = std::ranges::find_if
+		(
+			warnings,
+			[stage](const CompilerWarning& warning)
+			{
+				return warning.m_stage == stage;
+			}
+		);
+
+		if (warning_it == warnings.cend())
+		{
+			return nullptr;
+		}
+
+		return std::addressof(*warning_it);
+	}
+
+	const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerStage stage, CompilerWarningCode code)
+	{
+		const std::vector<CompilerWarning>::const_iterator warning_it = std::ranges::find_if
+		(
+			warnings,
+			[stage, code](const CompilerWarning& warning)
+			{
+				return warning.m_stage == stage && warning.m_code == code;
 			}
 		);
 

@@ -1,0 +1,12 @@
+[
+  {
+    "stage": "StaticAnalyzer",
+    "code": "UnusedLocal",
+    "file_path": "test/static_analyzer/failure/warning_then_codegen_failure.mdr",
+    "line": 10,
+    "column": 4,
+    "caret_length": 6,
+    "message": "Binding 'unused' is never read.",
+    "suggestion": null
+  }
+]

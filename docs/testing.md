@@ -42,8 +42,29 @@ Regression tests:
 
 - place programs under `test/<category>/`
 - use `failure/` directories for compile-fail scenarios
-- add `<name>.expected` when stdout/stderr must match a snapshot
+- add `<name>.expected` when stdout/stderr or compile-fail diagnostics must match a snapshot
+- `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
+- when a `.warnings.json` file is present, `scripts/run_tests.py` enables `MIDORI_TEST_WARNING_FORMAT=machine`, strips `MIDORI_WARNING` lines out of the `.expected` comparison path, and compares the decoded warning payloads separately
+
+`<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the driver:
+
+```json
+[
+  {
+    "stage": "StaticAnalyzer",
+    "code": "UnusedLocal",
+    "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+    "line": 4,
+    "column": 4,
+    "caret_length": 6,
+    "message": "Binding 'unused' is never read.",
+    "suggestion": null
+  }
+]
+```
+
+Keep the object order stable when warning order matters; the runner compares the full decoded array, not a set.
 
 ## Support Helpers
 
@@ -55,6 +76,8 @@ The helpers in `tests/support/` exist to keep new tests short and deterministic.
 - `ParseSnippet(source, file_name)` returns parsed statements, module declaration metadata, and collected `use` imports
 - `TypeCheckSnippet(source, file_name)` returns the typed program tree and warnings
 - `AnalyzeSnippet(source, file_name)` returns warnings and static-analyzer errors
+- `CompileSnippetWithReport(source, file_name)` returns the final `MidoriResult::CompilationResult` from the driver boundary
+- `CompilationReport(result)` returns the final `MidoriResult::CompilerReport` for either a successful or failed compile result
 - `CompileSnippet(source, file_name)` compiles through the driver layer without launching the CLI
 - `ExecuteSnippet(source, file_name)` compiles and runs a snippet in-process and captures stdout/stderr
 - `CollectTokenNames(tokens)` turns a token stream into a concise sequence for lexer assertions
@@ -71,6 +94,7 @@ Filesystem and environment helpers:
 Diagnostic helpers:
 
 - [`tests/support/DiagnosticMatchers.h`](../tests/support/DiagnosticMatchers.h) matches warnings and errors by stage, code, line, and message fragments
+- `FindWarning(...)` and `FindError(...)` work on raw vectors, diagnostic collections, and top-level compiler reports
 - prefer these matchers over exact full-render snapshots when only part of the diagnostic matters
 
 Example patterns:
