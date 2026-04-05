@@ -107,7 +107,13 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			.WithExports(std::move(exports));
 		m_module_declarations[m_main_file_name] = std::move(module_decl);
 
-		std::vector<std::pair<std::string, int>> import_paths = ExtractImports(m_main_token_stream, spans);
+		MidoriResult::Result<std::vector<std::pair<std::string, int>>> import_result = ExtractImports(m_main_token_stream, spans);
+		if (!import_result.has_value())
+		{
+			return std::unexpected(std::move(import_result.error()));
+		}
+
+		std::vector<std::pair<std::string, int>> import_paths = std::move(import_result.value());
 		MidoriResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
 		if (!use_import_result.has_value())
 		{
@@ -812,9 +818,15 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 	return std::make_tuple(std::move(module_name), std::move(all_exports));
 }
 
-std::vector<std::pair<std::string, int>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<std::pair<std::string, int>> import_paths;
+	const std::string_view import_suggestion = R"(Use 'import { <IO> }' for system modules or 'import { "./File.mdr" }' for path imports.)";
+
+	const auto make_import_error = [this, import_suggestion](std::string_view message, const Token& token) -> CompilerError
+	{
+		return CompilerError::WithToken(CompilerStage::Module, message, token, m_main_file_name, m_main_source_lines, import_suggestion);
+	};
 
 	for (const StatementSpan& span : spans)
 	{
@@ -822,69 +834,113 @@ std::vector<std::pair<std::string, int>> ModuleManager::ExtractImports(const Tok
 		{
 			int current = span.m_start + 1;
 			SkipWhiteSpace(tokens, current);
+			const Token& import_token = tokens[span.m_start];
 
-			if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::LEFT_BRACE)
+			if (current >= span.m_end || tokens[current].m_token_name != Token::Name::LEFT_BRACE)
 			{
-				current += 1;
-				SkipWhiteSpace(tokens, current);
+				const Token& error_token = current < tokens.Size() ? tokens[current] : import_token;
+				return std::unexpected(make_import_error("Expected '{' after 'import'.", error_token));
+			}
 
-				while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+			current += 1;
+			SkipWhiteSpace(tokens, current);
+
+			bool parsed_any_import = false;
+			while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+			{
+				std::string import_specifier;
+				const Token& import_entry_token = tokens[current];
+				int import_line = import_entry_token.m_line;
+
+				if (tokens[current].m_token_name == Token::Name::TEXT_LITERAL)
 				{
-					std::string import_specifier;
-					int import_line = tokens[current].m_line;
-
-					if (tokens[current].m_token_name == Token::Name::TEXT_LITERAL)
-					{
-						import_specifier = tokens[current].m_lexeme;
-						current += 1;
-					}
-					else if (tokens[current].m_token_name == Token::Name::LEFT_ANGLE)
-					{
-						current += 1;
-						std::string module_name;
-
-						while (current < tokens.Size() && tokens[current].m_token_name != Token::Name::RIGHT_ANGLE)
-						{
-							if (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
-							{
-								module_name += tokens[current].m_lexeme;
-							}
-							else if (tokens[current].m_token_name == Token::Name::SINGLE_DOT)
-							{
-								module_name += '.';
-							}
-							current += 1;
-						}
-
-						if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::RIGHT_ANGLE)
-						{
-							current += 1;
-						}
-
-						import_specifier = "<"s + module_name + ">"s;
-					}
-					else
-					{
-						current += 1;
-					}
-
-					if (!import_specifier.empty())
-					{
-						import_paths.emplace_back(import_specifier, import_line);
-					}
-
+					import_specifier = tokens[current].m_lexeme;
+					current += 1;
+				}
+				else if (tokens[current].m_token_name == Token::Name::LEFT_ANGLE)
+				{
+					const Token& left_angle_token = tokens[current];
+					current += 1;
 					SkipWhiteSpace(tokens, current);
-					if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::COMMA)
+					std::string module_name;
+					bool expect_identifier = true;
+
+					while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_ANGLE)
 					{
+						if (expect_identifier)
+						{
+							if (tokens[current].m_token_name != Token::Name::IDENTIFIER_LITERAL)
+							{
+								return std::unexpected(make_import_error("Expected identifier in system import.", tokens[current]));
+							}
+
+							module_name += tokens[current].m_lexeme;
+							current += 1;
+							SkipWhiteSpace(tokens, current);
+							expect_identifier = false;
+							continue;
+						}
+
+						if (tokens[current].m_token_name != Token::Name::SINGLE_DOT)
+						{
+							return std::unexpected(make_import_error("Expected '.' or '>' in system import.", tokens[current]));
+						}
+
+						module_name.push_back('.');
 						current += 1;
 						SkipWhiteSpace(tokens, current);
+						expect_identifier = true;
 					}
+
+					if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_ANGLE)
+					{
+						return std::unexpected(make_import_error("Expected '>' to close system import.", left_angle_token));
+					}
+
+					if (expect_identifier)
+					{
+						return std::unexpected(make_import_error("Expected identifier in system import.", tokens[current]));
+					}
+
+					current += 1;
+					import_specifier = "<"s + module_name + ">"s;
 				}
+				else
+				{
+					return std::unexpected(make_import_error("Expected path import or system import in import list.", tokens[current]));
+				}
+
+				parsed_any_import = true;
+				import_paths.emplace_back(import_specifier, import_line);
+				SkipWhiteSpace(tokens, current);
+
+				if (current < span.m_end && tokens[current].m_token_name == Token::Name::COMMA)
+				{
+					current += 1;
+					SkipWhiteSpace(tokens, current);
+					continue;
+				}
+
+				if (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+				{
+					return std::unexpected(make_import_error("Expected ',' or '}' in import list.", tokens[current]));
+				}
+			}
+
+			if (!parsed_any_import)
+			{
+				const Token& error_token = current < tokens.Size() ? tokens[current] : import_token;
+				return std::unexpected(make_import_error("Expected at least one import in import list.", error_token));
+			}
+
+			if (current >= span.m_end || tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
+			{
+				return std::unexpected(make_import_error("Expected '}' to close import list.", import_token));
 			}
 		}
 	}
 
-	return import_paths;
+	return MidoriResult::Result<std::vector<std::pair<std::string, int>>>(std::move(import_paths));
 }
 
 MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)

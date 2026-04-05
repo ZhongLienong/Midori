@@ -12,6 +12,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -225,7 +226,10 @@ def deploy() -> bool:
 	if prelude_dest.exists():
 		shutil.rmtree(prelude_dest)
 	shutil.copytree(PRELUDE_DIR, prelude_dest)
-	mdr_count = len(list(prelude_dest.glob('*.mdr')))
+
+	prelude_manifest = sorted(path.relative_to(prelude_dest).as_posix() for path in prelude_dest.rglob('*.mdr'))
+	(prelude_dest / 'manifest.json').write_text(json.dumps(prelude_manifest, indent=2) + '\n', encoding='utf-8')
+	mdr_count = len(prelude_manifest)
 	print(f"  MidoriPrelude/ ({mdr_count} files)")
 
 	return True

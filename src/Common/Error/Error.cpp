@@ -34,6 +34,63 @@ std::string_view CompilerStageName(CompilerStage stage)
 	}
 }
 
+std::string_view CompilerErrorCodeName(CompilerErrorCode code)
+{
+	switch (code)
+	{
+	case CompilerErrorCode::None:
+		return "None";
+	case CompilerErrorCode::NoMatch:
+		return "NoMatch";
+	case CompilerErrorCode::ModuleImportResolutionFailed:
+		return "ModuleImportResolutionFailed";
+	case CompilerErrorCode::ModuleImportFileOpenFailed:
+		return "ModuleImportFileOpenFailed";
+	case CompilerErrorCode::ModuleCircularDependency:
+		return "ModuleCircularDependency";
+	case CompilerErrorCode::ModuleDeclarationMissing:
+		return "ModuleDeclarationMissing";
+	case CompilerErrorCode::ModuleDeclarationDuplicate:
+		return "ModuleDeclarationDuplicate";
+	case CompilerErrorCode::ModuleMissingExportedSymbol:
+		return "ModuleMissingExportedSymbol";
+	case CompilerErrorCode::TypeUndefinedName:
+		return "TypeUndefinedName";
+	case CompilerErrorCode::TypeUnsatisfiedConstraint:
+		return "TypeUnsatisfiedConstraint";
+	case CompilerErrorCode::TypeNotCallable:
+		return "TypeNotCallable";
+	case CompilerErrorCode::TypeIncorrectArity:
+		return "TypeIncorrectArity";
+	case CompilerErrorCode::TypeMismatch:
+		return "TypeMismatch";
+	case CompilerErrorCode::TypeNonExhaustiveMatch:
+		return "TypeNonExhaustiveMatch";
+	case CompilerErrorCode::CodeGeneratorLimitExceeded:
+		return "CodeGeneratorLimitExceeded";
+	case CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution:
+		return "CodeGeneratorUnresolvedMethodResolution";
+	case CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution:
+		return "CodeGeneratorAmbiguousMethodResolution";
+	case CompilerErrorCode::CodeGeneratorUnsupportedLowering:
+		return "CodeGeneratorUnsupportedLowering";
+	case CompilerErrorCode::BytecodeLinkerNoModulesToLink:
+		return "BytecodeLinkerNoModulesToLink";
+	case CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol:
+		return "BytecodeLinkerDuplicateExportedSymbol";
+	case CompilerErrorCode::BytecodeLinkerUnresolvedImport:
+		return "BytecodeLinkerUnresolvedImport";
+	case CompilerErrorCode::CompilerNoModulesReadyToCompile:
+		return "CompilerNoModulesReadyToCompile";
+	case CompilerErrorCode::CompilerIncompleteCompilationSchedule:
+		return "CompilerIncompleteCompilationSchedule";
+	case CompilerErrorCode::CompilerMissingCompiledModule:
+		return "CompilerMissingCompiledModule";
+	default:
+		return "None";
+	}
+}
+
 std::string_view CompilerWarningCodeName(CompilerWarningCode code)
 {
 	switch (code)
@@ -236,6 +293,47 @@ namespace
 		out += std::to_string(*value);
 	}
 
+	std::string SerializeMachineReadableDiagnostic(
+		CompilerStage stage,
+		std::string_view code_name,
+		const std::optional<CompilerErrorLocation>& location,
+		std::string_view message,
+		const std::optional<std::string>& suggestion)
+	{
+		std::string serialized = "{";
+		bool first_field = true;
+
+		AppendJsonStringField(serialized, "stage", CompilerStageName(stage), first_field);
+		AppendJsonStringField(serialized, "code", code_name, first_field);
+
+		std::optional<std::string_view> file_path = std::nullopt;
+		std::optional<int> line = std::nullopt;
+		std::optional<int> column = std::nullopt;
+		std::optional<size_t> caret_length = std::nullopt;
+		if (location.has_value())
+		{
+			file_path = location->m_file_name;
+			if (location->m_line > 0)
+			{
+				line = location->m_line;
+			}
+			column = location->m_column;
+			caret_length = location->m_caret_length;
+		}
+
+		const std::optional<std::string_view> serialized_suggestion =
+			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
+
+		AppendJsonStringField(serialized, "file_path", file_path, first_field);
+		AppendJsonNumberField(serialized, "line", line, first_field);
+		AppendJsonNumberField(serialized, "column", column, first_field);
+		AppendJsonNumberField(serialized, "caret_length", caret_length, first_field);
+		AppendJsonStringField(serialized, "message", message, first_field);
+		AppendJsonStringField(serialized, "suggestion", serialized_suggestion, first_field);
+		serialized.push_back('}');
+		return serialized;
+	}
+
 	std::string RenderCompilerDiagnostic(
 		CompilerStage stage,
 		std::string_view message,
@@ -359,39 +457,29 @@ std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file
 	return RenderLabeledLine(Printer::Color::YELLOW, Printer::Color::WHITE, "warning", summary);
 }
 
+std::string SerializeMachineReadableError(const CompilerError& error)
+{
+	return SerializeMachineReadableDiagnostic(
+		error.m_stage,
+		CompilerErrorCodeName(error.m_code),
+		error.m_location,
+		error.m_message,
+		error.m_suggestion);
+}
+
+std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warning)
+{
+	return SerializeMachineReadableDiagnostic(
+		warning.m_stage,
+		CompilerWarningCodeName(warning.m_code),
+		warning.m_location,
+		warning.m_message,
+		warning.m_suggestion);
+}
+
 std::string SerializeMachineReadableWarning(const CompilerWarning& warning)
 {
-	std::string serialized = "MIDORI_WARNING\t{";
-	bool first_field = true;
-
-	AppendJsonStringField(serialized, "stage", CompilerStageName(warning.m_stage), first_field);
-	AppendJsonStringField(serialized, "code", CompilerWarningCodeName(warning.m_code), first_field);
-
-	std::optional<std::string_view> file_path = std::nullopt;
-	std::optional<int> line = std::nullopt;
-	std::optional<int> column = std::nullopt;
-	std::optional<size_t> caret_length = std::nullopt;
-	if (warning.m_location.has_value())
-	{
-		file_path = warning.m_location->m_file_name;
-		if (warning.m_location->m_line > 0)
-		{
-			line = warning.m_location->m_line;
-		}
-		column = warning.m_location->m_column;
-		caret_length = warning.m_location->m_caret_length;
-	}
-	const std::optional<std::string_view> suggestion =
-		warning.m_suggestion.has_value() ? std::optional<std::string_view>(*warning.m_suggestion) : std::optional<std::string_view>(std::nullopt);
-
-	AppendJsonStringField(serialized, "file_path", file_path, first_field);
-	AppendJsonNumberField(serialized, "line", line, first_field);
-	AppendJsonNumberField(serialized, "column", column, first_field);
-	AppendJsonNumberField(serialized, "caret_length", caret_length, first_field);
-	AppendJsonStringField(serialized, "message", std::string_view(warning.m_message), first_field);
-	AppendJsonStringField(serialized, "suggestion", suggestion, first_field);
-	serialized.push_back('}');
-	return serialized;
+	return "MIDORI_WARNING\t" + SerializeMachineReadableWarningPayload(warning);
 }
 
 namespace

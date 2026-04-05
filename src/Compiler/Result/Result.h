@@ -166,6 +166,23 @@ namespace MidoriResult
 
 			return serialized;
 		}
+
+		[[nodiscard]] std::string MachineReadableJson() const
+		{
+			std::string serialized = "[";
+			for (size_t index = 0u; index < m_warnings.size(); index += 1u)
+			{
+				if (index > 0u)
+				{
+					serialized.push_back(',');
+				}
+
+				serialized += SerializeMachineReadableWarningPayload(m_warnings[index]);
+			}
+
+			serialized.push_back(']');
+			return serialized;
+		}
 	};
 
 	struct CompilerDiagnostics
@@ -256,6 +273,23 @@ namespace MidoriResult
 			}
 
 			return rendered;
+		}
+
+		[[nodiscard]] std::string MachineReadableJson() const
+		{
+			std::string serialized = "[";
+			for (size_t index = 0u; index < m_errors.size(); index += 1u)
+			{
+				if (index > 0u)
+				{
+					serialized.push_back(',');
+				}
+
+				serialized += SerializeMachineReadableError(m_errors[index]);
+			}
+
+			serialized.push_back(']');
+			return serialized;
 		}
 	};
 
@@ -400,6 +434,12 @@ namespace MidoriResult
 		[[nodiscard]] std::string MachineReadableWarnings() const
 		{
 			return m_warnings.MachineReadable();
+		}
+
+		[[nodiscard]] std::string MachineReadableJson() const
+		{
+			return std::string("{\"warnings\":") + m_warnings.MachineReadableJson() +
+				",\"errors\":" + m_errors.MachineReadableJson() + "}";
 		}
 	};
 

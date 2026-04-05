@@ -5,6 +5,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Project/ProjectManifest.h"
@@ -15,8 +16,20 @@ namespace
 	{
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("Usage:\n");
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe <source_file_path>\n");
+		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe check <source_file_path> [--format json]\n");
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe init [path] [--name <project_name>]\n");
 		Printer::Print<Printer::Color::BRIGHT_WHITE>("  Midori.exe init --package [path] [--name <package_name>]\n");
+	}
+
+	MidoriResult::CompilerReport WrapDriverErrorAsReport(const MidoriDriver::DriverError& error)
+	{
+		if (error.m_report.has_value())
+		{
+			return *error.m_report;
+		}
+
+		return MidoriResult::CompilerReport(MidoriResult::CompilerDiagnostics(
+			CompilerError::Simple(CompilerStage::Compiler, error.m_message)));
 	}
 
 	int HandleInit(int argc, char* argv[])
@@ -100,6 +113,93 @@ namespace
 			std::format("Initialized Midori {} at {}\n", init_label, resolved_target.string()));
 		return EXIT_SUCCESS;
 	}
+
+	int HandleCheck(int argc, char* argv[])
+	{
+		std::filesystem::path source_file_path;
+		bool json_output = false;
+
+		for (int i = 2; i < argc; i += 1)
+		{
+			const std::string_view arg = argv[i];
+			if (arg == "--format")
+			{
+				if (i + 1 >= argc)
+				{
+					Printer::Print<Printer::Color::RED>("Missing value for --format.\n");
+					PrintUsage();
+					return EXIT_FAILURE;
+				}
+
+				const std::string_view format = argv[++i];
+				if (format == "json")
+				{
+					json_output = true;
+					continue;
+				}
+
+				Printer::Print<Printer::Color::RED>(std::format("Unknown format: {}\n", format));
+				PrintUsage();
+				return EXIT_FAILURE;
+			}
+
+			if (arg == "-h" || arg == "--help")
+			{
+				PrintUsage();
+				return EXIT_SUCCESS;
+			}
+
+			if (!arg.empty() && arg.front() == '-')
+			{
+				Printer::Print<Printer::Color::RED>(std::format("Unknown option: {}\n", arg));
+				PrintUsage();
+				return EXIT_FAILURE;
+			}
+
+			if (!source_file_path.empty())
+			{
+				Printer::Print<Printer::Color::RED>("Only one source file is allowed for check.\n");
+				PrintUsage();
+				return EXIT_FAILURE;
+			}
+
+			source_file_path = std::filesystem::path(arg);
+		}
+
+		if (source_file_path.empty())
+		{
+			Printer::Print<Printer::Color::RED>("Missing source file for check.\n");
+			PrintUsage();
+			return EXIT_FAILURE;
+		}
+
+		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
+		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(source_file_path);
+		if (!compile_result.has_value())
+		{
+			if (json_output)
+			{
+				std::print("{}", WrapDriverErrorAsReport(compile_result.error()).MachineReadableJson());
+			}
+			else
+			{
+				std::print("{}", compile_result.error().Rendered());
+			}
+			return EXIT_FAILURE;
+		}
+
+		const MidoriResult::CompilerReport& report = compile_result->Report();
+		if (json_output)
+		{
+			std::print("{}", report.MachineReadableJson());
+		}
+		else
+		{
+			std::print("{}", report.RenderedWarnings());
+		}
+
+		return EXIT_SUCCESS;
+	}
 }
 
 int main(int argc, char* argv[])
@@ -114,6 +214,11 @@ int main(int argc, char* argv[])
 	if (command == "init")
 	{
 		return HandleInit(argc, argv);
+	}
+
+	if (command == "check")
+	{
+		return HandleCheck(argc, argv);
 	}
 
 	if (command == "-h" || command == "--help")

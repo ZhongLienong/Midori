@@ -118,8 +118,11 @@ struct CompilerWarning
 };
 
 [[nodiscard]] std::string_view CompilerStageName(CompilerStage stage);
+[[nodiscard]] std::string_view CompilerErrorCodeName(CompilerErrorCode code);
 [[nodiscard]] std::string_view CompilerWarningCodeName(CompilerWarningCode code);
 [[nodiscard]] std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file_path);
+[[nodiscard]] std::string SerializeMachineReadableError(const CompilerError& error);
+[[nodiscard]] std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warning);
 [[nodiscard]] std::string SerializeMachineReadableWarning(const CompilerWarning& warning);
 
 namespace std

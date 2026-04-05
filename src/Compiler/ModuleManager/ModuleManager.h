@@ -57,7 +57,7 @@ private:
 
 	MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	std::vector<std::pair<std::string, int>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MidoriResult::Result<std::vector<std::pair<std::string, int>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
 	MidoriResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 

@@ -207,6 +207,12 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 	CHECK(machine.find("\"column\":4") != std::string::npos);
 	CHECK(machine.find("\"caret_length\":6") != std::string::npos);
 	CHECK(machine.find("\"suggestion\":\"Prefix with '_' if intentional\"") != std::string::npos);
+
+	const std::string machine_json = report.MachineReadableJson();
+	CHECK(machine_json.find("\"warnings\":[{") != std::string::npos);
+	CHECK(machine_json.find("\"errors\":[]") != std::string::npos);
+	CHECK(machine_json.find("\"code\":\"UnreachableCode\"") != std::string::npos);
+	CHECK(machine_json.find("\"message\":\"Shadowed name\"") != std::string::npos);
 }
 
 TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[compiler][driver][diagnostics]")
@@ -279,6 +285,29 @@ TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics
 	const std::string rendered = StripAnsiCodes(error.Rendered());
 	CHECK(rendered.find("Compilation failed :(") == std::string::npos);
 	CHECK(rendered.find("Runtime Error at Runtime.mdr:8") != std::string::npos);
+}
+
+TEST_CASE("Machine-readable errors serialize location and code metadata", "[compiler][error][report]")
+{
+	const CompilerError error = CompilerError::WithContext(
+		CompilerStage::CodeGenerator,
+		"Unsupported lowering",
+		6,
+		"Lowering.mdr",
+		3,
+		5u,
+		"Rewrite this expression",
+		"bad();",
+		CompilerErrorCode::CodeGeneratorUnsupportedLowering);
+
+	const std::string serialized = SerializeMachineReadableError(error);
+	CHECK(serialized.find("\"stage\":\"CodeGenerator\"") != std::string::npos);
+	CHECK(serialized.find("\"code\":\"CodeGeneratorUnsupportedLowering\"") != std::string::npos);
+	CHECK(serialized.find("\"file_path\":\"Lowering.mdr\"") != std::string::npos);
+	CHECK(serialized.find("\"line\":6") != std::string::npos);
+	CHECK(serialized.find("\"column\":3") != std::string::npos);
+	CHECK(serialized.find("\"caret_length\":5") != std::string::npos);
+	CHECK(serialized.find("\"suggestion\":\"Rewrite this expression\"") != std::string::npos);
 }
 
 TEST_CASE("Compiler report preserves static-analyzer warning metadata on successful compile", "[compiler][warning][report]")

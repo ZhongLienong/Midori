@@ -64,17 +64,13 @@ def layout(scope: str, install_dir: Optional[str]) -> InstallLayout:
 
 
 def copy_dir_contents(src_dir: Path, dst_dir: Path) -> None:
-    dst_dir.mkdir(parents=True, exist_ok=True)
-
-    for entry in src_dir.iterdir():
-        src_path = entry
-        dst_path = dst_dir / entry.name
-        if entry.is_dir():
-            if dst_path.exists():
-                shutil.rmtree(dst_path)
-            shutil.copytree(src_path, dst_path)
+    if dst_dir.exists():
+        if dst_dir.is_symlink() or dst_dir.is_file():
+            dst_dir.unlink()
         else:
-            shutil.copy2(src_path, dst_path)
+            shutil.rmtree(dst_dir)
+
+    shutil.copytree(src_dir, dst_dir)
 
 
 def normalize_env_path(path_value: str) -> str:
@@ -98,12 +94,18 @@ def append_unique_path(existing: str, to_append: Path) -> str:
     return os.pathsep.join(entries + [candidate])
 
 
+def get_preset_executable_candidates(repo: Path, preset_name: str) -> list[Path]:
+    return [
+        repo / "out" / "build" / "ninja" / preset_name / "out" / "Midori.exe",
+        repo / "out" / "build" / preset_name / "out" / "Midori.exe",
+    ]
+
+
 def resolve_midori_exe(repo: Path, preset: str, explicit_exe: Optional[str]) -> Optional[Path]:
     if explicit_exe:
         exe_path = Path(explicit_exe).expanduser().resolve()
         return exe_path if exe_path.is_file() else None
 
-    # Check out/build/<preset>/ (Visual Studio CMake presets)
     presets: list[str]
     if preset == "auto":
         presets = ["x64-release", "x64-development", "x64-debug"]
@@ -111,9 +113,9 @@ def resolve_midori_exe(repo: Path, preset: str, explicit_exe: Optional[str]) -> 
         presets = [preset]
 
     for preset_name in presets:
-        candidate = repo / "out" / "build" / preset_name / "out" / "Midori.exe"
-        if candidate.is_file():
-            return candidate.resolve()
+        for candidate in get_preset_executable_candidates(repo, preset_name):
+            if candidate.is_file():
+                return candidate.resolve()
 
     return None
 
@@ -130,11 +132,11 @@ def list_available_midori_exes(repo: Path) -> list[tuple[str, Path]]:
         if candidate.is_file():
             results.append((label, candidate.resolve()))
 
-    # Check out/build/<preset>/ (Visual Studio CMake presets)
     for preset_name in ["x64-release", "x64-development", "x64-debug"]:
-        candidate = repo / "out" / "build" / preset_name / "Midori.exe"
-        if candidate.is_file():
-            results.append((preset_name, candidate.resolve()))
+        for candidate in get_preset_executable_candidates(repo, preset_name):
+            if candidate.is_file():
+                results.append((preset_name, candidate.resolve()))
+                break
 
     return results
 
@@ -257,7 +259,7 @@ def main(argv: list[str]) -> int:
 
         if args.preset == "auto" and args.midori_exe == "":
             available = list_available_midori_exes(repo)
-            available_presets = [preset_name for preset_name, _ in available]
+            available_presets = list(dict.fromkeys(preset_name for preset_name, _ in available))
             if len(available_presets) > 1:
                 print(
                     "Note: multiple builds found ("

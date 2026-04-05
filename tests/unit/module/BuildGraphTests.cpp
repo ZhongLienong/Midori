@@ -313,6 +313,33 @@ TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", 
 	RequireErrorMatches(error, expectation);
 }
 
+TEST_CASE("ModuleManager returns a diagnostic for import statements without braces", "[module][graph]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile
+		(
+			"InvalidImport.mdr",
+			"module Main\n"
+			"import <IO>\n"
+			"def value = 1;\n"
+		)
+	});
+
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidImport.mdr"));
+	REQUIRE_FALSE(graph_result.has_value());
+
+	const CompilerError& error = graph_result.error();
+	CheckDiagnosticLocation(error, std::filesystem::weakly_canonical(project.Path("InvalidImport.mdr")), 2);
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::Module;
+	expectation.m_line = 2;
+	expectation.m_message_substrings = { "Expected '{' after 'import'." };
+	expectation.m_rendered_substrings = { "import <IO>", "import { <IO> }" };
+	RequireErrorMatches(error, expectation);
+}
+
 TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recursive imports", "[module][graph]")
 {
 	const MidoriTest::TempProject project
