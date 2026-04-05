@@ -144,3 +144,51 @@ defun MakeCounter() : fn() -> Int => {
 			.m_rendered_substrings = { "AnalyzerCapture.mdr:5", "return next;" }
 		});
 }
+
+TEST_CASE("StaticAnalyzer warns on literal integer overflow patterns", "[static-analyzer]")
+{
+	const std::string source_code =
+		R"(module AnalyzerOverflow
+def too_big = 9223372036854775807 + 1;
+def shifted = 1 << 63;
+defun main(): Int => too_big + shifted;
+)";
+
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mdr");
+	if (!analyze_result.has_value())
+	{
+		FAIL(std::string(analyze_result.error().Rendered()));
+	}
+
+	REQUIRE(analyze_result->m_errors.empty());
+	RequireWarningMatches(
+		analyze_result->m_warnings,
+		CompilerWarningCode::IntegerOverflow,
+		MidoriTest::WarningExpectation
+		{
+			.m_stage = CompilerStage::StaticAnalyzer,
+			.m_code = CompilerWarningCode::IntegerOverflow,
+			.m_line = 2,
+			.m_message_substrings = { "overflow" },
+			.m_rendered_substrings = { "AnalyzerOverflow.mdr:2", "9223372036854775807 + 1" }
+		});
+}
+
+TEST_CASE("StaticAnalyzer does not warn on non-literal integer arithmetic", "[static-analyzer]")
+{
+	const std::string source_code =
+		R"(module AnalyzerOverflowSafe
+defun Compute(x : Int) : Int => {
+	x + 1
+};
+)";
+
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mdr");
+	if (!analyze_result.has_value())
+	{
+		FAIL(std::string(analyze_result.error().Rendered()));
+	}
+
+	REQUIRE(analyze_result->m_errors.empty());
+	CHECK(MidoriTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::IntegerOverflow) == nullptr);
+}

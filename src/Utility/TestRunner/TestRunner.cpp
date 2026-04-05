@@ -7,6 +7,7 @@
 #include <format>
 #include <fstream>
 #include <optional>
+#include <print>
 #include <sstream>
 #include <system_error>
 
@@ -743,20 +744,22 @@ namespace
 
 			MidoriUtility::OutputCapture capture;
 			MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
-			MidoriUtility::CapturedOutput captured_output = capture.Stop();
-			result.m_output += captured_output.m_stdout;
-			result.m_output += captured_output.m_stderr;
-
 			if (!run_result.has_value())
 			{
-				MidoriResult::CompilerDiagnostics runtime_diagnostics(std::move(run_result.error()));
-				result.m_report.AppendErrors(runtime_diagnostics);
+				const RuntimeError runtime_error = run_result.error();
+				std::print("{}", runtime_error.Rendered());
+				MidoriUtility::CapturedOutput captured_output = capture.Stop();
+				result.m_output += captured_output.m_stdout;
+				result.m_output += captured_output.m_stderr;
+				result.m_report.AppendErrors(MidoriResult::CompilerDiagnostics(runtime_error.ToCompilerError()));
 				result.m_report_json = result.m_report.MachineReadableJson();
-				result.m_output += runtime_diagnostics.Rendered();
-				result.m_exit_code = EXIT_FAILURE;
+				result.m_exit_code = runtime_error.ExitCode();
 			}
 			else
 			{
+				MidoriUtility::CapturedOutput captured_output = capture.Stop();
+				result.m_output += captured_output.m_stdout;
+				result.m_output += captured_output.m_stderr;
 				result.m_exit_code = run_result.value();
 			}
 		}

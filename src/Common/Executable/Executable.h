@@ -4,6 +4,8 @@
 
 #include <cinttypes>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 enum class OpCode : uint8_t
 {
@@ -299,14 +301,18 @@ class MidoriExecutable
 public:
 	using GlobalNames = std::vector<MidoriText>;
 	using Procedures = std::vector<BytecodeStream>;
+	using ProcedureSourcePaths = std::vector<std::string>;
 	using StringPool = std::vector<std::string>;
+	using SourceFileTable = std::unordered_map<std::string, std::vector<std::string>>;
 	std::vector<MidoriText> m_procedure_names;
 	std::string m_file_name;
 
 private:
 	GlobalNames m_globals;
 	Procedures m_procedures;
+	ProcedureSourcePaths m_procedure_source_paths;
 	StringPool m_string_pool;
+	SourceFileTable m_source_files;
 
 public:
 
@@ -320,9 +326,15 @@ public:
 
 	void AttachProcedureNames(std::vector<MidoriText>&& procedure_names);
 
+	void AttachProcedureSourcePaths(ProcedureSourcePaths&& procedure_source_paths);
+
+	void AttachSourceFiles(SourceFileTable&& source_files);
+
 	void SetFileName(std::string&& file_name);
 
 	std::string_view GetFileName() const;
+
+	std::string_view GetProcedureSourcePath(int proc_index) const;
 
 	int GetLine(int instr_index, int proc_index) const;
 
@@ -337,4 +349,6 @@ public:
 	int GetGlobalVariableCount() const;
 
 	const StringPool& GetStringPool() const;
+
+	const std::vector<std::string>* FindSourceLines(std::string_view file_name) const;
 };

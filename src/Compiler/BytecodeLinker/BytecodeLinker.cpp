@@ -10,6 +10,27 @@
 
 namespace
 {
+	std::string EntrySourcePathForModule(const std::vector<BytecodeModule>& modules, std::string_view entry_module_name)
+	{
+		for (const BytecodeModule& module : modules)
+		{
+			if (module.m_module_name == entry_module_name)
+			{
+				return module.m_source_path.string();
+			}
+		}
+
+		for (const BytecodeModule& module : modules)
+		{
+			if (module.m_source_path.stem() == entry_module_name)
+			{
+				return module.m_source_path.string();
+			}
+		}
+
+		return std::string(entry_module_name);
+	}
+
 	struct InstanceGlobalInit
 	{
 		size_t m_proc_index;
@@ -233,6 +254,16 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	MergeConstantPools();
 	MergeFunctionNames();
 	MergeGlobalVariables();
+	for (const BytecodeModule& module : m_modules)
+	{
+		for (const auto& [file_name, source_lines] : module.m_source_files)
+		{
+			if (!file_name.empty() && !m_global_source_files.contains(file_name))
+			{
+				m_global_source_files.emplace(file_name, source_lines);
+			}
+		}
+	}
 
 	MidoriResult::VoidResult import_result = ResolveImportsAndPatch();
 	if (!import_result.has_value())
@@ -243,6 +274,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	ConcatenateBytecode();
 
 	m_global_procedures.insert(m_global_procedures.begin(), BytecodeStream());
+	m_global_procedure_source_paths.insert(m_global_procedure_source_paths.begin(), EntrySourcePathForModule(m_modules, m_entry_module_name));
 
 	// Create bootstrap name with entry module context for debugging
 	std::string bootstrap_name = std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
@@ -255,8 +287,10 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	MidoriExecutable executable;
 	executable.AttachProcedures(std::move(m_global_procedures));
 	executable.AttachProcedureNames(std::move(m_global_procedure_names));
+	executable.AttachProcedureSourcePaths(std::move(m_global_procedure_source_paths));
+	executable.AttachSourceFiles(std::move(m_global_source_files));
 	executable.AddStringPool(std::move(m_global_string_pool));
-	executable.SetFileName(std::string(m_entry_module_name));
+	executable.SetFileName(EntrySourcePathForModule(m_modules, m_entry_module_name));
 
 	std::ranges::for_each
 	(
@@ -416,9 +450,10 @@ void BytecodeLinker::ConcatenateBytecode()
 			std::ranges::for_each
 			(
 				module.m_procedures,
-				[this, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](BytecodeStream& procedure)
+				[this, &module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](BytecodeStream& procedure)
 				{
 					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping);
+					m_global_procedure_source_paths.emplace_back(module.m_source_path.string());
 					m_global_procedures.push_back(std::move(procedure));
 				}
 			);

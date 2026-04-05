@@ -1,6 +1,5 @@
 #include "DynamicFFIRegistry.h"
 #include "Common/Checksum/Checksum.h"
-#include "Common/Printer/Printer.h"
 
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -11,97 +10,103 @@
     #include <dlfcn.h>
 #endif
 
+#include <format>
+
 DynamicFFIRegistry& DynamicFFIRegistry::GetInstance()
 {
 	static DynamicFFIRegistry instance;
 	return instance;
 }
 
-bool DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum)
+std::expected<void, std::string> DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
 	if (m_libraries.contains(packageName))
 	{
-		Printer::PrintFormatted<Printer::Color::YELLOW>("[DynamicFFI] Library for package '{}' is already loaded\n", packageName);
-		return false;
+		return std::unexpected(std::format("FFI error: package '{}' already has a loaded native library.", packageName));
 	}
 
 	if (!std::filesystem::exists(libraryPath))
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Library file not found: {}\n", libraryPath.string());
-		return false;
+		return std::unexpected(std::format("FFI error: library file not found: {}", libraryPath.string()));
 	}
 
-	if (!VerifyLibraryChecksum(libraryPath, expectedChecksum))
+	const std::expected<void, std::string> checksum_result = VerifyLibraryChecksum(libraryPath, expectedChecksum);
+	if (!checksum_result.has_value())
 	{
-		return false;
+		return std::unexpected(checksum_result.error());
 	}
 
-	void* handle = LoadPlatformLibrary(libraryPath);
-	if (!handle)
+	const std::expected<void*, std::string> load_result = LoadPlatformLibrary(libraryPath);
+	if (!load_result.has_value())
 	{
-		return false;
+		return std::unexpected(load_result.error());
 	}
 
-	LibraryHandle* libHandle = new LibraryHandle{handle, packageName, libraryPath};
+	LibraryHandle* libHandle = new LibraryHandle{ load_result.value(), packageName, libraryPath };
 	m_libraries[packageName] = std::unique_ptr<LibraryHandle>(libHandle);
-
-	Printer::PrintFormatted<Printer::Color::GREEN>("[DynamicFFI] Successfully loaded library: {} for package: {}\n", libraryPath.string(), packageName);
-	return true;
+	return {};
 }
 
-bool DynamicFFIRegistry::LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum)
+std::expected<void, std::string> DynamicFFIRegistry::LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
 	if (m_libraries.contains(packageName))
 	{
-		Printer::PrintFormatted<Printer::Color::YELLOW>("[DynamicFFI] Library for package '{}' is already loaded\n", packageName);
-		return false;
+		return std::unexpected(std::format("FFI error: package '{}' already has a loaded native library.", packageName));
 	}
 
 	if (!std::filesystem::exists(libraryPath))
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Library file not found: {}\n", libraryPath.string());
-		return false;
+		return std::unexpected(std::format("FFI error: library file not found: {}", libraryPath.string()));
 	}
 
-	if (!VerifyLibraryChecksum(libraryPath, expectedChecksum))
+	const std::expected<void, std::string> checksum_result = VerifyLibraryChecksum(libraryPath, expectedChecksum);
+	if (!checksum_result.has_value())
 	{
-		return false;
+		return std::unexpected(checksum_result.error());
 	}
 
-	void* handle = LoadPlatformLibrary(libraryPath);
-	if (!handle)
+	const std::expected<void*, std::string> load_result = LoadPlatformLibrary(libraryPath);
+	if (!load_result.has_value())
 	{
-		return false;
+		return std::unexpected(load_result.error());
 	}
 
-	LibraryHandle* libHandle = new LibraryHandle{handle, packageName, libraryPath};
+	void* handle = load_result.value();
+	LibraryHandle* libHandle = new LibraryHandle{ handle, packageName, libraryPath };
 	m_libraries[packageName] = std::unique_ptr<LibraryHandle>(libHandle);
 
-	int registered_count = 0;
+	std::unordered_map<std::string, FFIFunction> resolved_functions;
 	for (const std::pair<const std::string, std::string>& func_pair : functionMappings)
 	{
 		const std::string& midori_name = func_pair.first;
 		const std::string& native_name = func_pair.second;
 
 		void* func_ptr = GetPlatformFunction(handle, native_name);
-		if (func_ptr)
+		if (func_ptr == nullptr)
 		{
-			m_functions[midori_name] = reinterpret_cast<FFIFunction>(func_ptr);
-			registered_count++;
+			UnloadPlatformLibrary(handle);
+			m_libraries.erase(packageName);
+			return std::unexpected(std::format(
+				"FFI error: package '{}' declares function '{}' but symbol '{}' was not found in {}",
+				packageName,
+				midori_name,
+				native_name,
+				libraryPath.string()));
 		}
-		else
-		{
-			Printer::PrintFormatted<Printer::Color::YELLOW>("[DynamicFFI] Warning: Could not find function '{}' in library\n", native_name);
-		}
+
+		resolved_functions.emplace(midori_name, reinterpret_cast<FFIFunction>(func_ptr));
 	}
 
-	Printer::PrintFormatted<Printer::Color::GREEN>("[DynamicFFI] Successfully loaded library: {} for package: {} ({}/{} functions registered)\n", libraryPath.string(), packageName, registered_count, functionMappings.size());
+	for (auto& [midori_name, function] : resolved_functions)
+	{
+		m_functions[midori_name] = function;
+	}
 
-	return true;
+	return {};
 }
 
 bool DynamicFFIRegistry::UnloadLibrary(const std::string& packageName)
@@ -111,7 +116,6 @@ bool DynamicFFIRegistry::UnloadLibrary(const std::string& packageName)
 	const std::unordered_map<std::string, std::unique_ptr<LibraryHandle>>::iterator it = m_libraries.find(packageName);
 	if (it == m_libraries.end())
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Package '{}' not found\n", packageName);
 		return false;
 	}
 
@@ -129,8 +133,6 @@ bool DynamicFFIRegistry::UnloadLibrary(const std::string& packageName)
 
 	UnloadPlatformLibrary(it->second->m_handle);
 	m_libraries.erase(it);
-
-	Printer::PrintFormatted<Printer::Color::GREEN>("[DynamicFFI] Unloaded library for package: {}\n", packageName);
 	return true;
 }
 
@@ -140,7 +142,6 @@ bool DynamicFFIRegistry::RegisterFunction(const std::string& functionName, FFIFu
 
 	if (m_functions.contains(functionName))
 	{
-		Printer::PrintFormatted<Printer::Color::YELLOW>("[DynamicFFI] Function '{}' is already registered\n", functionName);
 		return false;
 	}
 
@@ -190,21 +191,21 @@ DynamicFFIRegistry::~DynamicFFIRegistry()
 	}
 }
 
-void* DynamicFFIRegistry::LoadPlatformLibrary(const std::filesystem::path& path)
+std::expected<void*, std::string> DynamicFFIRegistry::LoadPlatformLibrary(const std::filesystem::path& path)
 {
 #ifdef _WIN32
 	void* handle = LoadLibraryW(path.c_str());
 	if (!handle)
 	{
 		DWORD error = GetLastError();
-		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Failed to load library: {} (Error: {})\n", path.string(), error);
+		return std::unexpected(std::format("FFI error: failed to load library '{}' (Windows error {}).", path.string(), error));
 	}
 	return handle;
 #else
 	void* handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
 	if (!handle)
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Failed to load library: {} ({})\n", path.string(), dlerror());
+		return std::unexpected(std::format("FFI error: failed to load library '{}' ({}).", path.string(), dlerror()));
 	}
 	return handle;
 #endif
@@ -238,33 +239,28 @@ void* DynamicFFIRegistry::GetPlatformFunction(void* libraryHandle, const std::st
 #endif
 }
 
-bool DynamicFFIRegistry::VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum)
+std::expected<void, std::string> DynamicFFIRegistry::VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum)
 {
 	if (!expectedChecksum.has_value() || expectedChecksum->empty())
 	{
-		Printer::PrintFormatted<Printer::Color::YELLOW>(
-			"[DynamicFFI] Warning: loading unverified native library: {}\n",
-			libraryPath.string());
-		return true;
+		return {};
 	}
 
 	const std::expected<bool, std::string> verification = MidoriChecksum::VerifyFileChecksum(libraryPath, *expectedChecksum);
 	if (!verification.has_value())
 	{
-		Printer::PrintFormatted<Printer::Color::RED>(
-			"[DynamicFFI] Failed to verify checksum for {}: {}\n",
+		return std::unexpected(std::format(
+			"FFI error: failed to verify checksum for {}: {}",
 			libraryPath.string(),
-			verification.error());
-		return false;
+			verification.error()));
 	}
 
 	if (!verification.value())
 	{
-		Printer::PrintFormatted<Printer::Color::RED>(
-			"[DynamicFFI] Checksum mismatch for {}. Refusing to load the library.\n",
-			libraryPath.string());
-		return false;
+		return std::unexpected(std::format(
+			"FFI error: checksum mismatch for {}. Refusing to load the library.",
+			libraryPath.string()));
 	}
 
-	return true;
+	return {};
 }

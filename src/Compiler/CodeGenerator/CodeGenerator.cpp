@@ -1831,6 +1831,10 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 	module.m_exports = std::move(m_tracked_exports);
 	module.m_imports = std::move(m_tracked_imports);
 	module.m_generic_functions = std::move(m_generic_functions);
+	if (!m_file_name.empty() && !m_source_lines.empty())
+	{
+		module.m_source_files.emplace(m_file_name, m_source_lines);
+	}
 
 	std::vector<std::pair<std::string, int>> sorted_globals(m_global_variables.begin(), m_global_variables.end());
 	std::ranges::sort(sorted_globals, [](const std::pair<std::string, int>& a, const std::pair<std::string, int>& b) { return a.second < b.second; });

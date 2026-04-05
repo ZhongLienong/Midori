@@ -26,7 +26,8 @@ namespace
 		}
 		message.push_back('.');
 
-		std::string rendered = MidoriError::GenerateRuntimeError(message, 0);
+		const RuntimeError runtime_error = MidoriError::GenerateRuntimeError(RuntimeErrorCode::MemoryAccessViolation, message);
+		const std::string rendered(runtime_error.Rendered());
 		std::fputs(rendered.c_str(), stderr);
 		std::fputc('\n', stderr);
 		std::fflush(stderr);

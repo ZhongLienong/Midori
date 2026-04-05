@@ -2,6 +2,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
+#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
 
 #include <format>
 #include <toml.hpp>
@@ -167,7 +168,7 @@ namespace
 		return dependencies;
 	}
 
-	PackageFFI ParsePackageFFI(const toml::value& data)
+	std::expected<PackageFFI, std::string> ParsePackageFFI(const toml::value& data)
 	{
 		PackageFFI ffi;
 		const toml::value* ffi_table = FindTable(data, "ffi");
@@ -178,10 +179,18 @@ namespace
 
 		ffi.m_enabled = toml::find_or<bool>(*ffi_table, "enabled", ffi.m_enabled);
 		ffi.m_libraryName = toml::find_or<std::string>(*ffi_table, "library_name", ffi.m_libraryName);
+		ffi.m_abi_version = toml::find_or<int>(*ffi_table, "abi_version", ffi.m_abi_version);
 
 		if (ffi_table->contains("functions"))
 		{
 			ffi.m_functions = ReadStringTable(ffi_table->at("functions"));
+		}
+
+		if (ffi.m_abi_version <= 0)
+		{
+			return std::unexpected(std::format(
+				"Invalid [ffi].abi_version '{}'. Expected a positive integer.",
+				ffi.m_abi_version));
 		}
 
 		return ffi;
@@ -245,11 +254,26 @@ namespace
 			return std::unexpected(dependencies.error());
 		}
 
+		const std::expected<PackageFFI, std::string> ffi = ParsePackageFFI(data);
+		if (!ffi.has_value())
+		{
+			return std::unexpected(ffi.error());
+		}
+
+		if (ffi->m_enabled && ffi->m_abi_version != MidoriFFIRegistry::ABI_VERSION)
+		{
+			return std::unexpected(std::format(
+				"Package '{}' targets FFI ABI v{}, but this Midori runtime supports FFI ABI v{}.",
+				info->m_name,
+				ffi->m_abi_version,
+				MidoriFFIRegistry::ABI_VERSION));
+		}
+
 		return PackageManifest::Create(packageDirectory)
 			.WithInfo(info.value())
 			.WithModules(ParsePackageModules(data))
 			.WithDependencies(dependencies.value())
-			.WithFFI(ParsePackageFFI(data))
+			.WithFFI(ffi.value())
 			.WithBuild(ParsePackageBuild(data))
 			.WithPrebuilt(ParsePackagePrebuilt(data));
 	}

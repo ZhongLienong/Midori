@@ -20,7 +20,8 @@ namespace
 
 	[[noreturn]] void AbortRuntime(std::string_view message) noexcept
 	{
-		std::string rendered = MidoriError::GenerateRuntimeError(message, 0);
+		const RuntimeError runtime_error = MidoriError::GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, message);
+		const std::string rendered(runtime_error.Rendered());
 		std::fputs(rendered.c_str(), stderr);
 		std::fputc('\n', stderr);
 		std::fflush(stderr);

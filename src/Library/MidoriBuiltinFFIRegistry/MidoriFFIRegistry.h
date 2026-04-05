@@ -170,6 +170,7 @@ private:
 	};
 
 public:
+	static constexpr int ABI_VERSION = 1;
 	static constexpr size_t BUILTIN_COUNT = s_entries.size();
 
 	static const FFIEntry& GetEntry(size_t index);

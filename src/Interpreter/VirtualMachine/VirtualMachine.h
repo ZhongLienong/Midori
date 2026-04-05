@@ -10,6 +10,7 @@
 #include <bit>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <memory>
 #include <new>
 #include <vector>
@@ -18,6 +19,7 @@ class VirtualMachine
 {
 public:
     using GlobalVariables = std::vector<MidoriValue>;
+	using ExecuteResult = std::expected<int, RuntimeError>;
 
 	VirtualMachine(MidoriExecutable&& executable) noexcept;
 
@@ -96,14 +98,16 @@ private:
 	std::vector<MidoriTraceable*> m_static_closure_cache;
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
 
-#ifdef _WIN32
     void* m_value_stack_region = nullptr;
     void* m_call_stack_region = nullptr;
-#endif
+    size_t m_value_stack_region_size = 0u;
+    size_t m_call_stack_region_size = 0u;
+    size_t m_stack_page_size = 0u;
+	std::optional<RuntimeError> m_last_error = std::nullopt;
 
 
 public:
-    int Execute() noexcept;
+    ExecuteResult Execute() noexcept;
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 
@@ -121,7 +125,11 @@ private:
 
 	int ExecuteLoop() noexcept;
 
-	int TerminateExecution(std::string_view message) noexcept;
+	int TerminateExecution(RuntimeError error) noexcept;
+
+#ifdef _WIN32
+	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;
+#endif
 
 	int GetLine() noexcept;
 
@@ -303,9 +311,9 @@ private:
 		return static_cast<int>(ReadByte(ip));
 	}
 
-	std::string GenerateRuntimeError(std::string_view message, int line) noexcept;
+	RuntimeError GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, int line) noexcept;
 
-	std::string GenerateStackTrace() noexcept;
+	std::vector<RuntimeStackFrame> GenerateStackTrace() noexcept;
 
 	int GetProcedureIndexFromIP(InstructionPointer ip) noexcept;
 
@@ -345,6 +353,8 @@ private:
 	void InitializeStacks() noexcept;
 
 	void InitializeProcEntryCache() noexcept;
+
+	bool IsStackGuardFault(uintptr_t fault_address) const noexcept;
 
 	template<typename T>
         requires MidoriValueConstructible<T>

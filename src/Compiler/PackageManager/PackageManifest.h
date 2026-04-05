@@ -38,6 +38,7 @@ struct PackageFFI
 {
 	std::string m_libraryName;
 	std::unordered_map<std::string, std::string> m_functions;
+	int m_abi_version = 1;
 	bool m_enabled = false;
 };
 

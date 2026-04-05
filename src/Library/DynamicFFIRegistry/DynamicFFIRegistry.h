@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include <expected>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -14,8 +15,8 @@ class DynamicFFIRegistry
 public:
 	static DynamicFFIRegistry& GetInstance();
 
-	bool LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum = std::nullopt);
-	bool LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum = std::nullopt);
+	std::expected<void, std::string> LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum = std::nullopt);
+	std::expected<void, std::string> LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum = std::nullopt);
 	bool UnloadLibrary(const std::string& packageName);
 
 	bool RegisterFunction(const std::string& functionName, FFIFunction function);
@@ -42,8 +43,8 @@ private:
 	std::unordered_map<std::string, FFIFunction> m_functions;
 	std::unordered_map<std::string, std::unique_ptr<LibraryHandle>> m_libraries;
 
-	void* LoadPlatformLibrary(const std::filesystem::path& path);
+	std::expected<void*, std::string> LoadPlatformLibrary(const std::filesystem::path& path);
 	void UnloadPlatformLibrary(void* handle);
 	void* GetPlatformFunction(void* libraryHandle, const std::string& functionName);
-	bool VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum);
+	std::expected<void, std::string> VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum);
 };

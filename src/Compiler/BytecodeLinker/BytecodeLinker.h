@@ -28,8 +28,10 @@ private:
 	std::unordered_map<std::string, std::vector<size_t>> m_module_string_index_mappings;
 	std::vector<std::string> m_global_string_pool;
 	std::vector<MidoriText> m_global_procedure_names;
+	std::vector<std::string> m_global_procedure_source_paths;
 	std::vector<BytecodeStream> m_global_procedures;
 	std::vector<MidoriText> m_global_variables;
+	MidoriExecutable::SourceFileTable m_global_source_files;
 
 public:
 	BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name);

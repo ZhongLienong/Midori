@@ -11,6 +11,7 @@
 #include "Utility/Driver/MidoriDriver.h"
 
 #include <filesystem>
+#include <print>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -312,11 +313,14 @@ namespace MidoriTest
 
 		OutputCapture capture;
 		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compile_result.value()));
-		CapturedOutput output = capture.Stop();
 		if (!run_result.has_value())
 		{
-			return std::unexpected(std::move(run_result.error()));
+			const RuntimeError runtime_error = run_result.error();
+			std::print("{}", runtime_error.Rendered());
+			CapturedOutput output = capture.Stop();
+			return ExecutedSnippet(std::move(source), runtime_error.ExitCode(), std::move(output));
 		}
+		CapturedOutput output = capture.Stop();
 
 		return ExecutedSnippet(std::move(source), run_result.value(), std::move(output));
 	}

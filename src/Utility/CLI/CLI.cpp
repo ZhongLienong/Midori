@@ -941,8 +941,10 @@ namespace
 		std::optional<int> exit_code = std::nullopt,
 		std::string_view stdout_text = {},
 		std::string_view stderr_text = {},
-		std::optional<std::string_view> artifact_json = std::nullopt)
+		std::optional<std::string_view> artifact_json = std::nullopt,
+		std::optional<std::string_view> report_json = std::nullopt)
 	{
+		const std::string resolved_report_json = report_json.has_value() ? std::string(*report_json) : report.MachineReadableJson();
 		std::string payload = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(payload, "version", 1, first_field);
@@ -952,13 +954,71 @@ namespace
 		MidoriJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
 		MidoriJson::AppendStringField(payload, "stdout", stdout_text, first_field);
 		MidoriJson::AppendStringField(payload, "stderr", stderr_text, first_field);
-		MidoriJson::AppendRawField(payload, "report", report.MachineReadableJson(), first_field);
+		MidoriJson::AppendRawField(payload, "report", resolved_report_json, first_field);
 		if (artifact_json.has_value())
 		{
 			MidoriJson::AppendRawField(payload, "artifact", *artifact_json, first_field);
 		}
 		payload.push_back('}');
 		return payload;
+	}
+
+	[[nodiscard]] std::string SerializeRunReportJson(const MidoriResult::CompilerReport& report, const RuntimeError* runtime_error)
+	{
+		const std::string warnings_json = report.Warnings().MachineReadableJson();
+		const std::string compiler_errors_json = report.Errors().MachineReadableJson();
+		const std::string runtime_error_json = runtime_error != nullptr ? SerializeMachineReadableRuntimeError(*runtime_error) : std::string();
+
+		std::string errors_json = compiler_errors_json;
+		if (runtime_error != nullptr)
+		{
+			if (errors_json == "[]")
+			{
+				errors_json = "[" + runtime_error_json + "]";
+			}
+			else
+			{
+				errors_json.pop_back();
+				errors_json.push_back(',');
+				errors_json += runtime_error_json;
+				errors_json.push_back(']');
+			}
+		}
+
+		std::string diagnostics_json = "[";
+		const std::vector<CompilerWarning>& warnings = report.Warnings().Warnings();
+		for (size_t index = 0u; index < warnings.size(); index += 1u)
+		{
+			if (index > 0u)
+			{
+				diagnostics_json.push_back(',');
+			}
+			diagnostics_json += SerializeMachineReadableWarningPayload(warnings[index]);
+		}
+
+		const std::vector<CompilerError>& errors = report.Errors().Errors();
+		for (size_t index = 0u; index < errors.size(); index += 1u)
+		{
+			if (diagnostics_json.size() > 1u)
+			{
+				diagnostics_json.push_back(',');
+			}
+			diagnostics_json += SerializeMachineReadableError(errors[index]);
+		}
+
+		if (runtime_error != nullptr)
+		{
+			if (diagnostics_json.size() > 1u)
+			{
+				diagnostics_json.push_back(',');
+			}
+			diagnostics_json += runtime_error_json;
+		}
+		diagnostics_json.push_back(']');
+
+		return std::string("{\"version\":1,\"source\":\"midori\",\"diagnostics\":") + diagnostics_json
+			+ ",\"warnings\":" + warnings_json
+			+ ",\"errors\":" + errors_json + "}";
 	}
 
 	[[nodiscard]] std::expected<MidoriProject::ManifestConfiguration, std::string> RequireManifestConfiguration()
@@ -1511,9 +1571,10 @@ namespace
 			MidoriUtility::CapturedOutput captured_output = capture.Stop();
 			if (!run_result.has_value())
 			{
-				report.AppendErrors(MidoriResult::CompilerDiagnostics(std::move(run_result.error())));
-				std::print("{}", CommandJson("run", false, report, EXIT_FAILURE, captured_output.m_stdout, captured_output.m_stderr));
-				return EXIT_FAILURE;
+				const RuntimeError runtime_error = run_result.error();
+				const std::string runtime_report_json = SerializeRunReportJson(report, &runtime_error);
+				std::print("{}", CommandJson("run", false, report, runtime_error.ExitCode(), captured_output.m_stdout, captured_output.m_stderr, std::nullopt, runtime_report_json));
+				return runtime_error.ExitCode();
 			}
 
 			std::print("{}", CommandJson("run", run_result.value() == 0, report, run_result.value(), captured_output.m_stdout, captured_output.m_stderr));
@@ -1524,8 +1585,8 @@ namespace
 		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
 		if (!run_result.has_value())
 		{
-			std::print("{}", MidoriDriver::DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(std::move(run_result.error()))).Rendered());
-			return EXIT_FAILURE;
+			std::print("{}", run_result.error().Rendered());
+			return run_result.error().ExitCode();
 		}
 
 		return run_result.value();

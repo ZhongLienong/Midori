@@ -61,6 +61,7 @@ struct BytecodeModule
 	using ProcedureNameList = std::vector<MidoriText>;
 	using GlobalVariableList = std::vector<MidoriText>;
 	using GenericFunctionMap = std::unordered_map<std::string, GenericFunctionInfo>;
+	using SourceFileTable = MidoriExecutable::SourceFileTable;
 
 	std::string m_module_name;
 	std::filesystem::path m_source_path;
@@ -71,6 +72,7 @@ struct BytecodeModule
 	ProcedureNameList m_procedure_names;
 	GlobalVariableList m_global_variables;
 	GenericFunctionMap m_generic_functions;
+	SourceFileTable m_source_files;
 
 	BytecodeModule() = default;
 	BytecodeModule(std::string module_name, std::filesystem::path source_path);

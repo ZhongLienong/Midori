@@ -27,7 +27,7 @@ namespace MidoriDriver
 	using SourceReadResult = std::expected<std::string, DriverError>;
 	using CompileFileWithReportResult = std::expected<MidoriResult::CompiledProgram, DriverError>;
 	using CompileFileResult = std::expected<MidoriExecutable, DriverError>;
-	using RunResult = std::expected<int, CompilerError>;
+	using RunResult = std::expected<int, RuntimeError>;
 	using DriverResult = std::expected<int, DriverError>;
 
 	[[nodiscard]] SourceReadResult ReadSourceFile(const std::filesystem::path& file_path);

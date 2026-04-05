@@ -1,6 +1,8 @@
 # Error Reporting
 
-Midori's diagnostic pipeline is structured. Compiler stages produce `CompilerError` and `CompilerWarning` values, aggregate them into `CompilerReport`, and defer rendering until the driver boundary.
+Midori's diagnostic pipeline is structured. Compiler stages produce
+`CompilerError` and `CompilerWarning` values, runtime execution produces
+`RuntimeError`, and rendering is deferred until the driver or CLI boundary.
 
 ## Core Types
 
@@ -16,6 +18,10 @@ Main types:
 - `CompilerError`
 - `CompilerWarning`
 - `CompilerErrorLocation`
+- `RuntimeError`
+- `RuntimeErrorCode`
+- `RuntimeDiagnosticKind`
+- `RuntimeStackFrame`
 - `MidoriResult::CompilerWarnings`
 - `MidoriResult::CompilerDiagnostics`
 - `MidoriResult::CompilerReport`
@@ -40,7 +46,7 @@ These stage names are also used in machine-readable output.
 
 ## Codes
 
-### Error Codes
+### Compiler Error Codes
 
 Current `CompilerErrorCode` values:
 
@@ -78,6 +84,26 @@ Current `CompilerWarningCode` values:
 - `UnusedLocal`
 - `UnreachableCode`
 - `CaptureEscape`
+- `IntegerOverflow`
+
+### Runtime Error Codes
+
+Current `RuntimeErrorCode` values:
+
+- `None`
+- `IndexOutOfBounds`
+- `NegativeArraySize`
+- `ArraySizeExceeded`
+- `ArrayPopEmpty`
+- `FFIFunctionNotFound`
+- `StackOverflow`
+- `MemoryAccessViolation`
+- `DivisionByZero`
+- `InternalTypeError`
+- `InternalFFITypeError`
+
+`RuntimeErrorCodeName(...)` provides the stable string form used in rendered and
+machine-readable output.
 
 ## Location Model
 
@@ -87,25 +113,30 @@ Current `CompilerWarningCode` values:
 - `line`
 - `column`
 - `caret_length`
+- `end_line`
+- `end_column`
 - `source_line`
 
 Not every diagnostic includes all fields:
 
-- `WithToken(...)` derives line, column, caret length, and source line from a `Token`
+- `WithToken(...)` derives line, column, caret length, and source line from a
+  `Token`
 - `WithContext(...)` accepts them explicitly
 - `Simple(...)` creates an unlocated diagnostic that renders as a plain message
+- runtime diagnostics reuse the same location type so compile-time and runtime
+  JSON stay aligned
 
 ## Human-Readable Rendering
 
-Located diagnostics render with:
+Compiler diagnostics render with:
 
 - a stage/severity header
 - file and line
 - source line context
-- caret highlighting
+- caret highlighting when column info exists
 - an optional suggestion line
 
-Example shape:
+Example compiler shape:
 
 ```text
 Parser Error at Format.mdr:2
@@ -116,9 +147,31 @@ Parser Error at Format.mdr:2
   | Try adding a literal
 ```
 
-Warnings render the same way, but with a warning header instead of an error header.
+Runtime diagnostics render from `RuntimeError`:
 
-If a diagnostic has no location, `Rendered()` is just the message text.
+- recoverable runtime failures render as `error[Code]: ...`
+- panics render as `panic[Code]: ...`
+- stack traces render from structured `RuntimeStackFrame` data
+- embedded source lines are used when available, with file reads as fallback on
+  the error path
+
+Example runtime shape:
+
+```text
+error[IndexOutOfBounds]: Index out of bounds at index: 4.
+ --> Runtime.mdr:2
+  |
+2 | def value = [1, 2][4];
+  | Index out of bounds at index: 4.
+  |
+stack trace:
+  at main [module Runtime] in Runtime.mdr:3
+```
+
+Exit codes:
+
+- runtime `error`: `1`
+- runtime `panic`: `2`
 
 ## Report Aggregation
 
@@ -126,7 +179,8 @@ If a diagnostic has no location, `Rendered()` is just the message text.
 
 - warnings are stored in `CompilerWarnings`
 - errors are stored in `CompilerDiagnostics`
-- `RenderedWarnings()` renders grouped warning summaries followed by the warning bodies
+- `RenderedWarnings()` renders grouped warning summaries followed by the warning
+  bodies
 - `RenderedErrors()` renders the error bodies
 - `Rendered()` concatenates warnings first, then errors
 
@@ -144,8 +198,10 @@ That ordering is tested in:
 
 ## Driver Behavior
 
-`MidoriDriver` uses the report like this:
+`MidoriDriver` uses the report/runtime types like this:
 
+- `CompileSourceWithReport(...)` preserves warnings and errors together
+- `RunExecutable(...)` returns `std::expected<int, RuntimeError>`
 - on successful compile-and-run, warnings are emitted before execution starts
 - on compilation failure, warnings are rendered before the final errors
 - the `"Compilation failed :( "` banner is only used for compilation failures
@@ -153,7 +209,7 @@ That ordering is tested in:
 
 ## Machine-Readable Output
 
-There are two machine-readable surfaces.
+There are three relevant machine-readable surfaces.
 
 ### Line-Oriented Warning Output
 
@@ -166,45 +222,14 @@ MIDORI_WARNING\t{"stage":"StaticAnalyzer", ...}
 This path exists mainly for legacy test harnesses that still want warnings as a
 line stream.
 
-### JSON Payloads
+### Compiler JSON Payloads
 
 The stable schema is documented in [Diagnostic Format](diagnostic-format.md).
-At a high level, `--format json` now returns a command envelope with a nested
-`report` object containing:
+Compiler diagnostics populate:
 
-- `diagnostics`
-- `warnings`
-- `errors`
-
-Each diagnostic carries fields such as:
-
-- `stage`
-- `code`
-- `file_path`
-- `line`
-- `column`
-- `caret_length`
-- `message`
-- `suggestion`
-
-Whole-report JSON:
-
-```json
-{
-  "version": 1,
-  "source": "midori",
-  "command": "check",
-  "success": true,
-  "exitCode": 0,
-  "report": {
-    "version": 1,
-    "source": "midori",
-    "diagnostics": [...],
-    "warnings": [...],
-    "errors": [...]
-  }
-}
-```
+- `report.diagnostics`
+- `report.warnings`
+- `report.errors`
 
 APIs:
 
@@ -215,16 +240,29 @@ APIs:
 - `MidoriResult::CompilerDiagnostics::MachineReadableJson()`
 - `MidoriResult::CompilerReport::MachineReadableJson()`
 
-User-facing entry point:
+### Runtime JSON Payloads
 
-- `Midori.exe check <source_file_path> --format json` prints the command JSON envelope to stdout
-- `Midori.exe build <source_file_path> --format json` and `Midori.exe run <source_file_path> --format json` use the same nested `report` shape
+Runtime failures serialize with:
+
+- `SerializeMachineReadableRuntimeError(...)`
+
+Runtime JSON extends the compiler schema with:
+
+- `source: "midori-runtime"`
+- `kind`
+- `sourceLine`
+- `exitCode`
+- `stack`
+
+`midori run --format json` merges the optional runtime diagnostic into the same
+report envelope used by compiler diagnostics. The runtime failure is appended to
+`report.diagnostics` and `report.errors`.
 
 ## Test Harness Toggle
 
 If `MIDORI_TEST_WARNING_FORMAT=machine` is present in the environment, the
-driver prints machine-readable warning lines alongside the normal human-readable
-warning output.
+driver prints machine-readable warning lines alongside the normal
+human-readable warning output.
 
 This is deprecated in favor of `--format json`, but remains available for the
 legacy Python test runner.
@@ -234,7 +272,12 @@ legacy Python test runner.
 When adding new diagnostics:
 
 - prefer a specific `CompilerStage`
-- assign a stable error or warning code when the diagnostic should be regression-tested
+- assign a stable error or warning code when the diagnostic should be
+  regression-tested
 - use `WithToken(...)` whenever a token span exists
-- use `WithContext(...)` when the location is known but not anchored to one token
-- keep rendering and machine-readable serialization derived from the structured diagnostic, not from ad hoc print statements
+- use `WithContext(...)` when the location is known but not anchored to one
+  token
+- keep rendering and machine-readable serialization derived from the structured
+  diagnostic, not from ad hoc print statements
+- for runtime failures, populate `RuntimeError` and let callers decide whether
+  to render text or serialize JSON

@@ -204,7 +204,7 @@ namespace MidoriDriver
 		RunResult run_result = RunExecutable(std::move(compiled_program).TakeExecutable());
 		if (!run_result.has_value())
 		{
-			return std::unexpected(DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(std::move(run_result.error()))));
+			return std::unexpected(DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(run_result.error().ToCompilerError())));
 		}
 
 		return run_result.value();

@@ -169,19 +169,88 @@ defun main(): Int => 0;
 
 TEST_CASE("VM reports deterministic runtime errors for invalid array access", "[runtime][vm][error]")
 {
+	const MidoriTest::TempDir temp_dir("midori-runtime-error");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeError.mdr";
 	const std::string source_code =
 		R"(module RuntimeError
 def value = [1, 2][4];
 defun main(): Int => 0;
 )";
+	std::ofstream(source_file_path) << source_code;
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeError.mdr");
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
-	REQUIRE(executed.m_exit_code == EXIT_FAILURE);
+	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stderr.empty());
-	REQUIRE(executed.m_output.m_stdout.find("Runtime Error") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("error[IndexOutOfBounds]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("RuntimeError.mdr:2") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("Index out of bounds at index: 4.") != std::string::npos);
-	REQUIRE(executed.m_output.m_stdout.find("Stack trace:") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("def value = [1, 2][4];") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("stack trace:") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("main") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("[module RuntimeError]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("$main$") == std::string::npos);
+}
+
+TEST_CASE("VM collapses recursive frames for stack overflow diagnostics", "[runtime][vm][error][stack]")
+{
+	const MidoriTest::TempDir temp_dir("midori-runtime-stack-overflow");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflow.mdr";
+	const std::string source_code =
+		R"(module RuntimeStackOverflow
+defun recurse(n : Int): Int => recurse(n + 1) + 1;
+def value = recurse(0);
+defun main(): Int => 0;
+)";
+	std::ofstream(source_file_path) << source_code;
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == 2);
+	REQUIRE(executed.m_output.m_stderr.empty());
+	REQUIRE(executed.m_output.m_stdout.find("panic[StackOverflow]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("Stack overflow - exceeded maximum call depth.") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("stack trace:") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("[module RuntimeStackOverflow]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("recurse(n : Int): Int => recurse(n + 1) + 1;") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("recursive calls]") != std::string::npos);
+}
+
+TEST_CASE("VM renders runtime source context from embedded executable metadata", "[runtime][vm][error][embedded]")
+{
+	const std::string source_code =
+		R"(module EmbeddedRuntimeError
+def value = [1, 2][4];
+defun main(): Int => 0;
+)";
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mdr");
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == 1);
+	REQUIRE(executed.m_output.m_stdout.find("def value = [1, 2][4];") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("EmbeddedRuntimeError.mdr:2") != std::string::npos);
+}
+
+TEST_CASE("VM reports division by zero as a structured runtime error", "[runtime][vm][error][division]")
+{
+	const std::string source_code =
+		R"(module RuntimeDivision
+def value = 10 / 0;
+defun main(): Int => 0;
+)";
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, "RuntimeDivision.mdr");
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == 1);
+	REQUIRE(executed.m_output.m_stdout.find("error[DivisionByZero]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("Division by zero.") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("stack trace:") != std::string::npos);
 }

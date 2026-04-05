@@ -142,7 +142,17 @@ void MidoriExecutable::AddStringPool(StringPool&& string_pool)
 
 void MidoriExecutable::AttachProcedureNames(std::vector<MidoriText>&& procedure_names)
 {
-		m_procedure_names = std::move(procedure_names);
+	m_procedure_names = std::move(procedure_names);
+}
+
+void MidoriExecutable::AttachProcedureSourcePaths(ProcedureSourcePaths&& procedure_source_paths)
+{
+	m_procedure_source_paths = std::move(procedure_source_paths);
+}
+
+void MidoriExecutable::AttachSourceFiles(SourceFileTable&& source_files)
+{
+	m_source_files = std::move(source_files);
 }
 
 void MidoriExecutable::SetFileName(std::string&& file_name)
@@ -153,6 +163,22 @@ void MidoriExecutable::SetFileName(std::string&& file_name)
 std::string_view MidoriExecutable::GetFileName() const
 {
 	return m_file_name;
+}
+
+std::string_view MidoriExecutable::GetProcedureSourcePath(int proc_index) const
+{
+	if (proc_index < 0 || proc_index >= static_cast<int>(m_procedure_source_paths.size()))
+	{
+		return m_file_name;
+	}
+
+	const std::string& source_path = m_procedure_source_paths[static_cast<size_t>(proc_index)];
+	if (source_path.empty())
+	{
+		return m_file_name;
+	}
+
+	return source_path;
 }
 
 int MidoriExecutable::GetLine(int instr_index, int proc_index) const
@@ -188,4 +214,15 @@ int MidoriExecutable::GetGlobalVariableCount() const
 const MidoriExecutable::StringPool& MidoriExecutable::GetStringPool() const
 {
 	return m_string_pool;
+}
+
+const std::vector<std::string>* MidoriExecutable::FindSourceLines(std::string_view file_name) const
+{
+	const SourceFileTable::const_iterator it = m_source_files.find(std::string(file_name));
+	if (it != m_source_files.end())
+	{
+		return &it->second;
+	}
+
+	return nullptr;
 }

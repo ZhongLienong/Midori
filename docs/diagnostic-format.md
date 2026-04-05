@@ -39,14 +39,18 @@ Stable fields:
 - `command`: CLI command name.
 - `success`: `true` when the command succeeded.
 - `exitCode`: CLI exit code.
+- `stdout`: captured command stdout.
+- `stderr`: captured command stderr.
 - `report`: compiler/runtime diagnostics for the command.
 
-`run --format json` also captures program `stdout` and `stderr` in the envelope.
+`run --format json` uses the same envelope. If execution fails at runtime, the
+runtime diagnostic is appended to `report.diagnostics` and `report.errors`.
+Compiler warnings remain in `report.warnings`.
 
-## Diagnostic Object
+## Compiler Diagnostic Object
 
-Each entry in `report.diagnostics`, `report.warnings`, and `report.errors` has
-this shape:
+Compiler diagnostics in `report.diagnostics`, `report.warnings`, and
+`report.errors` use this shape:
 
 ```json
 {
@@ -87,8 +91,68 @@ Compatibility alias:
 - `caret_length`: retained for existing tooling; editors should prefer
   `endLine` / `endColumn`
 
-`relatedInformation` is reserved for secondary spans such as “defined here”.
-It is currently emitted as an empty array when no related locations exist.
+`relatedInformation` is reserved for secondary spans such as "defined here". It
+is currently emitted as an empty array when no related locations exist.
+
+## Runtime Diagnostic Object
+
+Runtime failures produced by `run --format json` use the same report envelope,
+but the diagnostic object includes runtime-specific fields:
+
+```json
+{
+  "source": "midori-runtime",
+  "severity": "error",
+  "stage": "Runtime",
+  "code": "StackOverflow",
+  "kind": "panic",
+  "message": "Stack overflow - exceeded maximum call depth.",
+  "file": "Runtime.mdr",
+  "file_path": "Runtime.mdr",
+  "line": 5,
+  "column": null,
+  "endLine": 5,
+  "endColumn": null,
+  "caret_length": null,
+  "sourceLine": "def value = recurse(0);",
+  "exitCode": 2,
+  "stack": [
+    {
+      "procedure": "recurse",
+      "module": "Runtime",
+      "file": "Runtime.mdr",
+      "file_path": "Runtime.mdr",
+      "line": 2,
+      "column": null,
+      "endLine": 2,
+      "endColumn": null,
+      "sourceLine": "defun recurse(n : Int): Int => recurse(n + 1) + 1;",
+      "recursiveCount": 12
+    }
+  ]
+}
+```
+
+Runtime-specific fields:
+
+- `source`: always `"midori-runtime"` for runtime diagnostics
+- `kind`: `"error"` or `"panic"`
+- `sourceLine`: embedded or file-backed source text for the primary location
+- `exitCode`: `1` for recoverable runtime errors, `2` for panics
+- `stack`: rendered stack trace data as structured frame objects
+
+Runtime stack frame fields:
+
+- `procedure`
+- `module`
+- `file`
+- `file_path`
+- `line`
+- `column`
+- `endLine`
+- `endColumn`
+- `sourceLine`
+- `recursiveCount`
 
 ## Stages
 
@@ -134,6 +198,20 @@ Current `CompilerErrorCode` values:
 - `CompilerIncompleteCompilationSchedule`
 - `CompilerMissingCompiledModule`
 
+Current `RuntimeErrorCode` values:
+
+- `None`
+- `IndexOutOfBounds`
+- `NegativeArraySize`
+- `ArraySizeExceeded`
+- `ArrayPopEmpty`
+- `FFIFunctionNotFound`
+- `StackOverflow`
+- `MemoryAccessViolation`
+- `DivisionByZero`
+- `InternalTypeError`
+- `InternalFFITypeError`
+
 ## Warning Codes
 
 Current `CompilerWarningCode` values:
@@ -143,6 +221,7 @@ Current `CompilerWarningCode` values:
 - `UnusedLocal`
 - `UnreachableCode`
 - `CaptureEscape`
+- `IntegerOverflow`
 
 ## Stability
 

@@ -16,6 +16,7 @@ on disk. Remote registry fetch and publish support are still deferred.
 - `midori.lock` generation and reuse
 - package source checksum recording in the lockfile
 - checksum verification for selected prebuilt native libraries
+- FFI ABI version validation through `package.midori` `[ffi].abi_version`
 - CLI package commands: `midori install`, `midori update`, `midori remove`, `midori list`
 - import-triggered dynamic FFI loading for resolved packages
 
@@ -182,10 +183,17 @@ Recognized fields:
 
 - `enabled`
 - `library_name`
+- `abi_version`
 - `functions`
 
 `functions` maps Midori foreign names to concrete exported symbol names inside
 the shared library.
+
+Current validation:
+
+- `abi_version` must be a positive integer
+- enabled packages must target the current runtime ABI version
+- declared symbols are validated against the loaded library before registration
 
 ### `[build]`
 
@@ -278,6 +286,8 @@ demand:
 2. `ModuleManager` checks that module's directory for `package.midori`
 3. if `ffi.enabled = true`, Midori selects the library path and registers the
    declared functions through `DynamicFFIRegistry`
+4. Midori rejects the package if `abi_version` mismatches or a declared symbol
+   is missing
 
 This keeps module import behavior file-based while the search path itself is now
 lockfile-backed and package-aware.

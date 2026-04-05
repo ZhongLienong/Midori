@@ -8,6 +8,7 @@
 #include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <filesystem>
+#include <expected>
 #include <format>
 #include <fstream>
 #include <queue>
@@ -178,7 +179,12 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 							DynamicFFIRegistry& registry = DynamicFFIRegistry::GetInstance();
 							if (!registry.IsLibraryLoaded(manifest.GetInfo().m_name))
 							{
-								registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, expected_checksum);
+								const std::expected<void, std::string> load_result =
+									registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, expected_checksum);
+								if (!load_result.has_value())
+								{
+									return std::unexpected(MidoriError::GenerateModuleErrorWithContext(load_result.error(), line, m_main_file_name));
+								}
 							}
 						}
 					}

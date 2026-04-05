@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
 #include "Common/Version/Version.h"
 #include "Compiler/PackageManager/PackageManifest.h"
 #include "Compiler/PackageManager/PackageWorkspace.h"
@@ -89,6 +90,62 @@ TEST_CASE("PackageManifest validates dependency constraints", "[package][manifes
 	CHECK(manifest->GetDependencies().m_constraints.contains("Collections"));
 	CHECK(manifest->GetDependencies().m_constraints.at("Collections").Matches(
 		MidoriVersion::SemanticVersion::Parse("1.4.0").value()));
+}
+
+TEST_CASE("PackageManifest reads ffi abi metadata", "[package][manifest]")
+{
+	const MidoriTest::TempProject project(
+		{
+			MidoriTest::TempProjectFile(
+				"pkg/package.midori",
+				"[package]\n"
+				"name = \"Image\"\n"
+				"version = \"0.2.0\"\n"
+				"midori_version = \">=1.0.0\"\n"
+				"\n"
+				"[ffi]\n"
+				"enabled = true\n"
+				"library_name = \"midori_image\"\n"
+				"abi_version = 1\n"
+				"\n"
+				"[ffi.functions]\n"
+				"\"Image::ReadInfo\" = \"midori_image_read_info\"\n"),
+			MidoriTest::TempProjectFile("pkg/Image.mdr", "module Image\n")
+		});
+
+	const std::expected<PackageManifest, std::string> manifest = PackageManifest::LoadWithError(project.Path("pkg"));
+	REQUIRE(manifest.has_value());
+	CHECK(manifest->GetFFI().m_enabled);
+	CHECK(manifest->GetFFI().m_libraryName == "midori_image");
+	CHECK(manifest->GetFFI().m_abi_version == MidoriFFIRegistry::ABI_VERSION);
+	REQUIRE(manifest->GetFFI().m_functions.contains("Image::ReadInfo"));
+	CHECK(manifest->GetFFI().m_functions.at("Image::ReadInfo") == "midori_image_read_info");
+}
+
+TEST_CASE("PackageManifest rejects unsupported ffi abi versions", "[package][manifest]")
+{
+	const int unsupported_abi_version = MidoriFFIRegistry::ABI_VERSION + 1;
+	const MidoriTest::TempProject project(
+		{
+			MidoriTest::TempProjectFile(
+				"pkg/package.midori",
+				"[package]\n"
+				"name = \"Image\"\n"
+				"version = \"0.2.0\"\n"
+				"midori_version = \">=1.0.0\"\n"
+				"\n"
+				"[ffi]\n"
+				"enabled = true\n"
+				"library_name = \"midori_image\"\n"
+				"abi_version = " + std::to_string(unsupported_abi_version) + "\n"),
+			MidoriTest::TempProjectFile("pkg/Image.mdr", "module Image\n")
+		});
+
+	const std::expected<PackageManifest, std::string> manifest = PackageManifest::LoadWithError(project.Path("pkg"));
+	REQUIRE_FALSE(manifest.has_value());
+	CHECK(manifest.error().find("targets FFI ABI v") != std::string::npos);
+	CHECK(manifest.error().find(std::to_string(unsupported_abi_version)) != std::string::npos);
+	CHECK(manifest.error().find(std::to_string(MidoriFFIRegistry::ABI_VERSION)) != std::string::npos);
 }
 
 TEST_CASE("Project package environment resolves local packages and reuses the lockfile", "[package][workspace]")

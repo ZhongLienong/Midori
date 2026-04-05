@@ -10,6 +10,11 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#else
+#include <setjmp.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #endif
 
 
@@ -17,22 +22,238 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <execution>
+#include <fstream>
 #include <format>
 #include <numeric>
 #include <ranges>
+#include <unordered_map>
 
 using namespace std::string_literals;
 
 namespace
 {
-	bool IsModuleBootstrapName(const MidoriText& name) noexcept
+#if !defined(_WIN32) && !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
+	struct ProcedureDisplayName
 	{
-		std::string_view view(name.GetCString());
-		return view.starts_with(MODULE_BOOTSTRAP_PREFIX);
+		std::string m_display_name;
+		std::string m_module_name;
+		bool m_is_module_bootstrap = false;
+	};
+
+	class SourceLineCache
+	{
+	public:
+		explicit SourceLineCache(const MidoriExecutable& executable)
+			: m_executable(executable)
+		{
+		}
+
+		[[nodiscard]] std::optional<std::string> GetLine(std::string_view file_name, int line)
+		{
+			if (file_name.empty() || line <= 0)
+			{
+				return std::nullopt;
+			}
+
+			const std::string cache_key(file_name);
+			std::unordered_map<std::string, std::vector<std::string>>::iterator cache_it = m_source_lines.find(cache_key);
+			if (cache_it == m_source_lines.end())
+			{
+				const std::vector<std::string>* embedded_lines = m_executable.FindSourceLines(cache_key);
+				if (embedded_lines != nullptr)
+				{
+					cache_it = m_source_lines.emplace(cache_key, *embedded_lines).first;
+				}
+				else
+				{
+					cache_it = m_source_lines.emplace(cache_key, LoadSourceLines(cache_key)).first;
+				}
+			}
+
+			const std::vector<std::string>& lines = cache_it->second;
+			if (static_cast<size_t>(line) > lines.size())
+			{
+				return std::nullopt;
+			}
+
+			return lines[static_cast<size_t>(line - 1)];
+		}
+
+	private:
+		const MidoriExecutable& m_executable;
+		static std::vector<std::string> LoadSourceLines(const std::string& file_name)
+		{
+			std::ifstream input(file_name);
+			if (!input)
+			{
+				return {};
+			}
+
+			std::vector<std::string> lines;
+			std::string line;
+			while (std::getline(input, line))
+			{
+				lines.emplace_back(std::move(line));
+			}
+
+			return lines;
+		}
+
+		std::unordered_map<std::string, std::vector<std::string>> m_source_lines;
+	};
+
+	ProcedureDisplayName ParseProcedureName(const MidoriText& raw_name) noexcept
+	{
+		const std::string_view raw_view(raw_name.GetCString());
+		const size_t separator_index = raw_view.rfind(ModuleSeparator);
+
+		std::string_view display_name = raw_view;
+		std::string_view module_name;
+		if (separator_index != std::string_view::npos)
+		{
+			display_name = raw_view.substr(0u, separator_index);
+			module_name = raw_view.substr(separator_index + 1u);
+		}
+
+		const bool is_module_bootstrap = display_name.starts_with(MODULE_BOOTSTRAP_PREFIX);
+		if (display_name.starts_with(MAIN_PROCEDURE_PREFIX))
+		{
+			display_name = "main";
+		}
+		else if (display_name.empty())
+		{
+			display_name = ANONYMOUS_FUNCTION;
+		}
+
+		return ProcedureDisplayName{ std::string(display_name), std::string(module_name), is_module_bootstrap };
 	}
+
+	std::optional<RuntimeStackFrame> ResolveStackTraceFrame(const MidoriExecutable& executable, int proc_index, int line, SourceLineCache& source_line_cache)
+	{
+		RuntimeStackFrame frame;
+		frame.m_location.m_line = line;
+
+		if (proc_index >= 0 && proc_index < executable.GetProcedureCount() && proc_index < static_cast<int>(executable.m_procedure_names.size()))
+		{
+			const ProcedureDisplayName display_name = ParseProcedureName(executable.m_procedure_names[static_cast<size_t>(proc_index)]);
+			if (display_name.m_is_module_bootstrap)
+			{
+				return std::nullopt;
+			}
+
+			frame.m_procedure_name = display_name.m_display_name;
+			frame.m_module_name = display_name.m_module_name;
+			frame.m_location.m_file_name = std::string(executable.GetProcedureSourcePath(proc_index));
+		}
+		else
+		{
+			frame.m_procedure_name = ANONYMOUS_FUNCTION;
+			frame.m_location.m_file_name = std::string(executable.GetFileName());
+		}
+
+		if (frame.m_location.m_file_name.empty())
+		{
+			frame.m_location.m_file_name = std::string(executable.GetFileName());
+		}
+
+		frame.m_location.m_source_line = source_line_cache.GetLine(frame.m_location.m_file_name, frame.m_location.m_line);
+		if (frame.m_location.m_line > 0)
+		{
+			frame.m_location.m_end_line = frame.m_location.m_line;
+		}
+		return frame;
+	}
+
+	bool CanCollapseRecursiveFrame(const RuntimeStackFrame& left, const RuntimeStackFrame& right) noexcept
+	{
+		return left.m_procedure_name == right.m_procedure_name
+			&& left.m_module_name == right.m_module_name
+			&& left.m_location.m_file_name == right.m_location.m_file_name
+			&& left.m_location.m_line == right.m_location.m_line;
+	}
+
+#ifndef _WIN32
+	struct UnixSignalInfo
+	{
+		int m_signal_number = 0;
+		uintptr_t m_fault_address = 0u;
+	};
+
+	struct UnixSignalHandlerState
+	{
+		sigjmp_buf* m_jump_buffer = nullptr;
+		UnixSignalInfo* m_signal_info = nullptr;
+		struct sigaction m_previous_sigsegv {};
+		struct sigaction m_previous_sigfpe {};
+#if defined(SIGBUS)
+		struct sigaction m_previous_sigbus {};
+#endif
+	};
+
+	thread_local UnixSignalHandlerState* s_active_unix_signal_handler = nullptr;
+
+	void HandleVirtualMachineSignal(int signal_number, siginfo_t* signal_info, void*)
+	{
+		if (s_active_unix_signal_handler == nullptr
+			|| s_active_unix_signal_handler->m_jump_buffer == nullptr
+			|| s_active_unix_signal_handler->m_signal_info == nullptr)
+		{
+			std::_Exit(128 + signal_number);
+		}
+
+		s_active_unix_signal_handler->m_signal_info->m_signal_number = signal_number;
+		s_active_unix_signal_handler->m_signal_info->m_fault_address =
+			signal_info != nullptr ? reinterpret_cast<uintptr_t>(signal_info->si_addr) : 0u;
+		siglongjmp(*s_active_unix_signal_handler->m_jump_buffer, 1);
+	}
+
+	bool InstallVirtualMachineSignalHandlers(UnixSignalHandlerState& handler_state)
+	{
+		struct sigaction action {};
+		std::memset(&action, 0, sizeof(action));
+		sigemptyset(&action.sa_mask);
+		action.sa_sigaction = HandleVirtualMachineSignal;
+		action.sa_flags = SA_SIGINFO;
+
+		if (sigaction(SIGSEGV, &action, &handler_state.m_previous_sigsegv) != 0)
+		{
+			return false;
+		}
+
+		if (sigaction(SIGFPE, &action, &handler_state.m_previous_sigfpe) != 0)
+		{
+			static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
+			return false;
+		}
+
+#if defined(SIGBUS)
+		if (sigaction(SIGBUS, &action, &handler_state.m_previous_sigbus) != 0)
+		{
+			static_cast<void>(sigaction(SIGFPE, &handler_state.m_previous_sigfpe, nullptr));
+			static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
+			return false;
+		}
+#endif
+
+		return true;
+	}
+
+	void RestoreVirtualMachineSignalHandlers(const UnixSignalHandlerState& handler_state)
+	{
+		static_cast<void>(sigaction(SIGSEGV, &handler_state.m_previous_sigsegv, nullptr));
+		static_cast<void>(sigaction(SIGFPE, &handler_state.m_previous_sigfpe, nullptr));
+#if defined(SIGBUS)
+		static_cast<void>(sigaction(SIGBUS, &handler_state.m_previous_sigbus, nullptr));
+#endif
+	}
+#endif
 }
 
 VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept
@@ -72,40 +293,82 @@ void VirtualMachine::InitializeProcEntryCache() noexcept
 void VirtualMachine::InitializeStacks() noexcept
 {
 #ifdef _WIN32
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
-	size_t page_size = si.dwPageSize;
+	SYSTEM_INFO system_info;
+	GetSystemInfo(&system_info);
+	m_stack_page_size = static_cast<size_t>(system_info.dwPageSize);
+#else
+	const long page_size = sysconf(_SC_PAGESIZE);
+	m_stack_page_size = page_size > 0 ? static_cast<size_t>(page_size) : 4096uz;
+#endif
 
-	size_t value_stack_bytes = s_value_stack_size * sizeof(MidoriValue);
-	size_t value_total_pages = (value_stack_bytes + page_size - 1u) / page_size + 1u;
-	size_t value_total_size = value_total_pages * page_size;
+	const size_t value_stack_bytes = s_value_stack_size * sizeof(MidoriValue);
+	const size_t value_usable_bytes = ((value_stack_bytes + m_stack_page_size - 1u) / m_stack_page_size) * m_stack_page_size;
+	const size_t value_total_size = value_usable_bytes + m_stack_page_size;
 
+#ifdef _WIN32
 	m_value_stack_region = VirtualAlloc(nullptr, value_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (m_value_stack_region)
+	if (m_value_stack_region != nullptr)
 	{
-		m_value_stack_begin = static_cast<MidoriValue*>(m_value_stack_region);
+		char* value_region = static_cast<char*>(m_value_stack_region);
+		m_value_stack_begin = reinterpret_cast<MidoriValue*>(value_region + (value_usable_bytes - value_stack_bytes));
+		m_value_stack_region_size = value_total_size;
 
-		void* value_guard_page = static_cast<char*>(m_value_stack_region) + (value_total_size - page_size);
-		DWORD old_protect;
-		VirtualProtect(value_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+		DWORD old_protect = 0;
+		static_cast<void>(VirtualProtect(value_region + value_usable_bytes, m_stack_page_size, PAGE_NOACCESS, &old_protect));
 	}
-
-	size_t call_stack_bytes = s_call_stack_size * sizeof(CallFrame);
-	size_t call_total_pages = (call_stack_bytes + page_size - 1u) / page_size + 1u;
-	size_t call_total_size = call_total_pages * page_size;
-
-	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (m_call_stack_region)
+	else
 	{
-		m_call_stack_begin = static_cast<CallFrame*>(m_call_stack_region);
-
-		void* call_guard_page = static_cast<char*>(m_call_stack_region) + (call_total_size - page_size);
-		DWORD old_protect;
-		VirtualProtect(call_guard_page, page_size, PAGE_NOACCESS, &old_protect);
+		m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(value_stack_bytes));
 	}
 #else
-	m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(s_value_stack_size * sizeof(MidoriValue)));
-	m_call_stack_begin = static_cast<CallFrame*>(std::malloc(s_call_stack_size * sizeof(CallFrame)));
+	m_value_stack_region = mmap(nullptr, value_total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (m_value_stack_region != MAP_FAILED)
+	{
+		char* value_region = static_cast<char*>(m_value_stack_region);
+		m_value_stack_begin = reinterpret_cast<MidoriValue*>(value_region + (value_usable_bytes - value_stack_bytes));
+		m_value_stack_region_size = value_total_size;
+		static_cast<void>(mprotect(value_region + value_usable_bytes, m_stack_page_size, PROT_NONE));
+	}
+	else
+	{
+		m_value_stack_region = nullptr;
+		m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(value_stack_bytes));
+	}
+#endif
+
+	const size_t call_stack_bytes = s_call_stack_size * sizeof(CallFrame);
+	const size_t call_usable_bytes = ((call_stack_bytes + m_stack_page_size - 1u) / m_stack_page_size) * m_stack_page_size;
+	const size_t call_total_size = call_usable_bytes + m_stack_page_size;
+
+#ifdef _WIN32
+	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (m_call_stack_region != nullptr)
+	{
+		char* call_region = static_cast<char*>(m_call_stack_region);
+		m_call_stack_begin = reinterpret_cast<CallFrame*>(call_region + (call_usable_bytes - call_stack_bytes));
+		m_call_stack_region_size = call_total_size;
+
+		DWORD old_protect = 0;
+		static_cast<void>(VirtualProtect(call_region + call_usable_bytes, m_stack_page_size, PAGE_NOACCESS, &old_protect));
+	}
+	else
+	{
+		m_call_stack_begin = static_cast<CallFrame*>(std::malloc(call_stack_bytes));
+	}
+#else
+	m_call_stack_region = mmap(nullptr, call_total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (m_call_stack_region != MAP_FAILED)
+	{
+		char* call_region = static_cast<char*>(m_call_stack_region);
+		m_call_stack_begin = reinterpret_cast<CallFrame*>(call_region + (call_usable_bytes - call_stack_bytes));
+		m_call_stack_region_size = call_total_size;
+		static_cast<void>(mprotect(call_region + call_usable_bytes, m_stack_page_size, PROT_NONE));
+	}
+	else
+	{
+		m_call_stack_region = nullptr;
+		m_call_stack_begin = static_cast<CallFrame*>(std::malloc(call_stack_bytes));
+	}
 #endif
 
 	m_value_stack_base_pointer = m_value_stack_begin;
@@ -119,24 +382,48 @@ VirtualMachine::~VirtualMachine()
 	m_gc.ReclaimMemory(roots, m_allocator, true);
 
 #ifdef _WIN32
-	if (m_value_stack_region)
+	if (m_value_stack_region != nullptr)
 	{
 		VirtualFree(m_value_stack_region, 0, MEM_RELEASE);
 	}
-	if (m_call_stack_region)
+	else
+	{
+		std::free(m_value_stack_begin);
+	}
+
+	if (m_call_stack_region != nullptr)
 	{
 		VirtualFree(m_call_stack_region, 0, MEM_RELEASE);
 	}
+	else
+	{
+		std::free(m_call_stack_begin);
+	}
 #else
-	std::free(m_value_stack_begin);
-	std::free(m_call_stack_begin);
+	if (m_value_stack_region != nullptr)
+	{
+		static_cast<void>(munmap(m_value_stack_region, m_value_stack_region_size));
+	}
+	else
+	{
+		std::free(m_value_stack_begin);
+	}
+
+	if (m_call_stack_region != nullptr)
+	{
+		static_cast<void>(munmap(m_call_stack_region, m_call_stack_region_size));
+	}
+	else
+	{
+		std::free(m_call_stack_begin);
+	}
 #endif
 }
 
-int VirtualMachine::TerminateExecution(std::string_view message) noexcept
+int VirtualMachine::TerminateExecution(RuntimeError error) noexcept
 {
-	Printer::Print<Printer::Color::RED>(message);
-	return EXIT_FAILURE;
+	m_last_error = std::move(error);
+	return m_last_error->ExitCode();
 }
 
 int VirtualMachine::GetLine() noexcept
@@ -153,15 +440,22 @@ int VirtualMachine::GetLine() noexcept
 		}
 	}
 
-	return TerminateExecution(GenerateRuntimeError("Invalid instruction pointer.", 0));
+	return 0;
 }
 
-std::string VirtualMachine::GenerateRuntimeError(std::string_view message, int line) noexcept
+RuntimeError VirtualMachine::GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, int line) noexcept
 {
-	std::string stack_trace = GenerateStackTrace();
-	return MidoriError::GenerateRuntimeError(message, line)
-		.append("\n")
-		.append(stack_trace);
+	SourceLineCache source_line_cache(*m_executable);
+	const int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
+	const std::optional<RuntimeStackFrame> current_frame = ResolveStackTraceFrame(*m_executable, current_proc, line, source_line_cache);
+
+	std::optional<CompilerErrorLocation> location = std::nullopt;
+	if (current_frame.has_value())
+	{
+		location = current_frame->m_location;
+	}
+
+	return MidoriError::GenerateRuntimeError(code, message, std::move(location), GenerateStackTrace());
 }
 
 int VirtualMachine::GetProcedureIndexFromIP(InstructionPointer ip) noexcept
@@ -194,73 +488,68 @@ int VirtualMachine::GetLineFromIP(InstructionPointer ip, int proc_index) noexcep
 	return m_executable->GetLine(offset, proc_index);
 }
 
-std::string VirtualMachine::GenerateStackTrace() noexcept
+std::vector<RuntimeStackFrame> VirtualMachine::GenerateStackTrace() noexcept
 {
-	std::string trace = std::string(STACK_TRACE_HEADER);
-	std::string_view file_name = m_executable->GetFileName();
-	std::string_view function_color = Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
-	std::string_view reset = "\033[0m";
+	SourceLineCache source_line_cache(*m_executable);
+	std::vector<RuntimeStackFrame> frames;
+	frames.reserve(static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin) + 1u);
+
+	const auto append_frame = [&frames](std::optional<RuntimeStackFrame> frame) -> void
+	{
+		if (!frame.has_value())
+		{
+			return;
+		}
+
+		if (!frames.empty() && CanCollapseRecursiveFrame(frames.back(), *frame))
+		{
+			frames.back().m_recursive_call_count += 1;
+			return;
+		}
+
+		frames.emplace_back(std::move(*frame));
+	};
 
 	// Current frame (where error occurred)
-	int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
-	int current_line = GetLineFromIP(m_instruction_pointer, current_proc);
-
-	if (current_proc >= 0 && current_proc < static_cast<int>(m_executable->m_procedure_names.size()))
-	{
-		if (!IsModuleBootstrapName(m_executable->m_procedure_names[current_proc]))
-		{
-			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable->m_procedure_names[current_proc].GetCString(), reset, file_name, current_line));
-		}
-	}
-	else
-	{
-		trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, ANONYMOUS_FUNCTION, reset, file_name, current_line));
-	}
+	const int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
+	const int current_line = GetLineFromIP(m_instruction_pointer, current_proc);
+	append_frame(ResolveStackTraceFrame(*m_executable, current_proc, current_line, source_line_cache));
 
 	// Walk the call stack
-	CallStackPointer frame_ptr = m_call_stack_pointer - 1;
-	int frame_count = 0;
-	int total_frames = static_cast<int>(m_call_stack_pointer - m_call_stack_begin);
-
-	while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
+	for (CallStackPointer frame_ptr = m_call_stack_pointer; frame_ptr != m_call_stack_begin; )
 	{
-		const CallFrame& frame = *frame_ptr;
-
-		int proc_index = GetProcedureIndexFromIP(frame.m_return_ip);
-		int line = GetLineFromIP(frame.m_return_ip, proc_index);
-
-		bool should_skip = false;
-		if (proc_index >= 0 && proc_index < static_cast<int>(m_executable->m_procedure_names.size()))
-		{
-			if (!IsModuleBootstrapName(m_executable->m_procedure_names[proc_index]))
-			{
-				trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, m_executable->m_procedure_names[proc_index].GetCString(), reset, file_name, line));
-			}
-			else
-			{
-				should_skip = true;
-			}
-		}
-		else
-		{
-			trace.append(std::format("  at {}{}{} in {} (line {})\n", function_color, ANONYMOUS_FUNCTION, reset, file_name, line));
-		}
-
 		--frame_ptr;
-		if (!should_skip)
-		{
-			++frame_count;
-		}
+		const CallFrame& frame = *frame_ptr;
+		const int proc_index = GetProcedureIndexFromIP(frame.m_return_ip);
+		const int line = GetLineFromIP(frame.m_return_ip, proc_index);
+		append_frame(ResolveStackTraceFrame(*m_executable, proc_index, line, source_line_cache));
 	}
 
-	// Add truncation message if there are more frames
-	if (frame_count >= s_max_stack_trace_depth - 1 && total_frames > s_max_stack_trace_depth)
+	if (frames.size() > static_cast<size_t>(s_max_stack_trace_depth))
 	{
-		int remaining = total_frames - s_max_stack_trace_depth;
-		trace.append(std::format("  ... ({} more frame{})\n", remaining, remaining == 1 ? "" : "s"));
+		frames.resize(static_cast<size_t>(s_max_stack_trace_depth));
 	}
 
-	return trace;
+	return frames;
+}
+
+bool VirtualMachine::IsStackGuardFault(uintptr_t fault_address) const noexcept
+{
+	if (m_stack_page_size == 0u)
+	{
+		return false;
+	}
+
+	const uintptr_t value_guard_begin = reinterpret_cast<uintptr_t>(m_value_stack_begin) + (s_value_stack_size * sizeof(MidoriValue));
+	const uintptr_t value_guard_end = value_guard_begin + m_stack_page_size;
+	if (fault_address >= value_guard_begin && fault_address < value_guard_end)
+	{
+		return true;
+	}
+
+	const uintptr_t call_guard_begin = reinterpret_cast<uintptr_t>(m_call_stack_begin) + (s_call_stack_size * sizeof(CallFrame));
+	const uintptr_t call_guard_end = call_guard_begin + m_stack_page_size;
+	return fault_address >= call_guard_begin && fault_address < call_guard_end;
 }
 
 int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noexcept
@@ -268,7 +557,7 @@ int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noex
 	MidoriInteger val = index.GetInteger();
 	if (val < 0ll || val >= size)
 	{
-		return TerminateExecution(GenerateRuntimeError(std::format("Index out of bounds at index: {}.", val), GetLine()));
+		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", val), GetLine()));
 	}
 	else
 	{
@@ -280,11 +569,11 @@ int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
 {
 	if (size < 0)
 	{
-		return TerminateExecution(GenerateRuntimeError("Array size cannot be negative.", GetLine()));
+		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::NegativeArraySize, "Array size cannot be negative.", GetLine()));
 	}
 	else if (size > MAX_ARRAY_SIZE)
 	{
-		return TerminateExecution(GenerateRuntimeError("Array size exceeds maximum array size.", GetLine()));
+		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ArraySizeExceeded, "Array size exceeds maximum array size.", GetLine()));
 	}
 	return 0;
 }
@@ -293,7 +582,7 @@ int VirtualMachine::CheckArrayPopResult(const std::optional<MidoriValue>& result
 {
 	if (!result.has_value())
 	{
-		return TerminateExecution(GenerateRuntimeError("Cannot pop from an empty array.", GetLine()));
+		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ArrayPopEmpty, "Cannot pop from an empty array.", GetLine()));
 	}
 	return 0;
 }
@@ -415,7 +704,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 	while (true)
 	{
 
-#if MIDORI_ENABLE_STACK_TRACE
+#if MIDORI_ENABLE_EXECUTION_TRACE
 		if (MidoriBuild::ShouldEmitInternalDiagnostics())
 		{
 			Printer::Print("          ");
@@ -1838,7 +2127,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!foreign_function_name.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -1863,7 +2152,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (proc == nullptr)
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
 			}
 
 			m_ffi_array_args.clear();
@@ -2118,7 +2407,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -2145,7 +2434,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -2201,7 +2490,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -2227,7 +2516,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -2250,7 +2539,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError(std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
@@ -2451,7 +2740,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!m_curr_environment)
 			{
 				m_instruction_pointer = ip;
-				return TerminateExecution(GenerateRuntimeError("GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
 			}
 #endif
 			MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
@@ -2666,6 +2955,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #ifdef _WIN32
 struct ExceptionInfo
 {
+	ULONG exception_code;
 	ULONG_PTR exception_address;
 	ULONG_PTR fault_address;
 	bool captured;
@@ -2673,19 +2963,54 @@ struct ExceptionInfo
 
 static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* out_info)
 {
-	if (ex_info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION)
+	const DWORD exception_code = ex_info->ExceptionRecord->ExceptionCode;
+	if (exception_code == EXCEPTION_ACCESS_VIOLATION || exception_code == EXCEPTION_INT_DIVIDE_BY_ZERO)
 	{
+		out_info->exception_code = exception_code;
 		out_info->exception_address = (ULONG_PTR)ex_info->ExceptionRecord->ExceptionAddress;
-		out_info->fault_address = ex_info->ExceptionRecord->ExceptionInformation[1];
+		out_info->fault_address =
+			exception_code == EXCEPTION_ACCESS_VIOLATION
+				? ex_info->ExceptionRecord->ExceptionInformation[1]
+				: 0u;
 		out_info->captured = true;
 		return EXCEPTION_EXECUTE_HANDLER;
 	}
 	return EXCEPTION_CONTINUE_SEARCH;
 }
+
+int VirtualMachine::ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept
+{
+	ExceptionInfo ex_info = { 0, 0, 0, false };
+	int execute_result = EXIT_FAILURE;
+	bool completed = false;
+
+	__try
+	{
+		execute_result = ExecuteLoop();
+		completed = true;
+	}
+	__except (CaptureExceptionFilter(GetExceptionInformation(), &ex_info))
+	{
+	}
+
+	exception_code = static_cast<uintptr_t>(ex_info.exception_code);
+	exception_address = static_cast<uintptr_t>(ex_info.exception_address);
+	fault_address = static_cast<uintptr_t>(ex_info.fault_address);
+	captured = ex_info.captured;
+
+	if (completed)
+	{
+		return execute_result;
+	}
+
+	return EXIT_FAILURE;
+}
 #endif
 
-int VirtualMachine::Execute() noexcept
+VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 {
+	m_last_error.reset();
+
 	if (!m_ffi_table_initialized)
 	{
 		// Initialize FFI table with statically linked functions once per VM.
@@ -2698,107 +3023,99 @@ int VirtualMachine::Execute() noexcept
 	}
 
 #ifdef _WIN32
-	// Structured exception handling for guard page access violations (stack overflow)
-	ExceptionInfo ex_info = { 0, 0, false };
-
-	__try
+	uintptr_t exception_code = 0u;
+	uintptr_t exception_address = 0u;
+	uintptr_t fault_address = 0u;
+	bool captured_exception = false;
+	const int execute_result = ExecuteLoopWithStructuredExceptionHandling(exception_code, exception_address, fault_address, captured_exception);
+	if (!captured_exception)
 	{
-		return ExecuteLoop();
+		if (m_last_error.has_value())
+		{
+			return std::unexpected(std::move(*m_last_error));
+		}
+		return execute_result;
 	}
-	__except (CaptureExceptionFilter(GetExceptionInformation(), &ex_info))
+
+	if (exception_code == EXCEPTION_INT_DIVIDE_BY_ZERO)
 	{
-		// Determine if this is a stack overflow or other memory corruption
-		bool is_stack_overflow = false;
-		if (ex_info.captured && m_value_stack_region != nullptr)
-		{
-			ULONG_PTR stack_start = (ULONG_PTR)m_value_stack_begin;
-			ULONG_PTR stack_end = stack_start + (s_value_stack_size * sizeof(MidoriValue));
-
-			// Check if fault address is within or just beyond the stack region
-			if (ex_info.fault_address >= stack_start && ex_info.fault_address <= stack_end + 4096)
-			{
-				is_stack_overflow = true;
-			}
-		}
-
-		// Print error header
-		Printer::Print<Printer::Color::BRIGHT_RED>("Runtime Error");
-		Printer::Print(" at ");
-		Printer::Print<Printer::Color::BRIGHT_CYAN>("line ");
-		Printer::PrintFormatted("{}\n", GetLine());
-
-		// Print specific error message
-		if (is_stack_overflow)
-		{
-			Printer::Print<Printer::Color::BRIGHT_WHITE>("Stack overflow - exceeded maximum stack depth\n");
-		}
-		else
-		{
-			Printer::Print<Printer::Color::BRIGHT_WHITE>("Memory access violation - possible bytecode corruption or invalid operation\n");
-			if (ex_info.captured)
-			{
-				Printer::Print<Printer::Color::BRIGHT_WHITE>("(Exception at 0x");
-				Printer::PrintFormatted("{:X}, fault address 0x{:X})\n", ex_info.exception_address, ex_info.fault_address);
-			}
-		}
-
-		// Print stack trace
-		Printer::Print(STACK_TRACE_HEADER.data());
-		std::string_view file_name = m_executable->GetFileName();
-
-		// Current frame
-		int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
-		int current_line = GetLineFromIP(m_instruction_pointer, current_proc);
-
-		if (current_proc >= 0 && current_proc < static_cast<int>(m_executable->m_procedure_names.size()))
-		{
-			Printer::Print("  at ");
-			Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable->m_procedure_names[current_proc].GetCString());
-			Printer::PrintFormatted(" in {} (line {})\n", file_name, current_line);
-		}
-		else
-		{
-			Printer::PrintFormatted("  at {} in {} (line {})\n", ANONYMOUS_FUNCTION, file_name, current_line);
-		}
-
-		// Walk the call stack
-		CallStackPointer frame_ptr = m_call_stack_pointer - 1;
-		int frame_count = 0;
-		int total_frames = static_cast<int>(m_call_stack_pointer - m_call_stack_begin);
-
-		while (frame_ptr >= m_call_stack_begin && frame_count < s_max_stack_trace_depth - 1)
-		{
-			const CallFrame& frame = *frame_ptr;
-
-			int proc_index = GetProcedureIndexFromIP(frame.m_return_ip);
-			int line = GetLineFromIP(frame.m_return_ip, proc_index);
-
-			if (proc_index >= 0 && proc_index < static_cast<int>(m_executable->m_procedure_names.size()))
-			{
-				Printer::Print("  at ");
-				Printer::Print<Printer::Color::BRIGHT_YELLOW>(m_executable->m_procedure_names[proc_index].GetCString());
-				Printer::PrintFormatted(" in {} (line {})\n", file_name, line);
-			}
-			else
-			{
-				Printer::PrintFormatted("  at {} in {} (line {})\n", ANONYMOUS_FUNCTION, file_name, line);
-			}
-
-			--frame_ptr;
-			++frame_count;
-		}
-
-		// Add truncation message if there are more frames
-		if (frame_count >= s_max_stack_trace_depth - 1 && total_frames > s_max_stack_trace_depth)
-		{
-			int remaining = total_frames - s_max_stack_trace_depth;
-			Printer::PrintFormatted("  ... ({} more frame{})\n", remaining, remaining == 1 ? "" : "s");
-		}
-
-		return EXIT_FAILURE;
+		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::DivisionByZero, "Division by zero.", GetLine())));
+		return std::unexpected(std::move(*m_last_error));
 	}
+
+	if (IsStackGuardFault(fault_address))
+	{
+		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::StackOverflow, "Stack overflow - exceeded maximum call depth.", GetLine())));
+		return std::unexpected(std::move(*m_last_error));
+	}
+
+	char message[256];
+	std::snprintf(
+		message,
+		sizeof(message),
+		"Memory access violation - possible bytecode corruption or invalid operation (exception at %p, fault address %p).",
+		reinterpret_cast<void*>(exception_address),
+		reinterpret_cast<void*>(fault_address));
+	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::MemoryAccessViolation, message, GetLine())));
+	return std::unexpected(std::move(*m_last_error));
 #else
-	return ExecuteLoop();
+	UnixSignalInfo signal_info;
+	sigjmp_buf jump_buffer;
+	UnixSignalHandlerState handler_state;
+	handler_state.m_jump_buffer = &jump_buffer;
+	handler_state.m_signal_info = &signal_info;
+
+	if (!InstallVirtualMachineSignalHandlers(handler_state))
+	{
+		const int result = ExecuteLoop();
+		if (m_last_error.has_value())
+		{
+			return std::unexpected(std::move(*m_last_error));
+		}
+		return result;
+	}
+
+	s_active_unix_signal_handler = &handler_state;
+	const int signal_result = sigsetjmp(jump_buffer, 1);
+	if (signal_result == 0)
+	{
+		const int result = ExecuteLoop();
+		s_active_unix_signal_handler = nullptr;
+		RestoreVirtualMachineSignalHandlers(handler_state);
+		if (m_last_error.has_value())
+		{
+			return std::unexpected(std::move(*m_last_error));
+		}
+		return result;
+	}
+
+	s_active_unix_signal_handler = nullptr;
+	RestoreVirtualMachineSignalHandlers(handler_state);
+
+	if (IsStackGuardFault(signal_info.m_fault_address))
+	{
+		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::StackOverflow, "Stack overflow - exceeded maximum call depth.", GetLine())));
+		return std::unexpected(std::move(*m_last_error));
+	}
+
+	if (signal_info.m_signal_number == SIGFPE)
+	{
+		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::DivisionByZero, "Division by zero.", GetLine())));
+		return std::unexpected(std::move(*m_last_error));
+	}
+
+	static_cast<void>(TerminateExecution
+	(
+		GenerateRuntimeError
+		(
+			RuntimeErrorCode::MemoryAccessViolation,
+			std::format(
+				"Memory access violation - possible bytecode corruption or invalid operation (signal {}, fault address 0x{:X}).",
+				signal_info.m_signal_number,
+				signal_info.m_fault_address),
+			GetLine())
+	));
+	return std::unexpected(std::move(*m_last_error));
 #endif
 }
 
