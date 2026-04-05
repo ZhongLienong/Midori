@@ -1,78 +1,227 @@
 # Package System
 
-The Midori package system enables distribution and use of third-party modules with native FFI (Foreign Function Interface) bindings.
+Midori has an early package integration layer built around `package.midori` manifests and dynamically loaded FFI libraries. It is not yet a full package manager.
 
-## Overview
+## What Exists Today
 
-Packages in Midori consist of:
-- Midori source modules (`.mdr` files)
-- Package metadata (`package.midori` manifest)
-- Optional native libraries for FFI functions
-- Documentation and examples
+Implemented:
 
-## Architecture
+- TOML manifest parsing through `PackageManifest`
+- package metadata tables under `package.midori`
+- platform-specific library path selection
+- automatic dynamic library loading when an imported module sits beside a `package.midori`
+- runtime lookup of dynamically loaded foreign functions through `DynamicFFIRegistry`
 
-### Core Components
+Not implemented yet:
 
-#### 1. PackageManifest
-**Location**: `src/Compiler/PackageManager/PackageManifest.h/cpp`
+- package dependency resolution
+- version solving
+- registry or install workflow
+- manifest-driven export enforcement
 
-Parses and validates TOML-based package manifests. Extracts:
-- Package metadata (name, version, authors, license)
-- Module information and exports
-- FFI configuration and function mappings
-- Platform-specific binary paths
+The `[dependencies]` table is currently parsed as metadata only.
 
-#### 2. DynamicFFIRegistry
-**Location**: `src/Library/DynamicFFIRegistry/DynamicFFIRegistry.h/cpp`
+## Package Layout
 
-Manages runtime loading of native libraries:
-- Loads shared libraries (`.dll`, `.so`, `.dylib`) at runtime
-- Registers FFI function pointers by name
-- Thread-safe operation with `std::mutex`
-- Platform-specific library loading (Windows `LoadLibraryW`, Unix `dlopen`)
+The current implementation works best when the imported package entry module lives next to `package.midori`.
 
-#### 3. Module Manager Integration
-**Location**: `src/Compiler/ModuleManager/ModuleManager.cpp`
-
-During module compilation:
-- Detects `package.midori` manifest in imported module directories
-- Loads package manifest and FFI configuration
-- Automatically loads native libraries via `DynamicFFIRegistry`
-- Registers FFI functions before module compilation
-
-#### 4. Virtual Machine Integration
-**Location**: `src/Interpreter/VirtualMachine/VirtualMachine.cpp`
-
-At runtime:
-- Checks `MidoriFFIRegistry` (built-in functions) first
-- Falls back to `DynamicFFIRegistry` for package FFI functions
-- Maintains backward compatibility with static FFI
-
-## Package Structure
-
-```
+```text
 PackageName/
-├── package.midori           # TOML manifest (required)
-├── PackageName.mdr          # Main module at package root (required)
-├── native/                  # Native FFI implementation (optional)
-│   ├── Cargo.toml          # Build configuration
-│   └── src/
-│       └── lib.rs          # FFI functions
-├── lib/                     # Pre-built binaries (optional)
-│   ├── windows/x64/
-│   │   └── packagename.dll
-│   ├── linux/x86_64/
-│   │   └── libpackagename.so
-│   └── macos/
-│       └── libpackagename.dylib
-├── examples/                # Usage examples
-└── README.md               # Documentation
+  package.midori
+  PackageName.mdr
+  lib/
+    windows/x64/packagename.dll
+    linux/x86_64/libpackagename.so
+    macos/libpackagename.dylib
 ```
 
-## Package Manifest
+Manifest discovery is not recursive. `ModuleManager` checks only the parent directory of the imported `.mdr` file.
 
-The `package.midori` file uses TOML format:
+## Manifest Format
+
+`package.midori` is parsed by `src/Compiler/PackageManager/PackageManifest.cpp`.
+
+Recognized tables and fields:
+
+### `[package]`
+
+- `name`
+- `version`
+- `authors`
+- `description`
+- `license`
+- `repository`
+- `midori_version`
+
+### `[package.modules]`
+
+- `main`
+- `exports`
+
+Notes:
+
+- `main` is used by `PackageManifest::GetMainModulePath()`.
+- `exports` is parsed and retained in the manifest object, but actual symbol visibility is still enforced by the `.mdr` module's `public export` and `private export` blocks.
+
+### `[dependencies]`
+
+- arbitrary string-to-string entries
+
+These are parsed but not resolved by the compiler today.
+
+### `[ffi]`
+
+- `enabled`
+- `library_name`
+- `functions`
+
+`functions` maps exported Midori foreign names such as `"MIDORI_FFI_Package_Add"` to concrete symbol names inside the shared library.
+
+### `[build]`
+
+- `cmake_minimum_version`
+- `cpp_standard`
+
+This is metadata only; the compiler does not run a build tool from the manifest.
+
+### `[prebuilt]`
+
+- `windows_x64`
+- `linux_x86_64`
+- `macos_arm64`
+- `macos_x86_64`
+
+Each prebuilt entry contains:
+
+- `path`
+- `checksum`
+
+Checksums are parsed but not enforced yet.
+
+## Library Path Selection
+
+`PackageManifest::GetFFILibraryPath()` chooses a library path like this:
+
+1. use the matching `[prebuilt]` entry for the current platform if present
+2. otherwise fall back to the conventional platform path under `lib/`
+
+Fallback paths:
+
+- Windows: `lib/windows/x64/<library_name>.dll`
+- macOS: `lib/macos/lib<library_name>.dylib`
+- Linux: `lib/linux/x86_64/lib<library_name>.so`
+
+## How Packages Are Loaded
+
+During import processing:
+
+1. `ModuleManager` resolves an imported `.mdr` file.
+2. It checks that file's parent directory for `package.midori`.
+3. If a manifest exists, `PackageManifest::Load()` parses it.
+4. If `[ffi].enabled = true` and the selected library path exists, `DynamicFFIRegistry` loads the library and registers the declared functions.
+5. Compilation then continues as normal.
+
+This is import-triggered loading, not a separate package-install step.
+
+## FFI ABI for Dynamic Packages
+
+Dynamic packages use the generic `CALL_FOREIGN` runtime path:
+
+```c
+void function_name(void** args, void* ret)
+```
+
+That matters because dynamic packages do not get the richer builtin `FFIArgumentKind` and `FFIReturnKind` metadata used by `CALL_FOREIGN_INDEXED`.
+
+### Argument Passing
+
+For dynamically loaded package functions, the VM currently marshals arguments like this:
+
+- `Text`: `args[i]` is a `const char*`
+- `Array<T>`: `args[i]` points to an array view struct
+- raw scalar values such as `Int`, `Float`, `Bool`, `Byte`, and `Word`: the value's bytes are copied directly into the pointer-sized `args[i]` slot
+
+Current array-view shape:
+
+```c
+struct ArrayArgument {
+    void* data;
+    int length;
+};
+```
+
+### Reading Raw Scalar Arguments
+
+Do not cast `args[i]` directly to the target integer or float type. The runtime stores raw scalar bits inside the `void*` slot itself, so native code should copy from `&args[i]`.
+
+Example:
+
+```c
+void MIDORI_FFI_AddOne(void** args, void* ret)
+{
+    int64_t value = 0;
+    std::memcpy(&value, &args[0], sizeof(value));
+
+    value += 1;
+    std::memcpy(ret, &value, sizeof(value));
+}
+```
+
+Reading text and arrays:
+
+```c
+void MIDORI_FFI_Describe(void** args, void* ret)
+{
+    const char* text = static_cast<const char*>(args[0]);
+    const ArrayArgument* array = static_cast<const ArrayArgument*>(args[1]);
+    (void)text;
+    (void)array;
+}
+```
+
+### Return Values
+
+The VM currently expects:
+
+- raw scalars: write the value bytes into `ret`
+- `Text`: write a heap-allocated `char*` pointer value into `ret`
+- `Array<T>`: write a heap-allocated pointer to a heap-allocated array wrapper into `ret`
+
+Current array return wrapper:
+
+```c
+struct FFIArray {
+    void* data;
+    int length;
+};
+```
+
+### Ownership Rules
+
+For dynamically loaded package FFI:
+
+- returned `char*` text is copied into a Midori-managed `Text` and then freed by the VM
+- returned arrays are wrapped through `MidoriArray::FromFFI`
+- short returned arrays are copied into Midori small-object storage and the original FFI buffer is freed
+- longer returned arrays are adopted directly without an element copy
+- the outer `FFIArray` wrapper itself is always freed by the VM
+
+Practical consequence:
+
+- allocate returned text buffers and returned array buffers with `malloc`/`free` compatible allocation
+- do not free them yourself after writing the pointer into `ret`
+
+### Scope of the Dynamic ABI
+
+The dynamic package path is best suited to:
+
+- primitive scalars
+- `Text`
+- flat `Array<T>` values whose element representation already matches Midori's runtime values
+
+The richer builtin-only kinds such as `TraceableHandle`, `ValueHandle`, `ArrayStrings`, and `Value` are described in `MidoriFFIRegistry`, but they are part of the statically registered runtime FFI path rather than the dynamic package ABI.
+
+## Example Manifest
 
 ```toml
 [package]
@@ -88,7 +237,6 @@ main = "PackageName.mdr"
 exports = ["PackageName"]
 
 [dependencies]
-# Future: package dependencies
 
 [ffi]
 enabled = true
@@ -96,207 +244,34 @@ library_name = "packagename"
 
 [ffi.functions]
 "MIDORI_FFI_PackageName_Function" = "native_function_name"
-
-[build]
-cmake_minimum_version = "3.24"
-cpp_standard = "23"
-
-[prebuilt]
-# Optional pre-built binary paths and checksums
 ```
 
-## Creating a Package
-
-### 1. Module Definition
-
-The main module file must be at the package root for system imports:
+## Example Midori Surface
 
 ```midori
 module PackageName
-public export
-{
-    FunctionName
-}
+public export { FunctionName }
 
-foreign "MIDORI_FFI_PackageName_Function" FunctionName : fn(ArgType, ...) -> RetType;
+foreign "MIDORI_FFI_PackageName_Function" FunctionName : fn(Int) -> Int;
 ```
 
-### 2. FFI Implementation
+## Runtime Lookup Order
 
-Native functions must match the FFI signature:
+At call time the VM resolves foreign functions in this order:
 
-```rust
-// Rust example
-use std::os::raw::c_void;
+1. `MidoriFFIRegistry` for built-in runtime FFI
+2. `DynamicFFIRegistry` for dynamically loaded package functions
 
-#[no_mangle]
-pub extern "C" fn native_function_name(args: *mut *mut c_void, ret: *mut c_void) {
-    unsafe {
-        // For primitive types (Int, Float, Bool):
-        // args[i] contains the value directly, cast pointer to i64
-        let arg1 = *args.offset(0) as i64;
+If neither path resolves the name, execution fails with a runtime error.
 
-        // For strings:
-        // args[i] is pointer to C string
-        let text_ptr = *args.offset(0) as *const i8;
+## Thread Safety
 
-        // Return value: write to ret
-        let result = ret as *mut i64;
-        *result = computed_value;
-    }
-}
-```
+`DynamicFFIRegistry` uses a mutex around library loading and function lookup, so package FFI registration is thread-safe at the registry level.
 
-### 3. Building
+## Current Limitations
 
-```bash
-cd native
-cargo build --release
-cp target/release/packagename.dll ../lib/windows/x64/
-```
-
-## Using Packages
-
-### 1. Set MIDORI_PATH
-
-The `MIDORI_PATH` environment variable must include:
-- Package directory
-- MidoriPrelude (standard library)
-
-```bash
-export MIDORI_PATH="/path/to/packages/PackageName:/path/to/MidoriPrelude"
-```
-
-### 2. Import in Code
-
-```midori
-import { <PackageName> }
-import { <IO> }
-
-def result = PackageName::FunctionName(arg1, arg2);
-IO::PrintLine("Result: " ++ (result as Text));
-```
-
-### 3. Run
-
-```bash
-midori your_program.mdr
-```
-
-## FFI Function Signature
-
-All package FFI functions use this C signature:
-
-```c
-void function_name(void** args, void* ret)
-```
-
-### Argument Handling
-
-The `args` array contains `MidoriValue` data:
-
-**Primitive types** (Int, Float, Bool):
-- `args[i]` contains the value's bytes directly (8 bytes)
-- Access: cast pointer to type: `*args.offset(i) as i64`
-
-**Text/String types**:
-- `args[i]` is a pointer to null-terminated C string
-- Access: `*args.offset(i) as *const i8`
-
-**Array types**:
-- `args[i]` points to `ArrayArgument` struct
-```c
-struct ArrayArgument {
-    void* data;      // Pointer to first element
-    int length;      // Number of elements
-};
-```
-
-### Return Value
-
-The `ret` parameter points to a `MidoriValue` (8 bytes):
-- Cast to appropriate type: `ret as *mut i64`
-- Write result: `*result = value;`
-
-## Implementation Details
-
-### Library Loading
-
-**Windows**: Uses `LoadLibraryW`, `FreeLibrary`, `GetProcAddress`
-**Unix/macOS**: Uses `dlopen`, `dlclose`, `dlsym`
-
-Libraries are loaded with flags:
-- Windows: Default
-- Unix: `RTLD_LAZY | RTLD_LOCAL`
-
-### Function Lookup Order
-
-1. `MidoriFFIRegistry` - Built-in standard library functions
-2. `DynamicFFIRegistry` - Package FFI functions
-3. Error if not found
-
-### Thread Safety
-
-`DynamicFFIRegistry` is thread-safe:
-- `std::mutex` protects all operations
-- Singleton pattern via `GetInstance()`
-- Safe concurrent function lookups
-
-### Memory Management
-
-- Libraries remain loaded for program lifetime
-- `DynamicFFIRegistry` destructor unloads libraries
-- No manual cleanup required
-
-## Compilation Integration
-
-During compilation (`ModuleManager::GenerateBuildGraphImpl`):
-
-1. Import resolution locates module file
-2. Check for `package.midori` in parent directory
-3. If found, parse manifest
-4. If FFI enabled, locate library path (platform-specific)
-5. Load library via `DynamicFFIRegistry::LoadLibraryWithFunctions`
-6. Register all FFI functions
-7. Continue with normal module compilation
-
-## Runtime Integration
-
-During FFI call execution (`VirtualMachine::CALL_FOREIGN`):
-
-1. Pop function name from stack
-2. Look up in `MidoriFFIRegistry` (built-in)
-3. If not found, look up in `DynamicFFIRegistry`
-4. If found, call function with arguments
-5. Push return value to stack
-
-## Platform-Specific Paths
-
-The package manifest can specify different library paths per platform:
-
-```toml
-[prebuilt]
-windows_x64 = { path = "lib/windows/x64/lib.dll", checksum = "sha256:..." }
-linux_x86_64 = { path = "lib/linux/x86_64/lib.so", checksum = "sha256:..." }
-macos_arm64 = { path = "lib/macos/liblib.dylib", checksum = "sha256:..." }
-```
-
-`PackageManifest::GetFFILibraryPath()` automatically selects the correct path based on the current platform.
-
-## External Dependencies
-
-**TOML Parser**: [toml11](https://github.com/ToruNiina/toml11)
-- Added via CMake `FetchContent`
-- Version: v4.2.0
-- Header-only library
-- C++23 compatible
-
-## Future Enhancements
-
-- Package manager CLI tool
-- Dependency resolution
-- Version constraints and compatibility checking
-- Package registry/repository
-- Cryptographic checksum verification
-- Automatic CMake builds for native code
-- WASM support for packages
+- Package manifests are discovered only from the imported module's immediate directory.
+- There is no package CLI and no dependency graph resolution.
+- Manifest checksums and build metadata are not enforced.
+- `package.modules.exports` is not a second export mechanism; actual exports still come from the module source.
+- Dynamic package FFI does not expose the full builtin typed-FFI surface.

@@ -1,0 +1,4 @@
+module TupleDestructuringRequiresTupleRhs
+
+def value = 1;
+def (left, right) = value;

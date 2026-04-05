@@ -1,0 +1,44 @@
+module CompoundAssignmentOperators
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+struct Box
+{
+    count : Int,
+    bits : Int
+};
+
+def number = 10;
+def add_result = number += 5;
+def sub_result = number -= 3;
+def mul_result = number *= 2;
+def div_result = number /= 4;
+def mod_result = number %= 4;
+
+def bits = 12;
+def and_result = bits &= 10;
+def or_result = bits |= 1;
+def xor_result = bits ^= 3;
+def lshift_result = bits <<= 2;
+def rshift_result = bits >>= 1;
+
+def box = new Box(4, 7);
+def member_add_result = box.count += 6;
+def member_shift_result = box.bits <<= 1;
+
+IO::PrintLine("number=" ++ (number as Text));
+IO::PrintLine("add_result=" ++ (add_result as Text));
+IO::PrintLine("sub_result=" ++ (sub_result as Text));
+IO::PrintLine("mul_result=" ++ (mul_result as Text));
+IO::PrintLine("div_result=" ++ (div_result as Text));
+IO::PrintLine("mod_result=" ++ (mod_result as Text));
+IO::PrintLine("bits=" ++ (bits as Text));
+IO::PrintLine("and_result=" ++ (and_result as Text));
+IO::PrintLine("or_result=" ++ (or_result as Text));
+IO::PrintLine("xor_result=" ++ (xor_result as Text));
+IO::PrintLine("lshift_result=" ++ (lshift_result as Text));
+IO::PrintLine("rshift_result=" ++ (rshift_result as Text));
+IO::PrintLine("box_count=" ++ (box.count as Text));
+IO::PrintLine("box_bits=" ++ (box.bits as Text));
+IO::PrintLine("member_add_result=" ++ (member_add_result as Text));
+IO::PrintLine("member_shift_result=" ++ (member_shift_result as Text));

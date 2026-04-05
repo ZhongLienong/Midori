@@ -1,0 +1,6 @@
+module StructuralDerivingRejectsGenericStructs
+
+struct Box<T>
+{
+    value : T
+} deriving (Equatable);

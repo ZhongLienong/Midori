@@ -11,11 +11,13 @@ A statically-typed functional programming language featuring algebraic data type
 - **Typeclasses** - Constrained generics with associated types and instance dispatch
 - **Deriving** - Generate structural and container helpers from type declarations
 - **Module System** - Explicit imports/exports with privacy enforcement
-- **Package System** - Third-party packages with native FFI bindings
+- **Package System** - Early manifest-based package loading with native FFI bindings
 - **Pipe Operator** - Functional composition with `|>`, inferred lambdas, and `|> match with`
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
 - **Expression-Oriented** - Everything is an expression with a value
+
+Current scope note: there is no `async` / `await` surface in the current language.
 
 ## Quick Start
 
@@ -35,7 +37,7 @@ python .\scripts\install.py --copy-binaries
 Every `.mdr` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
 
 ### Hello World
-```midori
+```midori-test name=readme/hello_world path=.doc_examples/readme_hello_world.mdr
 module Main
 
 // Path import (relative or absolute)
@@ -51,6 +53,12 @@ def pi : Float = 3.14159;
 def message : Text = "Hello";
 def flag : Bool = true;
 def items : Array<Int> = [1, 2, 3, 4, 5];
+```
+
+### Tuples and Destructuring
+```midori-test name=readme/tuples_destructuring path=.doc_examples/readme/tuples_destructuring.mdr module=ReadmeTuplesDestructuring
+def pair = (42, "answer");
+def (count, label) = pair;
 ```
 
 ### Functions
@@ -230,20 +238,23 @@ def result = MyModule::add(5, 3);
 
 ### Package System
 
-Midori supports third-party packages with native FFI bindings. Packages can provide native libraries (DLL/SO/DYLIB) that are loaded dynamically at runtime.
+Midori has early package support for manifest-discovered modules and optional native FFI libraries loaded at import time. This is not yet a full package manager.
 
 **Package structure:**
-```
+```text
 PackageName/
-├── package.midori       # TOML manifest
-├── PackageName.mdr      # Module file
-└── lib/                 # Native libraries
-    └── windows/x64/packagename.dll
+  package.midori
+  PackageName.mdr
+  lib/
+    windows/x64/packagename.dll
 ```
+
+`ModuleManager` discovers `package.midori` next to the imported module file. Actual exported symbols still come from the module's `public export` / `private export` blocks.
 
 **Using a package:**
 ```bash
-# Set MIDORI_PATH to include package directory
+# Set MIDORI_PATH to include package roots.
+# Use ';' on Windows and ':' on Unix-like systems.
 export MIDORI_PATH="/path/to/packages/PackageName:/path/to/MidoriPrelude"
 ```
 
@@ -253,7 +264,7 @@ import { <PackageName> }
 def result = PackageName::NativeFunction(arg1, arg2);
 ```
 
-See [Package System](docs/package-system.md) for complete documentation on creating and using packages.
+See [Package System](docs/package-system.md) for the current manifest fields, dynamic-loading behavior, and FFI ABI limits.
 
 ### Pipe Operator
 ```midori
@@ -297,7 +308,7 @@ def second = counter();  // 2
 
 ### Type System
 - **Primitive Types**: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit`
-- **Composite Types**: `Array<T>`, structs, unions
+- **Composite Types**: `Array<T>`, tuples, structs, unions
 - **Function Types**: `fn(T1, T2) -> R`
 - **Type Aliases**: `type UserId = Int;` for readable type names
 - **Generic Parameters**: Single and multiple type parameters
@@ -305,6 +316,7 @@ def second = counter();  // 2
 - **Associated Types**: Projections such as `Iterable::Item<Iter>`
 - **Deriving**: `Equatable`, `Hashable`, `Map`, `Bind`, and `Unwrap`
 - **Type Inference**: Automatic type deduction for instantiation, constructors, and context-aware lambdas
+- **Tuple Destructuring**: `def (x, y) = pair;`
 
 #### Numeric Limits
 
@@ -324,13 +336,14 @@ def second = counter();  // 2
 
 ### Operators
 - **Arithmetic**: `+`, `-`, `*`, `/`, `%`
-- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`, with typeclass dispatch for user-defined types through `Equatable<T>` and `Orderable<T>`
 - **Logical**: `&&`, `||`, `!`
 - **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
-- **Concatenation**: `++` for `Text` and `Array<T>`
+- **Casts**: `as`, with builtin primitive conversions and constrained dispatch through `Convertable<From, To>`
+- **Concatenation**: `++` for `Text` and `Array<T>`, with constrained dispatch through `Concatenable<T>`
 - **Pipe**: `|>` (function composition)
-- **Length**: `#` (array length)
-- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`
+- **Length**: `#` for arrays and other countable shapes, with constrained dispatch through `Countable<T>`
+- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`
 
 Concatenation assignment is explicit rather than a dedicated operator:
 
@@ -361,6 +374,7 @@ Extendable::Extend(items, other_items);
 - **Collections** - `Collections/Map.mdr`, `Collections/Set.mdr`
 - **Effects** - `IO.mdr`, `System.mdr`, `DateTime.mdr`
 - **Built-in helpers** - `TextUtil.mdr`, `ArrayUtil.mdr`, `Math.mdr`
+- **Helper / typeclass modules** - `Appendable`, `Prependable`, `Extendable`, `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
 
@@ -372,11 +386,16 @@ The public IO and system surface now prefers typed wrappers over sentinel values
 
 `Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are removed from the public prelude API.
 
-See [Prelude](docs/prelude.md) for module-by-module notes and examples covering the typed `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` APIs.
+See [Prelude](docs/prelude.md) for module-by-module notes and examples covering the typed `IO`, `System`, `DateTime`, `TextUtil`, `ArrayUtil`, and helper/typeclass modules.
 
 ## Foreign Function Interface (FFI)
 
-Midori supports calling external C/C++ functions through its Foreign Function Interface, enabling integration with native libraries and system APIs.
+Midori has two FFI call paths:
+
+- `CALL_FOREIGN_INDEXED` for built-in runtime functions registered in `MidoriFFIRegistry`
+- `CALL_FOREIGN` for generic external functions, including package-provided dynamic libraries
+
+The examples below describe the generic `CALL_FOREIGN` ABI used by ordinary external and package functions.
 
 ### Declaring Foreign Functions
 
@@ -393,19 +412,11 @@ foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
 foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
 ```
 
-### Supported Types
+### Supported Surface
 
-**Primitive Types** (passed by value):
-- `Int` (64-bit signed integer)
-- `Float` (64-bit double)
-- `Bool` (boolean)
-- `Byte` (8-bit unsigned integer)
-- `Word` (64-bit unsigned integer)
-- `Unit` (empty/void)
-
-**Heap Types** (automatically marshalled):
-- `Text` - VM passes C-string pointer, FFI returns `malloc`'d C-string
-- `Array<T>` - VM passes struct pointer, FFI returns struct pointer
+- Raw scalars: `Int`, `Float`, `Bool`, `Byte`, `Word`, `Unit`
+- `Text`
+- `Array<T>`
 
 ### FFI Function Signature
 
@@ -417,193 +428,107 @@ extern "C" {
 }
 ```
 
-**Parameters:**
-- `args`: Array of pointers to arguments (indexed by parameter position)
-- `ret`: Pointer to 8-byte return value buffer
+`ret` always points at an 8-byte return slot. `args` is a `void**`, but generic dynamic calls do not carry the richer builtin metadata from `CALL_FOREIGN_INDEXED`.
 
 ### Type Marshalling
 
-#### Primitive Types
+#### Raw Scalar Types
 
-**Receiving Arguments:**
+For generic dynamic FFI, raw scalar bits are stored in the pointer-sized `args[i]` slot itself. Read them by copying from `&args[i]`, not by treating `args[i]` as a pointer to the scalar value.
+
 ```cpp
-// Int, Float, Byte, Word
 int64_t value;
-std::memcpy(&value, args[0], sizeof(int64_t));
+std::memcpy(&value, &args[0], sizeof(value));
 
-// Bool
 bool flag;
-std::memcpy(&flag, args[0], sizeof(bool));
+std::memcpy(&flag, &args[1], sizeof(flag));
 ```
 
-**Returning Values:**
+Return raw scalars by copying the value bytes into `ret`:
+
 ```cpp
-// Int
 int64_t result = 42;
-std::memcpy(ret, &result, sizeof(int64_t));
+std::memcpy(ret, &result, sizeof(result));
 
-// Bool
 bool success = true;
-std::memcpy(ret, &success, sizeof(bool));
+std::memcpy(ret, &success, sizeof(success));
 
-// Unit (void)
+// Unit
 std::memset(ret, 0, sizeof(double));
 ```
 
 #### Text Type
 
-**Receiving Text Arguments:**
+Receive text arguments as a C string pointer:
+
 ```cpp
-// VM passes const char* directly
-const char* str = reinterpret_cast<const char*>(args[0]);
+const char* text = static_cast<const char*>(args[0]);
 ```
 
-**Returning Text:**
+Return text as a `malloc`-allocated `char*` written into the 8-byte return slot:
+
 ```cpp
-// Allocate with malloc (NOT new)
+const size_t size = std::strlen(data) + 1;
 char* result = static_cast<char*>(std::malloc(size));
 std::memcpy(result, data, size);
 
-// Return pointer as int64_t
 const int64_t ptr = reinterpret_cast<int64_t>(result);
 std::memcpy(ret, &ptr, sizeof(int64_t));
-
-// VM will copy to GC memory and free() the result
 ```
+
+The VM copies returned text into Midori-managed storage and then frees the original string.
 
 #### Array Type
 
-**Receiving Array Arguments:**
+Receive arrays through an array-view struct:
+
 ```cpp
 struct ArrayArgument {
-    void* data;    // Pointer to array of MidoriValue (8 bytes each)
-    int length;    // Number of elements
-};
-
-ArrayArgument* array = reinterpret_cast<ArrayArgument*>(args[0]);
-double* elements = reinterpret_cast<double*>(array->data);
-
-// Access elements
-for (int i = 0; i < array->length; i++) {
-    int64_t value;
-    std::memcpy(&value, &elements[i], sizeof(double));
-    // Use value...
-}
-```
-
-**Returning Arrays:**
-```cpp
-struct FFIArray {
-    void* data;    // Pointer to array of doubles (8 bytes each)
+    void* data;
     int length;
 };
 
-// Allocate array data
-double* array_data = static_cast<double*>(std::malloc(length * sizeof(double)));
+const ArrayArgument* array = static_cast<const ArrayArgument*>(args[0]);
+```
 
-// Fill array
+Return arrays as a heap-allocated wrapper pointing at a heap-allocated element buffer:
+
+```cpp
+struct FFIArray {
+    void* data;
+    int length;
+};
+
+std::uint64_t* array_data =
+    static_cast<std::uint64_t*>(std::malloc(length * sizeof(std::uint64_t)));
+
 for (int i = 0; i < length; i++) {
     int64_t value = i * 10;
-    std::memcpy(&array_data[i], &value, sizeof(double));
+    std::memcpy(&array_data[i], &value, sizeof(value));
 }
 
-// Allocate return struct
 FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
 result->data = array_data;
 result->length = length;
 
-// Return pointer
 const int64_t ptr = reinterpret_cast<int64_t>(result);
 std::memcpy(ret, &ptr, sizeof(int64_t));
-
-// VM will copy to GC memory and free both struct and data
 ```
+
+For flat scalar arrays, each element slot should use Midori's 8-byte runtime value layout.
 
 ### Memory Management Rules
 
-**Critical Rules:**
+- Use `malloc` / `free` compatible allocation for returned text and arrays.
+- Do not free returned buffers after writing their pointer into `ret`; the VM takes ownership.
+- Returned arrays are wrapped through `MidoriArray::FromFFI`.
+- Short returned arrays are copied into Midori small-object storage and their original FFI buffer is freed.
+- Longer returned arrays are adopted directly without an element copy.
+- The outer `FFIArray` wrapper itself is always freed by the VM.
+- FFI code should not access the VM's garbage collector or internal runtime objects directly.
+- Return values still have to fit in the 8-byte `ret` slot.
 
-1. **Use `malloc`/`free`, NOT `new`/`delete`**: FFI allocations are freed by the VM using `std::free()`
-
-2. **Heap Returns are Copied**: VM copies FFI-allocated Text/Array data into GC-managed memory, then immediately frees FFI allocation
-
-3. **No GC Access**: FFI functions cannot access the VM's garbage collector or internal types
-
-4. **8-Byte Limit**: All return values must fit in 8 bytes (`sizeof(double)`)
-
-**Memory Flow:**
-```
-FFI: malloc() → return pointer
- ↓
-VM: copy to GC memory → free() FFI allocation
- ↓
-GC: manage lifetime
-```
-
-### Complete Example
-
-**Midori Declaration:**
-```midori
-// In your module
-foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
-
-// Usage
-def data = ReadBinaryFile("file.bin");
-IO::Print((data[0] as Int) as Text);
-```
-
-**C++ Implementation:**
-```cpp
-#include "Library/MidoriStdLibExports.h"
-#include <fstream>
-#include <vector>
-
-extern "C" {
-    MIDORI_STDLIB_API void MIDORI_FFI_ReadBinaryFile(void** args, void* ret) noexcept
-    {
-        struct FFIArray {
-            void* data;
-            int length;
-        };
-
-        const char* file_path = reinterpret_cast<const char*>(args[0]);
-
-        std::ifstream file(file_path, std::ios::binary);
-        if (!file.is_open()) {
-            const int64_t null_ptr = 0;
-            std::memcpy(ret, &null_ptr, sizeof(int64_t));
-            return;
-        }
-
-        // Read file
-        file.seekg(0, std::ios::end);
-        const std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        std::vector<char> buffer(size);
-        file.read(buffer.data(), size);
-
-        // Allocate array (MidoriValue = 8 bytes each)
-        double* array_data = static_cast<double*>(
-            std::malloc(size * sizeof(double))
-        );
-
-        // Convert bytes to array elements
-        for (std::streamsize i = 0; i < size; i++) {
-            const int64_t byte = static_cast<uint8_t>(buffer[i]);
-            std::memcpy(&array_data[i], &byte, sizeof(double));
-        }
-
-        // Create return struct
-        FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
-        result->data = array_data;
-        result->length = static_cast<int>(size);
-
-        const int64_t ptr = reinterpret_cast<int64_t>(result);
-        std::memcpy(ret, &ptr, sizeof(int64_t));
-    }
-}
-```
+See [Package System](docs/package-system.md) for the current manifest-driven loading flow, runtime lookup order, and dynamic ABI limits.
 
 ## Development
 
@@ -693,7 +618,7 @@ Test fixtures are file-based:
 ## Example Programs
 
 ### Recursive Fibonacci
-```midori
+```midori-test name=readme/recursive_fibonacci path=.doc_examples/readme/recursive_fibonacci.mdr module=ReadmeRecursiveFibonacci
 defun fib(n: Int) : Int => {
     return if n <= 1 then n else fib(n - 1) + fib(n - 2);
 };
@@ -741,7 +666,7 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 ## Architecture
 
 - **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
-- **Optimizer**: Constant folding, strength reduction, closure lifting, tail call optimization
+- **Optimizer**: Constant folding, strength reduction, constant branch elimination, local constant propagation, dead code elimination, canonicalization cleanup, closure lifting, and tail call optimization; rerun until a fixpoint or the 8-iteration cap is reached
 - **Backend**: Bytecode generator → Linker
 - **Runtime**: Single `VirtualMachine` execution path with mark-and-sweep garbage collection
 
@@ -754,6 +679,9 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
+- [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
+- [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
+- [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
 - [Runtime Architecture](docs/runtime-architecture.md) - VM execution, closure capture, and garbage collection

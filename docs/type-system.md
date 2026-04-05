@@ -145,7 +145,8 @@ def exact = new Option::Some<Int>(42);
 
 Inference must resolve every omitted type parameter. If no argument or expected type pins it down, construction fails:
 
-```midori
+```midori-test name=type-system/unresolved_none kind=failure path=.doc_examples/type_system/unresolved_none.mdr module=TypeSystemUnresolvedNone
+union Option<T> = None | Some(T);
 def unresolved = new Option::None();  // error: missing type context
 ```
 
@@ -304,6 +305,59 @@ defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
 
 Associated types are especially useful when one type parameter logically determines another, while multi-parameter type classes remain available for other cases.
 
+### Operator-Backed Type Classes
+
+Several operators are wired into the type checker and code generator so they can dispatch through type classes when the operands are not handled entirely as builtins.
+
+- `as` can use `Convertable<From, To>`
+- `++` can use `Concatenable<T>`
+- `#` can use `Countable<T>`
+- `==` and `!=` can use `Equatable<T>`
+- `<`, `<=`, `>`, and `>=` can use `Orderable<T>`
+
+Examples:
+
+```midori
+defun ConvertIt<From, To>(value: From) : To
+    where Convertable<From, To> => {
+    value as To
+};
+
+defun Join<T>(left: T, right: T) : T
+    where Concatenable<T> => {
+    left ++ right
+};
+```
+
+The current implementation mixes direct builtin lowering with these hooks:
+
+- `as` prefers direct builtin casts for concrete primitive conversions, but generic and constrained code can lower through `Convertable`
+- `++` is builtin for `Text` and `Array<T>`, and can also lower through `Concatenable`
+- `#` is builtin for arrays, has specialized lowering for prelude `List`, `Map`, and `Set` shapes, and otherwise falls back to `Countable`
+- equality and ordering use builtin lowering for the primitive cases and typeclass dispatch for user-defined cases
+
+The shipped prelude provides the following related modules:
+
+- `Convertable`
+- `Concatenable`
+- `Countable`
+- `Equatable`
+- `Orderable`
+
+The concrete coverage is intentionally uneven today. For example, `Orderable` is provided as a class surface, but most interesting instances are still expected to come from user code rather than the prelude.
+
+### Compound Assignment Surface
+
+In addition to `+=`, `-=`, `*=`, `/=`, and `%=`, the current language surface also includes:
+
+- `&=`
+- `|=`
+- `^=`
+- `<<=`
+- `>>=`
+
+These are currently defined for integer-style numeric types (`Int`, `Byte`, and `Word`) where appropriate.
+
 ## Pattern Matching
 
 Pattern matching is expression-oriented:
@@ -371,7 +425,7 @@ def mapped = OptionMap(new Option::Some(1), fn(x) => { x + 1 });
 
 Lambdas still need a surrounding function type when annotations are omitted:
 
-```midori
+```midori-test name=type-system/lambda_missing_context kind=failure path=.doc_examples/type_system/lambda_missing_context.mdr module=TypeSystemLambdaMissingContext
 def identity = fn(x) => { x };  // error: no expected function type
 ```
 

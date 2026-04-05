@@ -353,6 +353,13 @@ class TestRunner:
             return [test_path]
 
         for test_file in self.test_dir.rglob("*.mdr"):
+            relative_test_path = test_file.relative_to(self.test_dir)
+
+            # Documentation examples are compiled through scripts/check_doc_examples.py
+            # because their extracted temp paths may differ from their tracked mirrors.
+            if relative_test_path.parts and relative_test_path.parts[0] == "doc_examples":
+                continue
+
             # Skip non-test files
             if test_file.name in ['minimal_test.mdr', 'test.mdr', 'simple_test.mdr', 'test_backup.mdr']:
                 if test_file.parent == self.test_dir:
@@ -360,7 +367,7 @@ class TestRunner:
 
             # Apply category filter
             if category:
-                if category not in str(test_file.relative_to(self.test_dir)):
+                if category not in str(relative_test_path):
                     continue
 
             # Apply pattern filter

@@ -1,0 +1,4 @@
+module CompoundAssignmentNumericRequiresNumeric
+
+def text = "mid";
+text += "ori";

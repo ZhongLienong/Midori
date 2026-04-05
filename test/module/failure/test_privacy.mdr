@@ -4,7 +4,7 @@ module TestPrivacy
 
 import
 {
-    "math_lib.mdr"
+    "../success/math_lib.mdr"
 }
 
 // This should fail - internal_helper is not exported by Math module

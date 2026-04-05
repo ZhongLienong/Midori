@@ -1,0 +1,12 @@
+module App.Main
+
+import
+{
+    "../success/private_export_internal.mdr"
+}
+
+use Math.Internal.{hidden}
+
+def value = hidden();
+
+defun main() : Int => value;

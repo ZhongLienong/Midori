@@ -1,0 +1,14 @@
+module Example
+
+defun LocalHelper(x: Int): Int => x + 1;
+
+import { <IO> }
+
+public export { main }
+
+use IO.{PrintLine}
+
+defun main(): Int => {
+    PrintLine((LocalHelper(41)) as Text);
+    0
+};

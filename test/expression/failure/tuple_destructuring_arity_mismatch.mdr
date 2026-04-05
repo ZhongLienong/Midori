@@ -1,0 +1,4 @@
+module TupleDestructuringArityMismatch
+
+def triple = (1, 2, 3);
+def (left, right) = triple;

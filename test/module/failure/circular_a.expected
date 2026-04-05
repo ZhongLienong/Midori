@@ -1,0 +1,3 @@
+Compilation failed :(
+Module Error at test/module/failure/circular_a.mdr:0
+  Circular dependency detected in final build graph

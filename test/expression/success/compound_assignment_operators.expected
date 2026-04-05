@@ -1,0 +1,16 @@
+number=2
+add_result=15
+sub_result=12
+mul_result=24
+div_result=6
+mod_result=2
+bits=20
+and_result=8
+or_result=9
+xor_result=10
+lshift_result=40
+rshift_result=20
+box_count=10
+box_bits=14
+member_add_result=10
+member_shift_result=14

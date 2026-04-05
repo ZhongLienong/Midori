@@ -1,0 +1,97 @@
+# Midori Feature Matrix
+
+This document is the tracked source of truth for the current public Midori surface.
+Status is based on the Phase 1 audit and the repo state checked on 2026-04-04.
+
+The coverage column points at the primary automated coverage for each row. It is
+not an exhaustive list of every relevant fixture.
+
+See [Versioning Policy](versioning-policy.md) for how `Stable`,
+`Experimental`, and `Planned` affect compatibility and releases.
+
+## Stability Levels
+
+- **Stable**: implemented on its relevant end-to-end path, documented in tracked docs, and covered by automated tests. For language syntax, that normally means the lexer/parser/typechecker/codegen/runtime path exists and at least one `test/` or `tests/` fixture exercises it.
+- **Experimental**: implemented, but still limited, early, or thinly covered compared with the rest of the language.
+- **Planned**: not implemented in the current token, AST, parser, typechecker, code generator, or runtime surface.
+
+## Type System
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `tests/unit/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
+| Bottom type: `Never` | Stable | `test/prelude/`, `test/hashmap/` | Mostly exercised through `Prelude/Panic` and bottom-type unification rather than a dedicated `Never` fixture. |
+| Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `tests/unit/parser/`, `tests/unit/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
+| Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
+| Type aliases | Stable | `test/type_alias/`, `test/generics/` | Aliases work for simple and generic shapes. |
+| First-class functions and lambdas | Stable | `test/generics/`, `test/pipe/`, `test/closure/` | Includes anonymous functions and contextual lambda inference. |
+
+## Expressions and Control Flow
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| `if`, block expressions, `return`, `loop`, `break`, `continue` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | The language remains expression-oriented even for most control-flow forms. |
+| `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
+| Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `tests/unit/runtime/` | Both `start..end` and `start..step..end` are implemented. |
+| Array comprehensions | Stable | `test/array_comprehension/`, `tests/unit/parser/` | Supports range, array, and `Iterable` inputs. |
+| Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
+| Closures and captured mutation | Stable | `test/closure/`, `tests/unit/runtime/`, `tests/unit/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
+
+## Pattern Matching
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `tests/unit/parser/`, `tests/unit/typechecker/` | The current pattern inventory is six variants. |
+| Exhaustiveness checking | Stable | `test/match/`, `tests/unit/typechecker/` | Exhaustiveness is currently top-level only. |
+
+## Generics and Typeclasses
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| Generic functions, structs, unions, and aliases | Stable | `test/generics/`, `test/type_alias/` | Includes nested generics and multi-parameter definitions. |
+| `where` constraints and type-definition constraints | Stable | `test/generics/`, `test/typeclass/` | Constraints work on functions and type definitions. |
+| Constructor inference and context-sensitive lambda typing | Stable | `test/generics/`, `test/pipe/` | The type checker uses bidirectional context here. |
+| Classes, instances, and associated types | Stable | `test/typeclass/`, `tests/unit/typechecker/` | Includes associated type declarations and instance bindings. |
+| Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
+| Deriving: `Equatable`, `Hashable`, `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving is limited to focused non-generic, non-recursive shapes; container deriving supports focused union shapes. |
+| Operator-backed typeclass dispatch: `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
+
+## Operators
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `tests/unit/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
+| Cast operator: `as` | Stable | `test/as_operator/`, `test/typeclass/` | Covers builtin primitive casts and constrained generic conversions. |
+| Concatenation: `++` for `Text` and `Array<T>` | Stable | `test/expression/`, `test/prelude/`, `test/typeclass/` | Constrained generic code can lower through `Concatenable<T>`. |
+| Length operator: `#` | Stable | `test/for_loop/`, `test/prelude/`, `test/hashmap/`, `test/hashset/` | Arrays are builtin; `List`, `Map`, `Set`, and generic `Countable` paths also exist. |
+| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `tests/unit/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
+
+## Modules, FFI, Packages, and Diagnostics
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `tests/unit/module/`, `tests/unit/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
+| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `tests/unit/module/`, `tests/unit/compiler/` | The compiler emits stable module error codes for these cases. |
+| `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by `MidoriFFIRegistry`. |
+| Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
+| `package.midori` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
+| Structured compiler warnings/errors and stable diagnostic codes | Stable | `tests/unit/common/`, `tests/unit/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
+| Machine-readable warnings and compiler-report JSON | Stable | `tests/unit/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Midori.exe check --format json`. |
+| Static-analyzer warnings: `UnusedLocal`, `UnreachableCode`, `ShadowingPolicy`, `CaptureEscape` | Stable | `tests/unit/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
+| Project manifests (`project.midori` and `[project]` fallback) and `Midori.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.midori` fallback, manifest precedence, and init scaffolding. |
+
+## Standard Library
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| Prelude ADTs: `Option`, `Result`, `List` | Stable | `test/prelude/`, `test/match/` | These are the core public prelude data types. |
+| Typed `IO`, `System`, and `DateTime` wrappers | Stable | `test/prelude/` | The public surface prefers `Option` and `Result` wrappers over sentinel values. |
+| `TextUtil`, `ArrayUtil`, and `Math` helpers | Stable | `test/prelude/`, `test/ffi/` | These sit above the lower-level builtin FFI helpers. |
+| `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Current APIs rely on `Hashable` and `Equatable`; `MapInsert` is insert-only and `MapUpdate` only updates existing entries. |
+| Helper/typeclass modules: `Appendable`, `Prependable`, `Extendable`, `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
+
+## Planned Surface
+
+| Feature | Status | Primary Coverage | Notes |
+|---------|--------|------------------|-------|
+| `async` / `await` | Planned | `test/concurrency/` (currently empty) | Not implemented in the current token, AST, parser, typechecker, code generator, or runtime surface. |

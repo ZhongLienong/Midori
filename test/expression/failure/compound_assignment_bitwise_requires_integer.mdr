@@ -1,0 +1,4 @@
+module CompoundAssignmentBitwiseRequiresInteger
+
+def value = 1.5;
+value &= 1;

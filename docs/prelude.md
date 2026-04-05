@@ -14,6 +14,21 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Collections/Map.mdr` and `Collections/Set.mdr` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
 - `IO.mdr`, `System.mdr`, and `DateTime.mdr` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
+- `Appendable.mdr`, `Prependable.mdr`, `Extendable.mdr`, `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Iterable.mdr`, and `Orderable.mdr` expose the helper and typeclass surface used by operators and collections.
+- `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
+
+## Helper and Typeclass Modules
+
+The prelude is not only collections and IO wrappers. It also ships the public helper/typeclass modules that the compiler and standard data structures lean on:
+
+- `Appendable`, `Prependable`, and `Extendable` provide mutating container helper methods. Today they ship concrete instances for arrays, with text support for append/prepend.
+- `Concatenable` backs `++` and currently ships concrete instances for `Text` and `Array<T>`.
+- `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances.
+- `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
+- `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
+- `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
+- `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
+- `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
 ## Result Naming
 
@@ -29,7 +44,7 @@ Migration note:
 
 `IO` models file-system failures as `Result<_, IOError>`. `System` uses `Option<Text>` for environment lookup, `Result<_, SystemError>` for fallible process and directory operations, and a `Platform` union for platform detection.
 
-```midori
+```midori-test name=prelude/typed_io_system path=.doc_example_prelude_typed_io_system.mdr module=PreludeTypedIOSystem
 import
 {
     "./MidoriPrelude/IO.mdr",
@@ -83,7 +98,7 @@ The raw foreign declarations remain module-internal implementation details and a
 
 `DateTime` exposes explicit local and UTC structs instead of leaving callers to reconstruct ambient parts manually.
 
-```midori
+```midori-test name=prelude/datetime path=.doc_example_prelude_datetime.mdr module=PreludeDateTime
 import { "./MidoriPrelude/DateTime.mdr" }
 
 def local = DateTime::LocalNow();
@@ -103,7 +118,7 @@ Public date/time entry points:
 
 `TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary mutable array helpers. `ArrayUtil::Append`, `Prepend`, and `Extend` mutate the target array. `Slice` and `Reverse` return new arrays.
 
-```midori
+```midori-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mdr module=PreludeTextArrayHelpers
 import
 {
     "./MidoriPrelude/TextUtil.mdr",

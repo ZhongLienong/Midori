@@ -1,0 +1,12 @@
+module Math.Vector
+
+import
+{
+    "./private_export_internal.mdr"
+}
+
+use Math.Internal.{hidden}
+
+def value = hidden();
+
+defun main() : Int => 0;

@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/module/failure/test_privacy.mdr:11
+   |
+11 | defun test_access_private() : Int => Math::internal_helper(42);
+   |                                      ^^^^ Symbol 'internal_helper' is not exported by module 'Math'.
+   |

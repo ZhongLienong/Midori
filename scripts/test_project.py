@@ -212,6 +212,16 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Enable verbose regression-test output.",
     )
+    parser.add_argument(
+        "--skip-doc-examples",
+        action="store_true",
+        help="Skip the doc-example sync/compile check that normally runs with full regression passes.",
+    )
+    parser.add_argument(
+        "--skip-cli-contracts",
+        action="store_true",
+        help="Skip the CLI contract check that normally runs with full regression passes.",
+    )
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -257,6 +267,42 @@ def main(argv: list[str]) -> int:
 
     if needs_regression:
         regression_build = build_config_for_regressions(effective_build)
+        should_run_doc_examples = not args.skip_doc_examples
+        should_run_cli_contracts = not args.skip_cli_contracts
+        if args.category or args.pattern or args.test:
+            should_run_doc_examples = False
+            should_run_cli_contracts = False
+
+        if args.category == "doc_examples":
+            doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
+            if args.verbose:
+                doc_examples_command.append("--verbose")
+            return run_command(doc_examples_command, root)
+
+        if args.category == "cli_contracts":
+            cli_contracts_command = [sys.executable, str(root / "scripts" / "check_cli_contracts.py"), "--build", regression_build]
+            if args.verbose:
+                cli_contracts_command.append("--verbose")
+            return run_command(cli_contracts_command, root)
+
+        if should_run_doc_examples:
+            doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
+            if args.verbose:
+                doc_examples_command.append("--verbose")
+
+            doc_examples_exit_code = run_command(doc_examples_command, root)
+            if doc_examples_exit_code != 0:
+                return doc_examples_exit_code
+
+        if should_run_cli_contracts:
+            cli_contracts_command = [sys.executable, str(root / "scripts" / "check_cli_contracts.py"), "--build", regression_build]
+            if args.verbose:
+                cli_contracts_command.append("--verbose")
+
+            cli_contracts_exit_code = run_command(cli_contracts_command, root)
+            if cli_contracts_exit_code != 0:
+                return cli_contracts_exit_code
+
         regression_command = [sys.executable, str(root / "scripts" / "run_tests.py"), "--build", regression_build]
         if args.category:
             regression_command.extend(["--category", args.category])

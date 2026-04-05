@@ -380,3 +380,7 @@ reference_package/native/target/
 reference_package/lib/windows/x64/*.dll
 reference_package/lib/linux/x86_64/*.so
 reference_package/lib/macos/*.dylib
+
+# Generated doc-example compile sandboxes
+.doc_examples/
+.doc_example_*.mdr

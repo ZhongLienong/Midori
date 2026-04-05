@@ -1,0 +1,33 @@
+module PreludeTypedIOSystem
+
+import
+{
+    "./MidoriPrelude/IO.mdr",
+    "./MidoriPrelude/System.mdr",
+    "./MidoriPrelude/Prelude/Option.mdr",
+    "./MidoriPrelude/Prelude/Result.mdr"
+}
+use Option.{Option}
+use Result.{Result}
+use System.{Platform}
+
+def config_text =
+    match IO::TryReadFile("app.conf") with
+        case Result::Ok(contents) => contents
+        case Result::Err(_) => "release=debug"
+    ;
+
+def cache_dir =
+    match System::TryGetEnv("MIDORI_CACHE_DIR") with
+        case Option::Some(path) => path
+        case Option::None() => ".midori-cache"
+    ;
+
+def platform_name =
+    match System::CurrentPlatform() with
+        case Platform::Windows() => "windows"
+        case Platform::MacOS() => "macos"
+        case Platform::Linux() => "linux"
+        case Platform::WebAssembly() => "webassembly"
+        case Platform::Unknown(name) => name
+    ;

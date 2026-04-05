@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/expression/failure/compound_assignment_numeric_requires_numeric.mdr:4
+  |
+4 | text += "ori";
+  |      ^^ Compound assignment type error: expected numeric type
+  |

@@ -1,0 +1,3 @@
+module BindDerivingRejectsMultiValueVariants
+
+union PairBox<T> = Empty | Pair(T, T) deriving (Bind);

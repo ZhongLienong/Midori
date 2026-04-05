@@ -1,0 +1,4 @@
+module Math.Internal
+private export { hidden }
+
+defun hidden() : Int => 7;

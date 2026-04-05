@@ -46,6 +46,7 @@ Regression tests:
 - `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
 - when a `.warnings.json` file is present, `scripts/run_tests.py` enables `MIDORI_TEST_WARNING_FORMAT=machine`, strips `MIDORI_WARNING` lines out of the `.expected` comparison path, and compares the decoded warning payloads separately
+- CLI contract checks that do not fit the plain `test/<category>/*.mdr` model run through `scripts/check_cli_contracts.py`
 
 `<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the driver:
 
@@ -65,6 +66,17 @@ Regression tests:
 ```
 
 Keep the object order stable when warning order matters; the runner compares the full decoded array, not a set.
+
+Documentation examples:
+
+- runnable Markdown examples use fenced blocks whose info string starts with `midori-test`
+- `scripts/check_doc_examples.py` extracts those fences, verifies their mirrors under `test/doc_examples/`, and compiles them from repo-aware temporary paths
+- the tracked mirrors under `test/doc_examples/` are sync targets for review; `scripts/run_tests.py` does not execute them directly
+- `python scripts/check_doc_examples.py --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `midori-test` fence
+- use `name=<category>/<example>` for the stable mirror path under `test/doc_examples/<kind>/`
+- use `path=<repo-relative-temp-file>` for the actual extraction target used during compilation
+- use `module=<ModuleName>` when the snippet intentionally omits the required `module` declaration
+- use `kind=failure` for documented examples that are expected to fail compilation
 
 ## Support Helpers
 
@@ -147,7 +159,26 @@ python scripts/test_project.py
 python scripts/test_project.py --mode unit --build Debug
 python scripts/test_project.py --mode unit --unit-tag "[runtime]"
 python scripts/test_project.py --mode regression --category closure
+python scripts/test_project.py --mode regression --category doc_examples
+python scripts/test_project.py --mode regression --category cli_contracts
 ```
+
+Run the runnable Markdown examples directly:
+
+```powershell
+python scripts/check_doc_examples.py --build Development
+python scripts/check_doc_examples.py --build Development --sync
+```
+
+`python scripts/test_project.py --mode regression` runs the doc-example check automatically before the file-based regression suite unless you pass `--skip-doc-examples`.
+
+Run the CLI contract checks directly:
+
+```powershell
+python scripts/check_cli_contracts.py --build Development
+```
+
+`python scripts/test_project.py --mode regression` also runs `scripts/check_cli_contracts.py` unless you pass `--skip-cli-contracts`.
 
 Configure and build implementation tests on Windows:
 
@@ -210,6 +241,8 @@ python scripts/run_tests.py --build Debug
 ```
 
 The unified script above reuses `scripts/run_tests.py`; it does not replace it.
+For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_doc_examples.py` before `scripts/run_tests.py`.
+For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_cli_contracts.py`.
 
 Filter regression tests:
 
