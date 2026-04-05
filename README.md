@@ -34,6 +34,20 @@ python .\scripts\install.py --copy-binaries
 # python .\scripts\uninstall.py
 ```
 
+## Getting Started
+
+After `Midori.exe` is on your `PATH`, a basic workflow uses only the CLI:
+
+```powershell
+midori init hello-world
+cd hello-world
+
+midori check src/Main.mdr
+midori fmt src -w
+midori run src/Main.mdr
+midori test
+```
+
 Every `.mdr` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
 
 ### Hello World
@@ -557,7 +571,18 @@ Native preset builds write the executable to `out/build/ninja/<preset>/out/Midor
 
 ```bash
 # Run a Midori program built with the Development preset
+.\out\build\ninja\x64-development\out\Midori.exe run path\to\program.mdr
+
+# Shorthand form
 .\out\build\ninja\x64-development\out\Midori.exe path\to\program.mdr
+
+# Type-check only
+.\out\build\ninja\x64-development\out\Midori.exe check path\to\program.mdr
+
+# Compile without executing
+.\out\build\ninja\x64-development\out\Midori.exe build path\to\program.mdr
+
+# This emits path\to\program.mbc.json next to the source file
 ```
 
 ### Running Unit Tests
@@ -595,15 +620,22 @@ See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` i
 
 Run all file-based language regression tests:
 ```bash
-python scripts/run_tests.py --build Development
+.\out\build\ninja\x64-development\out\Midori.exe test
 ```
 
 Run specific regression tests:
 ```bash
-python scripts/run_tests.py --test closure/simple.mdr --build Development
-python scripts/run_tests.py --category typeclass --build Development
-python scripts/run_tests.py --category static_analyzer --build Development
-python scripts/run_tests.py --pattern recursive --build Development
+.\out\build\ninja\x64-development\out\Midori.exe test --test closure/simple.mdr
+.\out\build\ninja\x64-development\out\Midori.exe test typeclass
+.\out\build\ninja\x64-development\out\Midori.exe test static_analyzer
+.\out\build\ninja\x64-development\out\Midori.exe test --pattern recursive
+```
+
+Legacy Python runners are still available:
+
+```bash
+python scripts/run_tests.py --build Development
+python scripts/test_project.py
 ```
 
 Test fixtures are file-based:
@@ -682,7 +714,13 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
 - [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
 - [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output
+- [Diagnostic Format](docs/diagnostic-format.md) - Stable JSON envelope and diagnostic object schema for tooling
+- [Formatting](docs/formatting.md) - Canonical formatter usage and current scope
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
 - [Runtime Architecture](docs/runtime-architecture.md) - VM execution, closure capture, and garbage collection
 - [Testing Guide](docs/testing.md) - Choosing between implementation tests and regression tests, with helper and command references
+
+Editor assets:
+
+- `tools/vscode/midori-lang/` - sample VSCode extension with syntax highlighting and on-save diagnostics

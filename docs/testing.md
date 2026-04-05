@@ -3,7 +3,7 @@
 Midori has two complementary test layers:
 
 - `tests/` contains in-process implementation tests built with Catch2 and linked against `MidoriCore`.
-- `test/` contains file-based language regression tests run through `scripts/run_tests.py` and `Midori.exe`.
+- `test/` contains file-based language regression tests run through `Midori.exe test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
 
@@ -45,22 +45,30 @@ Regression tests:
 - add `<name>.expected` when stdout/stderr or compile-fail diagnostics must match a snapshot
 - `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
-- when a `.warnings.json` file is present, `scripts/run_tests.py` enables `MIDORI_TEST_WARNING_FORMAT=machine`, strips `MIDORI_WARNING` lines out of the `.expected` comparison path, and compares the decoded warning payloads separately
+- when a `.warnings.json` file is present, `Midori.exe test` compares the emitted warning JSON against that snapshot
+- `Midori.exe test` enforces `[test].timeout_ms` by running each fixture in an isolated worker process
+- `scripts/run_tests.py` still supports the legacy `MIDORI_TEST_WARNING_FORMAT=machine` path during the transition
 - CLI contract checks that do not fit the plain `test/<category>/*.mdr` model run through `scripts/check_cli_contracts.py`
 
-`<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the driver:
+`<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the CLI diagnostic schema:
 
 ```json
 [
   {
+    "source": "midori",
+    "severity": "warning",
     "stage": "StaticAnalyzer",
     "code": "UnusedLocal",
+    "file": "test/static_analyzer/success/unused_local_warning.mdr",
     "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
     "line": 4,
     "column": 4,
+    "endLine": 4,
+    "endColumn": 10,
     "caret_length": 6,
     "message": "Binding 'unused' is never read.",
-    "suggestion": null
+    "suggestion": null,
+    "relatedInformation": []
   }
 ]
 ```
@@ -233,14 +241,24 @@ Run the Catch2 executable directly when you want tag filtering:
 ./out/build/ninja/linux-debug/out/MidoriUnitTests [runtime]
 ```
 
-Run the file-based regression suite:
+Run the file-based regression suite through the native CLI:
+
+```powershell
+.\out\build\ninja\x64-development\out\Midori.exe test
+.\out\build\ninja\x64-development\out\Midori.exe test closure
+.\out\build\ninja\x64-development\out\Midori.exe test --pattern recursive
+```
+
+Legacy Python runner:
 
 ```powershell
 python scripts/run_tests.py --build Development
 python scripts/run_tests.py --build Debug
 ```
 
-The unified script above reuses `scripts/run_tests.py`; it does not replace it.
+The native command does not replace `scripts/run_tests.py` yet.
+The Python runner remains useful for existing developer workflows and for
+cross-checking CLI behavior during the transition.
 For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_doc_examples.py` before `scripts/run_tests.py`.
 For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_cli_contracts.py`.
 

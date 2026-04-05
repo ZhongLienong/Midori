@@ -163,11 +163,20 @@ There are two machine-readable surfaces.
 MIDORI_WARNING\t{"stage":"StaticAnalyzer", ...}
 ```
 
-This path exists mainly for the test harness and tooling that want warnings as a line stream.
+This path exists mainly for legacy test harnesses that still want warnings as a
+line stream.
 
 ### JSON Payloads
 
-Per-diagnostic JSON fields:
+The stable schema is documented in [Diagnostic Format](diagnostic-format.md).
+At a high level, `--format json` now returns a command envelope with a nested
+`report` object containing:
+
+- `diagnostics`
+- `warnings`
+- `errors`
+
+Each diagnostic carries fields such as:
 
 - `stage`
 - `code`
@@ -182,8 +191,18 @@ Whole-report JSON:
 
 ```json
 {
-  "warnings": [...],
-  "errors": [...]
+  "version": 1,
+  "source": "midori",
+  "command": "check",
+  "success": true,
+  "exitCode": 0,
+  "report": {
+    "version": 1,
+    "source": "midori",
+    "diagnostics": [...],
+    "warnings": [...],
+    "errors": [...]
+  }
 }
 ```
 
@@ -198,13 +217,17 @@ APIs:
 
 User-facing entry point:
 
-- `Midori.exe check <source_file_path> --format json` prints the whole `CompilerReport` JSON payload to stdout
+- `Midori.exe check <source_file_path> --format json` prints the command JSON envelope to stdout
+- `Midori.exe build <source_file_path> --format json` and `Midori.exe run <source_file_path> --format json` use the same nested `report` shape
 
 ## Test Harness Toggle
 
-If `MIDORI_TEST_WARNING_FORMAT=machine` is present in the environment, the driver prints machine-readable warning lines alongside the normal human-readable warning output.
+If `MIDORI_TEST_WARNING_FORMAT=machine` is present in the environment, the
+driver prints machine-readable warning lines alongside the normal human-readable
+warning output.
 
-This is currently a testing/tooling switch, not a general CLI flag.
+This is deprecated in favor of `--format json`, but remains available for the
+legacy Python test runner.
 
 ## Practical Guidance
 

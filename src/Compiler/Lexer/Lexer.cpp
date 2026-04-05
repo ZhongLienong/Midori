@@ -108,6 +108,8 @@ bool Lexer::MatchNext(char expected)
 Lexer& Lexer::BeginToken()
 {
 	m_cursor.m_begin = m_cursor.m_current;
+	m_cursor.m_begin_line = m_cursor.m_line;
+	m_cursor.m_begin_line_start = m_cursor.m_line_start;
 	return *this;
 }
 
@@ -126,7 +128,7 @@ int Lexer::CurrentColumn() const
 
 int Lexer::BeginColumn() const
 {
-	return m_cursor.m_begin - m_cursor.m_line_start;
+	return m_cursor.m_begin - m_cursor.m_begin_line_start;
 }
 
 Token Lexer::MakeToken(Token::Name type) const
@@ -134,7 +136,7 @@ Token Lexer::MakeToken(Token::Name type) const
 	return Token(
 		m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin),
 		type,
-		m_cursor.m_line,
+		m_cursor.m_begin_line,
 		m_source.m_file_name,
 		BeginColumn(),
 		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin));
@@ -145,10 +147,17 @@ Token Lexer::MakeToken(Token::Name type, std::string&& lexeme) const
 	return Token(
 		std::move(lexeme),
 		type,
-		m_cursor.m_line,
+		m_cursor.m_begin_line,
 		m_source.m_file_name,
 		BeginColumn(),
 		static_cast<size_t>(m_cursor.m_current - m_cursor.m_begin));
+}
+
+Token Lexer::MakeEndOfFileToken() const
+{
+	const int line = m_cursor.m_has_last_token_end ? m_cursor.m_last_token_end_line : m_cursor.m_line;
+	const int column = m_cursor.m_has_last_token_end ? m_cursor.m_last_token_end_column : CurrentColumn();
+	return Token(std::string{}, Token::Name::END_OF_FILE, line, m_source.m_file_name, column, 0u);
 }
 
 MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
@@ -159,6 +168,11 @@ MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
 MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type, std::string&& lexeme) const
 {
 	return MakeToken(type, std::move(lexeme));
+}
+
+MidoriResult::TokenResult Lexer::MakeEndOfFileTokenResult() const
+{
+	return MakeEndOfFileToken();
 }
 
 int Lexer::ConsumeDigits()
@@ -229,6 +243,11 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 		{
 			if (LookAhead(1) == '/')
 			{
+				if (m_options.m_preserve_comments)
+				{
+					return {};
+				}
+
 				Advance(); // '/'
 				Advance(); // '/'
 				return SkipLineComment()
@@ -236,6 +255,11 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 			}
 			else if (LookAhead(1) == '*')
 			{
+				if (m_options.m_preserve_comments)
+				{
+					return {};
+				}
+
 				Advance(); // '/'
 				Advance(); // '*'
 				return SkipBlockComment()
@@ -394,7 +418,7 @@ MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
 MidoriResult::TokenResult Lexer::LexTokenAfterWhitespace()
 {
 	return IsAtEnd(0)
-		? BeginToken().MakeTokenResult(Token::Name::END_OF_FILE)
+		? MakeEndOfFileTokenResult()
 		: BeginToken().LexTokenFrom(Advance());
 }
 
@@ -523,9 +547,55 @@ MidoriResult::TokenResult Lexer::MatchStar()
 
 MidoriResult::TokenResult Lexer::MatchSlash()
 {
+	if (m_options.m_preserve_comments && LookAhead(0) == '/')
+	{
+		return MatchLineComment();
+	}
+
+	if (m_options.m_preserve_comments && LookAhead(0) == '*')
+	{
+		return MatchBlockComment();
+	}
+
 	return MatchNext('=')
 		? MakeTokenResult(Token::Name::SLASH_EQUAL)
 		: MakeTokenResult(Token::Name::SLASH);
+}
+
+MidoriResult::TokenResult Lexer::MatchLineComment()
+{
+	Advance();
+	ConsumeWhile([](char c) { return c != '\n'; });
+	return MakeTokenResult(Token::Name::LINE_COMMENT);
+}
+
+MidoriResult::TokenResult Lexer::MatchBlockComment()
+{
+	Advance();
+
+	while (true)
+	{
+		if (LookAhead(0) == '*' && LookAhead(1) == '/')
+		{
+			Advance();
+			Advance();
+			return MakeTokenResult(Token::Name::BLOCK_COMMENT);
+		}
+
+		if (IsAtEnd(0))
+		{
+			const int column = CurrentColumn();
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+		}
+
+		if (LookAhead(0) == '\n')
+		{
+			AdvanceLine();
+			continue;
+		}
+
+		Advance();
+	}
 }
 
 MidoriResult::TokenResult Lexer::MatchPipe()
@@ -684,7 +754,7 @@ MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 
 	if (next_char == '\0')
 	{
-		return MakeTokenResult(Token::Name::END_OF_FILE);
+		return MakeEndOfFileTokenResult();
 	}
 
 	return MakeInvalidCharacterError(next_char);
@@ -700,8 +770,15 @@ MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 	return LexOneToken()
 		.transform
 		(
-			[state = std::move(state)](Token&& token) mutable -> LexState
+			[state = std::move(state), this](Token&& token) mutable -> LexState
 			{
+				if (token.m_token_name != Token::Name::END_OF_FILE)
+				{
+					m_cursor.m_last_token_end_line = m_cursor.m_line;
+					m_cursor.m_last_token_end_column = CurrentColumn();
+					m_cursor.m_has_last_token_end = true;
+				}
+
 				state.m_tokens.AddToken(std::move(token));
 				return std::move(state);
 			}
@@ -742,8 +819,9 @@ Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view fil
 	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
 }
 
-Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
-	: m_source(BuildSource(std::move(source_code), file_name))
+Lexer::Lexer(std::string&& source_code, std::string_view file_name, Options options) noexcept
+	: m_source(BuildSource(std::move(source_code), file_name)),
+	m_options(options)
 {
 }
 
@@ -784,7 +862,8 @@ MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
 
 	if (state.m_tokens.Size() == 0 || (std::prev(state.m_tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
 	{
-		state.m_tokens.AddToken(MakeToken(Token::Name::END_OF_FILE));
+		BeginToken();
+		state.m_tokens.AddToken(MakeEndOfFileToken());
 	}
 
 	return std::move(state.m_tokens);

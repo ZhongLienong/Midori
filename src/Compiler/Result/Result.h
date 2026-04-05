@@ -438,7 +438,33 @@ namespace MidoriResult
 
 		[[nodiscard]] std::string MachineReadableJson() const
 		{
-			return std::string("{\"warnings\":") + m_warnings.MachineReadableJson() +
+			std::string diagnostics = "[";
+			const std::vector<CompilerWarning>& warnings = m_warnings.Warnings();
+			for (size_t index = 0u; index < warnings.size(); index += 1u)
+			{
+				if (index > 0u)
+				{
+					diagnostics.push_back(',');
+				}
+
+				diagnostics += SerializeMachineReadableWarningPayload(warnings[index]);
+			}
+
+			const std::vector<CompilerError>& errors = m_errors.Errors();
+			for (size_t index = 0u; index < errors.size(); index += 1u)
+			{
+				if (!warnings.empty() || index > 0u)
+				{
+					diagnostics.push_back(',');
+				}
+
+				diagnostics += SerializeMachineReadableError(errors[index]);
+			}
+
+			diagnostics.push_back(']');
+
+			return std::string("{\"version\":1,\"source\":\"midori\",\"diagnostics\":") + diagnostics +
+				",\"warnings\":" + m_warnings.MachineReadableJson() +
 				",\"errors\":" + m_errors.MachineReadableJson() + "}";
 		}
 	};

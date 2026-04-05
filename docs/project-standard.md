@@ -18,6 +18,10 @@ source_dir = "src"
 packages_dir = "packages"
 prelude_dir = "MidoriPrelude"
 midori_path = ["shared", "../common"]
+
+[test]
+dir = "test"
+timeout_ms = 30000
 ```
 
 ### Fields
@@ -31,6 +35,10 @@ midori_path = ["shared", "../common"]
 - `prelude_dir` (optional): Directory containing `MidoriPrelude`.
   Defaults to `MidoriPrelude` if it exists.
 - `midori_path` (optional): Extra search paths (relative to project root unless absolute).
+- `[test].dir` (optional): Test directory used by `Midori.exe test`.
+  Defaults to `test`.
+- `[test].timeout_ms` (optional): Per-test timeout budget enforced by `Midori.exe test`.
+  Defaults to `30000`.
 
 ## Layout
 
@@ -38,6 +46,7 @@ midori_path = ["shared", "../common"]
 MyApp/
   project.midori
   src/
+  test/
   packages/
   native/
   lib/
@@ -75,4 +84,5 @@ Midori.exe init [path] [--name <project_name>]
 This creates:
 - `project.midori`
 - `src/Main.mdr`
+- `test/`
 - `packages/`

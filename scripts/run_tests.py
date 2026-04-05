@@ -89,6 +89,13 @@ class TestRunner:
             validation_error = self.validate_executable(path, self.requested_build_config)
             if validation_error is None:
                 return path
+            if validation_error.startswith("configured as "):
+                self.executable_notice = (
+                    f"Requested {self.requested_build_config} build tree reports a different CMake build type; "
+                    f"using {path} anyway because the executable exists."
+                )
+                self.executable_search_errors = [f"{path} ({validation_error})"]
+                return path
             requested_errors.append(f"{path} ({validation_error})")
 
         if requested_errors and self.requested_build_config != "Debug":

@@ -1,0 +1,54 @@
+{
+  "name": "midori-lang",
+  "displayName": "Midori Language Support",
+  "description": "Syntax highlighting and on-save diagnostics for Midori.",
+  "version": "0.1.0",
+  "publisher": "midori",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:midori"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "midori",
+        "aliases": [
+          "Midori",
+          "midori"
+        ],
+        "extensions": [
+          ".mdr"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "midori",
+        "scopeName": "source.midori",
+        "path": "./syntaxes/midori.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Midori",
+      "properties": {
+        "midori.executablePath": {
+          "type": "string",
+          "default": "Midori.exe",
+          "description": "Path to the Midori CLI executable used for diagnostics."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "midori.showSuggestion",
+        "title": "Midori: Show Suggestion"
+      }
+    ]
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "name": "Midori",
+  "scopeName": "source.midori",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#moduleDecl"
+    },
+    {
+      "include": "#functionDecl"
+    },
+    {
+      "include": "#typeAnnotations"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.midori",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.midori",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.midori",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.midori",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.midori",
+          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+\\.\\d+|\\d+)\\b"
+        },
+        {
+          "name": "constant.language.boolean.midori",
+          "match": "\\b(?:true|false)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.midori",
+          "match": "\\b(?:else|fn|loop|for|in|if|return|def|defun|break|continue|import|struct|union|new|as|foreign|case|default|match|then|with|module|export|public|private|use|class|instance|where|type|deriving)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.midori",
+          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never)\\b"
+        }
+      ]
+    },
+    "moduleDecl": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.midori",
+          "match": "(?<=\\bmodule\\s)([A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*)"
+        }
+      ]
+    },
+    "functionDecl": {
+      "patterns": [
+        {
+          "name": "entity.name.function.midori",
+          "match": "(?<=\\bdefun\\s)([A-Za-z_][A-Za-z0-9_]*)"
+        },
+        {
+          "name": "entity.name.function.call.midori",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "typeAnnotations": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.annotation.midori",
+          "match": ":"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.midori",
+          "match": "(?:\\|>|::|\\.\\.|=>|->|==|!=|<=|>=|<<=|>>=|<<|>>|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|\\+\\+|=\\+\\+|[+\\-*/%&|^=<>!#.,;{}()\\[\\]])"
+        }
+      ]
+    }
+  }
+}

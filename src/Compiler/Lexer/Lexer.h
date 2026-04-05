@@ -10,6 +10,12 @@
 
 class Lexer
 {
+public:
+	struct Options
+	{
+		bool m_preserve_comments = false;
+	};
+
 private:
 	struct Source
 	{
@@ -22,8 +28,13 @@ private:
 	{
 		int m_current = 0;
 		int m_begin = 0;
+		int m_begin_line_start = 0;
 		int m_line_start = 0;
 		int m_line = 1;
+		int m_begin_line = 1;
+		int m_last_token_end_line = 1;
+		int m_last_token_end_column = 0;
+		bool m_has_last_token_end = false;
 	};
 
 	struct LexState
@@ -34,11 +45,12 @@ private:
 
 	Source m_source;
 	Cursor m_cursor;
+	Options m_options;
 	static const std::unordered_map<std::string, Token::Name> s_keywords;
 
 public:
 
-	Lexer(std::string&& source_code, std::string_view file_name) noexcept;
+	Lexer(std::string&& source_code, std::string_view file_name, Options options = {}) noexcept;
 
 	MidoriResult::LexerResult Lex() &;
 
@@ -72,9 +84,13 @@ private:
 
 	Token MakeToken(Token::Name type, std::string&& lexeme) const;
 
+	Token MakeEndOfFileToken() const;
+
 	MidoriResult::TokenResult MakeTokenResult(Token::Name type) const;
 
 	MidoriResult::TokenResult MakeTokenResult(Token::Name type, std::string&& lexeme) const;
+
+	MidoriResult::TokenResult MakeEndOfFileTokenResult() const;
 
 	MidoriResult::Result<LexState> RecordTokenOrError(LexState state);
 
@@ -97,6 +113,10 @@ private:
 	MidoriResult::TokenResult MatchStar();
 
 	MidoriResult::TokenResult MatchSlash();
+
+	MidoriResult::TokenResult MatchLineComment();
+
+	MidoriResult::TokenResult MatchBlockComment();
 
 	MidoriResult::TokenResult MatchPipe();
 

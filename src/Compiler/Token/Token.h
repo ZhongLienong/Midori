@@ -118,6 +118,8 @@ struct Token
 		NEVER,
 
 		WHITESPACE,
+		LINE_COMMENT,
+		BLOCK_COMMENT,
 		END_OF_FILE,
 	};
 

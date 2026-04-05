@@ -27,6 +27,7 @@ namespace
 		std::filesystem::path m_packages_dir;
 		std::filesystem::path m_prelude_dir;
 		std::vector<std::filesystem::path> m_extra_paths;
+		MidoriProject::TestConfiguration m_test;
 	};
 
 	const toml::value* FindTable(const toml::value& data, const char* key)
@@ -93,6 +94,12 @@ namespace
 				settings.m_extra_paths = ReadPathArray(project_table->at("midori_path"));
 			}
 
+			if (const toml::value* test_table = FindTable(data, "test"))
+			{
+				settings.m_test.m_directory = toml::find_or<std::string>(*test_table, "dir", settings.m_test.m_directory.string());
+				settings.m_test.m_timeout_ms = toml::find_or<int>(*test_table, "timeout_ms", settings.m_test.m_timeout_ms);
+			}
+
 			return settings;
 		}
 		catch (const std::exception& e)
@@ -137,6 +144,23 @@ namespace
 		}
 
 		return std::nullopt;
+	}
+
+	std::filesystem::path ResolveInputDirectory(const std::filesystem::path& input_path)
+	{
+		std::filesystem::path start_dir = input_path;
+		std::error_code ec;
+		if (std::filesystem::is_directory(start_dir, ec))
+		{
+			return start_dir;
+		}
+
+		if (input_path.has_parent_path())
+		{
+			return input_path.parent_path();
+		}
+
+		return std::filesystem::current_path(ec);
 	}
 
 	std::optional<std::string> ReadEnvironmentVariable(const char* name)
@@ -427,24 +451,30 @@ namespace
 
 namespace MidoriProject
 {
-	void ApplyProjectManifestToEnvironment(const std::filesystem::path& input_path)
+	std::optional<ManifestConfiguration> FindManifestConfiguration(const std::filesystem::path& input_path)
 	{
-		std::filesystem::path start_dir = input_path;
-		std::error_code ec;
-		if (std::filesystem::is_directory(start_dir, ec))
+		const std::filesystem::path start_dir = ResolveInputDirectory(input_path);
+		std::optional<ProjectSettings> settings = FindProjectSettings(start_dir);
+		if (!settings.has_value())
 		{
-			// Keep directory as-is.
-		}
-		else if (input_path.has_parent_path())
-		{
-			start_dir = input_path.parent_path();
-		}
-		else
-		{
-			start_dir = std::filesystem::current_path();
+			return std::nullopt;
 		}
 
-		std::optional<ProjectSettings> settings = FindProjectSettings(start_dir);
+		ManifestConfiguration configuration;
+		configuration.m_root = settings->m_root;
+		configuration.m_name = settings->m_name;
+		configuration.m_entry = settings->m_entry;
+		configuration.m_source_dir = settings->m_source_dir;
+		configuration.m_packages_dir = settings->m_packages_dir;
+		configuration.m_prelude_dir = settings->m_prelude_dir;
+		configuration.m_extra_paths = settings->m_extra_paths;
+		configuration.m_test = settings->m_test;
+		return configuration;
+	}
+
+	void ApplyProjectManifestToEnvironment(const std::filesystem::path& input_path)
+	{
+		std::optional<ProjectSettings> settings = FindProjectSettings(ResolveInputDirectory(input_path));
 		if (!settings.has_value())
 		{
 			return;
@@ -517,6 +547,7 @@ namespace MidoriProject
 		const std::filesystem::path manifest_path = root / ProjectManifestFileName;
 		const std::filesystem::path src_dir = root / "src";
 		const std::filesystem::path packages_dir = root / "packages";
+		const std::filesystem::path test_dir = root / "test";
 		const std::filesystem::path main_path = src_dir / "Main.mdr";
 
 		if (std::filesystem::exists(manifest_path, ec))
@@ -549,6 +580,15 @@ namespace MidoriProject
 			}
 		}
 
+		if (!std::filesystem::create_directories(test_dir, ec))
+		{
+			if (ec)
+			{
+				error_message = std::format("Failed to create directory: {}", test_dir.string());
+				return false;
+			}
+		}
+
 		const std::string resolved_name = project_name.empty() ? DeriveProjectName(root) : std::string(project_name);
 		const std::string escaped_name = EscapeTomlString(resolved_name);
 		const std::string manifest_contents = std::format
@@ -558,7 +598,11 @@ namespace MidoriProject
 			"entry = \"src/Main.mdr\"\n"
 			"source_dir = \"src\"\n"
 			"packages_dir = \"packages\"\n"
-			"prelude_dir = \"MidoriPrelude\"\n",
+			"prelude_dir = \"MidoriPrelude\"\n"
+			"\n"
+			"[test]\n"
+			"dir = \"test\"\n"
+			"timeout_ms = 30000\n",
 			escaped_name
 		);
 

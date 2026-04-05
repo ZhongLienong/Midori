@@ -3,6 +3,10 @@
 #include <cstdlib>
 #include <string_view>
 
+#ifndef MIDORI_VERSION_STRING
+    #define MIDORI_VERSION_STRING "1.0.0"
+#endif
+
 // Cross-compiler force inline macro for hot path functions
 #if defined(_MSC_VER)
     #define MIDORI_FORCE_INLINE __forceinline
@@ -74,6 +78,8 @@
 
 namespace MidoriBuild
 {
+    inline constexpr std::string_view VersionString = MIDORI_VERSION_STRING;
+
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {
 #ifdef _WIN32

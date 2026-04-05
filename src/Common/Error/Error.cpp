@@ -1,4 +1,5 @@
 #include "Error.h"
+#include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
 #include <algorithm>
 #include <filesystem>
@@ -124,6 +125,13 @@ namespace
 		std::optional<std::string_view> m_source_line = std::nullopt;
 	};
 
+	std::string NormalizeDiagnosticPath(std::string_view path)
+	{
+		std::string normalized(path);
+		std::replace(normalized.begin(), normalized.end(), '\\', '/');
+		return normalized;
+	}
+
 	std::string_view StageLabel(CompilerStage stage, DiagnosticSeverity severity)
 	{
 		if (severity == DiagnosticSeverity::Error)
@@ -202,134 +210,103 @@ namespace
 		return oss.str();
 	}
 
-	std::string EscapeJsonString(std::string_view value)
+	std::string SerializeRelatedInformation(const std::vector<CompilerRelatedInformation>& related_information)
 	{
-		std::string escaped;
-		escaped.reserve(value.size());
-
-		for (const unsigned char ch : value)
+		std::string serialized = "[";
+		for (size_t index = 0u; index < related_information.size(); index += 1u)
 		{
-			switch (ch)
+			if (index > 0u)
 			{
-			case '\"':
-				escaped += "\\\"";
-				break;
-			case '\\':
-				escaped += "\\\\";
-				break;
-			case '\b':
-				escaped += "\\b";
-				break;
-			case '\f':
-				escaped += "\\f";
-				break;
-			case '\n':
-				escaped += "\\n";
-				break;
-			case '\r':
-				escaped += "\\r";
-				break;
-			case '\t':
-				escaped += "\\t";
-				break;
-			default:
-				if (ch < 0x20u)
-				{
-					escaped += std::format("\\u{:04X}", static_cast<unsigned int>(ch));
-				}
-				else
-				{
-					escaped.push_back(static_cast<char>(ch));
-				}
-				break;
+				serialized.push_back(',');
 			}
+
+			const CompilerRelatedInformation& item = related_information[index];
+			std::string object = "{";
+			bool first_field = true;
+			const std::optional<std::string> normalized_file =
+				item.m_location.m_file_name.empty() ? std::nullopt : std::optional<std::string>(NormalizeDiagnosticPath(item.m_location.m_file_name));
+			const std::optional<std::string_view> file =
+				normalized_file.has_value() ? std::optional<std::string_view>(*normalized_file) : std::nullopt;
+			std::optional<int> line = item.m_location.m_line > 0 ? std::optional<int>(item.m_location.m_line) : std::nullopt;
+			std::optional<int> end_line = item.m_location.m_end_line.has_value()
+				? item.m_location.m_end_line
+				: line;
+			std::optional<int> end_column = item.m_location.m_end_column;
+			if (!end_column.has_value() && item.m_location.m_column.has_value())
+			{
+				end_column = *item.m_location.m_column + static_cast<int>(std::max(item.m_location.m_caret_length.value_or(size_t(1u)), size_t(1u)));
+			}
+
+			MidoriJson::AppendStringField(object, "message", item.m_message, first_field);
+			MidoriJson::AppendStringField(object, "file", file, first_field);
+			MidoriJson::AppendStringField(object, "file_path", file, first_field);
+			MidoriJson::AppendNumberField(object, "line", line, first_field);
+			MidoriJson::AppendNumberField(object, "column", item.m_location.m_column, first_field);
+			MidoriJson::AppendNumberField(object, "endLine", end_line, first_field);
+			MidoriJson::AppendNumberField(object, "endColumn", end_column, first_field);
+			object.push_back('}');
+			serialized += object;
 		}
 
-		return escaped;
-	}
-
-	void AppendJsonFieldPrefix(std::string& out, std::string_view key, bool& first_field)
-	{
-		if (!first_field)
-		{
-			out.push_back(',');
-		}
-		first_field = false;
-
-		out.push_back('\"');
-		out += key;
-		out += "\":";
-	}
-
-	void AppendJsonStringField(std::string& out, std::string_view key, std::optional<std::string_view> value, bool& first_field)
-	{
-		AppendJsonFieldPrefix(out, key, first_field);
-		if (!value.has_value())
-		{
-			out += "null";
-			return;
-		}
-
-		out.push_back('\"');
-		out += EscapeJsonString(*value);
-		out.push_back('\"');
-	}
-
-	void AppendJsonStringField(std::string& out, std::string_view key, std::string_view value, bool& first_field)
-	{
-		AppendJsonStringField(out, key, std::optional<std::string_view>(value), first_field);
-	}
-
-	template <typename NumberType>
-	void AppendJsonNumberField(std::string& out, std::string_view key, std::optional<NumberType> value, bool& first_field)
-	{
-		AppendJsonFieldPrefix(out, key, first_field);
-		if (!value.has_value())
-		{
-			out += "null";
-			return;
-		}
-
-		out += std::to_string(*value);
+		serialized.push_back(']');
+		return serialized;
 	}
 
 	std::string SerializeMachineReadableDiagnostic(
+		DiagnosticSeverity severity,
 		CompilerStage stage,
 		std::string_view code_name,
 		const std::optional<CompilerErrorLocation>& location,
 		std::string_view message,
-		const std::optional<std::string>& suggestion)
+		const std::optional<std::string>& suggestion,
+		const std::vector<CompilerRelatedInformation>& related_information)
 	{
 		std::string serialized = "{";
 		bool first_field = true;
 
-		AppendJsonStringField(serialized, "stage", CompilerStageName(stage), first_field);
-		AppendJsonStringField(serialized, "code", code_name, first_field);
-
-		std::optional<std::string_view> file_path = std::nullopt;
+		std::optional<std::string_view> file = std::nullopt;
+		std::optional<std::string> normalized_file_storage = std::nullopt;
 		std::optional<int> line = std::nullopt;
 		std::optional<int> column = std::nullopt;
 		std::optional<size_t> caret_length = std::nullopt;
+		std::optional<int> end_line = std::nullopt;
+		std::optional<int> end_column = std::nullopt;
 		if (location.has_value())
 		{
-			file_path = location->m_file_name;
+			normalized_file_storage = NormalizeDiagnosticPath(location->m_file_name);
+			file = normalized_file_storage->empty() ? std::nullopt : std::optional<std::string_view>(*normalized_file_storage);
 			if (location->m_line > 0)
 			{
 				line = location->m_line;
 			}
+
 			column = location->m_column;
 			caret_length = location->m_caret_length;
+			end_line = location->m_end_line.has_value() ? location->m_end_line : line;
+			end_column = location->m_end_column;
+			if (!end_column.has_value() && column.has_value())
+			{
+				end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+			}
 		}
 
 		const std::optional<std::string_view> serialized_suggestion =
 			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
 
-		AppendJsonStringField(serialized, "file_path", file_path, first_field);
-		AppendJsonNumberField(serialized, "line", line, first_field);
-		AppendJsonNumberField(serialized, "column", column, first_field);
-		AppendJsonNumberField(serialized, "caret_length", caret_length, first_field);
-		AppendJsonStringField(serialized, "message", message, first_field);
-		AppendJsonStringField(serialized, "suggestion", serialized_suggestion, first_field);
+		MidoriJson::AppendStringField(serialized, "source", "midori", first_field);
+		MidoriJson::AppendStringField(serialized, "severity", severity == DiagnosticSeverity::Error ? "error" : "warning", first_field);
+		MidoriJson::AppendStringField(serialized, "stage", CompilerStageName(stage), first_field);
+		MidoriJson::AppendStringField(serialized, "code", code_name, first_field);
+		MidoriJson::AppendStringField(serialized, "message", message, first_field);
+		MidoriJson::AppendStringField(serialized, "file", file, first_field);
+		MidoriJson::AppendStringField(serialized, "file_path", file, first_field);
+		MidoriJson::AppendNumberField(serialized, "line", line, first_field);
+		MidoriJson::AppendNumberField(serialized, "column", column, first_field);
+		MidoriJson::AppendNumberField(serialized, "endLine", end_line, first_field);
+		MidoriJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
+		MidoriJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
+		MidoriJson::AppendStringField(serialized, "suggestion", serialized_suggestion, first_field);
+		MidoriJson::AppendRawField(serialized, "relatedInformation", SerializeRelatedInformation(related_information), first_field);
 		serialized.push_back('}');
 		return serialized;
 	}
@@ -444,7 +421,7 @@ namespace
 		}
 
 		context.m_column = token.m_column;
-		context.m_caret_length = std::max(token.m_source_length.value_or(0u), size_t(1u));
+		context.m_caret_length = std::max(token.m_source_length.value_or(size_t(0u)), size_t(1u));
 		return context;
 	}
 }
@@ -460,21 +437,25 @@ std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file
 std::string SerializeMachineReadableError(const CompilerError& error)
 {
 	return SerializeMachineReadableDiagnostic(
+		DiagnosticSeverity::Error,
 		error.m_stage,
 		CompilerErrorCodeName(error.m_code),
 		error.m_location,
 		error.m_message,
-		error.m_suggestion);
+		error.m_suggestion,
+		error.m_related_information);
 }
 
 std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warning)
 {
 	return SerializeMachineReadableDiagnostic(
+		DiagnosticSeverity::Warning,
 		warning.m_stage,
 		CompilerWarningCodeName(warning.m_code),
 		warning.m_location,
 		warning.m_message,
-		warning.m_suggestion);
+		warning.m_suggestion,
+		warning.m_related_information);
 }
 
 std::string SerializeMachineReadableWarning(const CompilerWarning& warning)
@@ -546,6 +527,14 @@ CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view m
 	location.m_line = line;
 	location.m_column = column;
 	location.m_caret_length = caret_length;
+	if (line > 0)
+	{
+		location.m_end_line = line;
+	}
+	if (column.has_value())
+	{
+		location.m_end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+	}
 	if (source_line.has_value())
 	{
 		location.m_source_line = std::string(*source_line);
@@ -620,6 +609,14 @@ CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_vi
 	location.m_line = line;
 	location.m_column = column;
 	location.m_caret_length = caret_length;
+	if (line > 0)
+	{
+		location.m_end_line = line;
+	}
+	if (column.has_value())
+	{
+		location.m_end_column = *column + static_cast<int>(std::max(caret_length.value_or(size_t(1u)), size_t(1u)));
+	}
 	if (source_line.has_value())
 	{
 		location.m_source_line = std::string(*source_line);

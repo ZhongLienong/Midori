@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "support/CompileHelpers.h"
 
@@ -106,6 +107,48 @@ def other = 2;
 	const Token* other_token = FindTokenByLexeme(tokens, "other");
 	REQUIRE(other_token != nullptr);
 	CHECK(other_token->m_line == 6);
+}
+
+TEST_CASE("Lexer preserves comment tokens when requested", "[lexer]")
+{
+	const std::string source_code =
+		R"(module Commented
+// keep me
+def value = /* inline */ 1;
+)";
+
+	MidoriResult::LexerResult lex_result = Lexer(
+		std::string(source_code),
+		"PreserveComments.mdr",
+		Lexer::Options{ .m_preserve_comments = true }).Lex();
+	if (!lex_result.has_value())
+	{
+		FAIL(std::string(lex_result.error().Rendered()));
+	}
+
+	const TokenStream& tokens = lex_result.value();
+	REQUIRE(MidoriTest::CollectTokenNames(tokens, false, true) == std::vector<Token::Name>
+	{
+		Token::Name::MODULE,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::LINE_COMMENT,
+		Token::Name::DEF,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::SINGLE_EQUAL,
+		Token::Name::BLOCK_COMMENT,
+		Token::Name::INTEGER_LITERAL,
+		Token::Name::SINGLE_SEMICOLON,
+		Token::Name::END_OF_FILE
+	});
+
+	const Token* line_comment = FindTokenByLexeme(tokens, "// keep me");
+	const Token* block_comment = FindTokenByLexeme(tokens, "/* inline */");
+	REQUIRE(line_comment != nullptr);
+	REQUIRE(block_comment != nullptr);
+	CHECK(line_comment->m_line == 2);
+	CHECK(line_comment->m_column == 0);
+	CHECK(block_comment->m_line == 3);
+	CHECK(block_comment->m_column == 12);
 }
 
 TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")

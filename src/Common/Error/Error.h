@@ -68,7 +68,15 @@ struct CompilerErrorLocation
 	int m_line = 0;
 	std::optional<int> m_column = std::nullopt;
 	std::optional<size_t> m_caret_length = std::nullopt;
+	std::optional<int> m_end_line = std::nullopt;
+	std::optional<int> m_end_column = std::nullopt;
 	std::optional<std::string> m_source_line = std::nullopt;
+};
+
+struct CompilerRelatedInformation
+{
+	CompilerErrorLocation m_location;
+	std::string m_message;
 };
 
 struct CompilerError
@@ -78,6 +86,7 @@ struct CompilerError
 	std::string m_message;
 	std::optional<CompilerErrorLocation> m_location = std::nullopt;
 	std::optional<std::string> m_suggestion = std::nullopt;
+	std::vector<CompilerRelatedInformation> m_related_information;
 	std::string m_rendered;
 
 	CompilerError() = default;
@@ -102,6 +111,7 @@ struct CompilerWarning
 	std::string m_message;
 	std::optional<CompilerErrorLocation> m_location = std::nullopt;
 	std::optional<std::string> m_suggestion = std::nullopt;
+	std::vector<CompilerRelatedInformation> m_related_information;
 	std::string m_rendered;
 
 	CompilerWarning() = default;
