@@ -166,13 +166,19 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 					if (ffi.m_enabled)
 					{
 						std::filesystem::path library_path = manifest.GetFFILibraryPath();
+						std::optional<std::string_view> expected_checksum = std::nullopt;
+						const std::optional<PrebuiltBinary> selected_prebuilt = manifest.GetSelectedPrebuiltBinary();
+						if (selected_prebuilt.has_value() && !selected_prebuilt->m_checksum.empty())
+						{
+							expected_checksum = selected_prebuilt->m_checksum;
+						}
 
 						if (std::filesystem::exists(library_path))
 						{
 							DynamicFFIRegistry& registry = DynamicFFIRegistry::GetInstance();
 							if (!registry.IsLibraryLoaded(manifest.GetInfo().m_name))
 							{
-								registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions);
+								registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, expected_checksum);
 							}
 						}
 					}

@@ -15,6 +15,8 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
+#include "Compiler/PackageManager/Lockfile.h"
+#include "Compiler/PackageManager/PackageWorkspace.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Formatter/Formatter.h"
 #include "Utility/OutputCapture/OutputCapture.h"
@@ -39,7 +41,11 @@ namespace
 		Fmt,
 		Test,
 		TestWorker,
-		Init
+		Init,
+		Install,
+		Update,
+		Remove,
+		List
 	};
 
 	struct Invocation
@@ -57,6 +63,8 @@ namespace
 		std::optional<std::string> m_test_filter = std::nullopt;
 		std::optional<std::string> m_test_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;
+		std::optional<std::string> m_package_name = std::nullopt;
+		std::optional<std::string> m_package_version_constraint = std::nullopt;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -273,6 +281,35 @@ namespace
 				"Project manifests use project.midori and packages use package.midori.\n";
 		}
 
+		if (command_name == "install")
+		{
+			return
+				"Usage: midori install\n"
+				"       midori install <package> [--version <constraint>]\n"
+				"Resolve project dependencies, vendor packages into packages/, and update midori.lock.\n";
+		}
+
+		if (command_name == "update")
+		{
+			return
+				"Usage: midori update [package]\n"
+				"Re-resolve dependencies ignoring the current lockfile and write an updated midori.lock.\n";
+		}
+
+		if (command_name == "remove")
+		{
+			return
+				"Usage: midori remove <package>\n"
+				"Remove a direct dependency from the active manifest and refresh the lockfile.\n";
+		}
+
+		if (command_name == "list")
+		{
+			return
+				"Usage: midori list\n"
+				"Show the resolved dependency tree from midori.lock or from a fresh resolution.\n";
+		}
+
 		return {};
 	}
 
@@ -290,6 +327,10 @@ namespace
 			"  fmt      Format one file or a directory of .mdr files\n"
 			"  test     Discover and run project tests\n"
 			"  init     Initialize a project or package scaffold\n"
+			"  install  Resolve and vendor package dependencies\n"
+			"  update   Refresh resolved package versions\n"
+			"  remove   Remove a direct package dependency\n"
+			"  list     Print the resolved dependency tree\n"
 			"  help     Show general or per-command help\n\n"
 			"Global flags:\n"
 			"  --help      Show help\n"
@@ -299,7 +340,8 @@ namespace
 			"  midori fmt src -w\n"
 			"  midori check src/Main.mdr --format json\n"
 			"  midori run src/Main.mdr\n"
-			"  midori test closure\n\n"
+			"  midori test closure\n"
+			"  midori install\n\n"
 			"Relevant project manifests:\n"
 			"  project.midori\n"
 			"  package.midori\n";
@@ -332,7 +374,7 @@ namespace
 
 	[[nodiscard]] std::optional<std::string_view> SuggestCommand(std::string_view input)
 	{
-		static constexpr std::string_view commands[] = { "run", "check", "build", "fmt", "test", "init", "help" };
+		static constexpr std::string_view commands[] = { "run", "check", "build", "fmt", "test", "init", "install", "update", "remove", "list", "help" };
 		std::optional<std::string_view> best_match = std::nullopt;
 		int best_distance = 1000;
 		for (const std::string_view command : commands)
@@ -595,6 +637,128 @@ namespace
 		return invocation;
 	}
 
+	[[nodiscard]] ParseResult ParseInstall(const std::vector<std::string_view>& args)
+	{
+		Invocation invocation;
+		invocation.m_kind = CommandKind::Install;
+
+		for (size_t index = 0u; index < args.size(); index += 1u)
+		{
+			const std::string_view arg = args[index];
+			if (arg == "-h" || arg == "--help")
+			{
+				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (arg == "--version")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --version.");
+				}
+				invocation.m_package_version_constraint = std::string(args[++index]);
+				continue;
+			}
+
+			if (!arg.empty() && arg.front() == '-')
+			{
+				return std::unexpected(std::format("Unknown option: {}", arg));
+			}
+
+			if (invocation.m_package_name.has_value())
+			{
+				return std::unexpected("Only one package name is allowed for install.");
+			}
+
+			invocation.m_package_name = std::string(arg);
+		}
+
+		return invocation;
+	}
+
+	[[nodiscard]] ParseResult ParseUpdate(const std::vector<std::string_view>& args)
+	{
+		Invocation invocation;
+		invocation.m_kind = CommandKind::Update;
+
+		for (const std::string_view arg : args)
+		{
+			if (arg == "-h" || arg == "--help")
+			{
+				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (!arg.empty() && arg.front() == '-')
+			{
+				return std::unexpected(std::format("Unknown option: {}", arg));
+			}
+
+			if (invocation.m_package_name.has_value())
+			{
+				return std::unexpected("Only one package name is allowed for update.");
+			}
+
+			invocation.m_package_name = std::string(arg);
+		}
+
+		return invocation;
+	}
+
+	[[nodiscard]] ParseResult ParseRemove(const std::vector<std::string_view>& args)
+	{
+		Invocation invocation;
+		invocation.m_kind = CommandKind::Remove;
+
+		for (const std::string_view arg : args)
+		{
+			if (arg == "-h" || arg == "--help")
+			{
+				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (!arg.empty() && arg.front() == '-')
+			{
+				return std::unexpected(std::format("Unknown option: {}", arg));
+			}
+
+			if (invocation.m_package_name.has_value())
+			{
+				return std::unexpected("Only one package name is allowed for remove.");
+			}
+
+			invocation.m_package_name = std::string(arg);
+		}
+
+		if (!invocation.m_show_help && !invocation.m_package_name.has_value())
+		{
+			return std::unexpected("Missing package name for remove.");
+		}
+
+		return invocation;
+	}
+
+	[[nodiscard]] ParseResult ParseList(const std::vector<std::string_view>& args)
+	{
+		Invocation invocation;
+		invocation.m_kind = CommandKind::List;
+
+		for (const std::string_view arg : args)
+		{
+			if (arg == "-h" || arg == "--help")
+			{
+				invocation.m_show_help = true;
+				continue;
+			}
+
+			return std::unexpected(std::format("Unexpected argument for list: {}", arg));
+		}
+
+		return invocation;
+	}
+
 	[[nodiscard]] ParseResult ParseInvocation(int argc, char* argv[])
 	{
 		if (argc < 2)
@@ -676,6 +840,22 @@ namespace
 			{
 				invocation.m_kind = CommandKind::Init;
 			}
+			else if (rest[0] == "install")
+			{
+				invocation.m_kind = CommandKind::Install;
+			}
+			else if (rest[0] == "update")
+			{
+				invocation.m_kind = CommandKind::Update;
+			}
+			else if (rest[0] == "remove")
+			{
+				invocation.m_kind = CommandKind::Remove;
+			}
+			else if (rest[0] == "list")
+			{
+				invocation.m_kind = CommandKind::List;
+			}
 			else
 			{
 				return std::unexpected(std::format("Unknown help topic: {}", rest[0]));
@@ -710,6 +890,22 @@ namespace
 		else if (head == "init")
 		{
 			parsed = ParseInit(rest);
+		}
+		else if (head == "install")
+		{
+			parsed = ParseInstall(rest);
+		}
+		else if (head == "update")
+		{
+			parsed = ParseUpdate(rest);
+		}
+		else if (head == "remove")
+		{
+			parsed = ParseRemove(rest);
+		}
+		else if (head == "list")
+		{
+			parsed = ParseList(rest);
 		}
 		else if (head == "__test-worker")
 		{
@@ -763,6 +959,103 @@ namespace
 		}
 		payload.push_back('}');
 		return payload;
+	}
+
+	[[nodiscard]] std::expected<MidoriProject::ManifestConfiguration, std::string> RequireManifestConfiguration()
+	{
+		const std::optional<MidoriProject::ManifestConfiguration> configuration =
+			MidoriProject::FindManifestConfiguration(std::filesystem::current_path());
+		if (!configuration.has_value())
+		{
+			return std::unexpected("Could not find project.midori or package.midori from the current directory.");
+		}
+
+		return configuration.value();
+	}
+
+	void PrintPackageWarnings(const std::vector<std::string>& warnings)
+	{
+		for (const std::string& warning : warnings)
+		{
+			Printer::Print<Printer::Color::YELLOW>(std::format("[packages] {}\n", warning));
+		}
+	}
+
+	[[nodiscard]] std::optional<MidoriPackageManager::ResolvedPackageGraph> LoadExistingLockfileGraph(
+		const MidoriProject::ManifestConfiguration& configuration)
+	{
+		const std::filesystem::path lockfile_path = configuration.m_root / "midori.lock";
+		if (!std::filesystem::exists(lockfile_path))
+		{
+			return std::nullopt;
+		}
+
+		const std::expected<MidoriPackageManager::LockfileLoadResult, std::string> lockfile =
+			MidoriPackageManager::ReadLockfile(lockfile_path, "");
+		if (!lockfile.has_value())
+		{
+			return std::nullopt;
+		}
+
+		return lockfile->m_graph;
+	}
+
+	[[nodiscard]] std::string RenderVersionChanges(
+		const std::optional<MidoriPackageManager::ResolvedPackageGraph>& before,
+		const MidoriPackageManager::ResolvedPackageGraph& after)
+	{
+		std::vector<std::string> package_names;
+		if (before.has_value())
+		{
+			for (const auto& [package_name, _] : before->m_packages)
+			{
+				package_names.push_back(package_name);
+			}
+		}
+		for (const auto& [package_name, _] : after.m_packages)
+		{
+			if (std::ranges::find(package_names, package_name) == package_names.end())
+			{
+				package_names.push_back(package_name);
+			}
+		}
+		std::ranges::sort(package_names);
+
+		std::string output;
+		for (const std::string& package_name : package_names)
+		{
+			const auto before_it = before.has_value() ? before->m_packages.find(package_name) : after.m_packages.end();
+			const auto after_it = after.m_packages.find(package_name);
+			const std::string before_version =
+				before.has_value() && before_it != before->m_packages.end()
+					? before_it->second.m_manifest.GetInfo().m_version
+					: "<none>";
+			const std::string after_version =
+				after_it != after.m_packages.end()
+					? after_it->second.m_manifest.GetInfo().m_version
+					: "<none>";
+
+			if (before_version != after_version)
+			{
+				output.append(std::format("{}: {} -> {}\n", package_name, before_version, after_version));
+			}
+		}
+
+		return output;
+	}
+
+	[[nodiscard]] std::expected<std::string, std::string> ResolveDefaultInstallConstraint(
+		const MidoriProject::ManifestConfiguration& configuration,
+		std::string_view package_name)
+	{
+		const std::expected<MidoriVersion::SemanticVersion, std::string> latest_version =
+			MidoriPackageManager::FindLatestAvailableVersion(configuration, package_name);
+		if (!latest_version.has_value())
+		{
+			return std::unexpected(latest_version.error());
+		}
+
+		return "^" + latest_version->ToString();
 	}
 
 	int HandleOverview(const Invocation&)
@@ -854,6 +1147,234 @@ namespace
 				invocation.m_init_package ? "package" : "project",
 				resolved_target.empty() ? "." : resolved_target.string());
 		}
+		return EXIT_SUCCESS;
+	}
+
+	int HandleInstall(const Invocation& invocation)
+	{
+		if (invocation.m_show_help)
+		{
+			std::print("{}", CommandHelp("install"));
+			return EXIT_SUCCESS;
+		}
+
+		if (invocation.m_format == OutputFormat::Json)
+		{
+			PrintCliError("JSON output is not supported for this command.");
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
+		if (!manifest.has_value())
+		{
+			PrintCliError(manifest.error());
+			return EXIT_FAILURE;
+		}
+
+		MidoriProject::ManifestConfiguration configuration = manifest.value();
+		if (invocation.m_package_name.has_value())
+		{
+			const std::expected<std::string, std::string> constraint = invocation.m_package_version_constraint.has_value()
+				? std::expected<std::string, std::string>(*invocation.m_package_version_constraint)
+				: ResolveDefaultInstallConstraint(configuration, *invocation.m_package_name);
+			if (!constraint.has_value())
+			{
+				PrintCliError(constraint.error());
+				return EXIT_FAILURE;
+			}
+
+			std::string error_message;
+			if (!MidoriProject::AddDependency(configuration.m_root, *invocation.m_package_name, *constraint, error_message))
+			{
+				PrintCliError(error_message);
+				return EXIT_FAILURE;
+			}
+
+			const std::expected<MidoriProject::ManifestConfiguration, std::string> refreshed = RequireManifestConfiguration();
+			if (!refreshed.has_value())
+			{
+				PrintCliError(refreshed.error());
+				return EXIT_FAILURE;
+			}
+			configuration = refreshed.value();
+		}
+
+		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
+			MidoriPackageManager::PreparePackageEnvironment(configuration, MidoriPackageManager::ResolveMode::ForceRefresh);
+		if (!package_environment.has_value())
+		{
+			PrintCliError(package_environment.error());
+			return EXIT_FAILURE;
+		}
+
+		PrintPackageWarnings(package_environment->m_warnings);
+		std::print(
+			"Installed {} package(s); lockfile updated at {}\n",
+			package_environment->m_graph.m_packages.size(),
+			package_environment->m_lockfile_path.string());
+		if (invocation.m_package_name.has_value())
+		{
+			std::print(
+				"Added dependency {} {}\n",
+				*invocation.m_package_name,
+				configuration.m_dependencies.at(*invocation.m_package_name));
+		}
+		if (!package_environment->m_graph.m_root_dependencies.empty())
+		{
+			std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
+		}
+
+		return EXIT_SUCCESS;
+	}
+
+	int HandleUpdate(const Invocation& invocation)
+	{
+		if (invocation.m_show_help)
+		{
+			std::print("{}", CommandHelp("update"));
+			return EXIT_SUCCESS;
+		}
+
+		if (invocation.m_format == OutputFormat::Json)
+		{
+			PrintCliError("JSON output is not supported for this command.");
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
+		if (!manifest.has_value())
+		{
+			PrintCliError(manifest.error());
+			return EXIT_FAILURE;
+		}
+
+		if (invocation.m_package_name.has_value() && !manifest->m_dependencies.contains(*invocation.m_package_name))
+		{
+			PrintCliError(std::format("Package '{}' is not a direct dependency.", *invocation.m_package_name));
+			return EXIT_FAILURE;
+		}
+
+		const std::optional<MidoriPackageManager::ResolvedPackageGraph> before = LoadExistingLockfileGraph(*manifest);
+		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
+			MidoriPackageManager::PreparePackageEnvironment(*manifest, MidoriPackageManager::ResolveMode::ForceRefresh);
+		if (!package_environment.has_value())
+		{
+			PrintCliError(package_environment.error());
+			return EXIT_FAILURE;
+		}
+
+		PrintPackageWarnings(package_environment->m_warnings);
+		const std::string changes = RenderVersionChanges(before, package_environment->m_graph);
+		if (changes.empty())
+		{
+			std::print("No package versions changed.\n");
+		}
+		else
+		{
+			std::print("Updated packages:\n{}", changes);
+		}
+
+		return EXIT_SUCCESS;
+	}
+
+	int HandleRemove(const Invocation& invocation)
+	{
+		if (invocation.m_show_help)
+		{
+			std::print("{}", CommandHelp("remove"));
+			return EXIT_SUCCESS;
+		}
+
+		if (invocation.m_format == OutputFormat::Json)
+		{
+			PrintCliError("JSON output is not supported for this command.");
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
+		if (!manifest.has_value())
+		{
+			PrintCliError(manifest.error());
+			return EXIT_FAILURE;
+		}
+
+		std::string error_message;
+		if (!MidoriProject::RemoveDependency(manifest->m_root, *invocation.m_package_name, error_message))
+		{
+			PrintCliError(error_message);
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriProject::ManifestConfiguration, std::string> refreshed = RequireManifestConfiguration();
+		if (!refreshed.has_value())
+		{
+			PrintCliError(refreshed.error());
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
+			MidoriPackageManager::PreparePackageEnvironment(*refreshed, MidoriPackageManager::ResolveMode::ForceRefresh);
+		if (!package_environment.has_value())
+		{
+			PrintCliError(package_environment.error());
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<void, std::string> cleanup =
+			MidoriPackageManager::RemoveUnusedInstalledPackages(*refreshed, package_environment->m_graph, *invocation.m_package_name);
+		if (!cleanup.has_value())
+		{
+			PrintCliError(cleanup.error());
+			return EXIT_FAILURE;
+		}
+
+		PrintPackageWarnings(package_environment->m_warnings);
+		std::print("Removed dependency {}\n", *invocation.m_package_name);
+		if (!package_environment->m_graph.m_root_dependencies.empty())
+		{
+			std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
+		}
+
+		return EXIT_SUCCESS;
+	}
+
+	int HandleList(const Invocation& invocation)
+	{
+		if (invocation.m_show_help)
+		{
+			std::print("{}", CommandHelp("list"));
+			return EXIT_SUCCESS;
+		}
+
+		if (invocation.m_format == OutputFormat::Json)
+		{
+			PrintCliError("JSON output is not supported for this command.");
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
+		if (!manifest.has_value())
+		{
+			PrintCliError(manifest.error());
+			return EXIT_FAILURE;
+		}
+
+		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
+			MidoriPackageManager::PreparePackageEnvironment(*manifest, MidoriPackageManager::ResolveMode::PreferLockfile);
+		if (!package_environment.has_value())
+		{
+			PrintCliError(package_environment.error());
+			return EXIT_FAILURE;
+		}
+
+		PrintPackageWarnings(package_environment->m_warnings);
+		if (package_environment->m_graph.m_root_dependencies.empty())
+		{
+			std::print("No dependencies resolved.\n");
+			return EXIT_SUCCESS;
+		}
+
+		std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
 		return EXIT_SUCCESS;
 	}
 
@@ -1222,7 +1743,11 @@ namespace
 			{ "build", "Compile a source file and report bytecode stats", CommandKind::Build, &HandleBuild },
 			{ "fmt", "Format one file or a directory of .mdr files", CommandKind::Fmt, &HandleFmt },
 			{ "test", "Discover and run project tests", CommandKind::Test, &HandleTest },
-			{ "init", "Initialize a project or package scaffold", CommandKind::Init, &HandleInit }
+			{ "init", "Initialize a project or package scaffold", CommandKind::Init, &HandleInit },
+			{ "install", "Resolve and vendor package dependencies", CommandKind::Install, &HandleInstall },
+			{ "update", "Refresh resolved package versions", CommandKind::Update, &HandleUpdate },
+			{ "remove", "Remove a direct package dependency", CommandKind::Remove, &HandleRemove },
+			{ "list", "Print the resolved dependency tree", CommandKind::List, &HandleList }
 		};
 		return table;
 	}

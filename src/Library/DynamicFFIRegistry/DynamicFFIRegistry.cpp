@@ -1,4 +1,5 @@
 #include "DynamicFFIRegistry.h"
+#include "Common/Checksum/Checksum.h"
 #include "Common/Printer/Printer.h"
 
 #ifdef _WIN32
@@ -16,7 +17,7 @@ DynamicFFIRegistry& DynamicFFIRegistry::GetInstance()
 	return instance;
 }
 
-bool DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName)
+bool DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -29,6 +30,11 @@ bool DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, c
 	if (!std::filesystem::exists(libraryPath))
 	{
 		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Library file not found: {}\n", libraryPath.string());
+		return false;
+	}
+
+	if (!VerifyLibraryChecksum(libraryPath, expectedChecksum))
+	{
 		return false;
 	}
 
@@ -45,7 +51,7 @@ bool DynamicFFIRegistry::LoadLibrary(const std::filesystem::path& libraryPath, c
 	return true;
 }
 
-bool DynamicFFIRegistry::LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings)
+bool DynamicFFIRegistry::LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -58,6 +64,11 @@ bool DynamicFFIRegistry::LoadLibraryWithFunctions(const std::filesystem::path& l
 	if (!std::filesystem::exists(libraryPath))
 	{
 		Printer::PrintFormatted<Printer::Color::RED>("[DynamicFFI] Library file not found: {}\n", libraryPath.string());
+		return false;
+	}
+
+	if (!VerifyLibraryChecksum(libraryPath, expectedChecksum))
+	{
 		return false;
 	}
 
@@ -225,4 +236,35 @@ void* DynamicFFIRegistry::GetPlatformFunction(void* libraryHandle, const std::st
 #else
 	return dlsym(libraryHandle, functionName.c_str());
 #endif
+}
+
+bool DynamicFFIRegistry::VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum)
+{
+	if (!expectedChecksum.has_value() || expectedChecksum->empty())
+	{
+		Printer::PrintFormatted<Printer::Color::YELLOW>(
+			"[DynamicFFI] Warning: loading unverified native library: {}\n",
+			libraryPath.string());
+		return true;
+	}
+
+	const std::expected<bool, std::string> verification = MidoriChecksum::VerifyFileChecksum(libraryPath, *expectedChecksum);
+	if (!verification.has_value())
+	{
+		Printer::PrintFormatted<Printer::Color::RED>(
+			"[DynamicFFI] Failed to verify checksum for {}: {}\n",
+			libraryPath.string(),
+			verification.error());
+		return false;
+	}
+
+	if (!verification.value())
+	{
+		Printer::PrintFormatted<Printer::Color::RED>(
+			"[DynamicFFI] Checksum mismatch for {}. Refusing to load the library.\n",
+			libraryPath.string());
+		return false;
+	}
+
+	return true;
 }

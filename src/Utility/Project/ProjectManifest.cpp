@@ -1,5 +1,6 @@
 #include "Utility/Project/ProjectManifest.h"
 
+#include "Compiler/PackageManager/PackageWorkspace.h"
 #include "Common/Printer/Printer.h"
 
 #include <toml.hpp>
@@ -10,6 +11,7 @@
 #include <format>
 #include <fstream>
 #include <optional>
+#include <unordered_map>
 #include <system_error>
 #include <vector>
 
@@ -21,12 +23,15 @@ namespace
 	struct ProjectSettings
 	{
 		std::filesystem::path m_root;
+		std::filesystem::path m_manifest_path;
 		std::string m_name;
 		std::filesystem::path m_entry;
 		std::filesystem::path m_source_dir;
 		std::filesystem::path m_packages_dir;
 		std::filesystem::path m_prelude_dir;
 		std::vector<std::filesystem::path> m_extra_paths;
+		std::unordered_map<std::string, std::string> m_dependencies;
+		std::unordered_map<std::string, MidoriVersion::VersionConstraint> m_dependency_constraints;
 		MidoriProject::TestConfiguration m_test;
 	};
 
@@ -65,13 +70,68 @@ namespace
 		return paths;
 	}
 
+	std::unordered_map<std::string, std::string> ReadStringTable(const toml::value& value)
+	{
+		std::unordered_map<std::string, std::string> entries;
+		if (!value.is_table())
+		{
+			return entries;
+		}
+
+		for (const std::pair<const std::string, toml::value>& entry : value.as_table())
+		{
+			if (entry.second.is_string())
+			{
+				entries.emplace(entry.first, entry.second.as_string());
+			}
+		}
+
+		return entries;
+	}
+
 	std::optional<ProjectSettings> LoadProjectSettings(const std::filesystem::path& manifest_path, const std::filesystem::path& root, bool report_missing_project)
 	{
 		try
 		{
 			const toml::value data = toml::parse(manifest_path);
 			const toml::value* project_table = FindTable(data, "project");
-			if (project_table == nullptr)
+
+			ProjectSettings settings;
+			settings.m_root = root;
+			settings.m_manifest_path = manifest_path;
+
+			if (project_table != nullptr)
+			{
+				settings.m_name = toml::find_or<std::string>(*project_table, "name", settings.m_name);
+				settings.m_entry = toml::find_or<std::string>(*project_table, "entry", "");
+				settings.m_source_dir = toml::find_or<std::string>(*project_table, "source_dir", "");
+				settings.m_packages_dir = toml::find_or<std::string>(*project_table, "packages_dir", "");
+				settings.m_prelude_dir = toml::find_or<std::string>(*project_table, "prelude_dir", "");
+
+				if (project_table->contains("midori_path"))
+				{
+					settings.m_extra_paths = ReadPathArray(project_table->at("midori_path"));
+				}
+			}
+			else if (manifest_path.filename() == PackageManifestFileName)
+			{
+				const toml::value* package_table = FindTable(data, "package");
+				if (package_table == nullptr)
+				{
+					return std::nullopt;
+				}
+
+				settings.m_name = toml::find_or<std::string>(*package_table, "name", settings.m_name);
+				settings.m_source_dir = ".";
+				settings.m_packages_dir = "packages";
+				settings.m_prelude_dir = "MidoriPrelude";
+
+				if (const toml::value* modules_table = FindTable(*package_table, "modules"))
+				{
+					settings.m_entry = toml::find_or<std::string>(*modules_table, "main", "");
+				}
+			}
+			else
 			{
 				if (report_missing_project)
 				{
@@ -81,17 +141,25 @@ namespace
 				return std::nullopt;
 			}
 
-			ProjectSettings settings;
-			settings.m_root = root;
-			settings.m_name = toml::find_or<std::string>(*project_table, "name", settings.m_name);
-			settings.m_entry = toml::find_or<std::string>(*project_table, "entry", "");
-			settings.m_source_dir = toml::find_or<std::string>(*project_table, "source_dir", "");
-			settings.m_packages_dir = toml::find_or<std::string>(*project_table, "packages_dir", "");
-			settings.m_prelude_dir = toml::find_or<std::string>(*project_table, "prelude_dir", "");
-
-			if (project_table->contains("midori_path"))
+			if (const toml::value* dependencies_table = FindTable(data, "dependencies"))
 			{
-				settings.m_extra_paths = ReadPathArray(project_table->at("midori_path"));
+				settings.m_dependencies = ReadStringTable(*dependencies_table);
+				for (const auto& [package_name, raw_constraint] : settings.m_dependencies)
+				{
+					const std::expected<MidoriVersion::VersionConstraint, std::string> constraint =
+						MidoriVersion::VersionConstraint::Parse(raw_constraint);
+					if (!constraint.has_value())
+					{
+						Printer::Print<Printer::Color::RED>(
+							std::format(
+								"[ProjectManifest] Invalid dependency constraint for '{}' in {}: {}\n",
+								package_name,
+								manifest_path.string(),
+								constraint.error()));
+						return std::nullopt;
+					}
+					settings.m_dependency_constraints.emplace(package_name, constraint.value());
+				}
 			}
 
 			if (const toml::value* test_table = FindTable(data, "test"))
@@ -447,6 +515,23 @@ namespace
 
 		return true;
 	}
+
+	std::optional<std::filesystem::path> ResolveManifestPathForEditing(const std::filesystem::path& input_path, std::string& error_message)
+	{
+		const std::optional<MidoriProject::ManifestConfiguration> configuration = MidoriProject::FindManifestConfiguration(input_path);
+		if (!configuration.has_value())
+		{
+			error_message = "Could not find project.midori or package.midori.";
+			return std::nullopt;
+		}
+
+		return configuration->m_manifest_path;
+	}
+
+	bool WriteTomlDocument(const std::filesystem::path& path, const toml::value& document, std::string& error_message)
+	{
+		return WriteFile(path, toml::format(document), error_message);
+	}
 }
 
 namespace MidoriProject
@@ -462,44 +547,49 @@ namespace MidoriProject
 
 		ManifestConfiguration configuration;
 		configuration.m_root = settings->m_root;
+		configuration.m_manifest_path = settings->m_manifest_path;
 		configuration.m_name = settings->m_name;
 		configuration.m_entry = settings->m_entry;
 		configuration.m_source_dir = settings->m_source_dir;
 		configuration.m_packages_dir = settings->m_packages_dir;
 		configuration.m_prelude_dir = settings->m_prelude_dir;
 		configuration.m_extra_paths = settings->m_extra_paths;
+		configuration.m_dependencies = settings->m_dependencies;
+		configuration.m_dependency_constraints = settings->m_dependency_constraints;
 		configuration.m_test = settings->m_test;
 		return configuration;
 	}
 
 	void ApplyProjectManifestToEnvironment(const std::filesystem::path& input_path)
 	{
-		std::optional<ProjectSettings> settings = FindProjectSettings(ResolveInputDirectory(input_path));
-		if (!settings.has_value())
+		const std::optional<ManifestConfiguration> configuration = FindManifestConfiguration(input_path);
+		if (!configuration.has_value())
 		{
 			return;
 		}
 
-		std::vector<std::filesystem::path> combined_paths = BuildProjectSearchPaths(settings.value());
+		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
+			MidoriPackageManager::PreparePackageEnvironment(*configuration);
+		if (!package_environment.has_value())
+		{
+			Printer::Print<Printer::Color::RED>(
+				std::format("[ProjectManifest] Failed to prepare package environment: {}\n", package_environment.error()));
+			return;
+		}
 
-		std::optional<std::string> env_value = ReadEnvironmentVariable("MIDORI_PATH");
 	#ifdef _WIN32
 		const char separator = ';';
 	#else
 		const char separator = ':';
 	#endif
-		if (env_value.has_value())
+		for (const std::string& warning : package_environment->m_warnings)
 		{
-			std::vector<std::filesystem::path> env_paths = SplitSearchPaths(env_value.value(), separator);
-			for (const std::filesystem::path& path : env_paths)
-			{
-				AppendUniquePath(combined_paths, path);
-			}
+			Printer::Print<Printer::Color::YELLOW>(std::format("[ProjectManifest] {}\n", warning));
 		}
 
-		if (!combined_paths.empty())
+		if (!package_environment->m_search_paths.empty())
 		{
-			SetEnvironmentVariable("MIDORI_PATH", JoinSearchPaths(combined_paths, separator));
+			SetEnvironmentVariable("MIDORI_PATH", JoinSearchPaths(package_environment->m_search_paths, separator));
 		}
 	}
 
@@ -622,6 +712,111 @@ namespace MidoriProject
 		}
 
 		return true;
+	}
+
+	bool AddDependency(const std::filesystem::path& input_path, std::string_view package_name, std::string_view constraint, std::string& error_message)
+	{
+		if (package_name.empty())
+		{
+			error_message = "Package name cannot be empty.";
+			return false;
+		}
+
+		const std::expected<MidoriVersion::VersionConstraint, std::string> parsed_constraint =
+			MidoriVersion::VersionConstraint::Parse(constraint);
+		if (!parsed_constraint.has_value())
+		{
+			error_message = std::format("Invalid version constraint '{}': {}", constraint, parsed_constraint.error());
+			return false;
+		}
+
+		const std::optional<std::filesystem::path> manifest_path = ResolveManifestPathForEditing(input_path, error_message);
+		if (!manifest_path.has_value())
+		{
+			return false;
+		}
+
+		try
+		{
+			toml::value document = toml::parse(*manifest_path);
+			if (!document.is_table())
+			{
+				error_message = std::format("Manifest is not a TOML table: {}", manifest_path->string());
+				return false;
+			}
+
+			toml::table& root = document.as_table();
+			if (!root.contains("dependencies"))
+			{
+				root["dependencies"] = toml::value(toml::table{});
+			}
+
+			toml::value& dependencies_value = root["dependencies"];
+			if (!dependencies_value.is_table())
+			{
+				error_message = std::format("Manifest dependencies table is not a table: {}", manifest_path->string());
+				return false;
+			}
+
+			dependencies_value[std::string(package_name)] = std::string(constraint);
+			return WriteTomlDocument(*manifest_path, document, error_message);
+		}
+		catch (const std::exception& e)
+		{
+			error_message = std::format("Failed to update {}: {}", manifest_path->string(), e.what());
+			return false;
+		}
+	}
+
+	bool RemoveDependency(const std::filesystem::path& input_path, std::string_view package_name, std::string& error_message)
+	{
+		if (package_name.empty())
+		{
+			error_message = "Package name cannot be empty.";
+			return false;
+		}
+
+		const std::optional<std::filesystem::path> manifest_path = ResolveManifestPathForEditing(input_path, error_message);
+		if (!manifest_path.has_value())
+		{
+			return false;
+		}
+
+		try
+		{
+			toml::value document = toml::parse(*manifest_path);
+			if (!document.is_table())
+			{
+				error_message = std::format("Manifest is not a TOML table: {}", manifest_path->string());
+				return false;
+			}
+
+			toml::table& root = document.as_table();
+			if (!root.contains("dependencies") || !root.at("dependencies").is_table())
+			{
+				error_message = std::format("No [dependencies] table found in {}", manifest_path->string());
+				return false;
+			}
+
+			toml::table& dependencies = root["dependencies"].as_table();
+			if (dependencies.erase(std::string(package_name)) == 0u)
+			{
+				error_message = std::format("Dependency '{}' is not present in {}", package_name, manifest_path->string());
+				return false;
+			}
+
+			if (dependencies.empty())
+			{
+				root.erase("dependencies");
+			}
+
+			return WriteTomlDocument(*manifest_path, document, error_message);
+		}
+		catch (const std::exception& e)
+		{
+			error_message = std::format("Failed to update {}: {}", manifest_path->string(), e.what());
+			return false;
+		}
 	}
 }
 

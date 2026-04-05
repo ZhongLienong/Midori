@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Common/Version/Version.h"
+
 #include <filesystem>
+#include <expected>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -10,11 +13,13 @@ struct PackageInfo
 {
 	std::string m_name;
 	std::string m_version = "0.0.0";
+	MidoriVersion::SemanticVersion m_semantic_version;
 	std::vector<std::string> m_authors;
 	std::string m_description;
 	std::string m_license;
 	std::string m_repository;
 	std::string m_midori_version = ">=1.0.0";
+	MidoriVersion::VersionConstraint m_midori_version_constraint;
 };
 
 struct PackageModules
@@ -26,6 +31,7 @@ struct PackageModules
 struct PackageDependencies
 {
 	std::unordered_map<std::string, std::string> m_dependencies;
+	std::unordered_map<std::string, MidoriVersion::VersionConstraint> m_constraints;
 };
 
 struct PackageFFI
@@ -59,6 +65,7 @@ class PackageManifest
 {
 public:
 	static std::optional<PackageManifest> Load(const std::filesystem::path& packageDirectory);
+	static std::expected<PackageManifest, std::string> LoadWithError(const std::filesystem::path& packageDirectory);
 	static PackageManifest Create(std::filesystem::path packageDirectory);
 
 	PackageManifest WithInfo(PackageInfo info) &&;
@@ -78,6 +85,7 @@ public:
 	const std::filesystem::path& GetPackageDirectory() const;
 	std::filesystem::path GetMainModulePath() const;
 	std::filesystem::path GetFFILibraryPath() const;
+	std::optional<PrebuiltBinary> GetSelectedPrebuiltBinary() const;
 
 private:
 	PackageManifest() = default;

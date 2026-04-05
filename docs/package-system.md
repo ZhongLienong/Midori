@@ -1,49 +1,137 @@
 # Package System
 
-Midori has an early package integration layer built around `package.midori` manifests and dynamically loaded FFI libraries. It is not yet a full package manager.
+Midori now has a local package dependency system built around `package.midori`,
+`project.midori`, `midori.lock`, and project-local vendoring into `packages/`.
+The current implementation resolves from package directories that already exist
+on disk. Remote registry fetch and publish support are still deferred.
 
 ## What Exists Today
 
-Implemented:
+- semantic version parsing and comparison, including prerelease and build metadata
+- dependency constraints in `project.midori` and `package.midori`
+- compiler version validation through `package.midori` `midori_version`
+- local package index scanning across project, cache, and path roots
+- dependency resolution with cycle and version-conflict diagnostics
+- project-local vendoring into `packages/<name>-<version>/`
+- `midori.lock` generation and reuse
+- package source checksum recording in the lockfile
+- checksum verification for selected prebuilt native libraries
+- CLI package commands: `midori install`, `midori update`, `midori remove`, `midori list`
+- import-triggered dynamic FFI loading for resolved packages
 
-- TOML manifest parsing through `PackageManifest`
-- package metadata tables under `package.midori`
-- platform-specific library path selection
-- automatic dynamic library loading when an imported module sits beside a `package.midori`
-- runtime lookup of dynamically loaded foreign functions through `DynamicFFIRegistry`
+## Still Deferred
 
-Not implemented yet:
+- remote registry fetch and publish workflows
+- automatic native builds from `native/` or `[build]`
+- manifest-driven export enforcement beyond normal module `public export`
+- targeted `midori update <package>` resolution; the current command refreshes the whole graph
+- full garbage collection of every newly orphaned transitive vendored package directory
 
-- package dependency resolution
-- version solving
-- registry or install workflow
-- manifest-driven export enforcement
+Because registry fetching is not implemented yet, fully reproducible installs on
+a clean machine currently depend on the vendored `packages/` directory or some
+other local package root already being available.
 
-The `[dependencies]` table is currently parsed as metadata only.
+## Package Discovery
 
-## Package Layout
+Resolution is based on a local package index. Midori scans these roots, in this
+order:
 
-The current implementation works best when the imported package entry module lives next to `package.midori`.
+1. the active project's `packages_dir` or `packages/`
+2. the global cache directory
+3. `project.midori` `midori_path` entries
+4. existing `MIDORI_PATH` entries
+
+Each root contributes:
+
+- the root itself, if it contains `package.midori`
+- any immediate child directories that contain `package.midori`
+
+Available versions are sorted by:
+
+1. highest semantic version
+2. root priority for ties
+3. path for deterministic ties
+
+That means a newer compatible version in a lower-priority root still wins over
+an older version in a higher-priority root.
+
+On Windows the global cache root is `%LOCALAPPDATA%/Midori/cache` when
+available. On other systems Midori falls back to `~/.midori/cache`.
+
+## Resolution And Installation
+
+When Midori prepares a project package environment, it:
+
+1. loads the active manifest from `project.midori`, or from `package.midori`
+   when no project manifest exists
+2. parses direct dependencies and version constraints
+3. prefers `midori.lock` when the root manifest checksum still matches and the
+   locked package directories are available
+4. otherwise scans the local index, resolves the highest compatible versions,
+   and vendors them into `packages/<name>-<version>/`
+5. writes a new `midori.lock`
+6. rebuilds `MIDORI_PATH` from the resolved package graph and project settings
+
+The effective search path order inside a project is:
+
+1. `source_dir`
+2. resolved package directories in dependency order
+3. `midori_path` entries from the active manifest
+4. `prelude_dir`
+5. existing `MIDORI_PATH` entries from the environment
+
+Missing directories are skipped and duplicate paths are removed.
+
+## Vendored Layout
+
+A resolved package is copied into the project-local packages directory using a
+versioned folder name.
 
 ```text
-PackageName/
-  package.midori
-  PackageName.mdr
-  lib/
-    windows/x64/packagename.dll
-    linux/x86_64/libpackagename.so
-    macos/libpackagename.dylib
+MyApp/
+  project.midori
+  midori.lock
+  packages/
+    Greeter-1.2.0/
+      package.midori
+      Greeter.mdr
+      lib/
+        windows/x64/greeter.dll
 ```
 
-Manifest discovery is not recursive. `ModuleManager` checks only the parent directory of the imported `.mdr` file.
+The resolver and lockfile then refer to that vendored directory as the active
+package location.
+
+## CLI Workflow
+
+- `midori install`
+  Resolve current dependencies, vendor packages locally, and update
+  `midori.lock`.
+- `midori install <package> [--version <constraint>]`
+  Add a direct dependency to the active manifest, then resolve and install.
+  If `--version` is omitted, Midori looks up the highest locally available
+  version and writes a caret constraint such as `^1.2.0`.
+- `midori update [package]`
+  Force a fresh resolve and rewrite `midori.lock`. The optional package name is
+  currently validated, but the command still refreshes the full dependency
+  graph.
+- `midori remove <package>`
+  Remove a direct dependency from the active manifest, refresh the lockfile, and
+  remove unused vendored directories for that package name.
+- `midori list`
+  Print the resolved dependency tree. Midori prefers `midori.lock` and falls
+  back to a fresh resolve when needed.
+
+All four commands operate on the active manifest from the current directory:
+`project.midori` if present, otherwise `package.midori`.
 
 ## Manifest Format
 
-`package.midori` is parsed by `src/Compiler/PackageManager/PackageManifest.cpp`.
-
-Recognized tables and fields:
+`package.midori` is parsed by `PackageManifest`.
 
 ### `[package]`
+
+Recognized fields:
 
 - `name`
 - `version`
@@ -53,57 +141,117 @@ Recognized tables and fields:
 - `repository`
 - `midori_version`
 
+Current validation:
+
+- `version` must parse as semantic versioning
+- `midori_version` must parse as a version constraint
+- the current compiler version must satisfy `midori_version`
+
 ### `[package.modules]`
+
+Recognized fields:
 
 - `main`
 - `exports`
 
 Notes:
 
-- `main` is used by `PackageManifest::GetMainModulePath()`.
-- `exports` is parsed and retained in the manifest object, but actual symbol visibility is still enforced by the `.mdr` module's `public export` and `private export` blocks.
+- `main` identifies the package entry module
+- `exports` is retained as manifest metadata
+- actual visibility is still controlled by the module source with
+  `public export` and `private export`
 
 ### `[dependencies]`
 
-- arbitrary string-to-string entries
+`[dependencies]` is a string table of package name to version constraint.
 
-These are parsed but not resolved by the compiler today.
+Supported constraint forms include:
+
+- `^1.2.3`
+- `~1.2.3`
+- `=1.2.3`
+- `>=1.0.0`
+- `<2.0.0`
+- `>=1.0.0, <2.0.0`
+
+Constraints are validated during manifest load and resolved transitively.
 
 ### `[ffi]`
+
+Recognized fields:
 
 - `enabled`
 - `library_name`
 - `functions`
 
-`functions` maps exported Midori foreign names such as `"MIDORI_FFI_Package_Add"` to concrete symbol names inside the shared library.
+`functions` maps Midori foreign names to concrete exported symbol names inside
+the shared library.
 
 ### `[build]`
+
+Recognized fields:
 
 - `cmake_minimum_version`
 - `cpp_standard`
 
-This is metadata only; the compiler does not run a build tool from the manifest.
+This section is still metadata only. Midori does not invoke a native build tool
+from the manifest today.
 
 ### `[prebuilt]`
+
+Recognized platform keys:
 
 - `windows_x64`
 - `linux_x86_64`
 - `macos_arm64`
 - `macos_x86_64`
 
-Each prebuilt entry contains:
+Each entry contains:
 
 - `path`
 - `checksum`
 
-Checksums are parsed but not enforced yet.
+When a matching prebuilt entry exists, Midori uses that path for the native
+library and verifies its checksum before loading.
 
-## Library Path Selection
+## Lockfile
 
-`PackageManifest::GetFFILibraryPath()` chooses a library path like this:
+The lockfile is `midori.lock` in the project root.
 
-1. use the matching `[prebuilt]` entry for the current platform if present
-2. otherwise fall back to the conventional platform path under `lib/`
+```toml
+# Auto-generated by Midori. Do not edit manually.
+[metadata]
+midori_version = "..."
+generated = "2026-04-05T12:00:00Z"
+manifest_checksum = "sha256:..."
+
+[[package]]
+name = "Greeter"
+version = "1.2.0"
+source = "local:packages/Greeter-1.2.0"
+checksum = "sha256:..."
+dependencies = []
+```
+
+`manifest_checksum` tracks the active root manifest file. If it changes, Midori
+treats the lockfile as stale and re-resolves.
+
+Each package `checksum` is computed from:
+
+- `package.midori`
+- all `.mdr` files under the package directory
+
+When a locked package directory is missing or its manifest no longer matches the
+lockfile entry, Midori falls back to a fresh resolve. When package source
+checksums drift, Midori emits warnings.
+
+## Native Library Selection And Verification
+
+For FFI-enabled packages, `PackageManifest::GetFFILibraryPath()` chooses the
+library path like this:
+
+1. use the matching `[prebuilt]` entry for the current platform when present
+2. otherwise fall back to the conventional `lib/` path
 
 Fallback paths:
 
@@ -111,167 +259,25 @@ Fallback paths:
 - macOS: `lib/macos/lib<library_name>.dylib`
 - Linux: `lib/linux/x86_64/lib<library_name>.so`
 
-## How Packages Are Loaded
+`DynamicFFIRegistry` verifies the selected prebuilt checksum before loading:
 
-During import processing:
+- matching checksum: load continues
+- checksum mismatch: load fails
+- no checksum: load continues with a warning
 
-1. `ModuleManager` resolves an imported `.mdr` file.
-2. It checks that file's parent directory for `package.midori`.
-3. If a manifest exists, `PackageManifest::Load()` parses it.
-4. If `[ffi].enabled = true` and the selected library path exists, `DynamicFFIRegistry` loads the library and registers the declared functions.
-5. Compilation then continues as normal.
+Midori does not yet build native libraries automatically when no prebuilt binary
+is available.
 
-This is import-triggered loading, not a separate package-install step.
+## Import-Time Package Loading
 
-## FFI ABI for Dynamic Packages
+Package resolution happens before compilation by preparing the project search
+path. During compilation, `ModuleManager` still loads dynamic FFI libraries on
+demand:
 
-Dynamic packages use the generic `CALL_FOREIGN` runtime path:
+1. an import resolves to an `.mdr` file on the effective `MIDORI_PATH`
+2. `ModuleManager` checks that module's directory for `package.midori`
+3. if `ffi.enabled = true`, Midori selects the library path and registers the
+   declared functions through `DynamicFFIRegistry`
 
-```c
-void function_name(void** args, void* ret)
-```
-
-That matters because dynamic packages do not get the richer builtin `FFIArgumentKind` and `FFIReturnKind` metadata used by `CALL_FOREIGN_INDEXED`.
-
-### Argument Passing
-
-For dynamically loaded package functions, the VM currently marshals arguments like this:
-
-- `Text`: `args[i]` is a `const char*`
-- `Array<T>`: `args[i]` points to an array view struct
-- raw scalar values such as `Int`, `Float`, `Bool`, `Byte`, and `Word`: the value's bytes are copied directly into the pointer-sized `args[i]` slot
-
-Current array-view shape:
-
-```c
-struct ArrayArgument {
-    void* data;
-    int length;
-};
-```
-
-### Reading Raw Scalar Arguments
-
-Do not cast `args[i]` directly to the target integer or float type. The runtime stores raw scalar bits inside the `void*` slot itself, so native code should copy from `&args[i]`.
-
-Example:
-
-```c
-void MIDORI_FFI_AddOne(void** args, void* ret)
-{
-    int64_t value = 0;
-    std::memcpy(&value, &args[0], sizeof(value));
-
-    value += 1;
-    std::memcpy(ret, &value, sizeof(value));
-}
-```
-
-Reading text and arrays:
-
-```c
-void MIDORI_FFI_Describe(void** args, void* ret)
-{
-    const char* text = static_cast<const char*>(args[0]);
-    const ArrayArgument* array = static_cast<const ArrayArgument*>(args[1]);
-    (void)text;
-    (void)array;
-}
-```
-
-### Return Values
-
-The VM currently expects:
-
-- raw scalars: write the value bytes into `ret`
-- `Text`: write a heap-allocated `char*` pointer value into `ret`
-- `Array<T>`: write a heap-allocated pointer to a heap-allocated array wrapper into `ret`
-
-Current array return wrapper:
-
-```c
-struct FFIArray {
-    void* data;
-    int length;
-};
-```
-
-### Ownership Rules
-
-For dynamically loaded package FFI:
-
-- returned `char*` text is copied into a Midori-managed `Text` and then freed by the VM
-- returned arrays are wrapped through `MidoriArray::FromFFI`
-- short returned arrays are copied into Midori small-object storage and the original FFI buffer is freed
-- longer returned arrays are adopted directly without an element copy
-- the outer `FFIArray` wrapper itself is always freed by the VM
-
-Practical consequence:
-
-- allocate returned text buffers and returned array buffers with `malloc`/`free` compatible allocation
-- do not free them yourself after writing the pointer into `ret`
-
-### Scope of the Dynamic ABI
-
-The dynamic package path is best suited to:
-
-- primitive scalars
-- `Text`
-- flat `Array<T>` values whose element representation already matches Midori's runtime values
-
-The richer builtin-only kinds such as `TraceableHandle`, `ValueHandle`, `ArrayStrings`, and `Value` are described in `MidoriFFIRegistry`, but they are part of the statically registered runtime FFI path rather than the dynamic package ABI.
-
-## Example Manifest
-
-```toml
-[package]
-name = "PackageName"
-version = "0.1.0"
-authors = ["Author Name <email@example.com>"]
-description = "Package description"
-license = "MIT"
-midori_version = ">=1.0.0"
-
-[package.modules]
-main = "PackageName.mdr"
-exports = ["PackageName"]
-
-[dependencies]
-
-[ffi]
-enabled = true
-library_name = "packagename"
-
-[ffi.functions]
-"MIDORI_FFI_PackageName_Function" = "native_function_name"
-```
-
-## Example Midori Surface
-
-```midori
-module PackageName
-public export { FunctionName }
-
-foreign "MIDORI_FFI_PackageName_Function" FunctionName : fn(Int) -> Int;
-```
-
-## Runtime Lookup Order
-
-At call time the VM resolves foreign functions in this order:
-
-1. `MidoriFFIRegistry` for built-in runtime FFI
-2. `DynamicFFIRegistry` for dynamically loaded package functions
-
-If neither path resolves the name, execution fails with a runtime error.
-
-## Thread Safety
-
-`DynamicFFIRegistry` uses a mutex around library loading and function lookup, so package FFI registration is thread-safe at the registry level.
-
-## Current Limitations
-
-- Package manifests are discovered only from the imported module's immediate directory.
-- There is no package CLI and no dependency graph resolution.
-- Manifest checksums and build metadata are not enforced.
-- `package.modules.exports` is not a second export mechanism; actual exports still come from the module source.
-- Dynamic package FFI does not expose the full builtin typed-FFI surface.
+This keeps module import behavior file-based while the search path itself is now
+lockfile-backed and package-aware.

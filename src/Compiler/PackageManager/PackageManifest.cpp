@@ -1,5 +1,9 @@
 #include "PackageManifest.h"
+
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
+
+#include <format>
 #include <toml.hpp>
 #include <utility>
 
@@ -51,13 +55,13 @@ namespace
 		return entries;
 	}
 
-	PackageInfo ParsePackageInfo(const toml::value& data)
+	std::expected<PackageInfo, std::string> ParsePackageInfo(const toml::value& data)
 	{
 		PackageInfo info;
 		const toml::value* package_table = FindTable(data, "package");
 		if (package_table == nullptr)
 		{
-			return info;
+			return std::unexpected("Missing [package] table.");
 		}
 
 		const toml::value& pkg = *package_table;
@@ -71,6 +75,42 @@ namespace
 		if (pkg.contains("authors"))
 		{
 			info.m_authors = ReadStringArray(pkg.at("authors"));
+		}
+
+		if (info.m_name.empty())
+		{
+			return std::unexpected("Missing required package name.");
+		}
+
+		const std::expected<MidoriVersion::SemanticVersion, std::string> version = MidoriVersion::SemanticVersion::Parse(info.m_version);
+		if (!version.has_value())
+		{
+			return std::unexpected(std::format("Invalid package version '{}': {}", info.m_version, version.error()));
+		}
+		info.m_semantic_version = version.value();
+
+		const std::expected<MidoriVersion::VersionConstraint, std::string> compiler_constraint =
+			MidoriVersion::VersionConstraint::Parse(info.m_midori_version);
+		if (!compiler_constraint.has_value())
+		{
+			return std::unexpected(std::format("Invalid midori_version constraint '{}': {}", info.m_midori_version, compiler_constraint.error()));
+		}
+		info.m_midori_version_constraint = compiler_constraint.value();
+
+		const std::expected<MidoriVersion::SemanticVersion, std::string> compiler_version =
+			MidoriVersion::SemanticVersion::Parse(MidoriBuild::VersionString);
+		if (!compiler_version.has_value())
+		{
+			return std::unexpected(std::format("Invalid compiler version '{}': {}", MidoriBuild::VersionString, compiler_version.error()));
+		}
+
+		if (!info.m_midori_version_constraint.Matches(compiler_version.value()))
+		{
+			return std::unexpected(std::format(
+				"Package '{}' requires Midori {}, but the current compiler version is {}.",
+				info.m_name,
+				info.m_midori_version,
+				compiler_version->ToString()));
 		}
 
 		return info;
@@ -100,7 +140,7 @@ namespace
 		return modules;
 	}
 
-	PackageDependencies ParsePackageDependencies(const toml::value& data)
+	std::expected<PackageDependencies, std::string> ParsePackageDependencies(const toml::value& data)
 	{
 		PackageDependencies dependencies;
 		const toml::value* deps_table = FindTable(data, "dependencies");
@@ -110,6 +150,20 @@ namespace
 		}
 
 		dependencies.m_dependencies = ReadStringTable(*deps_table);
+		for (const auto& [package_name, raw_constraint] : dependencies.m_dependencies)
+		{
+			const std::expected<MidoriVersion::VersionConstraint, std::string> constraint =
+				MidoriVersion::VersionConstraint::Parse(raw_constraint);
+			if (!constraint.has_value())
+			{
+				return std::unexpected(std::format(
+					"Invalid dependency constraint for '{}': {}",
+					package_name,
+					constraint.error()));
+			}
+			dependencies.m_constraints.emplace(package_name, constraint.value());
+		}
+
 		return dependencies;
 	}
 
@@ -177,12 +231,24 @@ namespace
 		return prebuilt;
 	}
 
-	PackageManifest BuildManifest(const std::filesystem::path& packageDirectory, const toml::value& data)
+	std::expected<PackageManifest, std::string> BuildManifest(const std::filesystem::path& packageDirectory, const toml::value& data)
 	{
+		const std::expected<PackageInfo, std::string> info = ParsePackageInfo(data);
+		if (!info.has_value())
+		{
+			return std::unexpected(info.error());
+		}
+
+		const std::expected<PackageDependencies, std::string> dependencies = ParsePackageDependencies(data);
+		if (!dependencies.has_value())
+		{
+			return std::unexpected(dependencies.error());
+		}
+
 		return PackageManifest::Create(packageDirectory)
-			.WithInfo(ParsePackageInfo(data))
+			.WithInfo(info.value())
 			.WithModules(ParsePackageModules(data))
-			.WithDependencies(ParsePackageDependencies(data))
+			.WithDependencies(dependencies.value())
 			.WithFFI(ParsePackageFFI(data))
 			.WithBuild(ParsePackageBuild(data))
 			.WithPrebuilt(ParsePackagePrebuilt(data));
@@ -264,28 +330,32 @@ PackageManifest PackageManifest::WithPrebuilt(PackagePrebuilt prebuilt) &&
 
 std::optional<PackageManifest> PackageManifest::Load(const std::filesystem::path& packageDirectory)
 {
-	const std::filesystem::path manifest_path = packageDirectory / kManifestFileName;
+	const std::expected<PackageManifest, std::string> manifest = LoadWithError(packageDirectory);
+	if (!manifest.has_value())
+	{
+		Printer::PrintFormatted<Printer::Color::RED>("[PackageManifest] {}\n", manifest.error());
+		return std::nullopt;
+	}
 
+	return manifest.value();
+}
+
+std::expected<PackageManifest, std::string> PackageManifest::LoadWithError(const std::filesystem::path& packageDirectory)
+{
+	const std::filesystem::path manifest_path = packageDirectory / kManifestFileName;
 	if (!std::filesystem::exists(manifest_path))
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[PackageManifest] package.midori not found in: {}\n", packageDirectory.string());
-		return std::nullopt;
+		return std::unexpected(std::format("package.midori not found in: {}", packageDirectory.string()));
 	}
 
 	try
 	{
 		const toml::value data = toml::parse(manifest_path);
-		PackageManifest manifest = BuildManifest(packageDirectory, data);
-
-		Printer::PrintFormatted<Printer::Color::GREEN>("[PackageManifest] Successfully loaded package: {} v{}\n",
-			manifest.GetInfo().m_name, manifest.GetInfo().m_version);
-
-		return manifest;
+		return BuildManifest(packageDirectory, data);
 	}
 	catch (const std::exception& e)
 	{
-		Printer::PrintFormatted<Printer::Color::RED>("[PackageManifest] Failed to parse package.midori: {}\n", e.what());
-		return std::nullopt;
+		return std::unexpected(std::format("Failed to parse package.midori in {}: {}", packageDirectory.string(), e.what()));
 	}
 }
 
@@ -318,6 +388,21 @@ std::filesystem::path PackageManifest::GetFFILibraryPath() const
 	return m_packageDirectory / "lib" / "macos" / ("lib" + m_ffi.m_libraryName + ".dylib");
 #else
 	return m_packageDirectory / "lib" / "linux" / "x86_64" / ("lib" + m_ffi.m_libraryName + ".so");
+#endif
+}
+
+std::optional<PrebuiltBinary> PackageManifest::GetSelectedPrebuiltBinary() const
+{
+#ifdef _WIN32
+	return m_prebuilt.m_windowsX64;
+#elif defined(__APPLE__)
+	#if defined(__aarch64__) || defined(_M_ARM64)
+		return m_prebuilt.m_macosArm64;
+	#else
+		return m_prebuilt.m_macosX86_64;
+	#endif
+#else
+	return m_prebuilt.m_linuxX86_64;
 #endif
 }
 
