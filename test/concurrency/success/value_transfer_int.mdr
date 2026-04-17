@@ -1,0 +1,30 @@
+module value_transfer_int
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun IntWorker(ch : Channel<Int>) : Int =>
+{
+    ch -> 42;
+    ch -> -1;
+    ch -> 0;
+    ch -> 9999999;
+    0
+};
+
+def ch = channel<Int>(4);
+def w = spawn IntWorker(ch);
+
+def v1 = <- ch;
+def v2 = <- ch;
+def v3 = <- ch;
+def v4 = <- ch;
+
+PrintLine("v1=" ++ (v1 as Text));
+PrintLine("v2=" ++ (v2 as Text));
+PrintLine("v3=" ++ (v3 as Text));
+PrintLine("v4=" ++ (v4 as Text));
+PrintLine("sum=" ++ ((v1 + v2 + v3 + v4) as Text));
+
+close(ch);
+def r = join w;

@@ -78,6 +78,11 @@ protected:
 	virtual void operator()(MidoriExpression::UnitLiteral& unit) override;
 	virtual void operator()(MidoriExpression::Function& function) override;
 	virtual void operator()(MidoriExpression::Construct& construct) override;
+	virtual void operator()(MidoriExpression::Spawn& spawn) override;
+	virtual void operator()(MidoriExpression::Join& join) override;
+	virtual void operator()(MidoriExpression::ChannelCreate& channel_create) override;
+	virtual void operator()(MidoriExpression::Send& send) override;
+	virtual void operator()(MidoriExpression::Receive& receive) override;
 	virtual void operator()(MidoriExpression::Array& array) override;
 	virtual void operator()(MidoriExpression::IndexAccess& array_get) override;
 	virtual void operator()(MidoriExpression::IndexAssignment& array_set) override;

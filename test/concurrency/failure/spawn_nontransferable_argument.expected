@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_argument.mdr:11
+   |
+11 | def worker = spawn RunCallback(increment);
+   |                    ^^^^^^^^^^^ Type fn(Int) -> Int does not satisfy constraint Transferable<fn(Int) -> Int> - no matching instance found
+   |
+  | Function and closure values are not transferable.

@@ -1,0 +1,24 @@
+module channel_pingpong
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Ponger(ch_in: Channel<Text>, ch_out: Channel<Text>) : Int => {
+    def msg = <- ch_in;
+    PrintLine("Ponger received: " ++ msg);
+    ch_out -> "pong";
+    0
+};
+
+def ping_ch = channel<Text>(1);
+def pong_ch = channel<Text>(1);
+
+def w = spawn Ponger(ping_ch, pong_ch);
+
+ping_ch -> "ping";
+def reply = <- pong_ch;
+PrintLine("Main received: " ++ reply);
+
+close(ping_ch);
+close(pong_ch);
+def r = join w;

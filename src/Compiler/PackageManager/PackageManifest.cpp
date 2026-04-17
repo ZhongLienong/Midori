@@ -180,6 +180,7 @@ namespace
 		ffi.m_enabled = toml::find_or<bool>(*ffi_table, "enabled", ffi.m_enabled);
 		ffi.m_libraryName = toml::find_or<std::string>(*ffi_table, "library_name", ffi.m_libraryName);
 		ffi.m_abi_version = toml::find_or<int>(*ffi_table, "abi_version", ffi.m_abi_version);
+		ffi.m_thread_safe = toml::find_or<bool>(*ffi_table, "thread_safe", ffi.m_thread_safe);
 
 		if (ffi_table->contains("functions"))
 		{

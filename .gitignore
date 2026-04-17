@@ -384,3 +384,9 @@ reference_package/lib/macos/*.dylib
 # Generated doc-example compile sandboxes
 .doc_examples/
 .doc_example_*.mdr
+
+# Codex
+.codex*
+
+# Build
+build*

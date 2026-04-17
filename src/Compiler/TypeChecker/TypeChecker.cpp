@@ -78,6 +78,14 @@ namespace
 		{
 			return HasTypeVariables(type->GetType<MidoriType::RangeType>().m_element_type, visited);
 		}
+		else if (type->IsType<MidoriType::WorkerType>())
+		{
+			return HasTypeVariables(type->GetType<MidoriType::WorkerType>().m_result_type, visited);
+		}
+		else if (type->IsType<MidoriType::ChannelType>())
+		{
+			return HasTypeVariables(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+		}
 		else if (type->IsType<MidoriType::FunctionType>())
 		{
 			MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
@@ -174,6 +182,16 @@ namespace
 		if (type->IsType<MidoriType::RangeType>())
 		{
 			CollectTypeVariableIds(type->GetType<MidoriType::RangeType>().m_element_type, type_variable_ids, visited);
+			return;
+		}
+		if (type->IsType<MidoriType::WorkerType>())
+		{
+			CollectTypeVariableIds(type->GetType<MidoriType::WorkerType>().m_result_type, type_variable_ids, visited);
+			return;
+		}
+		if (type->IsType<MidoriType::ChannelType>())
+		{
+			CollectTypeVariableIds(type->GetType<MidoriType::ChannelType>().m_element_type, type_variable_ids, visited);
 			return;
 		}
 		if (type->IsType<MidoriType::TupleType>())
@@ -298,6 +316,14 @@ namespace
 		if (type->IsType<MidoriType::RangeType>())
 		{
 			return ContainsAssociatedTypes(type->GetType<MidoriType::RangeType>().m_element_type, visited);
+		}
+		if (type->IsType<MidoriType::WorkerType>())
+		{
+			return ContainsAssociatedTypes(type->GetType<MidoriType::WorkerType>().m_result_type, visited);
+		}
+		if (type->IsType<MidoriType::ChannelType>())
+		{
+			return ContainsAssociatedTypes(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 		}
 		if (type->IsType<MidoriType::FunctionType>())
 		{
@@ -822,6 +848,156 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
 }
 
+bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type) const
+{
+	const std::shared_ptr<MidoriType> resolved_type = const_cast<TypeChecker*>(this)->ApplySubstitution(type);
+
+	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	{
+		if (constraint.m_class_name != class_name || constraint.m_type_args.size() != 1u)
+		{
+			continue;
+		}
+
+		const std::shared_ptr<MidoriType> resolved_constraint_type = const_cast<TypeChecker*>(this)->ApplySubstitution(constraint.m_type_args[0u]);
+		if (*resolved_constraint_type == *resolved_type)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type)
+{
+	std::unordered_set<const MidoriType*> visited;
+	return EnsureTransferable(token, type, visited);
+}
+
+std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+{
+	const std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
+	if (!visited.insert(resolved_type.get()).second)
+	{
+		return std::nullopt;
+	}
+
+	const MidoriType::ClassConstraint transferable_constraint("Transferable", { resolved_type });
+
+	const auto fail = [&](std::optional<std::string_view> suggestion = std::nullopt) -> std::optional<CompilerError>
+	{
+		return MakeConstraintFailureError(token, transferable_constraint, suggestion);
+	};
+
+	const auto has_transferable_marker = [&]() -> bool
+	{
+		return HasActiveConstraint("Transferable", resolved_type)
+			|| FindMatchingInstance("Transferable", { resolved_type }).has_value();
+	};
+
+	if (
+		resolved_type->IsType<MidoriType::IntegerType>() ||
+		resolved_type->IsType<MidoriType::FloatType>() ||
+		resolved_type->IsType<MidoriType::ByteType>() ||
+		resolved_type->IsType<MidoriType::WordType>() ||
+		resolved_type->IsType<MidoriType::BoolType>() ||
+		resolved_type->IsType<MidoriType::TextType>() ||
+		resolved_type->IsType<MidoriType::UnitType>() ||
+		resolved_type->IsType<MidoriType::NeverType>()
+	)
+	{
+		return std::nullopt;
+	}
+
+	if (resolved_type->IsType<MidoriType::ArrayType>())
+	{
+		return EnsureTransferable(token, resolved_type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+	}
+
+	if (resolved_type->IsType<MidoriType::ChannelType>())
+	{
+		return EnsureTransferable(token, resolved_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+	}
+
+	if (resolved_type->IsType<MidoriType::TupleType>())
+	{
+		for (const std::shared_ptr<MidoriType>& element_type : resolved_type->GetType<MidoriType::TupleType>().m_element_types)
+		{
+			if (std::optional<CompilerError> error = EnsureTransferable(token, element_type, visited))
+			{
+				return error;
+			}
+		}
+		return std::nullopt;
+	}
+
+	if (resolved_type->IsType<MidoriType::WorkerType>())
+	{
+		return fail("Worker values cannot cross worker boundaries.");
+	}
+
+	if (resolved_type->IsType<MidoriType::RangeType>())
+	{
+		return fail("Range values are not transferable.");
+	}
+
+	if (resolved_type->IsType<MidoriType::FunctionType>())
+	{
+		return fail("Function and closure values are not transferable.");
+	}
+
+	if (resolved_type->IsType<MidoriType::GenericParam>() ||
+		resolved_type->IsType<MidoriType::TypeVariable>() ||
+		resolved_type->IsType<MidoriType::AssociatedType>())
+	{
+		return has_transferable_marker()
+			? std::nullopt
+			: fail("Add a 'where Transferable<T>' constraint or import an instance.");
+	}
+
+	if (resolved_type->IsType<MidoriType::StructType>())
+	{
+		if (!has_transferable_marker())
+		{
+			return fail("Add 'deriving (Transferable)' or define an instance.");
+		}
+
+		for (const std::shared_ptr<MidoriType>& member_type : resolved_type->GetType<MidoriType::StructType>().m_member_types)
+		{
+			if (std::optional<CompilerError> error = EnsureTransferable(token, member_type, visited))
+			{
+				return error;
+			}
+		}
+		return std::nullopt;
+	}
+
+	if (resolved_type->IsType<MidoriType::UnionType>())
+	{
+		if (!has_transferable_marker())
+		{
+			return fail("Add 'deriving (Transferable)' or define an instance.");
+		}
+
+		for (const auto& [_, member_ctx] : resolved_type->GetType<MidoriType::UnionType>().m_member_info)
+		{
+			for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+			{
+				if (std::optional<CompilerError> error = EnsureTransferable(token, member_type, visited))
+				{
+					return error;
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	return has_transferable_marker()
+		? std::nullopt
+		: fail();
+}
+
 CompilerError TypeChecker::MakeFunctionArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
 {
 	std::string message;
@@ -1213,6 +1389,8 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		left_subst->IsType<MidoriType::StructType>() || 
 		left_subst->IsType<MidoriType::UnionType>() ||
 		left_subst->IsType<MidoriType::ArrayType>() ||
+		left_subst->IsType<MidoriType::WorkerType>() ||
+		left_subst->IsType<MidoriType::ChannelType>() ||
 		left_subst->IsType<MidoriType::FunctionType>();
 
 	if (!is_complex_type && *left_subst == *right_subst)
@@ -1263,6 +1441,24 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	else if (left_subst->IsType<MidoriType::ArrayType>() && right_subst->IsType<MidoriType::ArrayType>())
 	{
 		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type, diagnostic_mode);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
+	}
+	else if (left_subst->IsType<MidoriType::WorkerType>() && right_subst->IsType<MidoriType::WorkerType>())
+	{
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::WorkerType>().m_result_type, right_subst->GetType<MidoriType::WorkerType>().m_result_type, diagnostic_mode);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
+	}
+	else if (left_subst->IsType<MidoriType::ChannelType>() && right_subst->IsType<MidoriType::ChannelType>())
+	{
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ChannelType>().m_element_type, right_subst->GetType<MidoriType::ChannelType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
@@ -2030,6 +2226,26 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		if (element_type != range_type.m_element_type)
 		{
 			return MidoriType::MakeRangeType(element_type);
+		}
+		return type;
+	}
+	else if (type->IsType<MidoriType::WorkerType>())
+	{
+		MidoriType::WorkerType& worker_type = type->GetType<MidoriType::WorkerType>();
+		std::shared_ptr<MidoriType> result_type = ApplySubstitution(worker_type.m_result_type, cache);
+		if (result_type != worker_type.m_result_type)
+		{
+			return MidoriType::MakeWorkerType(result_type);
+		}
+		return type;
+	}
+	else if (type->IsType<MidoriType::ChannelType>())
+	{
+		MidoriType::ChannelType& channel_type = type->GetType<MidoriType::ChannelType>();
+		std::shared_ptr<MidoriType> element_type = ApplySubstitution(channel_type.m_element_type, cache);
+		if (element_type != channel_type.m_element_type)
+		{
+			return MidoriType::MakeChannelType(element_type);
 		}
 		return type;
 	}
@@ -4290,12 +4506,256 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnarySuffix&)
 	return {};
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
+{
+	const std::string& callee_name = spawn.m_callee_name.m_lexeme;
+
+	bool has_top_level_definition = callee_name.find(NameSeparator) != std::string::npos;
+	if (!has_top_level_definition)
+	{
+		for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+		{
+			if (!statement->IsStatement<MidoriStatement::FunctionDefinition>())
+			{
+				continue;
+			}
+
+			const MidoriStatement::FunctionDefinition& definition = statement->GetStatement<MidoriStatement::FunctionDefinition>();
+			if (definition.m_name.m_lexeme == callee_name && !definition.m_local_index.has_value())
+			{
+				has_top_level_definition = true;
+				break;
+			}
+		}
+	}
+
+	if (!has_top_level_definition)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: spawn requires a named top-level function", spawn.m_callee_name, m_file_name, m_source_lines));
+	}
+
+	if (m_generic_functions.contains(callee_name))
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: generic functions must be specialized before spawning", spawn.m_callee_name, m_file_name, m_source_lines));
+	}
+
+	const std::shared_ptr<MidoriType>* binding = FindNameType(callee_name);
+	if (binding == nullptr)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Spawn expression type error: function not found", spawn.m_callee_name, m_file_name, m_source_lines));
+	}
+
+	std::shared_ptr<MidoriType> callee_type = ApplySubstitution(*binding);
+	if (!callee_type->IsType<MidoriType::FunctionType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Spawn expression type error: callee is not a function", spawn.m_callee_name, m_file_name, m_source_lines, callee_type));
+	}
+
+	MidoriType::FunctionType& function_type = callee_type->GetType<MidoriType::FunctionType>();
+	if (function_type.m_is_foreign)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn.m_callee_name, m_file_name, m_source_lines));
+	}
+
+	if (function_type.m_param_types.size() != spawn.m_arguments.size())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Spawn expression type error: incorrect arity", spawn.m_spawn_keyword, m_file_name, m_source_lines));
+	}
+
+	for (size_t index = 0u; index < spawn.m_arguments.size(); index += 1u)
+	{
+		ExpectedTypeGuard guard(*this, function_type.m_param_types[index]);
+		MidoriResult::TypeResult argument_result = Evaluate(spawn.m_arguments[index]);
+		if (!argument_result.has_value())
+		{
+			return argument_result;
+		}
+
+		std::shared_ptr<MidoriType> actual_type = std::move(argument_result.value());
+		std::shared_ptr<MidoriType> expected_type = function_type.m_param_types[index];
+		MidoriResult::TypeResult unify_result = Unify(spawn.m_callee_name, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+		if (!unify_result.has_value())
+		{
+			return unify_result;
+		}
+
+		std::shared_ptr<MidoriType> resolved_argument_type = ApplySubstitution(actual_type);
+		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_callee_name, resolved_argument_type))
+		{
+			return std::unexpected(std::move(*error));
+		}
+	}
+
+	std::shared_ptr<MidoriType> resolved_return_type = ApplySubstitution(function_type.m_return_type);
+	if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_spawn_keyword, resolved_return_type))
+	{
+		return std::unexpected(std::move(*error));
+	}
+
+	spawn.m_type_data = MidoriType::MakeWorkerType(resolved_return_type);
+	return spawn.m_type_data;
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
+{
+	return Evaluate(join.m_worker)
+		.and_then
+		(
+			[this, &join](std::shared_ptr<MidoriType>&& worker_type) -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved_worker_type = ApplySubstitution(worker_type);
+				if (!resolved_worker_type->IsType<MidoriType::WorkerType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: expected Worker<T>", join.m_join_keyword, m_file_name, m_source_lines, resolved_worker_type));
+				}
+
+				join.m_type_data = ApplySubstitution(resolved_worker_type->GetType<MidoriType::WorkerType>().m_result_type);
+				return join.m_type_data;
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ChannelCreate& channel_create)
+{
+	if (std::optional<CompilerError> error = EnsureTransferable(channel_create.m_channel_keyword, channel_create.m_element_type))
+	{
+		return std::unexpected(std::move(*error));
+	}
+
+	std::shared_ptr<MidoriType> expected_capacity_type = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	ExpectedTypeGuard guard(*this, expected_capacity_type);
+	return Evaluate(channel_create.m_capacity)
+		.and_then
+		(
+			[this, &channel_create, expected_capacity_type](std::shared_ptr<MidoriType>&& capacity_type) mutable -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> actual_capacity_type = std::move(capacity_type);
+				MidoriResult::TypeResult unify_result = Unify(channel_create.m_channel_keyword, actual_capacity_type, expected_capacity_type, UnifyDiagnosticMode::ActualExpected);
+				if (!unify_result.has_value())
+				{
+					return unify_result;
+				}
+
+				channel_create.m_element_type = ApplySubstitution(channel_create.m_element_type);
+				channel_create.m_type_data = MidoriType::MakeChannelType(channel_create.m_element_type);
+				return channel_create.m_type_data;
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Send& send)
+{
+	return Evaluate(send.m_channel)
+		.and_then
+		(
+			[this, &send](std::shared_ptr<MidoriType>&& channel_type) -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_type);
+				if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Send expression type error: left operand must be Channel<T>", send.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
+				}
+
+				std::shared_ptr<MidoriType> element_type = resolved_channel_type->GetType<MidoriType::ChannelType>().m_element_type;
+				ExpectedTypeGuard guard(*this, element_type);
+				return Evaluate(send.m_value)
+					.and_then
+					(
+						[this, &send, element_type](std::shared_ptr<MidoriType>&& value_type) mutable -> MidoriResult::TypeResult
+						{
+							std::shared_ptr<MidoriType> actual_value_type = std::move(value_type);
+							MidoriResult::TypeResult unify_result = Unify(send.m_arrow, actual_value_type, element_type, UnifyDiagnosticMode::ActualExpected);
+							if (!unify_result.has_value())
+							{
+								return unify_result;
+							}
+
+							std::shared_ptr<MidoriType> resolved_element_type = ApplySubstitution(element_type);
+							if (std::optional<CompilerError> error = EnsureTransferable(send.m_arrow, resolved_element_type))
+							{
+								return std::unexpected(std::move(*error));
+							}
+
+							send.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+							return send.m_type_data;
+						}
+					);
+			}
+		);
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Receive& receive)
+{
+	return Evaluate(receive.m_channel)
+		.and_then
+		(
+			[this, &receive](std::shared_ptr<MidoriType>&& channel_type) -> MidoriResult::TypeResult
+			{
+				std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_type);
+				if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Receive expression type error: expected Channel<T>", receive.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
+				}
+
+				receive.m_type_data = ApplySubstitution(resolved_channel_type->GetType<MidoriType::ChannelType>().m_element_type);
+				return receive.m_type_data;
+			}
+		);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
 	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 	{
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		const std::string& full_name = callee_name.m_name.m_lexeme;
+		if (full_name == "close")
+		{
+			if (call.m_arguments.size() != 1u)
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: close expects exactly one argument", call.m_paren, m_file_name, m_source_lines));
+			}
+
+			MidoriResult::TypeResult channel_result = Evaluate(call.m_arguments[0u]);
+			if (!channel_result.has_value())
+			{
+				return channel_result;
+			}
+
+			std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_result.value());
+			if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: close expects Channel<T>", call.m_paren, m_file_name, m_source_lines, resolved_channel_type));
+			}
+
+			call.m_is_foreign = false;
+			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+			return call.m_type_data;
+		}
+		if (full_name == "is_done" || full_name == "cancel")
+		{
+			if (call.m_arguments.size() != 1u)
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} expects exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
+			}
+
+			MidoriResult::TypeResult worker_result = Evaluate(call.m_arguments[0u]);
+			if (!worker_result.has_value())
+			{
+				return worker_result;
+			}
+
+			std::shared_ptr<MidoriType> resolved_worker_type = ApplySubstitution(worker_result.value());
+			if (!resolved_worker_type->IsType<MidoriType::WorkerType>())
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} expects Worker<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_worker_type));
+			}
+
+			call.m_is_foreign = false;
+			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+			return call.m_type_data;
+		}
+
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
 		{

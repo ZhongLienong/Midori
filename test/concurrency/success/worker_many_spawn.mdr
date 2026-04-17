@@ -1,0 +1,37 @@
+module worker_many_spawn
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun IdentityWorker(ch: Channel<Int>, val: Int) : Int => {
+    ch -> val;
+    0
+};
+
+def n = 16;
+def ch = channel<Int>(n);
+
+def i = 0;
+loop
+{
+    def _w = spawn IdentityWorker(ch, i);
+    i = i + 1;
+    if i >= n then break () else ();
+};
+
+def sum = 0;
+def j = 0;
+loop
+{
+    def val = <- ch;
+    sum = sum + val;
+    j = j + 1;
+    if j >= n then break () else ();
+};
+
+PrintLine("count=" ++ (n as Text));
+PrintLine("sum=" ++ (sum as Text));
+PrintLine("expected=" ++ (((n * (n - 1)) / 2) as Text));
+PrintLine("match=" ++ (if sum == (n * (n - 1)) / 2 then "true" else "false"));
+
+close(ch);

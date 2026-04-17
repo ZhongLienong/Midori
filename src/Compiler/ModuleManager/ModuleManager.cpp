@@ -5,7 +5,7 @@
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
 #include "Compiler/PackageManager/PackageManifest.h"
-#include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
+#include "Library/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <filesystem>
 #include <expected>
@@ -176,11 +176,11 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 						if (std::filesystem::exists(library_path))
 						{
-							DynamicFFIRegistry& registry = DynamicFFIRegistry::GetInstance();
-							if (!registry.IsLibraryLoaded(manifest.GetInfo().m_name))
+							SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
+							if (!cache.IsLibraryLoaded(manifest.GetInfo().m_name))
 							{
 								const std::expected<void, std::string> load_result =
-									registry.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, expected_checksum);
+									cache.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, ffi.m_thread_safe, expected_checksum);
 								if (!load_result.has_value())
 								{
 									return std::unexpected(MidoriError::GenerateModuleErrorWithContext(load_result.error(), line, m_main_file_name));

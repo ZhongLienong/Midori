@@ -5,6 +5,7 @@
 #include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <array>
 #include <bit>
@@ -22,6 +23,8 @@ public:
 	using ExecuteResult = std::expected<int, RuntimeError>;
 
 	VirtualMachine(MidoriExecutable&& executable) noexcept;
+
+	VirtualMachine(std::shared_ptr<const MidoriExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept;
 
     ~VirtualMachine();
 
@@ -88,6 +91,7 @@ private:
     GarbageCollector::GarbageCollectionRoots m_gc_roots_scratch;
 
     // FFI State
+    DynamicFFIRegistry m_dynamic_ffi_registry;
     std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::array<MidoriValue, UINT8_MAX> m_ffi_value_args{};
@@ -104,12 +108,29 @@ private:
     size_t m_call_stack_region_size = 0u;
     size_t m_stack_page_size = 0u;
 	std::optional<RuntimeError> m_last_error = std::nullopt;
+	int m_worker_proc_index = -1;
 
 
 public:
     ExecuteResult Execute() noexcept;
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
+
+    std::shared_ptr<const MidoriExecutable> GetSharedExecutable() const noexcept { return m_owned_executable; }
+
+    DynamicFFIRegistry& GetDynamicFFIRegistry() noexcept { return m_dynamic_ffi_registry; }
+
+    MidoriValue* GetValueStackPointer() noexcept { return m_value_stack_pointer; }
+
+    void AdvanceValueStackPointer() noexcept { ++m_value_stack_pointer; }
+
+	MidoriValue PeekValue() const noexcept { return *(m_value_stack_pointer - 1); }
+
+	MidoriValue MakeFunctionValue(int proc_index) noexcept;
+
+	void SetGlobalValue(int global_index, MidoriValue value) noexcept { (*m_global_vars)[global_index] = value; }
+
+    void PrepareWorkerCall(int proc_index) noexcept;
 
     MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 
@@ -122,6 +143,8 @@ private:
 			m_gc.ReclaimMemory(m_gc_roots_scratch, m_allocator);
 		}
 	}
+
+	bool ExecuteConcurrencyInstruction(OpCode instruction, InstructionPointer& ip) noexcept;
 
 	int ExecuteLoop() noexcept;
 

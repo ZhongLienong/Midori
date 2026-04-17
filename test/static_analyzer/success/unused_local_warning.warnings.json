@@ -1,12 +1,18 @@
 [
   {
+    "source": "midori",
+    "severity": "warning",
     "stage": "StaticAnalyzer",
     "code": "UnusedLocal",
+    "message": "Binding 'unused' is never read.",
+    "file": "test/static_analyzer/success/unused_local_warning.mdr",
     "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
     "line": 4,
     "column": 4,
+    "endLine": 4,
+    "endColumn": 10,
     "caret_length": 6,
-    "message": "Binding 'unused' is never read.",
-    "suggestion": null
+    "suggestion": null,
+    "relatedInformation": []
   }
 ]

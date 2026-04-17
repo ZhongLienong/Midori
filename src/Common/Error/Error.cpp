@@ -138,6 +138,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "InternalTypeError";
 	case RuntimeErrorCode::InternalFFITypeError:
 		return "InternalFFITypeError";
+	case RuntimeErrorCode::UnsupportedPlatformOperation:
+		return "UnsupportedPlatformOperation";
 	default:
 		return "None";
 	}

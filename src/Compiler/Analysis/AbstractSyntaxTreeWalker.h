@@ -59,6 +59,11 @@ protected:
 	virtual void operator()(MidoriExpression::UnitLiteral& unit);
 	virtual void operator()(MidoriExpression::Function& function);
 	virtual void operator()(MidoriExpression::Construct& construct);
+	virtual void operator()(MidoriExpression::Spawn& spawn);
+	virtual void operator()(MidoriExpression::Join& join);
+	virtual void operator()(MidoriExpression::ChannelCreate& channel_create);
+	virtual void operator()(MidoriExpression::Send& send);
+	virtual void operator()(MidoriExpression::Receive& receive);
 	virtual void operator()(MidoriExpression::Array& array);
 	virtual void operator()(MidoriExpression::IndexAccess& array_get);
 	virtual void operator()(MidoriExpression::IndexAssignment& array_set);

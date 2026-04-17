@@ -1,0 +1,29 @@
+module value_transfer_text
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun TextWorker(ch : Channel<Text>) : Int =>
+{
+    ch -> "hello world";
+    ch -> "";
+    ch -> "special chars: !@#$%^&*()";
+    ch -> "line1\nline2";
+    0
+};
+
+def ch = channel<Text>(4);
+def w = spawn TextWorker(ch);
+
+def v1 = <- ch;
+def v2 = <- ch;
+def v3 = <- ch;
+def v4 = <- ch;
+
+PrintLine("v1=[" ++ v1 ++ "]");
+PrintLine("v2=[" ++ v2 ++ "]");
+PrintLine("v3=[" ++ v3 ++ "]");
+PrintLine("v4=[" ++ v4 ++ "]");
+
+close(ch);
+def r = join w;

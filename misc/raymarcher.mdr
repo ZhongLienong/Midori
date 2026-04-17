@@ -1,0 +1,393 @@
+module raymarcher
+
+import
+{
+    "../MidoriPrelude/IO.mdr",
+    "../MidoriPrelude/Math.mdr",
+    "../MidoriPrelude/DateTime.mdr",
+    "../MidoriPrelude/Appendable.mdr",
+    <Image>
+}
+
+struct Vec3
+{
+    X : Float,
+    Y : Float,
+    Z : Float,
+} deriving (Transferable);
+
+defun vec3_add(a : Vec3, b : Vec3) : Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+defun vec3_sub(a : Vec3, b : Vec3) : Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+defun vec3_scale(a : Vec3, s : Float) : Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
+defun vec3_dot(a : Vec3, b : Vec3) : Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+defun vec3_length(a : Vec3) : Float => Math::SquareRoot(vec3_dot(a, a));
+
+defun vec3_normalize(a : Vec3) : Vec3 =>
+{
+    def len = vec3_length(a);
+    if len < 0.000001
+    then new Vec3(0.0, 0.0, 0.0)
+    else vec3_scale(a, 1.0 / len)
+};
+
+defun vec3_reflect(incident : Vec3, normal : Vec3) : Vec3 =>
+{
+    def d = vec3_dot(incident, normal);
+    vec3_sub(incident, vec3_scale(normal, 2.0 * d))
+};
+
+defun vec3_abs(a : Vec3) : Vec3 => new Vec3(Math::Abs(a.X), Math::Abs(a.Y), Math::Abs(a.Z));
+
+defun vec3_max_comp(a : Vec3) : Float => Math::Max(a.X, Math::Max(a.Y, a.Z));
+
+struct Material
+{
+    BaseR : Float,
+    BaseG : Float,
+    BaseB : Float,
+    Specular : Float,
+};
+
+struct HitResult
+{
+    Distance : Float,
+    MatId : Int,
+};
+
+defun sdf_sphere(p : Vec3, radius : Float) : Float => vec3_length(p) - radius;
+
+defun sdf_box(p : Vec3, half_size : Vec3) : Float =>
+{
+    def q = vec3_sub(vec3_abs(p), half_size);
+    def outside = vec3_length(new Vec3(Math::Max(q.X, 0.0), Math::Max(q.Y, 0.0), Math::Max(q.Z, 0.0)));
+    def inside = Math::Min(vec3_max_comp(q), 0.0);
+    outside + inside
+};
+
+defun sdf_plane(p : Vec3, normal : Vec3, offset : Float) : Float => vec3_dot(p, normal) + offset;
+
+defun sdf_torus(p : Vec3, major_r : Float, minor_r : Float) : Float =>
+{
+    def q_len = Math::SquareRoot(p.X * p.X + p.Z * p.Z) - major_r;
+    Math::SquareRoot(q_len * q_len + p.Y * p.Y) - minor_r
+};
+
+defun sdf_cylinder(p : Vec3, radius : Float, half_height : Float) : Float =>
+{
+    def d_radial = Math::SquareRoot(p.X * p.X + p.Z * p.Z) - radius;
+    def d_height = Math::Abs(p.Y) - half_height;
+    def outside = Math::SquareRoot(Math::Max(d_radial, 0.0) * Math::Max(d_radial, 0.0) + Math::Max(d_height, 0.0) * Math::Max(d_height, 0.0));
+    def inside = Math::Min(Math::Max(d_radial, d_height), 0.0);
+    outside + inside
+};
+
+defun smooth_union(d1 : Float, d2 : Float, k : Float) : Float =>
+{
+    def h = Math::Max(k - Math::Abs(d1 - d2), 0.0) / k;
+    Math::Min(d1, d2) - h * h * k * 0.25
+};
+
+defun smooth_subtraction(d1 : Float, d2 : Float, k : Float) : Float =>
+{
+    def h = Math::Max(k - Math::Abs(d1 + d2), 0.0) / k;
+    Math::Max(-1.0 * d1, d2) + h * h * k * 0.25
+};
+
+defun scene_sdf(p : Vec3) : HitResult =>
+{
+    def floor_d = sdf_plane(p, new Vec3(0.0, 1.0, 0.0), 1.0);
+
+    def sphere_p = vec3_sub(p, new Vec3(0.0, 0.3, 0.0));
+    def sphere_d = sdf_sphere(sphere_p, 1.0);
+
+    def box_p = vec3_sub(p, new Vec3(2.5, 0.0, -0.5));
+    def box_d = sdf_box(box_p, new Vec3(0.7, 0.7, 0.7));
+
+    def torus_p = vec3_sub(p, new Vec3(-2.5, 0.2, 0.0));
+    def torus_d = sdf_torus(torus_p, 0.8, 0.3);
+
+    def cyl_p = vec3_sub(p, new Vec3(0.0, 0.3, 0.0));
+    def cyl_d = sdf_cylinder(cyl_p, 0.4, 1.2);
+    def carved_sphere_d = smooth_subtraction(cyl_d, sphere_d, 0.15);
+
+    def small_sphere_p = vec3_sub(p, new Vec3(1.0, -0.4, 2.0));
+    def small_sphere_d = sdf_sphere(small_sphere_p, 0.6);
+
+    def blob_p = vec3_sub(p, new Vec3(-1.2, -0.2, 2.2));
+    def blob_a = sdf_sphere(blob_p, 0.5);
+    def blob_b = sdf_sphere(vec3_sub(blob_p, new Vec3(0.4, 0.3, 0.0)), 0.4);
+    def blob_d = smooth_union(blob_a, blob_b, 0.4);
+
+    def best_d = floor_d;
+    def best_mat = 0;
+
+    def best_d2 = if carved_sphere_d < best_d then carved_sphere_d else best_d;
+    def best_mat2 = if carved_sphere_d < best_d then 1 else best_mat;
+
+    def best_d3 = if box_d < best_d2 then box_d else best_d2;
+    def best_mat3 = if box_d < best_d2 then 2 else best_mat2;
+
+    def best_d4 = if torus_d < best_d3 then torus_d else best_d3;
+    def best_mat4 = if torus_d < best_d3 then 3 else best_mat3;
+
+    def best_d5 = if small_sphere_d < best_d4 then small_sphere_d else best_d4;
+    def best_mat5 = if small_sphere_d < best_d4 then 4 else best_mat4;
+
+    def best_d6 = if blob_d < best_d5 then blob_d else best_d5;
+    def best_mat6 = if blob_d < best_d5 then 5 else best_mat5;
+
+    new HitResult(best_d6, best_mat6)
+};
+
+defun get_material(mat_id : Int) : Material =>
+{
+    if mat_id == 0
+    then new Material(0.35, 0.35, 0.40, 0.05)
+    else if mat_id == 1
+    then new Material(0.85, 0.20, 0.15, 0.60)
+    else if mat_id == 2
+    then new Material(0.15, 0.70, 0.25, 0.40)
+    else if mat_id == 3
+    then new Material(0.90, 0.75, 0.15, 0.70)
+    else if mat_id == 4
+    then new Material(0.20, 0.40, 0.90, 0.50)
+    else new Material(0.80, 0.45, 0.70, 0.35)
+};
+
+defun estimate_normal(p : Vec3) : Vec3 =>
+{
+    def eps = 0.0005;
+    def dx = (scene_sdf(new Vec3(p.X + eps, p.Y, p.Z))).Distance - (scene_sdf(new Vec3(p.X - eps, p.Y, p.Z))).Distance;
+    def dy = (scene_sdf(new Vec3(p.X, p.Y + eps, p.Z))).Distance - (scene_sdf(new Vec3(p.X, p.Y - eps, p.Z))).Distance;
+    def dz = (scene_sdf(new Vec3(p.X, p.Y, p.Z + eps))).Distance - (scene_sdf(new Vec3(p.X, p.Y, p.Z - eps))).Distance;
+    vec3_normalize(new Vec3(dx, dy, dz))
+};
+
+defun soft_shadow(ro : Vec3, rd : Vec3, t_min : Float, t_max : Float, k : Float) : Float =>
+{
+    def result = 1.0;
+    def t = t_min;
+    def i = 0;
+    loop
+    {
+        if i >= 64 then break () else ();
+        if t >= t_max then break () else ();
+        def p = vec3_add(ro, vec3_scale(rd, t));
+        def h = (scene_sdf(p)).Distance;
+        if h < 0.001
+        then
+        {
+            result = 0.0;
+            break ()
+        }
+        else
+        {
+            def penumbra = h * k / t;
+            if penumbra < result
+            then { result = penumbra; () }
+            else ();
+            t = t + Math::Max(h, 0.01);
+        };
+        i = i + 1;
+    };
+    Math::Clamp(result, 0.0, 1.0)
+};
+
+defun ambient_occlusion(p : Vec3, n : Vec3) : Float =>
+{
+    def ao = 0.0;
+    def scale = 1.0;
+    def i = 0;
+    loop
+    {
+        if i >= 5 then break () else ();
+        def dist = 0.02 + 0.12 * (i as Float);
+        def sample_p = vec3_add(p, vec3_scale(n, dist));
+        def d = (scene_sdf(sample_p)).Distance;
+        ao = ao + (dist - d) * scale;
+        scale = scale * 0.5;
+        i = i + 1;
+    };
+    Math::Clamp(1.0 - 3.0 * ao, 0.0, 1.0)
+};
+
+defun checkerboard(p : Vec3) : Float =>
+{
+    def fx = Math::Floor(p.X * 2.0) as Int;
+    def fz = Math::Floor(p.Z * 2.0) as Int;
+    def parity = (fx + fz) % 2;
+    if parity == 0 || parity == -1
+    then 0.4
+    else 0.6
+};
+
+defun raymarch(ro : Vec3, rd : Vec3) : Vec3 =>
+{
+    def max_steps = 128;
+    def max_dist = 80.0;
+    def hit_eps = 0.0005;
+
+    def t = 0.0;
+    def hit_mat = -1;
+    def step = 0;
+    loop
+    {
+        if step >= max_steps then break () else ();
+        if t >= max_dist then break () else ();
+        def p = vec3_add(ro, vec3_scale(rd, t));
+        def result = scene_sdf(p);
+        if result.Distance < hit_eps
+        then
+        {
+            hit_mat = result.MatId;
+            break ()
+        }
+        else ();
+        t = t + result.Distance;
+        step = step + 1;
+    };
+
+    if hit_mat < 0
+    then
+    {
+        def sky_t = 0.5 * (rd.Y + 1.0);
+        def sr = 0.55 + 0.35 * sky_t;
+        def sg = 0.65 + 0.30 * sky_t;
+        def sb = 0.85 + 0.15 * sky_t;
+        new Vec3(sr, sg, sb)
+    }
+    else
+    {
+        def hit_p = vec3_add(ro, vec3_scale(rd, t));
+        def normal = estimate_normal(hit_p);
+        def mat = get_material(hit_mat);
+
+        def base_r = if hit_mat == 0 then mat.BaseR * checkerboard(hit_p) else mat.BaseR;
+        def base_g = if hit_mat == 0 then mat.BaseG * checkerboard(hit_p) else mat.BaseG;
+        def base_b = if hit_mat == 0 then mat.BaseB * checkerboard(hit_p) else mat.BaseB;
+
+        def light_dir = vec3_normalize(new Vec3(0.6, 0.8, -0.4));
+        def diff = Math::Max(vec3_dot(normal, light_dir), 0.0);
+
+        def shadow = soft_shadow(vec3_add(hit_p, vec3_scale(normal, 0.002)), light_dir, 0.01, 40.0, 16.0);
+        def ao = ambient_occlusion(hit_p, normal);
+
+        def view_dir = vec3_scale(rd, -1.0);
+        def half_vec = vec3_normalize(vec3_add(light_dir, view_dir));
+        def spec_angle = Math::Max(vec3_dot(normal, half_vec), 0.0);
+        def spec = Math::Pow(spec_angle, 32.0) * mat.Specular;
+
+        def ambient = 0.15 * ao;
+        def lit = diff * shadow * ao;
+
+        def cr = base_r * (ambient + lit * 0.85) + spec * shadow;
+        def cg = base_g * (ambient + lit * 0.85) + spec * shadow;
+        def cb = base_b * (ambient + lit * 0.85) + spec * shadow;
+
+        def cr_t = Math::Pow(Math::Clamp(cr, 0.0, 1.0), 1.0 / 2.2);
+        def cg_t = Math::Pow(Math::Clamp(cg, 0.0, 1.0), 1.0 / 2.2);
+        def cb_t = Math::Pow(Math::Clamp(cb, 0.0, 1.0), 1.0 / 2.2);
+
+        new Vec3(cr_t, cg_t, cb_t)
+    }
+};
+
+defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) : Unit =>
+{
+    def r = Math::Clamp(Math::Round(cr * 255.0), 0.0, 255.0) as Int;
+    def g = Math::Clamp(Math::Round(cg * 255.0), 0.0, 255.0) as Int;
+    def b = Math::Clamp(Math::Round(cb * 255.0), 0.0, 255.0) as Int;
+    Appendable::Append(pixels, r);
+    Appendable::Append(pixels, g);
+    Appendable::Append(pixels, b);
+    Appendable::Append(pixels, 255);
+};
+
+defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3) : Array<Int> =>
+{
+    def pixels : Array<Int> = [];
+    def width_f = width as Float;
+    def height_f = height as Float;
+    def aspect = width_f / height_f;
+    def fov = 1.0;
+
+    def forward = vec3_normalize(vec3_sub(cam_target, cam_origin));
+    def world_up = new Vec3(0.0, 1.0, 0.0);
+    def right = vec3_normalize(new Vec3(
+        forward.Z * world_up.Y - forward.Y * world_up.Z,
+        forward.X * world_up.Z - forward.Z * world_up.X,
+        forward.Y * world_up.X - forward.X * world_up.Y
+    ));
+    def up = new Vec3(
+        right.Z * forward.Y - right.Y * forward.Z,
+        right.X * forward.Z - right.Z * forward.X,
+        right.Y * forward.X - right.X * forward.Y
+    );
+
+    def y = y_start;
+    loop
+    {
+        def x = 0;
+        loop
+        {
+            def u = (2.0 * (x as Float) / width_f - 1.0) * aspect * fov;
+            def v = (1.0 - 2.0 * (y as Float) / height_f) * fov;
+            def rd = vec3_normalize(vec3_add(vec3_add(vec3_scale(right, u), vec3_scale(up, v)), forward));
+            def color = raymarch(cam_origin, rd);
+            append_color_rgba(pixels, color.X, color.Y, color.Z);
+            x = x + 1;
+            if x >= width then break () else ();
+        };
+        y = y + 1;
+        if y >= y_end then break () else ();
+    };
+    pixels
+};
+
+defun append_pixels(target : Array<Int>, values : Array<Int>) : Unit =>
+{
+    def index = 0;
+    loop
+    {
+        if index >= #values then break () else ();
+        Appendable::Append(target, values[index]);
+        index = index + 1;
+    };
+};
+
+defun render_parallel(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3, budget : Int) : Array<Int> =>
+{
+    def row_count = y_end - y_start;
+    if budget <= 1 || row_count <= 1
+    then render_band(y_start, y_end, width, height, cam_origin, cam_target)
+    else
+    {
+        def mid = y_start + (row_count / 2);
+        def left_budget = budget / 2;
+        def right_budget = budget - left_budget;
+        def left_worker = spawn render_parallel(y_start, mid, width, height, cam_origin, cam_target, left_budget);
+        def right_pixels = render_parallel(mid, y_end, width, height, cam_origin, cam_target, right_budget);
+        def left_pixels = join left_worker;
+        def pixels : Array<Int> = [];
+        append_pixels(pixels, left_pixels);
+        append_pixels(pixels, right_pixels);
+        pixels
+    }
+};
+
+def output_dir = "D:/Xuexi/";
+def width = 1920;
+def height = 1080;
+def band_workers = 32;
+
+def cam_origin = new Vec3(4.0, 3.0, 6.0);
+def cam_target = new Vec3(0.0, 0.0, 0.0);
+
+def start = DateTime::NowUnixMillis();
+IO::PrintLine("Raymarching scene with " ++ (band_workers as Text) ++ " workers...");
+
+def pixels = render_parallel(0, height, width, height, cam_origin, cam_target, band_workers);
+Image::WriteRGBA(output_dir ++ "raymarched.png", width, height, pixels);
+
+def end = DateTime::NowUnixMillis();
+IO::PrintLine("Raymarched scene rendered in " ++ ((end - start) as Text) ++ "ms");

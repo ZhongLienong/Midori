@@ -731,6 +731,25 @@ void BytecodeLinker::PatchProcedure(
 				WriteShortOperandLE(procedure, offset, static_cast<int>(new_string_index));
 			}
 		}
+		else if (opcode == OpCode::SPAWN_WORKER)
+		{
+			const int old_global_index = ReadWideOperand(procedure, offset);
+
+			if (IsImportIndexWide(old_global_index))
+			{
+				const size_t import_array_index = ConvertImportIndexWide(old_global_index);
+				if (import_array_index < import_resolved_indices.size())
+				{
+					const size_t resolved_index = import_resolved_indices[import_array_index];
+					WriteWideOperand(procedure, offset, static_cast<int>(resolved_index));
+				}
+			}
+			else
+			{
+				const int new_global_index = old_global_index + global_base_offset;
+				WriteWideOperand(procedure, offset, new_global_index);
+			}
+		}
 		else if (
 			opcode == OpCode::DEFINE_GLOBAL ||
 			opcode == OpCode::GET_GLOBAL ||
@@ -822,6 +841,16 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 			const int case_count = static_cast<int>(procedure.ReadByteCode(offset + 1));
 			return 2 + (case_count * 2);
 		}
+		case OpCode::SPAWN_WORKER:
+			return 4;
+		case OpCode::JOIN_WORKER:
+		case OpCode::CHANNEL_CREATE:
+		case OpCode::CHANNEL_SEND:
+		case OpCode::CHANNEL_RECEIVE:
+		case OpCode::CHANNEL_CLOSE:
+		case OpCode::WORKER_IS_DONE:
+		case OpCode::WORKER_CANCEL:
+			return 1;
 		case OpCode::CALL_FOREIGN:
 			return 3;
 		case OpCode::CALL_FOREIGN_INDEXED:

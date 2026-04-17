@@ -235,6 +235,35 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Construct& con
 	}
 }
 
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Spawn& spawn)
+{
+	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
+	{
+		VisitExpression(argument);
+	}
+}
+
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Join& join)
+{
+	VisitExpression(join.m_worker);
+}
+
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::ChannelCreate& channel_create)
+{
+	VisitExpression(channel_create.m_capacity);
+}
+
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Send& send)
+{
+	VisitExpression(send.m_channel);
+	VisitExpression(send.m_value);
+}
+
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Receive& receive)
+{
+	VisitExpression(receive.m_channel);
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Array& array)
 {
 	for (std::unique_ptr<MidoriExpression>& element : array.m_elems)

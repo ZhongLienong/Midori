@@ -557,7 +557,15 @@ private:
 
 	MidoriResult::ExpressionResult ParseLogicalOr();
 
+	MidoriResult::ExpressionResult ParseSend();
+
 	MidoriResult::ExpressionResult ParsePipe();
+
+	MidoriResult::ExpressionResult ParseSpawnExpression(Token& spawn_keyword);
+
+	MidoriResult::ExpressionResult ParseJoinExpression(Token& join_keyword);
+
+	MidoriResult::ExpressionResult ParseChannelExpression(Token& channel_keyword);
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
 

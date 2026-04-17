@@ -75,7 +75,8 @@ enum class RuntimeErrorCode
 	MemoryAccessViolation,
 	DivisionByZero,
 	InternalTypeError,
-	InternalFFITypeError
+	InternalFFITypeError,
+	UnsupportedPlatformOperation
 };
 
 enum class RuntimeDiagnosticKind

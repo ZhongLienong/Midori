@@ -1,0 +1,36 @@
+module channel_producer_consumer
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Producer(ch: Channel<Text>, count: Int) : Int => {
+    def i = 0;
+    loop
+    {
+        ch -> ("item-" ++ (i as Text));
+        i = i + 1;
+        if i >= count then break () else ();
+    };
+    ch -> "DONE";
+    0
+};
+
+def ch = channel<Text>(4);
+def w = spawn Producer(ch, 5);
+
+def received = 0;
+loop
+{
+    def msg = <- ch;
+    if msg == "DONE"
+    then break ()
+    else
+    {
+        PrintLine("Got: " ++ msg);
+        received = received + 1;
+    };
+};
+
+PrintLine("Total received: " ++ (received as Text));
+close(ch);
+def r = join w;

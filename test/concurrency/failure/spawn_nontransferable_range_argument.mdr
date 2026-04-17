@@ -1,0 +1,7 @@
+module spawn_nontransferable_range_argument
+
+defun ConsumeRange(values: Range<Int>) : Int => {
+    0
+};
+
+def worker = spawn ConsumeRange(0..1..10);

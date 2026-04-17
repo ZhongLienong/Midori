@@ -215,6 +215,9 @@ class TestRunner:
 
     def normalize_warning_record(self, warning: dict) -> dict:
         normalized = dict(warning)
+        file_name = normalized.get("file")
+        if isinstance(file_name, str):
+            normalized["file"] = self.normalize_path_text(file_name)
         file_path = normalized.get("file_path")
         if isinstance(file_path, str):
             normalized["file_path"] = self.normalize_path_text(file_path)

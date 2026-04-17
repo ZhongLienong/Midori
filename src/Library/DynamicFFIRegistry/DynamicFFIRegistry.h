@@ -1,50 +1,30 @@
 #pragma once
 
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
-#include <expected>
-#include <filesystem>
-#include <memory>
-#include <mutex>
+#include "Library/SharedLibraryCache/SharedLibraryCache.h"
+
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 class DynamicFFIRegistry
 {
 public:
-	static DynamicFFIRegistry& GetInstance();
+	DynamicFFIRegistry();
 
-	std::expected<void, std::string> LoadLibrary(const std::filesystem::path& libraryPath, const std::string& packageName, std::optional<std::string_view> expectedChecksum = std::nullopt);
-	std::expected<void, std::string> LoadLibraryWithFunctions(const std::filesystem::path& libraryPath, const std::string& packageName, const std::unordered_map<std::string, std::string>& functionMappings, std::optional<std::string_view> expectedChecksum = std::nullopt);
-	bool UnloadLibrary(const std::string& packageName);
-
-	bool RegisterFunction(const std::string& functionName, FFIFunction function);
-	std::optional<FFIFunction> FindFunction(std::string_view functionName) const;
-
-	bool IsLibraryLoaded(const std::string& packageName) const;
-	void Clear();
-
-	~DynamicFFIRegistry();
-
-private:
-	DynamicFFIRegistry() = default;
 	DynamicFFIRegistry(const DynamicFFIRegistry&) = delete;
 	DynamicFFIRegistry& operator=(const DynamicFFIRegistry&) = delete;
+	DynamicFFIRegistry(DynamicFFIRegistry&&) noexcept = default;
+	DynamicFFIRegistry& operator=(DynamicFFIRegistry&&) noexcept = default;
 
-	struct LibraryHandle
-	{
-		void* m_handle;
-		std::string m_packageName;
-		std::filesystem::path m_path;
-	};
+	void SnapshotFromCache();
 
-	mutable std::mutex m_mutex;
+	std::optional<FFIFunction> FindFunction(std::string_view function_name) const;
+
+	std::expected<void, std::string> ValidateWorkerSafety() const;
+
+private:
 	std::unordered_map<std::string, FFIFunction> m_functions;
-	std::unordered_map<std::string, std::unique_ptr<LibraryHandle>> m_libraries;
-
-	std::expected<void*, std::string> LoadPlatformLibrary(const std::filesystem::path& path);
-	void UnloadPlatformLibrary(void* handle);
-	void* GetPlatformFunction(void* libraryHandle, const std::string& functionName);
-	std::expected<void, std::string> VerifyLibraryChecksum(const std::filesystem::path& libraryPath, std::optional<std::string_view> expectedChecksum);
 };

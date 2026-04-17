@@ -4,43 +4,39 @@ import
 {
 	"../MidoriPrelude/IO.mdr",
     "../MidoriPrelude/Math.mdr",
-    "../MidoriPrelude/DateTime.mdr"
+    "../MidoriPrelude/DateTime.mdr",
+    "../MidoriPrelude/Appendable.mdr"
 }
 
-struct Complex 
+struct Complex
 {
     Real : Float,
     Imag : Float,
 };
 
-defun abs(x : Float) : Float => if x < 0.0 then -x else x;
 defun complex_abs(x : Complex) : Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
 defun complex_add(a : Complex, b : Complex) : Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
 defun complex_mul(a : Complex, b : Complex) : Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
 defun complex_square(a : Complex) : Complex => complex_mul(a, a);
 
-defun map_color(iterations : Int, max_iterations: Int) : Text =>
+defun append_color(buf : Text, iterations : Int, max_iterations: Int) : Unit =>
 {
-    if iterations == max_iterations 
-    then "0 0 0\n" // Black (inside set)
-    else 
+    if iterations == max_iterations
+    then Appendable::Append(buf, "0 0 0\n")
+    else
     {
-        // Simple color gradient (adjust as needed)
         def r = (iterations * 5) % 256;
         def g = (iterations * 10) % 256;
         def b = (iterations * 15) % 256;
-        def ret = r as Text;
-        ret ++= " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n";
-        return ret;
+        Appendable::Append(buf, (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n");
     }
 };
 
-defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
+defun ComputeMandelbrotBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int) : Int =>
 {
-    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
-    def ppm_data = "";
-    def y = 0;
-    loop 
+    def band_data = "";
+    def y = y_start;
+    loop
     {
         def x = 0;
         loop
@@ -48,36 +44,36 @@ defun mandelbrot_ppm(width : Int, height : Int, limit : Int) : Text =>
             def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
             def z = new Complex(0.0, 0.0);
             def iterations = 0;
-            loop 
+            loop
             {
                 if iterations >= limit then break () else ();
                 z = complex_add(complex_square(z), c);
                 if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
             };
-            ppm_data ++= map_color(iterations, limit);
+            append_color(band_data, iterations, limit);
             x = x + 1;
             if x >= width then break () else ();
         };
         y = y + 1;
-        if y >= height then break () else ();
+        if y >= y_end then break () else ();
     };
 
-    ppm_header ++= ppm_data
+    ch -> band_data;
+    0
 };
 
-def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =>
+defun ComputeJuliaBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, c_real : Float, c_imag : Float) : Int =>
 {
-    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
-    def ppm_data = "";
+    def c = new Complex(c_real, c_imag);
 
-    // Adjust these values to shift the Julia set
-    def real_min = -2.5; // Original: -2.05
-    def real_max = 2.5;   // Original: 0.55
-    def imag_min = -1.2;  // Original: -1.2
-    def imag_max = 1.2;   // Original: 1.2
+    def real_min = -2.5;
+    def real_max = 2.5;
+    def imag_min = -1.2;
+    def imag_max = 1.2;
 
-    def y = 0;
+    def band_data = "";
+    def y = y_start;
     loop
     {
         def x = 0;
@@ -94,28 +90,101 @@ def julia_ppm = fn(width : Int, height : Int, c : Complex, limit : Int) : Text =
                 if complex_abs(z) >= 2.0 then break () else ();
                 iterations = iterations + 1;
             };
-            ppm_data ++= map_color(iterations, limit);
+            append_color(band_data, iterations, limit);
             x = x + 1;
             if x >= width then break () else ();
         };
         y = y + 1;
-        if y >= height then break () else ();
+        if y >= y_end then break () else ();
     };
 
-    ppm_header ++= ppm_data
+    ch -> band_data;
+    0
 };
 
-def julia_constant = new Complex(-0.8, 0.156); // Rabbit constant
+defun parallel_mandelbrot_ppm(width : Int, height : Int, limit : Int, num_workers : Int) : Text =>
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def band_height = height / num_workers;
+
+    def channels: Array<Channel<Text>> = [];
+    def workers: Array<Worker> = [];
+
+    def i = 0;
+    loop
+    {
+        def ch = channel<Text>(1);
+        channels = channels ++ [ch];
+        def y_start = i * band_height;
+        def y_end = if i == num_workers - 1 then height else (i + 1) * band_height;
+        def w = spawn ComputeMandelbrotBand(ch, y_start, y_end, width, height, limit);
+        workers = workers ++ [w];
+        i = i + 1;
+        if i >= num_workers then break () else ();
+    };
+
+    def ppm_data = "";
+    def j = 0;
+    loop
+    {
+        def band = <- channels[j];
+        Appendable::Append(ppm_data, band);
+        close(channels[j]);
+        def result = join workers[j];
+        j = j + 1;
+        if j >= num_workers then break () else ();
+    };
+
+    ppm_header ++ ppm_data
+};
+
+defun parallel_julia_ppm(width : Int, height : Int, c_real : Float, c_imag : Float, limit : Int, num_workers : Int) : Text =>
+{
+    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+    def band_height = height / num_workers;
+
+    def channels: Array<Channel<Text>> = [];
+    def workers: Array<Worker> = [];
+
+    def i = 0;
+    loop
+    {
+        def ch = channel<Text>(1);
+        channels = channels ++ [ch];
+        def y_start = i * band_height;
+        def y_end = if i == num_workers - 1 then height else (i + 1) * band_height;
+        def w = spawn ComputeJuliaBand(ch, y_start, y_end, width, height, limit, c_real, c_imag);
+        workers = workers ++ [w];
+        i = i + 1;
+        if i >= num_workers then break () else ();
+    };
+
+    def ppm_data = "";
+    def j = 0;
+    loop
+    {
+        def band = <- channels[j];
+        Appendable::Append(ppm_data, band);
+        close(channels[j]);
+        def result = join workers[j];
+        j = j + 1;
+        if j >= num_workers then break () else ();
+    };
+
+    ppm_header ++ ppm_data
+};
+
 def limit = 20;
+def num_workers = 4;
 
-def start = DateTime::GetTime();
+def start = DateTime::NowUnixMillis();
 
-def mandelbrot_output = mandelbrot_ppm(1920, 1080, limit);
-IO::WriteFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
+def mandelbrot_output = parallel_mandelbrot_ppm(1920, 1080, limit, num_workers);
+def wrote_m = IO::TryWriteFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
 
-def julia_output = julia_ppm(1920, 1080, julia_constant, limit);
-IO::WriteFile("D:/Xuexi/julia.ppm", julia_output);
+def julia_output = parallel_julia_ppm(1920, 1080, -0.8, 0.156, limit, num_workers);
+def wrote_j = IO::TryWriteFile("D:/Xuexi/julia.ppm", julia_output);
 
-def end = DateTime::GetTime();
+def end = DateTime::NowUnixMillis();
 
 IO::PrintLine("Time: " ++ ((end - start) as Text));

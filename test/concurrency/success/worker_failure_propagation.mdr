@@ -1,0 +1,14 @@
+module worker_failure_propagation
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun GoodWorker(x : Int) : Int =>
+{
+    x * 2 + 20
+};
+
+def w = spawn GoodWorker(11);
+def result = join w;
+PrintLine("Worker result: " ++ (result as Text));
+PrintLine("No error");

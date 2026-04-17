@@ -10,6 +10,17 @@ project(Midori
 )
 
 # ============================================================================
+# Architecture Guard
+# ============================================================================
+if(NOT EMSCRIPTEN AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR
+        "Midori requires a 64-bit toolchain (sizeof(void*) == 8).\n"
+        "Detected compiler: ${CMAKE_CXX_COMPILER}\n"
+        "On Windows with Ninja, run from a 'x64 Native Tools Command Prompt' "
+        "or use vcvarsall.bat x64 before configuring.")
+endif()
+
+# ============================================================================
 # Global Settings
 # ============================================================================
 # Enforce C++23 standard

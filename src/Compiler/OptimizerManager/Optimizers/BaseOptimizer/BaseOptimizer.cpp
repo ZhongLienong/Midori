@@ -18,6 +18,7 @@ bool MidoriOptimizer::DidChange() const
 
 void MidoriOptimizer::VisitAndReplace(std::unique_ptr<MidoriExpression>& expr)
 {
+	m_pending_replacement.reset();
 	MidoriAbstractSyntaxTreeWalker::VisitExpression(expr);
 
 	if (m_pending_replacement)
@@ -198,6 +199,35 @@ void MidoriOptimizer::operator()(MidoriExpression::Construct& construct)
 	{
 		VisitAndReplace(parameter);
 	}
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Spawn& spawn)
+{
+	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
+	{
+		VisitAndReplace(argument);
+	}
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Join& join)
+{
+	VisitAndReplace(join.m_worker);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::ChannelCreate& channel_create)
+{
+	VisitAndReplace(channel_create.m_capacity);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Send& send)
+{
+	VisitAndReplace(send.m_channel);
+	VisitAndReplace(send.m_value);
+}
+
+void MidoriOptimizer::operator()(MidoriExpression::Receive& receive)
+{
+	VisitAndReplace(receive.m_channel);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Array& array)

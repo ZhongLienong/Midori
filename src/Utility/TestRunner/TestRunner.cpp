@@ -179,7 +179,8 @@ namespace
 	[[nodiscard]] std::optional<ChildProcess> StartWorkerProcess(
 		const std::filesystem::path& executable_path,
 		const std::filesystem::path& test_path,
-		const std::filesystem::path& result_directory)
+		const std::filesystem::path& result_directory,
+		const std::filesystem::path& test_directory)
 	{
 #ifdef _WIN32
 		STARTUPINFOW startup_info{};
@@ -191,6 +192,8 @@ namespace
 		command_line += QuoteWindowsArgument(test_path);
 		command_line += L" ";
 		command_line += QuoteWindowsArgument(result_directory);
+		command_line += L" ";
+		command_line += QuoteWindowsArgument(test_directory);
 
 		std::vector<wchar_t> mutable_command_line(command_line.begin(), command_line.end());
 		mutable_command_line.push_back(L'\0');
@@ -226,11 +229,12 @@ namespace
 		{
 			execl(
 				executable_path.c_str(),
-				executable_path.c_str(),
-				"__test-worker",
-				test_path.c_str(),
-				result_directory.c_str(),
-				static_cast<char*>(nullptr));
+			executable_path.c_str(),
+			"__test-worker",
+			test_path.c_str(),
+			result_directory.c_str(),
+			test_directory.c_str(),
+			static_cast<char*>(nullptr));
 			_Exit(127);
 		}
 
@@ -815,7 +819,7 @@ namespace
 			return MakeWorkerFailureResult(test_directory, test_path, "Failed to allocate a worker result directory.");
 		}
 
-		std::optional<ChildProcess> process = StartWorkerProcess(executable_path, test_path, result_directory);
+		std::optional<ChildProcess> process = StartWorkerProcess(executable_path, test_path, result_directory, test_directory);
 		if (!process.has_value())
 		{
 			std::error_code cleanup_error;
@@ -1037,7 +1041,12 @@ namespace MidoriTestRunner
 	{
 		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
 		const std::filesystem::path absolute_test_path = std::filesystem::absolute(options.m_test_path);
-		const ProjectContext project_context = ResolveProjectContext(absolute_test_path);
+		ProjectContext project_context = ResolveProjectContext(absolute_test_path);
+		if (!options.m_test_directory.empty())
+		{
+			project_context.m_test_directory = std::filesystem::absolute(options.m_test_directory);
+			project_context.m_root = project_context.m_test_directory.parent_path();
+		}
 		MidoriTestRunner::TestResult result = RunOneTestInProcess(project_context.m_root, project_context.m_test_directory, absolute_test_path);
 		if (!WriteWorkerResult(result, options.m_result_directory))
 		{

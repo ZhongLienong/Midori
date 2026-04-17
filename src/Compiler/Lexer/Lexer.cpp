@@ -15,6 +15,9 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"Unit"s, Token::Name::UNIT},
 	{"Array"s, Token::Name::ARRAY},
 	{"Never"s, Token::Name::NEVER},
+	{"Range"s, Token::Name::RANGE},
+	{"Worker"s, Token::Name::WORKER},
+	{"Channel"s, Token::Name::CHANNEL_TYPE},
 
 	// reserved keywords
 	{"else"s, Token::Name::ELSE},
@@ -50,7 +53,10 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"instance"s, Token::Name::INSTANCE},
 	{"where"s, Token::Name::WHERE},
 	{"type"s, Token::Name::TYPE},
-	{"deriving"s, Token::Name::DERIVING}
+	{"deriving"s, Token::Name::DERIVING},
+	{"spawn"s, Token::Name::SPAWN},
+	{"join"s, Token::Name::JOIN},
+	{"channel"s, Token::Name::CHANNEL}
 };
 
 template<typename Predicate>
@@ -682,6 +688,11 @@ MidoriResult::TokenResult Lexer::MatchGreater()
 
 MidoriResult::TokenResult Lexer::MatchLess()
 {
+	if (MatchNext('-'))
+	{
+		return MakeTokenResult(Token::Name::LEFT_ARROW);
+	}
+
 	if (MatchNext('<'))
 	{
 		return MatchLeftShift();

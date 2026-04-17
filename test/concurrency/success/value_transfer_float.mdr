@@ -1,0 +1,30 @@
+module value_transfer_float
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun FloatWorker(ch : Channel<Float>) : Int =>
+{
+    ch -> 3.14;
+    ch -> -0.001;
+    ch -> 0.0;
+    ch -> 100000.5;
+    0
+};
+
+def ch = channel<Float>(4);
+def w = spawn FloatWorker(ch);
+
+def v1 = <- ch;
+def v2 = <- ch;
+def v3 = <- ch;
+def v4 = <- ch;
+
+PrintLine("v1=" ++ (v1 as Text));
+PrintLine("v2=" ++ (v2 as Text));
+PrintLine("v3=" ++ (v3 as Text));
+PrintLine("v4=" ++ (v4 as Text));
+PrintLine("all_received=true");
+
+close(ch);
+def r = join w;

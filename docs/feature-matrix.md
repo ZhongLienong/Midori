@@ -90,8 +90,15 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Current APIs rely on `Hashable` and `Equatable`; `MapInsert` is insert-only and `MapUpdate` only updates existing entries. |
 | Helper/typeclass modules: `Appendable`, `Prependable`, `Extendable`, `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
 
-## Planned Surface
+## Concurrency
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `async` / `await` | Planned | `test/concurrency/` (currently empty) | Not implemented in the current token, AST, parser, typechecker, code generator, or runtime surface. |
+| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` returns the typed result. Callee must be a named `defun`. |
+| `channel<T>(cap)` keyword | Stable | `test/concurrency/` | Creates a typed bounded channel. `T` must satisfy `Transferable`. |
+| `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
+| `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |
+| `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, and `Channel<T>`. Derivable for structs and unions. |
+| `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
+| Auxiliary operations: `try_receive`, `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
+| Isolated-worker runtime | Stable | `test/concurrency/`, `tests/unit/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Zero single-threaded overhead. |

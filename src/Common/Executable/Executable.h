@@ -252,6 +252,16 @@ enum class OpCode : uint8_t
 	// Placeholder
 	PUSH_PLACEHOLDER,
 	UPDATE_PLACEHOLDER,
+
+	// Concurrency
+	SPAWN_WORKER,
+	JOIN_WORKER,
+	CHANNEL_CREATE,
+	CHANNEL_SEND,
+	CHANNEL_RECEIVE,
+	CHANNEL_CLOSE,
+	WORKER_IS_DONE,
+	WORKER_CANCEL,
 };
 
 class BytecodeStream

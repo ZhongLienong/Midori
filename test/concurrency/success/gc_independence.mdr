@@ -1,0 +1,54 @@
+module gc_independence
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+struct Pair
+{
+    A : Int,
+    B : Int,
+};
+
+defun AllocHeavyWorker(ch: Channel<Int>, count: Int) : Int => {
+    def sum = 0;
+    def i = 0;
+    loop
+    {
+        def p = new Pair(i, i * 2);
+        sum = sum + p.A + p.B;
+        i = i + 1;
+        if i >= count then break () else ();
+    };
+    ch -> sum;
+    0
+};
+
+def ch1 = channel<Int>(1);
+def ch2 = channel<Int>(1);
+def ch3 = channel<Int>(1);
+def ch4 = channel<Int>(1);
+
+def w1 = spawn AllocHeavyWorker(ch1, 100000);
+def w2 = spawn AllocHeavyWorker(ch2, 100000);
+def w3 = spawn AllocHeavyWorker(ch3, 100000);
+def w4 = spawn AllocHeavyWorker(ch4, 100000);
+
+def s1 = <- ch1;
+def s2 = <- ch2;
+def s3 = <- ch3;
+def s4 = <- ch4;
+
+PrintLine("s1=" ++ (s1 as Text));
+PrintLine("s2=" ++ (s2 as Text));
+PrintLine("s3=" ++ (s3 as Text));
+PrintLine("s4=" ++ (s4 as Text));
+PrintLine("all_equal=" ++ (if s1 == s2 then (if s2 == s3 then (if s3 == s4 then "true" else "false") else "false") else "false"));
+
+close(ch1);
+close(ch2);
+close(ch3);
+close(ch4);
+def _r1 = join w1;
+def _r2 = join w2;
+def _r3 = join w3;
+def _r4 = join w4;

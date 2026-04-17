@@ -1,0 +1,13 @@
+module worker_args
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Greeter(name: Text, greeting: Text) : Int => {
+    PrintLine(greeting ++ ", " ++ name ++ "!");
+    0
+};
+
+def w = spawn Greeter("World", "Hello");
+def r = join w;
+PrintLine("Worker exited with: " ++ (r as Text));

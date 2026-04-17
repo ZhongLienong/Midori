@@ -1,0 +1,14 @@
+module spawn_nontransferable_worker_argument
+
+defun Produce() : Int =>
+{
+    42
+};
+
+defun Rejoin(worker: Worker<Int>) : Int =>
+{
+    join worker
+};
+
+def produced = spawn Produce();
+def nested = spawn Rejoin(produced);

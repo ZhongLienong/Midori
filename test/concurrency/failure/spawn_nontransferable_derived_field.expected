@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_derived_field.mdr:18
+   |
+18 | def worker = spawn UsePayload(new BadPayload(increment));
+   |                    ^^^^^^^^^^ Type fn(Int) -> Int does not satisfy constraint Transferable<fn(Int) -> Int> - no matching instance found
+   |
+  | Function and closure values are not transferable.

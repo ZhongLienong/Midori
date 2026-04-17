@@ -1198,6 +1198,35 @@ namespace
 			VisitExpression(*node.m_expr);
 		}
 
+		void Visit(const MidoriExpression::Spawn& node)
+		{
+			for (const std::unique_ptr<MidoriExpression>& argument : node.m_arguments)
+			{
+				VisitExpression(*argument);
+			}
+		}
+
+		void Visit(const MidoriExpression::Join& node)
+		{
+			VisitExpression(*node.m_worker);
+		}
+
+		void Visit(const MidoriExpression::ChannelCreate& node)
+		{
+			VisitExpression(*node.m_capacity);
+		}
+
+		void Visit(const MidoriExpression::Send& node)
+		{
+			VisitExpression(*node.m_channel);
+			VisitExpression(*node.m_value);
+		}
+
+		void Visit(const MidoriExpression::Receive& node)
+		{
+			VisitExpression(*node.m_channel);
+		}
+
 		void Visit(const MidoriExpression::Assignment& node)
 		{
 			RecordLocalAssignment(node.m_name_ctx, false);

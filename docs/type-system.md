@@ -82,6 +82,17 @@ fn() -> Unit
 fn(fn(Int) -> Int) -> Int
 ```
 
+### Concurrency Types
+
+`Worker<T>` and `Channel<T>` are opaque handle types for the concurrency system:
+
+```midori
+Worker<Int>       // handle to a worker that returns Int
+Channel<Text>     // handle to a channel carrying Text values
+```
+
+Both are internally represented as `Int` handles but carry compile-time type parameters. `Worker<T>` is produced by `spawn` and consumed by `join`. `Channel<T>` is produced by `channel<T>(capacity)` and used with `->` (send) and `<-` (receive).
+
 ### Ranges
 
 Ranges are used directly in `for` loops:
@@ -172,11 +183,26 @@ union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
 ```
 
+Transferable deriving for concurrency:
+
+```midori
+struct Point
+{
+    x: Float,
+    y: Float
+} deriving (Transferable);
+
+union Result = Ok(Int) | Err(Text) deriving (Transferable);
+```
+
+`Transferable` generates field-by-field serialization for structs and tag+payload serialization for unions. All fields/variants must themselves satisfy `Transferable`. Types that cannot be transferable (closures, ranges, `Worker<T>`) produce a compile-time constraint-failure error.
+
 Current support is intentionally narrow:
 
-- `Equatable` and `Hashable` are supported structural derives
+- `Equatable`, `Hashable`, and `Transferable` are supported structural derives
 - `Map`, `Bind`, and `Unwrap` are supported container derives
-- Structural deriving is limited to non-generic, non-recursive structs and unions
+- Structural deriving is limited to non-generic, non-recursive structs and unions for `Equatable` and `Hashable`
+- `Transferable` deriving works on structs and unions including recursive union shapes
 - Container deriving maps only the first type parameter and supports pass-through variants, single-value variants, and recursive self fields
 
 ## Type Aliases

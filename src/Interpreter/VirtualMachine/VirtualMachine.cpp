@@ -1,8 +1,10 @@
 #include "Common/Constant/Constant.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
+#include "Interpreter/Channel/Channel.h"
+#include "Interpreter/ValueTransfer/ValueTransfer.h"
+#include "Interpreter/Worker/Worker.h"
 #include "Utility/Disassembler/Disassembler.h"
-#include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 #include "VirtualMachine.h"
 
 #ifdef _WIN32
@@ -33,6 +35,14 @@
 #include <unordered_map>
 
 using namespace std::string_literals;
+
+#if defined(_MSC_VER)
+#define MIDORI_NOINLINE __declspec(noinline)
+#elif defined(__GNUC__) || defined(__clang__)
+#define MIDORI_NOINLINE __attribute__((noinline))
+#else
+#define MIDORI_NOINLINE
+#endif
 
 namespace
 {
@@ -270,6 +280,212 @@ VirtualMachine::VirtualMachine(MidoriExecutable&& executable) noexcept
 
 	constexpr int runtime_startup_proc_index = 0;
 	m_instruction_pointer = GetProcEntry(runtime_startup_proc_index);
+}
+
+namespace
+{
+	static constexpr OpCode s_halt_bytecode[] = { OpCode::HALT };
+}
+
+VirtualMachine::VirtualMachine(std::shared_ptr<const MidoriExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept
+	: m_owned_executable(std::move(shared_executable))
+	, m_worker_proc_index(proc_index)
+{
+	m_gc.SetAllocator(&m_allocator);
+	m_executable = m_owned_executable.get();
+
+	if (source_globals != nullptr)
+	{
+		m_owned_globals = *source_globals;
+	}
+	else
+	{
+		m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
+	}
+	m_global_vars = &m_owned_globals;
+	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
+
+	InitializeProcEntryCache();
+	InitializeStacks();
+
+	m_instruction_pointer = GetProcEntry(proc_index);
+
+	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr);
+	m_value_stack_base_pointer = m_value_stack_pointer;
+}
+
+void VirtualMachine::PrepareWorkerCall(int proc_index) noexcept
+{
+	m_value_stack_pointer = m_value_stack_begin;
+	m_value_stack_base_pointer = m_value_stack_begin;
+	m_call_stack_pointer = m_call_stack_begin;
+	m_curr_closure_traceable = nullptr;
+	m_curr_environment = nullptr;
+	m_last_error.reset();
+
+	m_instruction_pointer = GetProcEntry(proc_index);
+
+	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr);
+	m_value_stack_base_pointer = m_value_stack_pointer;
+}
+
+MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
+{
+	const size_t cache_index = static_cast<size_t>(proc_index);
+	if (cache_index < m_static_closure_cache.size() && m_static_closure_cache[cache_index] != nullptr)
+	{
+		return m_static_closure_cache[cache_index];
+	}
+
+	MidoriTraceable* closure = AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index });
+	if (cache_index < m_static_closure_cache.size())
+	{
+		m_static_closure_cache[cache_index] = closure;
+	}
+
+	return closure;
+}
+
+MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instruction, InstructionPointer& ip) noexcept
+{
+#ifdef MIDORI_WASM
+	m_instruction_pointer = ip;
+	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::UnsupportedPlatformOperation, "Concurrency is not supported in the WebAssembly build.", GetLine())));
+	return false;
+#else
+	switch (instruction)
+	{
+	case OpCode::SPAWN_WORKER:
+	{
+		int high_byte = static_cast<int>(ReadByte(ip));
+		int low_byte = static_cast<int>(ReadByte(ip));
+		int global_idx = (high_byte << 8) | low_byte;
+		int arg_count = static_cast<int>(ReadByte(ip));
+
+		std::vector<SerializedValue> serialized_args;
+		serialized_args.reserve(static_cast<size_t>(arg_count));
+		for (int arg_index = 0; arg_index < arg_count; arg_index += 1)
+		{
+			MidoriValue argument = Pop();
+			std::expected<SerializedValue, std::string> serialized_argument = ValueTransfer::Serialize(argument, *this);
+			if (!serialized_argument.has_value())
+			{
+				m_instruction_pointer = ip;
+				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_argument.error(), GetLine())));
+				return false;
+			}
+			serialized_args.emplace_back(std::move(serialized_argument.value()));
+		}
+		std::reverse(serialized_args.begin(), serialized_args.end());
+
+		MidoriValue worker_function = (*m_global_vars)[global_idx];
+		MidoriTraceable* worker_pointer = worker_function.GetPointer();
+		if (worker_pointer == nullptr || !worker_pointer->IsTraceable<MidoriClosure>())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "SPAWN_WORKER expected a function closure in globals.", GetLine())));
+			return false;
+		}
+
+		const MidoriClosure& worker_closure = worker_pointer->GetTraceable<MidoriClosure>();
+		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, worker_closure.m_proc_index, std::move(serialized_args));
+		Push(static_cast<MidoriInteger>(worker_id));
+		return true;
+	}
+	case OpCode::JOIN_WORKER:
+	{
+		const int worker_id = static_cast<int>(Pop().GetInteger());
+		std::expected<SerializedValue, std::string> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
+		if (!worker_result.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, worker_result.error(), GetLine())));
+			return false;
+		}
+
+		std::expected<MidoriValue, std::string> deserialized_result = ValueTransfer::Deserialize(worker_result.value(), *this);
+		if (!deserialized_result.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_result.error(), GetLine())));
+			return false;
+		}
+
+		Push(deserialized_result.value());
+		return true;
+	}
+	case OpCode::CHANNEL_CREATE:
+	{
+		const int capacity = static_cast<int>(Pop().GetInteger());
+		const int channel_id = ChannelRegistry::GetInstance().CreateChannel(capacity);
+		Push(static_cast<MidoriInteger>(channel_id));
+		return true;
+	}
+	case OpCode::CHANNEL_SEND:
+	{
+		MidoriValue value = Pop();
+		const int channel_id = static_cast<int>(Pop().GetInteger());
+		std::expected<SerializedValue, std::string> serialized_value = ValueTransfer::Serialize(value, *this);
+		if (!serialized_value.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_value.error(), GetLine())));
+			return false;
+		}
+
+		const bool sent = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()));
+		Push(sent);
+		return true;
+	}
+	case OpCode::CHANNEL_RECEIVE:
+	{
+		const int channel_id = static_cast<int>(Pop().GetInteger());
+		std::optional<SerializedValue> received_value = ChannelRegistry::GetInstance().Receive(channel_id);
+		if (!received_value.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "Cannot receive from a closed and empty channel.", GetLine())));
+			return false;
+		}
+
+		std::expected<MidoriValue, std::string> deserialized_value = ValueTransfer::Deserialize(received_value.value(), *this);
+		if (!deserialized_value.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_value.error(), GetLine())));
+			return false;
+		}
+
+		Push(deserialized_value.value());
+		return true;
+	}
+	case OpCode::CHANNEL_CLOSE:
+	{
+		const int channel_id = static_cast<int>(Pop().GetInteger());
+		ChannelRegistry::GetInstance().Close(channel_id);
+		Push(MidoriValue());
+		return true;
+	}
+	case OpCode::WORKER_IS_DONE:
+	{
+		const int worker_id = static_cast<int>(Pop().GetInteger());
+		const bool is_done = WorkerRegistry::GetInstance().IsWorkerDone(worker_id);
+		Push(is_done);
+		return true;
+	}
+	case OpCode::WORKER_CANCEL:
+	{
+		const int worker_id = static_cast<int>(Pop().GetInteger());
+		const bool cancelled = WorkerRegistry::GetInstance().CancelWorker(worker_id);
+		Push(cancelled);
+		return true;
+	}
+	default:
+	{
+		MIDORI_UNREACHABLE();
+	}
+	}
+#endif
 }
 
 void VirtualMachine::InitializeProcEntryCache() noexcept
@@ -1898,6 +2114,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
+			TryCollect();
 			break;
 		}
 		case OpCode::IF_INTEGER_LESS:
@@ -2141,8 +2358,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				DynamicFFIRegistry& dynamic_registry = DynamicFFIRegistry::GetInstance();
-				std::optional<FFIFunction> dynamic_func = dynamic_registry.FindFunction(foreign_function_name_ref.GetCString());
+				std::optional<FFIFunction> dynamic_func = m_dynamic_ffi_registry.FindFunction(foreign_function_name_ref.GetCString());
 				if (dynamic_func.has_value())
 				{
 					proc = dynamic_func.value();
@@ -2188,7 +2404,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 				else
 				{
-					std::memcpy(&m_ffi_args[idx], arg.GetRawDataPtr(), sizeof(double));
+					m_ffi_args[idx] = reinterpret_cast<void*>(static_cast<uintptr_t>(arg.GetRawBits()));
 				}
 			}
 
@@ -2299,7 +2515,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					break;
 				case FFIArgumentKind::RawValue:
 				default:
-					std::memcpy(&m_ffi_args[idx], arg.GetRawDataPtr(), sizeof(double));
+					m_ffi_args[idx] = reinterpret_cast<void*>(static_cast<uintptr_t>(arg.GetRawBits()));
 					break;
 				}
 			}
@@ -2938,8 +3154,22 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::UPDATE_PLACEHOLDER:
 		{
-			// assign the second slot (block final value) to the first slot (block value placeholder)
 			Peek() = Pop();
+			break;
+		}
+		case OpCode::SPAWN_WORKER:
+		case OpCode::JOIN_WORKER:
+		case OpCode::CHANNEL_CREATE:
+		case OpCode::CHANNEL_SEND:
+		case OpCode::CHANNEL_RECEIVE:
+		case OpCode::CHANNEL_CLOSE:
+		case OpCode::WORKER_IS_DONE:
+		case OpCode::WORKER_CANCEL:
+		{
+			if (!ExecuteConcurrencyInstruction(instruction, ip))
+			{
+				return EXIT_FAILURE;
+			}
 			break;
 		}
 		default:

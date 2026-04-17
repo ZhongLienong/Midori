@@ -1,6 +1,7 @@
 #include "Utility/CLI/CLI.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -87,6 +88,12 @@ namespace
 
 		return MidoriResult::CompilerReport(MidoriResult::CompilerDiagnostics(
 			CompilerError::Simple(CompilerStage::Compiler, error.m_message)));
+	}
+
+	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
+	{
+		const char* warning_format = std::getenv("MIDORI_TEST_WARNING_FORMAT");
+		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 	}
 
 	struct BuildArtifactResult
@@ -625,15 +632,19 @@ namespace
 
 	[[nodiscard]] ParseResult ParseTestWorker(const std::vector<std::string_view>& args)
 	{
-		if (args.size() != 2u)
+		if (args.size() != 2u && args.size() != 3u)
 		{
-			return std::unexpected("Usage: midori __test-worker <test_file> <result_dir>");
+			return std::unexpected("Usage: midori __test-worker <test_file> <result_dir> [test_dir]");
 		}
 
 		Invocation invocation;
 		invocation.m_kind = CommandKind::TestWorker;
 		invocation.m_source_file = std::filesystem::path(args[0u]);
 		invocation.m_worker_result_directory = std::filesystem::path(args[1u]);
+		if (args.size() == 3u)
+		{
+			invocation.m_target_path = std::filesystem::path(args[2u]);
+		}
 		return invocation;
 	}
 
@@ -1582,6 +1593,10 @@ namespace
 		}
 
 		std::print("{}", report.RenderedWarnings());
+		if (ShouldEmitMachineReadableWarnings())
+		{
+			std::print("{}", report.MachineReadableWarnings());
+		}
 		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
 		if (!run_result.has_value())
 		{
@@ -1780,7 +1795,8 @@ namespace
 			MidoriTestRunner::WorkerOptions
 			{
 				.m_test_path = invocation.m_source_file,
-				.m_result_directory = invocation.m_worker_result_directory
+				.m_result_directory = invocation.m_worker_result_directory,
+				.m_test_directory = invocation.m_target_path
 			});
 	}
 

@@ -13,6 +13,7 @@ struct Token
 	{
 		// symbol
 		THIN_ARROW,
+		LEFT_ARROW,
 		FAT_ARROW,
 		LEFT_PAREN,
 		RIGHT_PAREN,
@@ -105,6 +106,9 @@ struct Token
 		WHERE,
 		TYPE,
 		DERIVING,
+		SPAWN,
+		JOIN,
+		CHANNEL,
 
 		// types
 		FLOAT,
@@ -116,6 +120,9 @@ struct Token
 		UNIT,
 		ARRAY,
 		NEVER,
+		RANGE,
+		WORKER,
+		CHANNEL_TYPE,
 
 		WHITESPACE,
 		LINE_COMMENT,

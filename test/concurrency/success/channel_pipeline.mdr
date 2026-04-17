@@ -1,0 +1,57 @@
+module channel_pipeline
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Stage1_Double(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) : Int => {
+    def i = 0;
+    loop
+    {
+        def val = <- in_ch;
+        out_ch -> (val * 2);
+        i = i + 1;
+        if i >= count then break () else ();
+    };
+    0
+};
+
+defun Stage2_AddTen(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) : Int => {
+    def i = 0;
+    loop
+    {
+        def val = <- in_ch;
+        out_ch -> (val + 10);
+        i = i + 1;
+        if i >= count then break () else ();
+    };
+    0
+};
+
+def count = 5;
+def ch_input = channel<Int>(count);
+def ch_mid = channel<Int>(count);
+def ch_output = channel<Int>(count);
+
+def w1 = spawn Stage1_Double(ch_input, ch_mid, count);
+def w2 = spawn Stage2_AddTen(ch_mid, ch_output, count);
+
+ch_input -> 1;
+ch_input -> 5;
+ch_input -> 10;
+ch_input -> 0;
+ch_input -> 100;
+
+def i = 0;
+loop
+{
+    def result = <- ch_output;
+    PrintLine("out=" ++ (result as Text));
+    i = i + 1;
+    if i >= count then break () else ();
+};
+
+close(ch_input);
+close(ch_mid);
+close(ch_output);
+def _r1 = join w1;
+def _r2 = join w2;

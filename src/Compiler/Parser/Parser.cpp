@@ -89,6 +89,11 @@ namespace
 		}
 	}
 
+	bool IsCompilerIntrinsicName(std::string_view name)
+	{
+		return name == "close" || name == "is_done" || name == "cancel";
+	}
+
 	void CollectTypeConstraints(
 		const std::shared_ptr<MidoriType>& type,
 		std::vector<MidoriType::ClassConstraint>& constraints,
@@ -576,6 +581,11 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 				name_token
 			)
 		);
+	}
+
+	if (IsCompilerIntrinsicName(lookup_name))
+	{
+		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 	}
 
 	return std::unexpected(GenerateParserError("Undefined name.", name_token));
@@ -1178,7 +1188,7 @@ MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
 
 MidoriResult::ExpressionResult Parser::ParseBind()
 {
-	return ParsePipe()
+	return ParseLogicalOr()
 		.and_then
 		(
 			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
@@ -1308,7 +1318,7 @@ MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 
 MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 {
-	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
+	if (Match(Token::Name::LEFT_ARROW, Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
 	{
 		Token& op = Previous();
 		return ParseUnaryArithmetic()
@@ -1316,6 +1326,11 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 			(
 				[&op](std::unique_ptr<MidoriExpression>&& right) -> MidoriResult::ExpressionResult
 				{
+					if (op.m_token_name == Token::Name::LEFT_ARROW)
+					{
+						return std::make_unique<MidoriExpression>(MidoriExpression::Receive(op, std::move(right)));
+					}
+
 					return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(right)));
 				}
 			);
@@ -1851,6 +1866,21 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		return ParseFunctionExpression();
 	}
+	else if (Match(Token::Name::SPAWN))
+	{
+		Token& spawn_keyword = Previous();
+		return ParseSpawnExpression(spawn_keyword);
+	}
+	else if (Match(Token::Name::JOIN))
+	{
+		Token& join_keyword = Previous();
+		return ParseJoinExpression(join_keyword);
+	}
+	else if (Match(Token::Name::CHANNEL))
+	{
+		Token& channel_keyword = Previous();
+		return ParseChannelExpression(channel_keyword);
+	}
 	else if (Match(Token::Name::TRUE, Token::Name::FALSE))
 	{
 		return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Previous()));
@@ -2003,7 +2033,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 
 MidoriResult::ExpressionResult Parser::ParseLogicalAnd()
 {
-	return ParseBinary(&Parser::ParseBitwiseOr, Token::Name::DOUBLE_AMPERSAND);
+	return ParseBinary(&Parser::ParseSend, Token::Name::DOUBLE_AMPERSAND);
 }
 
 MidoriResult::ExpressionResult Parser::ParseLogicalOr()
@@ -2011,9 +2041,33 @@ MidoriResult::ExpressionResult Parser::ParseLogicalOr()
 	return ParseBinary(&Parser::ParseLogicalAnd, Token::Name::DOUBLE_BAR);
 }
 
+MidoriResult::ExpressionResult Parser::ParseSend()
+{
+	return ParsePipe()
+		.and_then
+		(
+			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
+			{
+				while (Match(Token::Name::THIN_ARROW))
+				{
+					Token& arrow = Previous();
+					MidoriResult::ExpressionResult right = ParsePipe();
+					if (!right.has_value())
+					{
+						return std::unexpected(std::move(right.error()));
+					}
+
+					left_expr = std::make_unique<MidoriExpression>(MidoriExpression::Send(arrow, std::move(left_expr), std::move(right.value())));
+				}
+
+				return left_expr;
+			}
+		);
+}
+
 MidoriResult::ExpressionResult Parser::ParsePipe()
 {
-	return ParseLogicalOr()
+	return ParseBitwiseOr()
 		.and_then
 		(
 			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
@@ -2035,7 +2089,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 						continue;
 					}
 
-					MidoriResult::ExpressionResult right = ParseLogicalOr();
+					MidoriResult::ExpressionResult right = ParseBitwiseOr();
 					if (!right.has_value())
 					{
 						return std::unexpected(std::move(right.error()));
@@ -2059,6 +2113,103 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 				}
 
 				return left_expr;
+			}
+		);
+}
+
+MidoriResult::ExpressionResult Parser::ParseSpawnExpression(Token& spawn_keyword)
+{
+	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected procedure name after 'spawn'.")
+		.and_then
+		(
+			[this, &spawn_keyword](Token&&) -> MidoriResult::ExpressionResult
+			{
+				return MatchNameResolution()
+					.and_then
+					(
+						[this, &spawn_keyword](Token&& callee_name) -> MidoriResult::ExpressionResult
+						{
+							return Consume(Token::Name::LEFT_PAREN, "Expected '(' after spawned procedure name.")
+								.and_then
+								(
+									[this, &spawn_keyword, callee_name = std::move(callee_name)](Token&&) mutable -> MidoriResult::ExpressionResult
+									{
+										return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+										(
+											[this]() { return ParseExpression(); },
+											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after spawn argument."); },
+											[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after spawn arguments."); }
+										)
+										.and_then
+										(
+											[&spawn_keyword, callee_name = std::move(callee_name)](std::vector<std::unique_ptr<MidoriExpression>>&& arguments) mutable -> MidoriResult::ExpressionResult
+											{
+												return std::make_unique<MidoriExpression>(MidoriExpression::Spawn(spawn_keyword, callee_name, std::move(arguments)));
+											}
+										);
+									}
+								);
+						}
+					);
+			}
+		);
+}
+
+MidoriResult::ExpressionResult Parser::ParseJoinExpression(Token& join_keyword)
+{
+	return ParseUnaryArithmetic()
+		.and_then
+		(
+			[&join_keyword](std::unique_ptr<MidoriExpression>&& worker) -> MidoriResult::ExpressionResult
+			{
+				return std::make_unique<MidoriExpression>(MidoriExpression::Join(join_keyword, std::move(worker)));
+			}
+		);
+}
+
+MidoriResult::ExpressionResult Parser::ParseChannelExpression(Token& channel_keyword)
+{
+	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'channel'.")
+		.and_then
+		(
+			[this, &channel_keyword](Token&&) -> MidoriResult::ExpressionResult
+			{
+				return ParseType()
+					.and_then
+					(
+						[this, &channel_keyword](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::ExpressionResult
+						{
+							return ConsumeTypeRightAngle("Expected '>' after channel element type.")
+								.and_then
+								(
+									[this, &channel_keyword, element_type = std::move(element_type)](Token&&) mutable -> MidoriResult::ExpressionResult
+									{
+										return Consume(Token::Name::LEFT_PAREN, "Expected '(' before channel capacity.")
+											.and_then
+											(
+												[this, &channel_keyword, element_type = std::move(element_type)](Token&&) mutable -> MidoriResult::ExpressionResult
+												{
+													return ParseExpression()
+														.and_then
+														(
+															[this, &channel_keyword, element_type = std::move(element_type)](std::unique_ptr<MidoriExpression>&& capacity) mutable -> MidoriResult::ExpressionResult
+															{
+																return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after channel capacity.")
+																	.and_then
+																	(
+																		[&channel_keyword, element_type = std::move(element_type), capacity = std::move(capacity)](Token&&) mutable -> MidoriResult::ExpressionResult
+																		{
+																			return std::make_unique<MidoriExpression>(MidoriExpression::ChannelCreate(channel_keyword, std::move(element_type), std::move(capacity)));
+																		}
+																	);
+															}
+														);
+												}
+											);
+									}
+								);
+						}
+					);
 			}
 		);
 }
@@ -4608,6 +4759,99 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 				}
 			);
 		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::RANGE,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Range'.")
+						.and_then
+						(
+							[this](Token&&) -> MidoriResult::TypeResult
+							{
+								return ParseType()
+									.and_then
+									(
+										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+										{
+											return ConsumeTypeRightAngle("Expected '>' after range element type.")
+												.and_then
+												(
+													[&type](Token&&) -> MidoriResult::TypeResult
+													{
+														return MidoriType::MakeRangeType(type);
+													}
+												);
+										}
+									);
+							}
+						);
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::WORKER,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Worker'.")
+						.and_then
+						(
+							[this](Token&&) -> MidoriResult::TypeResult
+							{
+								return ParseType()
+									.and_then
+									(
+										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+										{
+											return ConsumeTypeRightAngle("Expected '>' after worker result type.")
+												.and_then
+												(
+													[&type](Token&&) -> MidoriResult::TypeResult
+													{
+														return MidoriType::MakeWorkerType(type);
+													}
+												);
+										}
+									);
+							}
+						);
+				}
+			);
+		},
+		[this]() -> MidoriResult::TypeResult
+		{
+			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+				Token::Name::CHANNEL_TYPE,
+				[this](Token&&) -> MidoriResult::TypeResult
+				{
+					return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Channel'.")
+						.and_then
+						(
+							[this](Token&&) -> MidoriResult::TypeResult
+							{
+								return ParseType()
+									.and_then
+									(
+										[this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+										{
+											return ConsumeTypeRightAngle("Expected '>' after channel element type.")
+												.and_then
+												(
+													[&type](Token&&) -> MidoriResult::TypeResult
+													{
+														return MidoriType::MakeChannelType(type);
+													}
+												);
+										}
+									);
+							}
+						);
+				}
+			);
+		},
 		[this, is_foreign]() -> MidoriResult::TypeResult
 		{
 			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
@@ -5428,7 +5672,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		if (derive_target.m_lexeme != "Equatable" && derive_target.m_lexeme != "Hashable")
+		if (derive_target.m_lexeme != "Equatable" && derive_target.m_lexeme != "Hashable" && derive_target.m_lexeme != "Transferable")
 		{
 			return std::unexpected(GenerateParserError("Unsupported deriving target for struct.", derive_target));
 		}
@@ -5437,6 +5681,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 		Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 		std::vector<std::unique_ptr<MidoriStatement>> methods;
 		std::vector<std::string> mangled_method_names;
+
+		if (derive_target.m_lexeme == "Transferable")
+		{
+			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
+			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+			continue;
+		}
 
 		if (derive_target.m_lexeme == "Equatable")
 		{
@@ -5598,10 +5849,22 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 	for (const Token& derive_target : deriving_targets)
 	{
 		const bool is_structural = derive_target.m_lexeme == "Equatable" || derive_target.m_lexeme == "Hashable";
+		const bool is_transferable = derive_target.m_lexeme == "Transferable";
 		const bool is_container = derive_target.m_lexeme == "Map" || derive_target.m_lexeme == "Bind" || derive_target.m_lexeme == "Unwrap";
-		if (!is_structural && !is_container)
+		if (!is_structural && !is_transferable && !is_container)
 		{
 			return std::unexpected(GenerateParserError("Unsupported deriving target for union.", derive_target));
+		}
+
+		if (is_transferable)
+		{
+			std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
+			std::vector<std::unique_ptr<MidoriStatement>> methods;
+			std::vector<std::string> mangled_method_names;
+			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
+			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+			continue;
 		}
 
 		if (is_structural)

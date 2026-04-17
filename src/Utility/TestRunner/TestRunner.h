@@ -37,6 +37,7 @@ namespace MidoriTestRunner
 	{
 		std::filesystem::path m_test_path;
 		std::filesystem::path m_result_directory;
+		std::filesystem::path m_test_directory;
 	};
 
 	struct RunResult

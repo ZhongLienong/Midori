@@ -1,0 +1,48 @@
+module worker_result_values
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun ReturnZero(ch: Channel<Int>) : Int => {
+    ch -> 0;
+    0
+};
+
+defun ReturnFortyTwo(ch: Channel<Int>) : Int => {
+    ch -> 42;
+    0
+};
+
+defun ReturnNegative(ch: Channel<Int>) : Int => {
+    ch -> (0 - 1);
+    0
+};
+
+defun ComputeReturn(ch: Channel<Int>, x: Int) : Int => {
+    ch -> (x * x + 1);
+    0
+};
+
+def ch1 = channel<Int>(1);
+def ch2 = channel<Int>(1);
+def ch3 = channel<Int>(1);
+def ch4 = channel<Int>(1);
+
+def w1 = spawn ReturnZero(ch1);
+def w2 = spawn ReturnFortyTwo(ch2);
+def w3 = spawn ReturnNegative(ch3);
+def w4 = spawn ComputeReturn(ch4, 7);
+
+PrintLine("zero=" ++ ((<- ch1) as Text));
+PrintLine("fortytwo=" ++ ((<- ch2) as Text));
+PrintLine("negative=" ++ ((<- ch3) as Text));
+PrintLine("compute(7)=" ++ ((<- ch4) as Text));
+
+close(ch1);
+close(ch2);
+close(ch3);
+close(ch4);
+def _r1 = join w1;
+def _r2 = join w2;
+def _r3 = join w3;
+def _r4 = join w4;

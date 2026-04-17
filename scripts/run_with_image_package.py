@@ -14,12 +14,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROGRAM = REPO_ROOT / "misc" / "fractal_renderer.mdr"
+DEFAULT_PROGRAM = REPO_ROOT / "misc" / "noise_landscape.mdr"
 DEFAULT_IMAGE_PACKAGE = Path(r"C:\Users\jk381\source\repos\ZhongLienong\Midori\reference_package\Image")
 
 
 def find_midori_exe(repo: Path) -> Path | None:
     candidates = [
+        repo / "out" / "build" / "ninja" / "x64-release" / "out" / "Midori.exe",
         repo / "out" / "build" / "x64-release" / "out" / "Midori.exe",
     ]
     for candidate in candidates:

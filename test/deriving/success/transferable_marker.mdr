@@ -1,0 +1,27 @@
+module DerivingTransferableMarker
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+struct Point
+{
+    x: Int,
+    y: Int
+} deriving (Transferable);
+
+union MaybeValue<T> = Nothing | Just(T) deriving (Transferable);
+
+defun RoundTrip<T>(value: T) : T where Transferable<T> => {
+    value
+};
+
+def point = RoundTrip(new Point(3, 4));
+def maybe = RoundTrip(new MaybeValue::Just<Text>("hello"));
+def maybe_text =
+    match maybe with
+        case MaybeValue::Nothing => "empty"
+        case MaybeValue::Just(value) => value
+;
+
+IO::PrintLine("point_x=" ++ (point.x as Text));
+IO::PrintLine("point_y=" ++ (point.y as Text));
+IO::PrintLine("maybe=" ++ maybe_text);

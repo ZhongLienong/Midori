@@ -1,0 +1,42 @@
+module Transferable
+public export { Transferable }
+
+class Transferable<T>
+{
+};
+
+instance Transferable<Int>
+{
+};
+
+instance Transferable<Float>
+{
+};
+
+instance Transferable<Byte>
+{
+};
+
+instance Transferable<Word>
+{
+};
+
+instance Transferable<Bool>
+{
+};
+
+instance Transferable<Text>
+{
+};
+
+instance Transferable<Unit>
+{
+};
+
+instance Transferable<Never>
+{
+};
+
+instance Transferable<Array<T>>
+{
+};

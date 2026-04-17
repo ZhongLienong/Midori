@@ -419,6 +419,50 @@ public:
 		UnarySuffix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
+	struct Spawn : BaseExpression
+	{
+		Token m_spawn_keyword;
+		Token m_callee_name;
+		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
+		int m_global_index = -1;
+
+		Spawn(const Token& spawn_keyword, const Token& callee_name, std::vector<std::unique_ptr<MidoriExpression>>&& arguments);
+	};
+
+	struct Join : BaseExpression
+	{
+		Token m_join_keyword;
+		std::unique_ptr<MidoriExpression> m_worker;
+
+		Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker);
+	};
+
+	struct ChannelCreate : BaseExpression
+	{
+		Token m_channel_keyword;
+		std::shared_ptr<MidoriType> m_element_type;
+		std::unique_ptr<MidoriExpression> m_capacity;
+
+		ChannelCreate(const Token& channel_keyword, std::shared_ptr<MidoriType>&& element_type, std::unique_ptr<MidoriExpression>&& capacity);
+	};
+
+	struct Send : BaseExpression
+	{
+		Token m_arrow;
+		std::unique_ptr<MidoriExpression> m_channel;
+		std::unique_ptr<MidoriExpression> m_value;
+
+		Send(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel, std::unique_ptr<MidoriExpression>&& value);
+	};
+
+	struct Receive : BaseExpression
+	{
+		Token m_arrow;
+		std::unique_ptr<MidoriExpression> m_channel;
+
+		Receive(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel);
+	};
+
 	struct Assignment : BaseExpression
 	{
 		Token m_name;
@@ -681,7 +725,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_variant;
 
 public:
@@ -739,6 +783,33 @@ public:
 			else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
 			{
 				return node.m_expr->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Spawn>)
+			{
+				return std::ranges::any_of
+				(
+					node.m_arguments,
+					[](const std::unique_ptr<MidoriExpression>& arg)
+					{
+						return arg->template Contains<Kind>();
+					}
+				);
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Join>)
+			{
+				return node.m_worker->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::ChannelCreate>)
+			{
+				return node.m_capacity->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Send>)
+			{
+				return node.m_channel->template Contains<Kind>() || node.m_value->template Contains<Kind>();
+			}
+			else if constexpr (std::is_same_v<T, MidoriExpression::Receive>)
+			{
+				return node.m_channel->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Group>)
 			{

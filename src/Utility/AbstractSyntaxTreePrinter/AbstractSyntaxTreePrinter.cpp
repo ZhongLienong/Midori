@@ -227,6 +227,57 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnarySuffix& un
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Spawn& spawn, int depth) const
+{
+	PrintWithIndentation(depth, "Spawn {");
+	PrintWithIndentation(depth + 1, "Callee: " + spawn.m_callee_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "Args: ");
+	std::ranges::for_each
+	(
+		spawn.m_arguments,
+		[depth, this](const std::unique_ptr<MidoriExpression>& argument)
+		{
+			Visit(argument, depth + 2);
+		}
+	);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Join& join, int depth) const
+{
+	PrintWithIndentation(depth, "Join {");
+	PrintWithIndentation(depth + 1, "Worker: ");
+	Visit(join.m_worker, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ChannelCreate& channel_create, int depth) const
+{
+	PrintWithIndentation(depth, "ChannelCreate {");
+	PrintWithIndentation(depth + 1, "ElementType: " + channel_create.m_element_type->ToString());
+	PrintWithIndentation(depth + 1, "Capacity: ");
+	Visit(channel_create.m_capacity, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Send& send, int depth) const
+{
+	PrintWithIndentation(depth, "Send {");
+	PrintWithIndentation(depth + 1, "Channel: ");
+	Visit(send.m_channel, depth + 2);
+	PrintWithIndentation(depth + 1, "Value: ");
+	Visit(send.m_value, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Receive& receive, int depth) const
+{
+	PrintWithIndentation(depth, "Receive {");
+	PrintWithIndentation(depth + 1, "Channel: ");
+	Visit(receive.m_channel, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Call& call, int depth) const
 {
 	PrintWithIndentation(depth, "Call {");

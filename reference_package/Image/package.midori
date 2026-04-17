@@ -13,6 +13,7 @@ exports = ["Image"]
 [ffi]
 enabled = true
 library_name = "midori_image"
+thread_safe = true
 
 [ffi.functions]
 "MIDORI_FFI_Image_ReadInfo" = "midori_image_read_info"

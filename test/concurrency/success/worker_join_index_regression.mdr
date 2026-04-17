@@ -1,0 +1,76 @@
+module worker_join_index_regression
+
+import
+{
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Appendable.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+use IO.{PrintLine}
+
+defun Answer(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, _view_min_r : Float, _view_min_i : Float, _view_max_r : Float, _view_max_i : Float, fractal_kind : Int, _julia_cr : Float, _julia_ci : Float) : Array<Int> =>
+{
+    [y_start, y_end, width, height, limit, samples_per_axis, fractal_kind]
+};
+
+defun Run() : Unit =>
+{
+    def width = 64;
+    def height = 64;
+    def limit = 32;
+    def samples_per_axis = 1;
+    def view_min_r = -2.5;
+    def view_min_i = -1.2;
+    def view_max_r = 1.0;
+    def view_max_i = 1.2;
+    def fractal_kind = 0;
+    def julia_cr = 0.0;
+    def julia_ci = 0.0;
+    def band_workers = 32;
+
+    def worker_count = if band_workers < height then band_workers else height;
+    def base_rows = height / worker_count;
+    def remainder = height % worker_count;
+    def workers : Array<Worker<Array<Int>>> = [];
+    def next_row = 0;
+    def band_index = 0;
+    loop
+    {
+        if band_index >= worker_count then break () else ();
+
+        def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
+        def y_start = next_row;
+        def y_end = y_start + band_rows;
+        def immediate = join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0);
+        if immediate[0] == 0
+        then ()
+        else Panic::Panic("immediate join failed");
+        def worker = spawn Answer(y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci);
+        Appendable::Append(workers, worker);
+
+        next_row = y_end;
+        band_index = band_index + 1;
+    };
+
+    def join_index = 0;
+    loop
+    {
+        if join_index >= #workers then break () else ();
+
+        def result = join workers[join_index];
+        def expected_y_start = join_index * 2;
+        def expected_y_end = expected_y_start + 2;
+        if result[0] == expected_y_start
+        then ()
+        else Panic::Panic("unexpected y_start at " ++ (join_index as Text));
+        if result[1] == expected_y_end
+        then ()
+        else Panic::Panic("unexpected y_end at " ++ (join_index as Text));
+
+        join_index = join_index + 1;
+    };
+};
+
+Run();
+PrintLine("ok");

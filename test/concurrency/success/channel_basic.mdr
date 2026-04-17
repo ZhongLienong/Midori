@@ -1,0 +1,20 @@
+module channel_basic
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Producer(ch: Channel<Text>) : Int => {
+    ch -> "message1";
+    ch -> "message2";
+    ch -> "done";
+    0
+};
+
+def ch = channel<Text>(10);
+def w = spawn Producer(ch);
+def msg1 = <- ch;
+def msg2 = <- ch;
+def msg3 = <- ch;
+PrintLine("Received: " ++ msg1 ++ ", " ++ msg2 ++ ", " ++ msg3);
+close(ch);
+def r = join w;

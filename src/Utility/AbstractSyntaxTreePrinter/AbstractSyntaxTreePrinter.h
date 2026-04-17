@@ -38,6 +38,16 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::UnarySuffix& unary, int depth = 0) const;
 
+	void operator()(const MidoriExpression::Spawn& spawn, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Join& join, int depth = 0) const;
+
+	void operator()(const MidoriExpression::ChannelCreate& channel_create, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Send& send, int depth = 0) const;
+
+	void operator()(const MidoriExpression::Receive& receive, int depth = 0) const;
+
 	void operator()(const MidoriExpression::Call& call, int depth = 0) const;
 
 	void operator()(const MidoriExpression::MemberAccess& get, int depth = 0) const;

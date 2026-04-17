@@ -1,0 +1,18 @@
+module worker_cancel
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+import { "../../../MidoriPrelude/System.mdr" }
+use System.{Sleep}
+
+defun LongTask(dummy: Text) : Int => {
+    Sleep(5000);
+    0
+};
+
+def w = spawn LongTask("x");
+def cancelled = cancel(w);
+if cancelled
+then PrintLine("Cancel requested: yes")
+else PrintLine("Cancel requested: no");

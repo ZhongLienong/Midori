@@ -48,6 +48,14 @@ namespace
 			{
 				return MidoriType::MakeArrayType(substitute(type_variant.m_element_type));
 			}
+			else if constexpr (std::is_same_v<T, MidoriType::WorkerType>)
+			{
+				return MidoriType::MakeWorkerType(substitute(type_variant.m_result_type));
+			}
+			else if constexpr (std::is_same_v<T, MidoriType::ChannelType>)
+			{
+				return MidoriType::MakeChannelType(substitute(type_variant.m_element_type));
+			}
 			else if constexpr (std::is_same_v<T, MidoriType::RangeType>)
 			{
 				return MidoriType::MakeRangeType(substitute(type_variant.m_element_type));
@@ -210,6 +218,14 @@ namespace
 			{
 				return "Array<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
+			else if constexpr (std::is_same_v<Type, MidoriType::WorkerType>)
+			{
+				return "Worker<"s + stringify(*type_variant.m_result_type) + ">"s;
+			}
+			else if constexpr (std::is_same_v<Type, MidoriType::ChannelType>)
+			{
+				return "Channel<"s + stringify(*type_variant.m_element_type) + ">"s;
+			}
 			else if constexpr (std::is_same_v<Type, MidoriType::RangeType>)
 			{
 				return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
@@ -368,6 +384,14 @@ struct MidoriType::TypeEqualityVisitor
 			return a.m_id == b.m_id;
 		}
 		else if constexpr (std::is_same_v<TypeA, MidoriType::ArrayType>)
+		{
+			return *a.m_element_type == *b.m_element_type;
+		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::WorkerType>)
+		{
+			return *a.m_result_type == *b.m_result_type;
+		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::ChannelType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
@@ -539,6 +563,16 @@ std::shared_ptr<MidoriType> MidoriType::MakeAssociatedType(const std::string& cl
 std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<MidoriType>& element_type)
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(ArrayType{.m_element_type = element_type}));
+}
+
+std::shared_ptr<MidoriType> MidoriType::MakeWorkerType(const std::shared_ptr<MidoriType>& result_type)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(WorkerType{.m_result_type = result_type}));
+}
+
+std::shared_ptr<MidoriType> MidoriType::MakeChannelType(const std::shared_ptr<MidoriType>& element_type)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(ChannelType{.m_element_type = element_type}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeRangeType(const std::shared_ptr<MidoriType>& element_type)

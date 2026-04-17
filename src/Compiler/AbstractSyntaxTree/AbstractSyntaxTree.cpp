@@ -139,6 +139,39 @@ MidoriExpression::UnarySuffix::UnarySuffix(const Token& op, std::unique_ptr<Mido
 {
 }
 
+MidoriExpression::Spawn::Spawn(const Token& spawn_keyword, const Token& callee_name, std::vector<std::unique_ptr<MidoriExpression>>&& arguments)
+	: m_spawn_keyword(spawn_keyword),
+	m_callee_name(callee_name),
+	m_arguments(std::move(arguments))
+{
+}
+
+MidoriExpression::Join::Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker)
+	: m_join_keyword(join_keyword),
+	m_worker(std::move(worker))
+{
+}
+
+MidoriExpression::ChannelCreate::ChannelCreate(const Token& channel_keyword, std::shared_ptr<MidoriType>&& element_type, std::unique_ptr<MidoriExpression>&& capacity)
+	: m_channel_keyword(channel_keyword),
+	m_element_type(std::move(element_type)),
+	m_capacity(std::move(capacity))
+{
+}
+
+MidoriExpression::Send::Send(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel, std::unique_ptr<MidoriExpression>&& value)
+	: m_arrow(arrow),
+	m_channel(std::move(channel)),
+	m_value(std::move(value))
+{
+}
+
+MidoriExpression::Receive::Receive(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel)
+	: m_arrow(arrow),
+	m_channel(std::move(channel))
+{
+}
+
 MidoriExpression::Assignment::Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_value(std::move(value)),

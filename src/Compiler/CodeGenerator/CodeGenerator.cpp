@@ -420,6 +420,18 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::MATCH_JUMP_TABLE:
 			advance = 2 + (static_cast<int>(procedure.ReadByteCode(offset + 1)) * 2);
 			break;
+		case OpCode::SPAWN_WORKER:
+			advance = 4;
+			break;
+		case OpCode::JOIN_WORKER:
+		case OpCode::CHANNEL_CREATE:
+		case OpCode::CHANNEL_SEND:
+		case OpCode::CHANNEL_RECEIVE:
+		case OpCode::CHANNEL_CLOSE:
+		case OpCode::WORKER_IS_DONE:
+		case OpCode::WORKER_CANCEL:
+			advance = 1;
+			break;
 		case OpCode::CALL_FOREIGN:
 			advance = 3;
 			break;
@@ -1658,6 +1670,11 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::UnitLiteral& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::UnaryPrefix& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::UnarySuffix& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Spawn& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Join& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::ChannelCreate& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Send& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Receive& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Assignment& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::CompoundAssign& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::NameAccess& arg) const { (*m_self)(arg); }
@@ -1976,7 +1993,11 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 		m_global_variables[defun.m_name.m_lexeme] = index.value();
 	}
 
-	EmitFunction(defun.m_params, defun.m_body, defun.m_name.m_lexeme, line, defun.m_captured_count);
+	const int direct_proc_global_index =
+		(is_global && defun.m_captured_count == 0 && defun.m_name.m_lexeme.rfind("__lifted_", 0u) == 0u)
+			? index.value()
+			: -1;
+	static_cast<void>(EmitFunction(defun.m_params, defun.m_body, defun.m_name.m_lexeme, line, defun.m_captured_count, direct_proc_global_index));
 
 	if (is_global)
 	{
@@ -2096,7 +2117,11 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 			m_global_variables[defun.m_name.m_lexeme] = index;
 		}
 
-		EmitFunction(defun.m_params, defun.m_body, defun.m_name.m_lexeme, line, defun.m_captured_count);
+		const int direct_proc_global_index =
+			(defun.m_captured_count == 0 && defun.m_name.m_lexeme.rfind("__lifted_", 0u) == 0u)
+				? index
+				: -1;
+		static_cast<void>(EmitFunction(defun.m_params, defun.m_body, defun.m_name.m_lexeme, line, defun.m_captured_count, direct_proc_global_index));
 		EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
 	}
 }
@@ -2992,6 +3017,59 @@ void CodeGenerator::operator()(MidoriExpression::UnarySuffix&)
 	return;
 }
 
+void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
+{
+	const int line = spawn.m_spawn_keyword.m_line;
+	const int arg_count = static_cast<int>(spawn.m_arguments.size());
+	if (arg_count > MAX_FUNCTION_ARITY)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many spawn arguments (max {})", MAX_FUNCTION_ARITY + 1), spawn.m_spawn_keyword, m_file_name, m_source_lines));
+		return;
+	}
+
+	std::optional<int> global_index = ResolveResolvedNameGlobalIndex(spawn.m_callee_name.m_lexeme, line);
+	if (!global_index.has_value())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Spawn code generation error: could not resolve spawned function", spawn.m_callee_name, m_file_name, m_source_lines));
+		return;
+	}
+
+	spawn.m_global_index = global_index.value();
+	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
+	{
+		Visit(argument);
+	}
+
+	EmitByte(OpCode::SPAWN_WORKER, line);
+	EmitTwoBytes((spawn.m_global_index >> SHIFT_8_BITS) & BYTE_MASK, spawn.m_global_index & BYTE_MASK, line);
+	EmitByte(static_cast<OpCode>(arg_count), line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Join& join)
+{
+	Visit(join.m_worker);
+	EmitByte(OpCode::JOIN_WORKER, join.m_join_keyword.m_line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::ChannelCreate& channel_create)
+{
+	Visit(channel_create.m_capacity);
+	EmitByte(OpCode::CHANNEL_CREATE, channel_create.m_channel_keyword.m_line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Send& send)
+{
+	Visit(send.m_channel);
+	Visit(send.m_value);
+	EmitByte(OpCode::CHANNEL_SEND, send.m_arrow.m_line);
+}
+
+void CodeGenerator::operator()(MidoriExpression::Receive& receive)
+{
+	Visit(receive.m_channel);
+	EmitByte(OpCode::CHANNEL_RECEIVE, receive.m_arrow.m_line);
+}
+
 void CodeGenerator::operator()(MidoriExpression::Call& call)
 {
 	int line = call.m_paren.m_line;
@@ -3010,6 +3088,25 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 	{
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		function_name = callee_name.m_name.m_lexeme;
+
+		if (function_name == "close" && call.m_arguments.size() == 1u)
+		{
+			Visit(call.m_arguments[0u]);
+			EmitByte(OpCode::CHANNEL_CLOSE, line);
+			return;
+		}
+		if (function_name == "is_done" && call.m_arguments.size() == 1u)
+		{
+			Visit(call.m_arguments[0u]);
+			EmitByte(OpCode::WORKER_IS_DONE, line);
+			return;
+		}
+		if (function_name == "cancel" && call.m_arguments.size() == 1u)
+		{
+			Visit(call.m_arguments[0u]);
+			EmitByte(OpCode::WORKER_CANCEL, line);
+			return;
+		}
 
 		std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(function_name);
 		if (resolution_it != m_method_resolution_map.end())
@@ -3158,6 +3255,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 
 		bool can_emit_call_global = false;
 		int call_global_index = -1;
+		std::optional<int> direct_proc_index = std::nullopt;
 
 		std::optional<size_t> ffi_index_opt = std::nullopt;
 		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::NameAccess>())
@@ -3193,6 +3291,15 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 						can_emit_call_global = true;
 						call_global_index = global_it->second;
 					}
+				}
+			}
+
+			if (can_emit_call_global)
+			{
+				std::unordered_map<int, int>::iterator direct_proc_it = m_direct_proc_global_indices.find(call_global_index);
+				if (direct_proc_it != m_direct_proc_global_indices.end())
+				{
+					direct_proc_index = direct_proc_it->second;
 				}
 			}
 		}
@@ -3237,6 +3344,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 				EmitByte(static_cast<OpCode>(arity), line);
 				EmitByte(static_cast<OpCode>(return_type_tag), line);
 			}
+		}
+		else if (direct_proc_index.has_value())
+		{
+			EmitCallProc(direct_proc_index.value(), arity, line);
 		}
 		else if (can_emit_call_global)
 		{
@@ -3671,7 +3782,7 @@ void CodeGenerator::operator()(MidoriExpression::UnitLiteral& unit)
 void CodeGenerator::operator()(MidoriExpression::Function& function)
 {
 	int line = function.m_function_keyword.m_line;
-	EmitFunction(function.m_params, function.m_body, "Anonymous Function at line: " + std::to_string(line), line, function.m_captured_count);
+	static_cast<void>(EmitFunction(function.m_params, function.m_body, "Anonymous Function at line: " + std::to_string(line), line, function.m_captured_count));
 }
 
 void CodeGenerator::operator()(MidoriExpression::Construct& construct)
@@ -4619,6 +4730,29 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 		{
 			return m_self->IsGenericType(type_variant.m_element_type);
 		}
+		bool operator()(const MidoriType::WorkerType& type_variant) const
+		{
+			return m_self->IsGenericType(type_variant.m_result_type);
+		}
+		bool operator()(const MidoriType::ChannelType& type_variant) const
+		{
+			return m_self->IsGenericType(type_variant.m_element_type);
+		}
+		bool operator()(const MidoriType::RangeType& type_variant) const
+		{
+			return m_self->IsGenericType(type_variant.m_element_type);
+		}
+		bool operator()(const MidoriType::TupleType& type_variant) const
+		{
+			for (const std::shared_ptr<MidoriType>& element_type : type_variant.m_element_types)
+			{
+				if (m_self->IsGenericType(element_type))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
 		bool operator()(const MidoriType::StructType& type_variant) const
 		{
 			for (const std::shared_ptr<MidoriType>& member_type : type_variant.m_member_types)
@@ -4666,8 +4800,6 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 		bool operator()(const MidoriType::BoolType&) const { return false; }
 		bool operator()(const MidoriType::UnitType&) const { return false; }
 		bool operator()(const MidoriType::NeverType&) const { return false; }
-		bool operator()(const MidoriType::RangeType&) const { return false; }
-		bool operator()(const MidoriType::TupleType&) const { return false; }
 		bool operator()(const MidoriType::ClassConstraint&) const { return false; }
 	};
 
@@ -4714,6 +4846,22 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 			if (m_concrete_type->IsType<MidoriType::ArrayType>())
 			{
 				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::ArrayType>().m_element_type, m_map, m_visited);
+			}
+		}
+
+		void operator()(const MidoriType::WorkerType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::WorkerType>())
+			{
+				m_self->DeduceGenericTypesRecursive(p_var.m_result_type, m_concrete_type->GetType<MidoriType::WorkerType>().m_result_type, m_map, m_visited);
+			}
+		}
+
+		void operator()(const MidoriType::ChannelType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::ChannelType>())
+			{
+				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::ChannelType>().m_element_type, m_map, m_visited);
 			}
 		}
 
@@ -4810,7 +4958,13 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 		void operator()(const MidoriType::BoolType&) const {}
 		void operator()(const MidoriType::UnitType&) const {}
 		void operator()(const MidoriType::NeverType&) const {}
-		void operator()(const MidoriType::RangeType&) const {}
+		void operator()(const MidoriType::RangeType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::RangeType>())
+			{
+				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::RangeType>().m_element_type, m_map, m_visited);
+			}
+		}
 		void operator()(const MidoriType::ClassConstraint&) const {}
 	};
 
@@ -5291,6 +5445,26 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			return m_current;
 		}
 
+		std::shared_ptr<MidoriType> operator()(const MidoriType::WorkerType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_result = m_substitute(type_variant.m_result_type);
+			if (substituted_result != type_variant.m_result_type)
+			{
+				return MidoriType::MakeWorkerType(substituted_result);
+			}
+			return m_current;
+		}
+
+		std::shared_ptr<MidoriType> operator()(const MidoriType::ChannelType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_element = m_substitute(type_variant.m_element_type);
+			if (substituted_element != type_variant.m_element_type)
+			{
+				return MidoriType::MakeChannelType(substituted_element);
+			}
+			return m_current;
+		}
+
 		std::shared_ptr<MidoriType> operator()(const MidoriType::TupleType& type_variant) const
 		{
 			std::vector<std::shared_ptr<MidoriType>> substituted_elements;
@@ -5448,7 +5622,15 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 		std::shared_ptr<MidoriType> operator()(const MidoriType::BoolType&) const { return m_current; }
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UnitType&) const { return m_current; }
 		std::shared_ptr<MidoriType> operator()(const MidoriType::NeverType&) const { return m_current; }
-		std::shared_ptr<MidoriType> operator()(const MidoriType::RangeType&) const { return m_current; }
+		std::shared_ptr<MidoriType> operator()(const MidoriType::RangeType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_element = m_substitute(type_variant.m_element_type);
+			if (substituted_element != type_variant.m_element_type)
+			{
+				return MidoriType::MakeRangeType(substituted_element);
+			}
+			return m_current;
+		}
 		std::shared_ptr<MidoriType> operator()(const MidoriType::ClassConstraint&) const { return m_current; }
 	};
 
@@ -5482,18 +5664,18 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 	return substitute(type);
 }
 
-void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count)
+int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count, int direct_proc_global_index)
 {
 	int arity = static_cast<int>(params.size());
 	if (arity > MAX_FUNCTION_ARITY)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many arguments (max {})", MAX_FUNCTION_ARITY + 1), line, m_file_name, m_source_lines));
-		return;
+		return -1;
 	}
 	if (captured_count > MAX_CAPTURED_COUNT)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line, m_file_name, m_source_lines));
-		return;
+		return -1;
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
@@ -5502,6 +5684,10 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	m_builder.m_procedures.emplace_back();
 	EnsureProcedureMetadataSize(closure_proc_index);
 	m_procedure_capture_counts[closure_proc_index] = captured_count;
+	if (direct_proc_global_index >= 0 && captured_count == 0)
+	{
+		m_direct_proc_global_indices[direct_proc_global_index] = static_cast<int>(closure_proc_index);
+	}
 	Visit(body);
 
 	EmitByte(OpCode::RETURN, line);
@@ -5514,7 +5700,7 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 	if (m_builder.m_current_procedure_index > MAX_FUNCTION_COUNT)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line, m_file_name, m_source_lines));
-		return;
+		return -1;
 	}
 
 	if (captured_count == 0)
@@ -5531,6 +5717,8 @@ void CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_p
 		EmitByte(OpCode::BIND_CAPTURES, line);
 		EmitByte(static_cast<OpCode>(captured_count), line);
 	}
+
+	return static_cast<int>(closure_proc_index);
 }
 
 std::size_t CodeGenerator::FunctionSignatureHash::operator()(const FunctionSignature& sig) const

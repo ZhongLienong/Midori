@@ -86,6 +86,7 @@ private:
 	std::vector<BytecodeModule::ImportedSymbol> m_tracked_imports;
 
 	std::unordered_map<std::string, int> m_global_variables;
+	std::unordered_map<int, int> m_direct_proc_global_indices;
 	std::unordered_map<std::string, int> m_local_variables;
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
@@ -247,6 +248,16 @@ private:
 
 	void operator()(MidoriExpression::UnarySuffix& unary);
 
+	void operator()(MidoriExpression::Spawn& spawn);
+
+	void operator()(MidoriExpression::Join& join);
+
+	void operator()(MidoriExpression::ChannelCreate& channel_create);
+
+	void operator()(MidoriExpression::Send& send);
+
+	void operator()(MidoriExpression::Receive& receive);
+
 	void operator()(MidoriExpression::Call& call);
 
 	void operator()(MidoriExpression::MemberAccess& get);
@@ -309,7 +320,7 @@ private:
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 
-	void EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0);
+	int EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0, int direct_proc_global_index = -1);
 
 	bool IsGenericType(const std::shared_ptr<MidoriType>& type);
 

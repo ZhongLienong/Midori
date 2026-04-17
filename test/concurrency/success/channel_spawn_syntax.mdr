@@ -1,0 +1,19 @@
+module channel_spawn_syntax
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun Producer(ch: Channel<Text>) : Int => {
+    ch -> "left";
+    ch -> "right";
+    close(ch);
+    7
+};
+
+def ch = channel<Text>(2);
+def worker = spawn Producer(ch);
+def first = <- ch;
+def second = <- ch;
+def result = join worker;
+
+PrintLine(first ++ "," ++ second ++ "," ++ (result as Text));

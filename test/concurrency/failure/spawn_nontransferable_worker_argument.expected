@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_worker_argument.mdr:14
+   |
+14 | def nested = spawn Rejoin(produced);
+   |                    ^^^^^^ Type Worker<Int> does not satisfy constraint Transferable<Worker<Int>> - no matching instance found
+   |
+  | Worker values cannot cross worker boundaries.

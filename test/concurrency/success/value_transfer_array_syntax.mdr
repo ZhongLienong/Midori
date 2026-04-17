@@ -1,0 +1,13 @@
+module value_transfer_array_syntax
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun BuildValues() : Array<Int> => {
+    [1, 2, 3, 4]
+};
+
+def worker = spawn BuildValues();
+def values = join worker;
+
+PrintLine("len=" ++ ((#values) as Text) ++ ",first=" ++ (values[0] as Text) ++ ",last=" ++ (values[3] as Text));

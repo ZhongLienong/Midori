@@ -40,6 +40,7 @@ struct PackageFFI
 	std::unordered_map<std::string, std::string> m_functions;
 	int m_abi_version = 1;
 	bool m_enabled = false;
+	bool m_thread_safe = false;
 };
 
 struct PackageBuild

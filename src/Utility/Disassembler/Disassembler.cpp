@@ -453,6 +453,24 @@ namespace
 			offset += 2;
 		}
 	}
+
+	void SpawnWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		const int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		const int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		const int global_index = (high_byte << 8) | low_byte;
+		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+
+		std::ostringstream formatted_str;
+		formatted_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formatted_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
+		formatted_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arg_count));
+		formatted_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global " + std::to_string(global_index) + ", argc " + std::to_string(arg_count));
+		formatted_str << '\n';
+		Printer::Print(formatted_str.str());
+
+		offset += 4;
+	}
 }
 
 namespace Disassembler
@@ -927,6 +945,30 @@ namespace Disassembler
 			break;
 		case OpCode::MATCH_JUMP_TABLE:
 			MatchJumpTableInstruction("MATCH_JUMP_TABLE", executable, proc_index, offset);
+			break;
+		case OpCode::SPAWN_WORKER:
+			SpawnWorkerInstruction("SPAWN_WORKER", executable, proc_index, offset);
+			break;
+		case OpCode::JOIN_WORKER:
+			SimpleInstruction("JOIN_WORKER", offset);
+			break;
+		case OpCode::CHANNEL_CREATE:
+			SimpleInstruction("CHANNEL_CREATE", offset);
+			break;
+		case OpCode::CHANNEL_SEND:
+			SimpleInstruction("CHANNEL_SEND", offset);
+			break;
+		case OpCode::CHANNEL_RECEIVE:
+			SimpleInstruction("CHANNEL_RECEIVE", offset);
+			break;
+		case OpCode::CHANNEL_CLOSE:
+			SimpleInstruction("CHANNEL_CLOSE", offset);
+			break;
+		case OpCode::WORKER_IS_DONE:
+			SimpleInstruction("WORKER_IS_DONE", offset);
+			break;
+		case OpCode::WORKER_CANCEL:
+			SimpleInstruction("WORKER_CANCEL", offset);
 			break;
 		case OpCode::CALL_FOREIGN:
 			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);

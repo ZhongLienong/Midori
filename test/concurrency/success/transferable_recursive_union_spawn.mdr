@@ -1,0 +1,25 @@
+module TransferableRecursiveUnionSpawn
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+union IntList = Nil | Cons(Int, IntList) deriving (Transferable);
+
+defun Count(list: IntList) : Int =>
+    match list with
+        case IntList::Nil => 0
+        case IntList::Cons(_, tail) => 1 + Count(tail)
+;
+
+def list =
+    new IntList::Cons(
+        1,
+        new IntList::Cons(
+            2,
+            new IntList::Cons(3, new IntList::Nil())
+        )
+    );
+
+def worker = spawn Count(list);
+def result = join worker;
+
+IO::PrintLine("count=" ++ (result as Text));

@@ -1,0 +1,44 @@
+module worker_compute
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+defun SumRange(ch: Channel<Int>, start: Int, end_val: Int) : Int => {
+    def sum = 0;
+    def i = start;
+    loop
+    {
+        sum = sum + i;
+        i = i + 1;
+        if i > end_val then break () else ();
+    };
+    ch -> sum;
+    0
+};
+
+def ch1 = channel<Int>(1);
+def ch2 = channel<Int>(1);
+def ch3 = channel<Int>(1);
+def ch4 = channel<Int>(1);
+
+def w1 = spawn SumRange(ch1, 1, 250);
+def w2 = spawn SumRange(ch2, 251, 500);
+def w3 = spawn SumRange(ch3, 501, 750);
+def w4 = spawn SumRange(ch4, 751, 1000);
+
+def s1 = <- ch1;
+def s2 = <- ch2;
+def s3 = <- ch3;
+def s4 = <- ch4;
+
+def total = s1 + s2 + s3 + s4;
+PrintLine("Sum 1..1000 = " ++ (total as Text));
+
+close(ch1);
+close(ch2);
+close(ch3);
+close(ch4);
+def _r1 = join w1;
+def _r2 = join w2;
+def _r3 = join w3;
+def _r4 = join w4;

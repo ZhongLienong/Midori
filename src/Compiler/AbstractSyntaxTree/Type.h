@@ -43,6 +43,16 @@ public:
 		std::shared_ptr<MidoriType> m_element_type;
 	};
 
+	struct WorkerType
+	{
+		std::shared_ptr<MidoriType> m_result_type;
+	};
+
+	struct ChannelType
+	{
+		std::shared_ptr<MidoriType> m_element_type;
+	};
+
 	struct RangeType
 	{
 		std::shared_ptr<MidoriType> m_element_type;
@@ -123,6 +133,8 @@ public:
 		UnitType,
 		NeverType,
 		ArrayType,
+		WorkerType,
+		ChannelType,
 		RangeType,
 		TupleType,
 		FunctionType,
@@ -175,6 +187,8 @@ public:
 	static std::shared_ptr<MidoriType> MakeTypeVariable(int id);
 	static std::shared_ptr<MidoriType> MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
 	static std::shared_ptr<MidoriType> MakeArrayType(const std::shared_ptr<MidoriType>& element_type);
+	static std::shared_ptr<MidoriType> MakeWorkerType(const std::shared_ptr<MidoriType>& result_type);
+	static std::shared_ptr<MidoriType> MakeChannelType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeRangeType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);
 	static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false);

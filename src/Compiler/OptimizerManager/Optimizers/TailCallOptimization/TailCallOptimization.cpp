@@ -106,6 +106,39 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_expr, m_function_name);
 			}
 
+			bool operator()(const MidoriExpression::Spawn& node) const
+			{
+				for (const std::unique_ptr<MidoriExpression>& argument : node.m_arguments)
+				{
+					if (ContainsRecursiveCallImpl(*argument, m_function_name))
+					{
+						return true;
+					}
+				}
+				return false;
+			}
+
+			bool operator()(const MidoriExpression::Join& node) const
+			{
+				return ContainsRecursiveCallImpl(*node.m_worker, m_function_name);
+			}
+
+			bool operator()(const MidoriExpression::ChannelCreate& node) const
+			{
+				return ContainsRecursiveCallImpl(*node.m_capacity, m_function_name);
+			}
+
+			bool operator()(const MidoriExpression::Send& node) const
+			{
+				return ContainsRecursiveCallImpl(*node.m_channel, m_function_name)
+					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
+			}
+
+			bool operator()(const MidoriExpression::Receive& node) const
+			{
+				return ContainsRecursiveCallImpl(*node.m_channel, m_function_name);
+			}
+
 			bool operator()(const MidoriExpression::Assignment& node) const
 			{
 				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);

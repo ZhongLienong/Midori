@@ -1,0 +1,18 @@
+module spawn_nontransferable_derived_field
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+struct BadPayload
+{
+    callback: fn(Int) -> Int
+} deriving (Transferable);
+
+defun UsePayload(payload: BadPayload) : Int => {
+    payload.callback(5)
+};
+
+def increment = fn(value: Int) => {
+    value + 1
+};
+
+def worker = spawn UsePayload(new BadPayload(increment));

@@ -1,5 +1,5 @@
 module IO
-import { "./Prelude/Result.mdr" }
+import { "./Prelude/Result.mdr", "./Transferable.mdr" }
 use Result.{Result}
 public export
 {

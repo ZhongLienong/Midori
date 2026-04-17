@@ -216,6 +216,16 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::UnarySuffix& unary);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::Spawn& spawn);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::Join& join);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::ChannelCreate& channel_create);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::Send& send);
+
+	MidoriResult::TypeResult operator()(MidoriExpression::Receive& receive);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::Call& call);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::MemberAccess& get);
@@ -275,4 +285,10 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Break& break_expr);
+
+	bool HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type) const;
+
+	std::optional<CompilerError> EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type);
+
+	std::optional<CompilerError> EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited);
 };
