@@ -1,113 +1,78 @@
 module IO
 import { "./Prelude/Result.mdr", "./Transferable.mdr" }
-use Result.{Result}
-public export
-{
-    IOError,
-    Print, PrintLine, PrintError, PrintErrorLine,
-    ReadInput, ReadLine,
-    FileExists,
-    TryReadFile, TryWriteFile, TryAppendToFile,
-    TryReadBinaryFile, TryWriteBinaryFile,
-    TryDeleteFile, TryRenameFile, TryGetFileSize
+use Result.{
+    Result
 }
-
+public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize }
 union IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
-
-foreign "MIDORI_FFI_Print" PrintRaw : fn(Text) -> Unit;
-foreign "MIDORI_FFI_PrintError" PrintErrorRaw : fn(Text) -> Unit;
-foreign "MIDORI_FFI_ReadInput" ReadInputRaw : fn() -> Text;
-foreign "MIDORI_FFI_ReadLine" ReadLineRaw : fn() -> Text;
-foreign "MIDORI_FFI_ReadFile" ReadFileRaw : fn(Text) -> Text;
-foreign "MIDORI_FFI_WriteFile" WriteFileRaw : fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_AppendToFile" AppendToFileRaw : fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFileRaw : fn(Text) -> Array<Byte>;
-foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFileRaw : fn(Text, Array<Byte>) -> Bool;
-foreign "MIDORI_FFI_FileExists" FileExistsRaw : fn(Text) -> Bool;
-foreign "MIDORI_FFI_DeleteFile" DeleteFileRaw : fn(Text) -> Bool;
-foreign "MIDORI_FFI_RenameFile" RenameFileRaw : fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_GetFileSize" GetFileSizeRaw : fn(Text) -> Int;
-foreign "MIDORI_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw : fn() -> Int;
-foreign "MIDORI_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw : fn() -> Text;
-
-defun Print(text: Text) : Unit => PrintRaw(text);
-
-defun PrintLine(text: Text) : Unit => {
+foreign "MIDORI_FFI_Print" PrintRaw: fn(Text) -> Unit;
+foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+foreign "MIDORI_FFI_ReadInput" ReadInputRaw: fn() -> Text;
+foreign "MIDORI_FFI_ReadLine" ReadLineRaw: fn() -> Text;
+foreign "MIDORI_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text;
+foreign "MIDORI_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array < Byte >;
+foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array < Byte >) -> Bool;
+foreign "MIDORI_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
+foreign "MIDORI_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
+foreign "MIDORI_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
+foreign "MIDORI_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
+defun Print(text: Text): Unit => PrintRaw(text);
+defun PrintLine(text: Text): Unit => {
     Print(text ++ "\n");
 };
-
-defun PrintError(text: Text) : Unit => PrintErrorRaw(text);
-
-defun PrintErrorLine(text: Text) : Unit => {
+defun PrintError(text: Text): Unit => PrintErrorRaw(text);
+defun PrintErrorLine(text: Text): Unit => {
     PrintError(text ++ "\n");
 };
-
-defun ReadInput() : Text => ReadInputRaw();
-
-defun ReadLine() : Text => ReadLineRaw();
-
-defun FileExists(path: Text) : Bool => FileExistsRaw(path);
-
-defun UnknownIOContext(path: Text, message: Text) : Text => {
-    if message == ""
-    then path
-    else path ++ ": " ++ message
+defun ReadInput(): Text => ReadInputRaw();
+defun ReadLine(): Text => ReadLineRaw();
+defun FileExists(path: Text): Bool => FileExistsRaw(path);
+defun UnknownIOContext(path: Text, message: Text): Text => {
+    if message == "" then path else path ++ ": " ++ message
 };
-
-defun MakeIOError(path: Text, error_kind: Int) : IOError => {
+defun MakeIOError(path: Text, error_kind: Int): IOError => {
     def message = GetLastIOErrorMessageRaw();
-    if error_kind == 1
-    then new IOError::NotFound(path)
-    else if error_kind == 2
-    then new IOError::PermissionDenied(path)
-    else if error_kind == 3
-    then new IOError::InvalidPath(path)
-    else new IOError::UnknownIO(UnknownIOContext(path, message))
+    if error_kind == 1 then new IOError::NotFound(path) else if error_kind == 2 then new IOError::PermissionDenied(path) else if error_kind == 3 then new IOError::InvalidPath(path) else new IOError::UnknownIO(UnknownIOContext(path, message))
 };
-
-defun IOResultFromStatus<T>(path: Text, value: T) : Result<T, IOError> => {
+defun IOResultFromStatus < T >(path: Text, value: T): Result < T, IOError > => {
     def error_kind = GetLastIOErrorKindRaw();
-    if error_kind == 0
-    then new Result::Ok<T, IOError>(value)
-    else new Result::Err<T, IOError>(MakeIOError(path, error_kind))
+    if error_kind == 0 then new Result::Ok < T,
+    IOError >(value) else new Result::Err < T,
+    IOError >(MakeIOError(path, error_kind))
 };
-
-defun TryReadFile(path: Text) : Result<Text, IOError> => {
+defun TryReadFile(path: Text): Result < Text, IOError > => {
     def content = ReadFileRaw(path);
     IOResultFromStatus(path, content)
 };
-
-defun TryWriteFile(path: Text, content: Text) : Result<Unit, IOError> => {
+defun TryWriteFile(path: Text, content: Text): Result < Unit, IOError > => {
     WriteFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
-
-defun TryAppendToFile(path: Text, content: Text) : Result<Unit, IOError> => {
+defun TryAppendToFile(path: Text, content: Text): Result < Unit, IOError > => {
     AppendToFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
-
-defun TryReadBinaryFile(path: Text) : Result<Array<Byte>, IOError> => {
+defun TryReadBinaryFile(path: Text): Result < Array < Byte >, IOError > => {
     def bytes = ReadBinaryFileRaw(path);
     IOResultFromStatus(path, bytes)
 };
-
-defun TryWriteBinaryFile(path: Text, bytes: Array<Byte>) : Result<Unit, IOError> => {
+defun TryWriteBinaryFile(path: Text, bytes: Array < Byte >): Result < Unit, IOError > => {
     WriteBinaryFileRaw(path, bytes);
     IOResultFromStatus(path, ())
 };
-
-defun TryDeleteFile(path: Text) : Result<Unit, IOError> => {
+defun TryDeleteFile(path: Text): Result < Unit, IOError > => {
     DeleteFileRaw(path);
     IOResultFromStatus(path, ())
 };
-
-defun TryRenameFile(old_path: Text, new_path: Text) : Result<Unit, IOError> => {
+defun TryRenameFile(old_path: Text, new_path: Text): Result < Unit, IOError > => {
     RenameFileRaw(old_path, new_path);
     IOResultFromStatus(old_path, ())
 };
-
-defun TryGetFileSize(path: Text) : Result<Int, IOError> => {
+defun TryGetFileSize(path: Text): Result < Int, IOError > => {
     def size = GetFileSizeRaw(path);
     IOResultFromStatus(path, size)
 };

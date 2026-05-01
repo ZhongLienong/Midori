@@ -1,14 +1,6 @@
 module DateTime
-public export
-{
-    LocalTimeParts, UtcTimeParts,
-    NowUnixMillis, TimezoneOffsetMinutes,
-    LocalNow, UtcNow,
-    FormatLocal
-}
-
-struct LocalTimeParts
-{
+public export { LocalTimeParts, UtcTimeParts, NowUnixMillis, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal }
+struct LocalTimeParts {
     year: Int,
     month: Int,
     day: Int,
@@ -19,9 +11,7 @@ struct LocalTimeParts
     day_of_year: Int,
     timezone_offset_minutes: Int
 };
-
-struct UtcTimeParts
-{
+struct UtcTimeParts {
     year: Int,
     month: Int,
     day: Int,
@@ -31,74 +21,31 @@ struct UtcTimeParts
     day_of_week: Int,
     day_of_year: Int
 };
-
-foreign "MIDORI_FFI_GetTime" GetTimeRaw : fn() -> Float;
-
-foreign "MIDORI_FFI_GetYear" GetYearRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetMonth" GetMonthRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetDay" GetDayRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetHour" GetHourRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetMinute" GetMinuteRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetSecond" GetSecondRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetDayOfWeek" GetDayOfWeekRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetDayOfYear" GetDayOfYearRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_FormatTime" FormatTimeRaw : fn(Text) -> Text;
-
-foreign "MIDORI_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcYear" GetUtcYearRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcMonth" GetUtcMonthRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcDay" GetUtcDayRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcHour" GetUtcHourRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinuteRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecondRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw : fn() -> Int;
-
-foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw : fn() -> Int;
-
-defun NowUnixMillis() : Int => GetTimeRaw() as Int;
-
-defun TimezoneOffsetMinutes() : Int => GetTimezoneOffsetRaw();
-
-defun LocalNow() : LocalTimeParts => {
-    new LocalTimeParts(
-        GetYearRaw(),
-        GetMonthRaw(),
-        GetDayRaw(),
-        GetHourRaw(),
-        GetMinuteRaw(),
-        GetSecondRaw(),
-        GetDayOfWeekRaw(),
-        GetDayOfYearRaw(),
-        TimezoneOffsetMinutes()
-    )
+foreign "MIDORI_FFI_GetTime" GetTimeRaw: fn() -> Float;
+foreign "MIDORI_FFI_GetYear" GetYearRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetMonth" GetMonthRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetDay" GetDayRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetHour" GetHourRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetMinute" GetMinuteRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetSecond" GetSecondRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetDayOfWeek" GetDayOfWeekRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetDayOfYear" GetDayOfYearRaw: fn() -> Int;
+foreign "MIDORI_FFI_FormatTime" FormatTimeRaw: fn(Text) -> Text;
+foreign "MIDORI_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcYear" GetUtcYearRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcMonth" GetUtcMonthRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcDay" GetUtcDayRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcHour" GetUtcHourRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinuteRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int;
+foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
+defun NowUnixMillis(): Int => GetTimeRaw() as Int;
+defun TimezoneOffsetMinutes(): Int => GetTimezoneOffsetRaw();
+defun LocalNow(): LocalTimeParts => {
+    new LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())
 };
-
-defun UtcNow() : UtcTimeParts => {
-    new UtcTimeParts(
-        GetUtcYearRaw(),
-        GetUtcMonthRaw(),
-        GetUtcDayRaw(),
-        GetUtcHourRaw(),
-        GetUtcMinuteRaw(),
-        GetUtcSecondRaw(),
-        GetUtcDayOfWeekRaw(),
-        GetUtcDayOfYearRaw()
-    )
+defun UtcNow(): UtcTimeParts => {
+    new UtcTimeParts(GetUtcYearRaw(), GetUtcMonthRaw(), GetUtcDayRaw(), GetUtcHourRaw(), GetUtcMinuteRaw(), GetUtcSecondRaw(), GetUtcDayOfWeekRaw(), GetUtcDayOfYearRaw())
 };
-
-defun FormatLocal(format: Text) : Text => FormatTimeRaw(format);
+defun FormatLocal(format: Text): Text => FormatTimeRaw(format);

@@ -1,20 +1,13 @@
 module Appendable
 public export { Appendable }
-
-class Appendable<C, Elem>
-{
+class Appendable < C, Elem > {
     Append: fn(container: C, elem: Elem) -> Unit;
 };
-
-foreign "MIDORI_FFI_ArrayAppend" ArrayAppend : fn(Array<T>, T) -> Unit;
-foreign "MIDORI_FFI_TextAppend" TextAppend : fn(Text, Text) -> Unit;
-
-instance Appendable<Array<T>, T>
-{
-    defun Append(container: Array<T>, elem: T) : Unit => ArrayAppend(container, elem);
+foreign "MIDORI_FFI_ArrayAppend" ArrayAppend: fn(Array < T >, T) -> Unit;
+foreign "MIDORI_FFI_TextAppend" TextAppend: fn(Text, Text) -> Unit;
+instance Appendable < Array < T >, T > {
+    defun Append(container: Array < T >, elem: T): Unit => ArrayAppend(container, elem);
 };
-
-instance Appendable<Text, Text>
-{
-    defun Append(container: Text, elem: Text) : Unit => TextAppend(container, elem);
+instance Appendable < Text, Text > {
+    defun Append(container: Text, elem: Text): Unit => TextAppend(container, elem);
 };

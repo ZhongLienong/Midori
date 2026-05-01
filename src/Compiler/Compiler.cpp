@@ -1185,7 +1185,7 @@ namespace
 					return std::unexpected(MidoriResult::CompilerReport(
 						std::move(artifacts.m_warnings),
 						MidoriResult::CompilerDiagnostics(
-							CompilerError::Simple(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path), CompilerErrorCode::CompilerMissingCompiledModule))));
+							CompilerError::WithFile(CompilerStage::Compiler, std::format("Missing compiled module for '{}'\n", file_path), file_path, CompilerErrorCode::CompilerMissingCompiledModule))));
 				}
 
 				artifacts.m_warnings.Append(it->second.Warnings());

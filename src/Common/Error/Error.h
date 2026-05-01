@@ -128,6 +128,7 @@ struct CompilerError
 
 	static CompilerError NoMatch();
 	static CompilerError Simple(CompilerStage stage, std::string_view message, CompilerErrorCode code = CompilerErrorCode::None);
+	static CompilerError WithFile(CompilerStage stage, std::string_view message, std::string_view file_name, CompilerErrorCode code = CompilerErrorCode::None);
 	static CompilerError WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
 	static CompilerError WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt, CompilerErrorCode code = CompilerErrorCode::None);
 

@@ -188,6 +188,19 @@ python scripts/check_cli_contracts.py --build Development
 
 `python scripts/test_project.py --mode regression` also runs `scripts/check_cli_contracts.py` unless you pass `--skip-cli-contracts`.
 
+Run the formatter idempotency check directly:
+
+```powershell
+python scripts/check_format.py --build Development
+python scripts/check_format.py --build Development --root test --root MidoriPrelude
+python scripts/check_format.py --build Development --enforce-clean
+```
+
+`python scripts/test_project.py --mode regression` also runs `scripts/check_format.py` unless you pass `--skip-format-check`. The check verifies that
+`midori fmt` is idempotent across the test corpus, the prelude, and the
+reference package. The optional `--enforce-clean` flag additionally requires
+`midori fmt --check` to pass on each scanned root.
+
 Configure and build implementation tests on Windows:
 
 ```powershell

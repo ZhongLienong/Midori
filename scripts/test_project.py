@@ -222,6 +222,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Skip the CLI contract check that normally runs with full regression passes.",
     )
+    parser.add_argument(
+        "--skip-format-check",
+        action="store_true",
+        help="Skip the formatter idempotency check that normally runs with full regression passes.",
+    )
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -269,9 +274,11 @@ def main(argv: list[str]) -> int:
         regression_build = build_config_for_regressions(effective_build)
         should_run_doc_examples = not args.skip_doc_examples
         should_run_cli_contracts = not args.skip_cli_contracts
+        should_run_format_check = not args.skip_format_check
         if args.category or args.pattern or args.test:
             should_run_doc_examples = False
             should_run_cli_contracts = False
+            should_run_format_check = False
 
         if args.category == "doc_examples":
             doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
@@ -284,6 +291,12 @@ def main(argv: list[str]) -> int:
             if args.verbose:
                 cli_contracts_command.append("--verbose")
             return run_command(cli_contracts_command, root)
+
+        if args.category == "format_check":
+            format_check_command = [sys.executable, str(root / "scripts" / "check_format.py"), "--build", regression_build]
+            if args.verbose:
+                format_check_command.append("--verbose")
+            return run_command(format_check_command, root)
 
         if should_run_doc_examples:
             doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
@@ -302,6 +315,15 @@ def main(argv: list[str]) -> int:
             cli_contracts_exit_code = run_command(cli_contracts_command, root)
             if cli_contracts_exit_code != 0:
                 return cli_contracts_exit_code
+
+        if should_run_format_check:
+            format_check_command = [sys.executable, str(root / "scripts" / "check_format.py"), "--build", regression_build]
+            if args.verbose:
+                format_check_command.append("--verbose")
+
+            format_check_exit_code = run_command(format_check_command, root)
+            if format_check_exit_code != 0:
+                return format_check_exit_code
 
         regression_command = [sys.executable, str(root / "scripts" / "run_tests.py"), "--build", regression_build]
         if args.category:

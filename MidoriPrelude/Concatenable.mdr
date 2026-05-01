@@ -1,20 +1,13 @@
 module Concatenable
 public export { Concatenable }
-
-class Concatenable<T>
-{
+class Concatenable < T > {
     Concat: fn(left: T, right: T) -> T;
 };
-
-foreign "MIDORI_FFI_ArrayConcat" ArrayConcat : fn(Array<T>, Array<T>) -> Array<T>;
-foreign "MIDORI_FFI_TextConcat" TextConcat : fn(Text, Text) -> Text;
-
-instance Concatenable<Array<T>>
-{
-    defun Concat(left: Array<T>, right: Array<T>) : Array<T> => ArrayConcat(left, right);
+foreign "MIDORI_FFI_ArrayConcat" ArrayConcat: fn(Array < T >, Array < T >) -> Array < T >;
+foreign "MIDORI_FFI_TextConcat" TextConcat: fn(Text, Text) -> Text;
+instance Concatenable < Array < T >> {
+    defun Concat(left: Array < T >, right: Array < T >): Array < T > => ArrayConcat(left, right);
 };
-
-instance Concatenable<Text>
-{
-    defun Concat(left: Text, right: Text) : Text => TextConcat(left, right);
+instance Concatenable < Text > {
+    defun Concat(left: Text, right: Text): Text => TextConcat(left, right);
 };

@@ -1,10 +1,10 @@
 module Panic
 public export { Panic }
-
-foreign "MIDORI_FFI_PrintError" PrintErrorRaw : fn(Text) -> Unit;
-foreign "MIDORI_FFI_Exit" ExitRaw : fn(Int) -> Unit;
-
-defun Panic(message: Text) : Never => {
+foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+defun Panic(message: Text): Never => {
     PrintErrorRaw(message ++ "\n");
-    loop { ExitRaw(1); }
+    loop {
+        ExitRaw(1);
+    }
 };

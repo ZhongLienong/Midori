@@ -829,6 +829,26 @@ CompilerError CompilerError::Simple(CompilerStage stage, std::string_view messag
 	return error;
 }
 
+CompilerError CompilerError::WithFile(CompilerStage stage, std::string_view message, std::string_view file_name, CompilerErrorCode code)
+{
+	if (file_name.empty())
+	{
+		return Simple(stage, message, code);
+	}
+
+	CompilerError error;
+	error.m_stage = stage;
+	error.m_code = code;
+	error.m_message = std::string(message);
+
+	CompilerErrorLocation location;
+	location.m_file_name = std::string(file_name);
+	error.m_location = std::move(location);
+
+	error.m_rendered = RenderCompilerError(error);
+	return error;
+}
+
 CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view message, int line, std::string_view file_name, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, std::optional<std::string_view> source_line, CompilerErrorCode code)
 {
 	CompilerError error;

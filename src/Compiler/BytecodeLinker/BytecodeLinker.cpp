@@ -351,7 +351,7 @@ MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 					return std::unexpected(std::move(*fallback_context));
 				}
 
-				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
+				return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol));
 			}
 
 			m_global_symbol_table.emplace(symbol_key, LinkedExport{ global_procedure_index, &module, &exp });
@@ -639,7 +639,7 @@ MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 			return std::unexpected(std::move(*contextual_error));
 		}
 
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message_with_origin, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
@@ -651,7 +651,7 @@ MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 			return std::unexpected(std::move(*contextual_error));
 		}
 
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message_with_origin, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		return std::unexpected(CompilerError::WithFile(CompilerStage::BytecodeLinker, message_with_origin, DiagnosticFileName(module), CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 
 	return {};

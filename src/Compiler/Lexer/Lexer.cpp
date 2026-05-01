@@ -571,7 +571,7 @@ MidoriResult::TokenResult Lexer::MatchSlash()
 MidoriResult::TokenResult Lexer::MatchLineComment()
 {
 	Advance();
-	ConsumeWhile([](char c) { return c != '\n'; });
+	ConsumeWhile([](char c) { return c != '\n' && c != '\r'; });
 	return MakeTokenResult(Token::Name::LINE_COMMENT);
 }
 

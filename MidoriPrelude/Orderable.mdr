@@ -1,7 +1,5 @@
 module Orderable
 public export { Orderable }
-
-class Orderable<T>
-{
+class Orderable < T > {
     Compare: fn(a: T, b: T) -> Int;
 };
