@@ -830,6 +830,11 @@ Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view fil
 	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
 }
 
+Lexer::Lexer(std::string&& source_code, std::string_view file_name) noexcept
+	: Lexer(std::move(source_code), file_name, Options{})
+{
+}
+
 Lexer::Lexer(std::string&& source_code, std::string_view file_name, Options options) noexcept
 	: m_source(BuildSource(std::move(source_code), file_name)),
 	m_options(options)

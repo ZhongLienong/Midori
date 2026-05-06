@@ -50,7 +50,8 @@ private:
 
 public:
 
-	Lexer(std::string&& source_code, std::string_view file_name, Options options = {}) noexcept;
+	Lexer(std::string&& source_code, std::string_view file_name) noexcept;
+	Lexer(std::string&& source_code, std::string_view file_name, Options options) noexcept;
 
 	MidoriResult::LexerResult Lex() &;
 

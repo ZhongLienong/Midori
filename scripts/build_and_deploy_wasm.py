@@ -12,6 +12,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -171,8 +172,17 @@ def check_emscripten() -> EmscriptenTools | None:
 	return None
 
 
-def remove_readonly(func, path, _):
+def remove_readonly(func, path, exc):
 	os.chmod(path, stat.S_IWRITE)
+	if sys.platform == 'win32' and isinstance(exc, PermissionError) and getattr(exc, 'winerror', None) == 32:
+		for _ in range(30):
+			try:
+				func(path)
+				return
+			except PermissionError:
+				time.sleep(0.5)
+		print(f"Warning: skipping locked path: {path}", file=sys.stderr)
+		return
 	func(path)
 
 
@@ -185,11 +195,15 @@ def clean_build() -> None:
 
 def configure(tools: EmscriptenTools) -> bool:
 	print("\nConfiguring with Emscripten...")
-	return run_command(
-		[tools.emcmake, 'cmake', '..', '-DCMAKE_BUILD_TYPE=Release', '-DMIDORI_WASM64=ON'],
-		cwd=BUILD_DIR,
-		env=tools.env
-	)
+	cmd = [tools.emcmake, 'cmake', '..', '-DCMAKE_BUILD_TYPE=Release', '-DMIDORI_WASM64=ON']
+	for attempt in range(1, 4):
+		if run_command(cmd, cwd=BUILD_DIR, env=tools.env):
+			return True
+		if attempt < 3:
+			print(f"\nConfigure attempt {attempt} failed, retrying...", file=sys.stderr)
+			shutil.rmtree(BUILD_DIR, onexc=remove_readonly)
+			BUILD_DIR.mkdir(exist_ok=True)
+	return False
 
 
 def build(tools: EmscriptenTools) -> bool:

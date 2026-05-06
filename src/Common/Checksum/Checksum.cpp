@@ -5,6 +5,7 @@
 #include <fstream>
 #include <format>
 #include <iomanip>
+#include <algorithm>
 #include <ranges>
 #include <sstream>
 #include <system_error>
@@ -183,7 +184,7 @@ namespace
 			}
 		}
 
-		std::ranges::sort(files);
+		std::sort(files.begin(), files.end());
 		return files;
 	}
 }

@@ -9,6 +9,7 @@
 #include <system_error>
 #include <utility>
 
+#include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Utility/Project/ProjectManifest.h"
@@ -182,6 +183,16 @@ namespace MidoriDriver
 		}
 
 		return std::move(compile_result.value()).TakeExecutable();
+	}
+
+	LoadArtifactResult LoadArtifact(const std::filesystem::path& path)
+	{
+		std::expected<MidoriExecutable, std::string> load_result = MidoriBinaryArtifact::ReadExecutableFromFile(path);
+		if (!load_result.has_value())
+		{
+			return std::unexpected(DriverError::FileSystem(load_result.error()));
+		}
+		return std::move(load_result.value());
 	}
 
 	RunResult RunExecutable(MidoriExecutable&& executable)

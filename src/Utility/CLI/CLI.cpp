@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
 #include "Compiler/PackageManager/Lockfile.h"
@@ -61,6 +62,7 @@ namespace
 		bool m_init_package = false;
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
+		bool m_embed_sources = false;
 		std::optional<std::string> m_test_filter = std::nullopt;
 		std::optional<std::string> m_test_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;
@@ -226,9 +228,10 @@ namespace
 		{
 			return
 				"Usage: midori run <file> [--format json]\n"
-				"Compile and execute a Midori source file.\n\n"
+				"Compile and execute a .mdr source file, or load and execute a .mbc artifact.\n\n"
 				"Examples:\n"
 				"  midori run src/Main.mdr\n"
+				"  midori run src/Main.mbc\n"
 				"  midori src/Main.mdr\n"
 				"  midori run src/Main.mdr --format json\n";
 		}
@@ -246,10 +249,14 @@ namespace
 		if (command_name == "build")
 		{
 			return
-				"Usage: midori build <file> [--format json]\n"
-				"Compile a Midori source file and emit a .mbc.json bytecode artifact.\n\n"
+				"Usage: midori build <file> [--embed-sources] [--format json]\n"
+				"Compile a Midori source file and emit a .mbc binary artifact.\n"
+				"With --format json, emit a .mbc.json disassembly instead.\n"
+				"With --embed-sources, embed source file content in the artifact for\n"
+				"richer runtime error reporting without the original .mdr on disk.\n\n"
 				"Examples:\n"
 				"  midori build src/Main.mdr\n"
+				"  midori build src/Main.mdr --embed-sources\n"
 				"  midori build src/Main.mdr --format json\n";
 		}
 
@@ -462,6 +469,57 @@ namespace
 		if (!invocation.m_show_help && invocation.m_source_file.empty())
 		{
 			return std::unexpected(std::format("Missing source file for {}.", kind == CommandKind::Run ? "run" : kind == CommandKind::Check ? "check" : "build"));
+		}
+
+		return invocation;
+	}
+
+	[[nodiscard]] ParseResult ParseBuild(const std::vector<std::string_view>& args)
+	{
+		Invocation invocation;
+		invocation.m_kind = CommandKind::Build;
+
+		for (size_t index = 0u; index < args.size(); index += 1u)
+		{
+			const std::string_view arg = args[index];
+			if (arg == "-h" || arg == "--help")
+			{
+				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (arg == "--embed-sources")
+			{
+				invocation.m_embed_sources = true;
+				continue;
+			}
+
+			if (arg == "--format")
+			{
+				std::string error;
+				if (!ParseFormatValue(args, index, invocation.m_format, error))
+				{
+					return std::unexpected(error);
+				}
+				continue;
+			}
+
+			if (!arg.empty() && arg.front() == '-')
+			{
+				return std::unexpected(std::format("Unknown option: {}", arg));
+			}
+
+			if (!invocation.m_source_file.empty())
+			{
+				return std::unexpected("Only one source file is allowed for build.");
+			}
+
+			invocation.m_source_file = std::filesystem::path(arg);
+		}
+
+		if (!invocation.m_show_help && invocation.m_source_file.empty())
+		{
+			return std::unexpected("Missing source file for build.");
 		}
 
 		return invocation;
@@ -888,7 +946,7 @@ namespace
 		}
 		else if (head == "build")
 		{
-			parsed = ParseCompileLike(CommandKind::Build, rest);
+			parsed = ParseBuild(rest);
 		}
 		else if (head == "fmt")
 		{
@@ -1512,40 +1570,48 @@ namespace
 
 		const MidoriResult::CompiledProgram& compiled_program = *compile_result;
 		const MidoriExecutable& executable = compiled_program.m_executable;
-		const std::expected<BuildArtifactResult, std::string> artifact_result =
-			WriteBuildArtifact(executable, invocation.m_source_file);
-		if (!artifact_result.has_value())
-		{
-			MidoriResult::CompilerReport report = compiled_program.Report();
-			report.AppendErrors(MidoriResult::CompilerDiagnostics(
-				CompilerError::Simple(CompilerStage::Compiler, artifact_result.error())));
-
-			if (invocation.m_format == OutputFormat::Json)
-			{
-				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
-			}
-			else
-			{
-				std::print("{}", report.Rendered());
-			}
-			return EXIT_FAILURE;
-		}
 
 		if (invocation.m_format == OutputFormat::Json)
 		{
+			// --format json: emit the existing .mbc.json disassembly format
+			const std::expected<BuildArtifactResult, std::string> artifact_result =
+				WriteBuildArtifact(executable, invocation.m_source_file);
+			if (!artifact_result.has_value())
+			{
+				MidoriResult::CompilerReport report = compiled_program.Report();
+				report.AppendErrors(MidoriResult::CompilerDiagnostics(
+					CompilerError::Simple(CompilerStage::Compiler, artifact_result.error())));
+				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
+				return EXIT_FAILURE;
+			}
+
 			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_result->m_json));
+			return EXIT_SUCCESS;
 		}
-		else
+
+		// Default: write .mbc binary artifact
+		std::filesystem::path artifact_path = invocation.m_source_file;
+		artifact_path.replace_extension(".mbc");
+
+		const std::expected<void, std::string> write_result =
+			MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
+		if (!write_result.has_value())
 		{
-			std::print("{}", compiled_program.Report().RenderedWarnings());
-			std::print(
-				"Built {} -> {} (procedures={}, globals={}, strings={})\n",
-				invocation.m_source_file.string(),
-				artifact_result->m_path.string(),
-				executable.GetProcedureCount(),
-				executable.GetGlobalVariableCount(),
-				executable.GetStringPool().size());
+			MidoriResult::CompilerReport report = compiled_program.Report();
+			report.AppendErrors(MidoriResult::CompilerDiagnostics(
+				CompilerError::Simple(CompilerStage::Compiler, write_result.error())));
+			std::print("{}", report.Rendered());
+			return EXIT_FAILURE;
 		}
+
+		std::print("{}", compiled_program.Report().RenderedWarnings());
+		std::print(
+			"Built {} -> {} (procedures={}, globals={}, strings={})\n",
+			invocation.m_source_file.string(),
+			artifact_path.string(),
+			executable.GetProcedureCount(),
+			executable.GetGlobalVariableCount(),
+			executable.GetStringPool().size());
 		return EXIT_SUCCESS;
 	}
 
@@ -1558,6 +1624,54 @@ namespace
 		}
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
+
+		if (invocation.m_source_file.extension() == ".mbc")
+		{
+			// Load-and-run path for pre-built binary artifacts
+			MidoriDriver::LoadArtifactResult load_result = MidoriDriver::LoadArtifact(invocation.m_source_file);
+			if (!load_result.has_value())
+			{
+				const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(load_result.error());
+				if (invocation.m_format == OutputFormat::Json)
+				{
+					std::print("{}", CommandJson("run", false, report, EXIT_FAILURE));
+				}
+				else
+				{
+					PrintCliError(load_result.error().m_message);
+				}
+				return EXIT_FAILURE;
+			}
+
+			MidoriResult::CompilerReport empty_report;
+			if (invocation.m_format == OutputFormat::Json)
+			{
+				MidoriUtility::OutputCapture capture;
+				MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(load_result.value()));
+				MidoriUtility::CapturedOutput captured_output = capture.Stop();
+				if (!run_result.has_value())
+				{
+					const RuntimeError runtime_error = run_result.error();
+					const std::string runtime_report_json = SerializeRunReportJson(empty_report, &runtime_error);
+					std::print("{}", CommandJson("run", false, empty_report, runtime_error.ExitCode(), captured_output.m_stdout, captured_output.m_stderr, std::nullopt, runtime_report_json));
+					return runtime_error.ExitCode();
+				}
+
+				std::print("{}", CommandJson("run", run_result.value() == 0, empty_report, run_result.value(), captured_output.m_stdout, captured_output.m_stderr));
+				return run_result.value() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+			}
+
+			MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(load_result.value()));
+			if (!run_result.has_value())
+			{
+				std::print("{}", run_result.error().Rendered());
+				return run_result.error().ExitCode();
+			}
+
+			return run_result.value();
+		}
+
+		// Compile-and-run path for .mdr source files
 		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
 		if (!compile_result.has_value())
 		{

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstdlib>
 #include <string_view>
 
@@ -79,6 +80,8 @@
 namespace MidoriBuild
 {
     inline constexpr std::string_view VersionString = MIDORI_VERSION_STRING;
+
+    inline constexpr uint32_t MbcFormatVersion = 1u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

@@ -304,6 +304,10 @@ public:
 	void Append(BytecodeStream&& other);
 
 	const OpCode* operator[](int index) const;
+
+	const std::vector<std::pair<int, int>>& GetLineInfo() const;
+
+	static BytecodeStream FromRaw(std::vector<OpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
 };
 
 class MidoriExecutable
