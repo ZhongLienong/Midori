@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstddef>
 #include <functional>
 #include <list>
 #include <memory>
@@ -112,7 +113,10 @@ concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriIn
 class MidoriText
 {
 private:
-	static constexpr int SSO_CAPACITY = 22;
+	// Sized so MidoriTraceable fills one allocator slot; small payloads then
+	// never need a separate heap buffer.
+	static constexpr int STORAGE_SIZE = 72;
+	static constexpr int SSO_CAPACITY = STORAGE_SIZE - 2;
 
 	struct LongLayout
 	{
@@ -120,15 +124,19 @@ private:
 		int m_size;
 		int m_capacity;
 		mutable int m_length_cache;
-		uint8_t m_padding[sizeof(void*) == 8 ? 3 : 7];
+		uint8_t m_padding[STORAGE_SIZE - sizeof(char*) - 3uz * sizeof(int) - 1uz];
 		uint8_t m_flag;
 	};
 
 	struct ShortLayout
 	{
-		char m_buffer[23];
+		char m_buffer[STORAGE_SIZE - 1];
 		uint8_t m_size_flag;
 	};
+
+	static_assert(sizeof(LongLayout) == STORAGE_SIZE);
+	static_assert(sizeof(ShortLayout) == STORAGE_SIZE);
+	static_assert(offsetof(LongLayout, m_flag) == offsetof(ShortLayout, m_size_flag));
 
 	union
 	{
@@ -219,21 +227,30 @@ class MidoriArray
 {
 private:
 	static constexpr int s_initial_capacity = 8;
-	static constexpr int SOO_CAPACITY = 2;
+	// Sized so MidoriTraceable fills one allocator slot; small payloads then
+	// never need a separate heap buffer.
+	static constexpr int STORAGE_SIZE = 72;
+	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MidoriValue));
 
 	struct LongLayout
 	{
 		MidoriValue* m_ptr;
 		int m_size;
 		int m_capacity;
+		uint8_t m_padding[STORAGE_SIZE - sizeof(MidoriValue*) - 2uz * sizeof(int) - 1uz];
 		uint8_t m_flag;
 	};
 
 	struct ShortLayout
 	{
 		MidoriValue m_buffer[SOO_CAPACITY];
+		uint8_t m_padding[STORAGE_SIZE - SOO_CAPACITY * sizeof(MidoriValue) - 1uz];
 		uint8_t m_size_flag;
 	};
+
+	static_assert(sizeof(LongLayout) == STORAGE_SIZE);
+	static_assert(sizeof(ShortLayout) == STORAGE_SIZE);
+	static_assert(offsetof(LongLayout, m_flag) == offsetof(ShortLayout, m_size_flag));
 
 	union
 	{
@@ -295,21 +312,30 @@ private:
 class MidoriTuple
 {
 private:
-	static constexpr int SOO_CAPACITY = 2;
+	// Smaller than MidoriArray/MidoriText: MidoriClosure and MidoriUnion wrap a
+	// tuple plus an int, and those must still fit the traceable slot budget.
+	static constexpr int STORAGE_SIZE = 64;
+	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MidoriValue));
 
 	struct LongLayout
 	{
 		MidoriValue* m_ptr;
 		int m_size;
 		int m_capacity;
+		uint8_t m_padding[STORAGE_SIZE - sizeof(MidoriValue*) - 2uz * sizeof(int) - 1uz];
 		uint8_t m_flag;
 	};
 
 	struct ShortLayout
 	{
 		MidoriValue m_buffer[SOO_CAPACITY];
+		uint8_t m_padding[STORAGE_SIZE - SOO_CAPACITY * sizeof(MidoriValue) - 1uz];
 		uint8_t m_size_flag;
 	};
+
+	static_assert(sizeof(LongLayout) == STORAGE_SIZE);
+	static_assert(sizeof(ShortLayout) == STORAGE_SIZE);
+	static_assert(offsetof(LongLayout, m_flag) == offsetof(ShortLayout, m_size_flag));
 
 	union
 	{

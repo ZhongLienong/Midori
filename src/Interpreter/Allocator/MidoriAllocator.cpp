@@ -1,9 +1,10 @@
 #include "MidoriAllocator.h"
+#include "Common/Value/Value.h"
 
 #include <algorithm>
 #include <cstdlib>
-#include <optional>
-#include <utility>
+
+static_assert(sizeof(MidoriTraceable) <= MidoriAllocator::SLOT_SIZE, "MidoriTraceable must fit one allocator slot");
 
 #ifdef __EMSCRIPTEN__
 
@@ -54,64 +55,45 @@ bool MidoriAllocator::Contains(const void* ptr) const noexcept
 
 #else
 
-namespace
-{
-	struct SlotBit
-	{
-		size_t m_word_index = 0uz;
-		uint64_t m_mask = 0ull;
-	};
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <sys/mman.h>
 
-	std::optional<SlotBit> TryComputeSlotBit(const uint8_t* base, const void* ptr) noexcept
-	{
-		if (base == nullptr || ptr == nullptr)
-		{
-			return std::nullopt;
-		}
-
-		const uintptr_t base_addr = reinterpret_cast<uintptr_t>(base);
-		const uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-		if (addr < base_addr)
-		{
-			return std::nullopt;
-		}
-
-		const size_t offset = static_cast<size_t>(addr - base_addr);
-		if (offset >= MidoriAllocator::BLOCK_SIZE)
-		{
-			return std::nullopt;
-		}
-
-		if (offset % MidoriAllocator::SLOT_SIZE != 0uz)
-		{
-			return std::nullopt;
-		}
-
-		const size_t slot_index = offset / MidoriAllocator::SLOT_SIZE;
-		if (slot_index >= MidoriAllocator::SLOTS_PER_BLOCK)
-		{
-			return std::nullopt;
-		}
-
-		const size_t word_index = slot_index / 64uz;
-		const uint64_t mask = 1ull << (slot_index % 64uz);
-
-		return SlotBit{word_index, mask};
-	}
-}
+#if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+#endif
 
 MidoriAllocator::MidoriAllocator()
 {
+#ifdef _WIN32
+	m_region_base = static_cast<uint8_t*>(VirtualAlloc(nullptr, RESERVED_REGION_SIZE, MEM_RESERVE, PAGE_NOACCESS));
+#else
+	void* region = mmap(nullptr, RESERVED_REGION_SIZE, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+	m_region_base = region == MAP_FAILED ? nullptr : static_cast<uint8_t*>(region);
+#endif
+
 	AllocateBlock();
 }
 
 MidoriAllocator::~MidoriAllocator()
 {
-	for (const BlockInfo& block : m_blocks)
+	if (m_region_base != nullptr)
 	{
-		std::free(block.m_base);
+#ifdef _WIN32
+		VirtualFree(m_region_base, 0u, MEM_RELEASE);
+#else
+		static_cast<void>(munmap(m_region_base, RESERVED_REGION_SIZE));
+#endif
+		m_region_base = nullptr;
 	}
-	m_blocks.clear();
+
+	m_committed_bytes = 0uz;
+	m_live_bits.clear();
 	m_large_allocs.clear();
 	m_free_list = nullptr;
 }
@@ -195,55 +177,33 @@ MidoriAllocator&& MidoriAllocator::Free(void* ptr, size_t size) &&
 	return std::move(*this);
 }
 
-bool MidoriAllocator::Contains(const void* ptr) const noexcept
-{
-	if (ptr == nullptr)
-	{
-		return false;
-	}
-
-	const BlockInfo* block = FindBlock(ptr);
-	if (block != nullptr)
-	{
-		std::optional<SlotBit> slot = TryComputeSlotBit(block->m_base, ptr);
-		if (slot.has_value())
-		{
-			const uint64_t live_word = block->m_live[slot->m_word_index];
-			return (live_word & slot->m_mask) != 0ull;
-		}
-	}
-
-	return ContainsLargeAllocation(ptr);
-}
-
 bool MidoriAllocator::AllocateBlock()
 {
-	void* block = std::malloc(BLOCK_SIZE);
-	if (block == nullptr)
+	if (m_region_base == nullptr || m_committed_bytes >= RESERVED_REGION_SIZE)
 	{
 		return false;
 	}
 
-	BlockInfo info;
-	info.m_base = static_cast<uint8_t*>(block);
-	const uintptr_t base_addr = reinterpret_cast<uintptr_t>(info.m_base);
-	std::vector<BlockInfo>::iterator insert_it = std::upper_bound
-	(
-		m_blocks.begin(),
-		m_blocks.end(),
-		base_addr,
-		[](uintptr_t value, const BlockInfo& entry)
-		{
-			return value < reinterpret_cast<uintptr_t>(entry.m_base);
-		}
-	);
-	m_blocks.insert(insert_it, info);
+	uint8_t* block_base = m_region_base + m_committed_bytes;
+#ifdef _WIN32
+	if (VirtualAlloc(block_base, BLOCK_SIZE, MEM_COMMIT, PAGE_READWRITE) == nullptr)
+	{
+		return false;
+	}
+#else
+	if (mprotect(block_base, BLOCK_SIZE, PROT_READ | PROT_WRITE) != 0)
+	{
+		return false;
+	}
+#endif
 
-	uint8_t* slot_ptr = info.m_base;
+	m_live_bits.insert(m_live_bits.end(), LIVE_WORDS_PER_BLOCK, 0ull);
+	m_committed_bytes += BLOCK_SIZE;
+
+	uint8_t* slot_ptr = block_base;
 	for (size_t i = 0uz; i < SLOTS_PER_BLOCK; i += 1uz)
 	{
-		FreeNode* node = reinterpret_cast<FreeNode*>(slot_ptr);
-		PushFreeNode(node);
+		PushFreeNode(reinterpret_cast<FreeNode*>(slot_ptr));
 		slot_ptr += SLOT_SIZE;
 	}
 
@@ -284,61 +244,52 @@ MidoriAllocator::FreeNode* MidoriAllocator::PushFreeNode(FreeNode* node) noexcep
 	return node;
 }
 
-MidoriAllocator::BlockInfo* MidoriAllocator::FindBlock(const void* ptr) noexcept
+// All small slots live in one contiguous reserved region, so membership is a
+// range check plus a slot-alignment check plus a live-bit test.
+bool MidoriAllocator::Contains(const void* ptr) const noexcept
 {
-	return const_cast<BlockInfo*>(static_cast<const MidoriAllocator*>(this)->FindBlock(ptr));
-}
-
-const MidoriAllocator::BlockInfo* MidoriAllocator::FindBlock(const void* ptr) const noexcept
-{
-	if (m_blocks.empty() || ptr == nullptr)
+	const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(m_region_base));
+	if (offset < m_committed_bytes)
 	{
-		return nullptr;
-	}
-
-	const uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-	std::vector<BlockInfo>::const_iterator it = std::upper_bound
-	(
-		m_blocks.begin(),
-		m_blocks.end(),
-		addr,
-		[](uintptr_t value, const BlockInfo& entry)
+		const size_t block_offset = offset % BLOCK_SIZE;
+		if (block_offset % SLOT_SIZE != 0uz || block_offset >= USABLE_BLOCK_BYTES)
 		{
-			return value < reinterpret_cast<uintptr_t>(entry.m_base);
+			return false;
 		}
-	);
 
-	if (it == m_blocks.begin())
-	{
-		return nullptr;
+		const size_t slot_index = block_offset / SLOT_SIZE;
+		const size_t word_index = (offset / BLOCK_SIZE) * LIVE_WORDS_PER_BLOCK + (slot_index / 64uz);
+		const uint64_t mask = 1ull << (slot_index % 64uz);
+		return (m_live_bits[word_index] & mask) != 0ull;
 	}
 
-	--it;
-	return &(*it);
+	return ContainsLargeAllocation(ptr);
 }
 
 bool MidoriAllocator::SetLiveBit(void* ptr, bool is_live) noexcept
 {
-	BlockInfo* block = FindBlock(ptr);
-	if (block == nullptr)
+	const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(m_region_base));
+	if (offset >= m_committed_bytes)
 	{
 		return false;
 	}
 
-	std::optional<SlotBit> slot = TryComputeSlotBit(block->m_base, ptr);
-	if (!slot.has_value())
+	const size_t block_offset = offset % BLOCK_SIZE;
+	if (block_offset % SLOT_SIZE != 0uz || block_offset >= USABLE_BLOCK_BYTES)
 	{
 		return false;
 	}
 
-	uint64_t& live_word = block->m_live[slot->m_word_index];
+	const size_t slot_index = block_offset / SLOT_SIZE;
+	const size_t word_index = (offset / BLOCK_SIZE) * LIVE_WORDS_PER_BLOCK + (slot_index / 64uz);
+	const uint64_t mask = 1ull << (slot_index % 64uz);
 	if (is_live)
 	{
-		live_word |= slot->m_mask;
+		m_live_bits[word_index] |= mask;
 	}
 	else
 	{
-		live_word &= ~slot->m_mask;
+		m_live_bits[word_index] &= ~mask;
 	}
 	return true;
 }

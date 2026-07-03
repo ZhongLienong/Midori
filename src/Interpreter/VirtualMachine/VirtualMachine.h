@@ -135,10 +135,19 @@ public:
     MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 
 private:
-	MIDORI_FORCE_INLINE void TryCollect() noexcept
+	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env) noexcept
+	{
+		m_instruction_pointer = ip;
+		m_value_stack_pointer = sp;
+		m_value_stack_base_pointer = bp;
+		m_curr_environment = env;
+	}
+
+	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env) noexcept
 	{
 		if (m_gc.ShouldCollect())
 		{
+			SyncMachineState(ip, sp, bp, env);
 			BuildGarbageCollectionRoots(m_gc_roots_scratch);
 			m_gc.ReclaimMemory(m_gc_roots_scratch, m_allocator);
 		}
@@ -361,6 +370,24 @@ private:
     MIDORI_FORCE_INLINE MidoriValue Pop() noexcept
     {
         return *(--m_value_stack_pointer);
+    }
+
+    static MIDORI_FORCE_INLINE MidoriValue& Peek(ValueStackPointer sp) noexcept
+    {
+        return *(sp - 1);
+    }
+
+    static MIDORI_FORCE_INLINE MidoriValue Pop(ValueStackPointer& sp) noexcept
+    {
+        return *(--sp);
+    }
+
+    template<typename T>
+        requires MidoriValueConstructible<T>
+    static MIDORI_FORCE_INLINE void Push(ValueStackPointer& sp, T val) noexcept
+    {
+        *sp = val;
+        ++sp;
     }
 
 	int CheckIndexBounds(const MidoriValue index, MidoriInteger size) noexcept;

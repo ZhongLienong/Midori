@@ -2,9 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <array>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
 class MidoriAllocator
 {
@@ -22,6 +21,7 @@ public:
 	void* Allocate(size_t size);
 	MidoriAllocator& Free(void* ptr, size_t size) &;
 	MidoriAllocator&& Free(void* ptr, size_t size) &&;
+
 	bool Contains(const void* ptr) const noexcept;
 
 private:
@@ -31,15 +31,13 @@ private:
 		FreeNode* m_next;
 	};
 
-	static constexpr size_t s_live_word_count = (SLOTS_PER_BLOCK + 63uz) / 64uz;
+	static constexpr size_t RESERVED_REGION_SIZE = 1uz << 30uz;
+	static constexpr size_t USABLE_BLOCK_BYTES = SLOTS_PER_BLOCK * SLOT_SIZE;
+	static constexpr size_t LIVE_WORDS_PER_BLOCK = (SLOTS_PER_BLOCK + 63uz) / 64uz;
 
-	struct BlockInfo
-	{
-		uint8_t* m_base = nullptr;
-		std::array<uint64_t, s_live_word_count> m_live{};
-	};
-
-	std::vector<BlockInfo> m_blocks;
+	uint8_t* m_region_base = nullptr;
+	size_t m_committed_bytes = 0uz;
+	std::vector<uint64_t> m_live_bits;
 	FreeNode* m_free_list = nullptr;
 	std::vector<void*> m_large_allocs;
 
@@ -49,8 +47,6 @@ private:
 	bool EnsureFreeList();
 	FreeNode* PopFreeNode() noexcept;
 	FreeNode* PushFreeNode(FreeNode* node) noexcept;
-	BlockInfo* FindBlock(const void* ptr) noexcept;
-	const BlockInfo* FindBlock(const void* ptr) const noexcept;
 	bool SetLiveBit(void* ptr, bool is_live) noexcept;
 	bool TrackLargeAllocation(void* ptr);
 	bool UntrackLargeAllocation(void* ptr) noexcept;

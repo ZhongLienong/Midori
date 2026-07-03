@@ -916,6 +916,9 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 int VirtualMachine::ExecuteLoop() noexcept
 {
 	InstructionPointer ip = m_instruction_pointer;
+	ValueStackPointer sp = m_value_stack_pointer;
+	ValueStackPointer bp = m_value_stack_base_pointer;
+	MidoriTuple* env = m_curr_environment;
 
 	while (true)
 	{
@@ -928,7 +931,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			std::for_each
 			(
 				m_value_stack_begin,
-				m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
+				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
 					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
@@ -936,8 +939,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			);
 			std::for_each
 			(
-				m_value_stack_base_pointer,
-				m_value_stack_pointer,
+				bp,
+				sp,
 				[](MidoriValue value) -> void
 				{
 					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
@@ -948,7 +951,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			(
 				std::execution::seq,
 				m_value_stack_begin,
-				m_value_stack_base_pointer - 1 < m_value_stack_begin ? m_value_stack_begin : m_value_stack_base_pointer - 1,
+				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
 					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
@@ -957,8 +960,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			std::for_each
 			(
 				std::execution::seq,
-				m_value_stack_base_pointer,
-				m_value_stack_pointer,
+				bp,
+				sp,
 				[](MidoriValue value) -> void
 				{
 					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
@@ -975,10 +978,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				const OpCode* start = &*bytecode.cbegin();
 				const OpCode* end = start + bytecode.GetByteCodeSize();
 
-				if (m_instruction_pointer >= start && m_instruction_pointer < end)
+				if (ip >= start && ip < end)
 				{
 					dbg_proc_index = i;
-					dbg_instruction_pointer = static_cast<int>(m_instruction_pointer - start);
+					dbg_instruction_pointer = static_cast<int>(ip - start);
 				}
 			}
 #if MIDORI_ENABLE_DISASSEMBLY
@@ -986,6 +989,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 		}
 #endif
+		const InstructionPointer inst_ip = ip;
 		OpCode instruction = ReadByte(ip);
 
 		switch (instruction)
@@ -1004,7 +1008,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
 			MidoriText text_copy(cached_text);
 			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
-			Push(new_string);
+			Push(sp, new_string);
 			break;
 		}
 		case OpCode::LOAD_STRING_WIDE:
@@ -1021,82 +1025,82 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
 			MidoriText text_copy(cached_text);
 			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
-			Push(new_string);
+			Push(sp, new_string);
 			break;
 		}
 		case OpCode::INTEGER_CONSTANT:
 		{
-			Push(ReadIntegerConstant(ip));
+			Push(sp, ReadIntegerConstant(ip));
 			break;
 		}
 		case OpCode::FLOAT_CONSTANT:
 		{
-			Push(ReadFloatConstant(ip));
+			Push(sp, ReadFloatConstant(ip));
 			break;
 		}
 		case OpCode::BYTE_CONSTANT:
 		{
-			Push(ReadByteConstant(ip));
+			Push(sp, ReadByteConstant(ip));
 			break;
 		}
 		case OpCode::WORD_CONSTANT:
 		{
-			Push(ReadWordConstant(ip));
+			Push(sp, ReadWordConstant(ip));
 			break;
 		}
 		case OpCode::OP_UNIT:
 		{
-			Push(MidoriValue());
+			Push(sp, MidoriValue());
 			break;
 		}
 		case OpCode::OP_TRUE:
 		{
-			Push(true);
+			Push(sp, true);
 			break;
 		}
 		case OpCode::OP_FALSE:
 		{
-			Push(false);
+			Push(sp, false);
 			break;
 		}
 		case OpCode::INT_MINUS_1:
 		{
-			Push(-1LL);
+			Push(sp, -1LL);
 			break;
 		}
 		case OpCode::INT_0:
 		{
-			Push(0LL);
+			Push(sp, 0LL);
 			break;
 		}
 		case OpCode::INT_1:
 		{
-			Push(1LL);
+			Push(sp, 1LL);
 			break;
 		}
 		case OpCode::INT_2:
 		{
-			Push(2LL);
+			Push(sp, 2LL);
 			break;
 		}
 		case OpCode::INT_3:
 		{
-			Push(3LL);
+			Push(sp, 3LL);
 			break;
 		}
 		case OpCode::INT_4:
 		{
-			Push(4LL);
+			Push(sp, 4LL);
 			break;
 		}
 		case OpCode::INT_5:
 		{
-			Push(5LL);
+			Push(sp, 5LL);
 			break;
 		}
 		case OpCode::INT_10:
 		{
-			Push(10LL);
+			Push(sp, 10LL);
 			break;
 		}
 		case OpCode::CREATE_ARRAY:
@@ -1106,10 +1110,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			for (int i = count - 1; i >= 0; i -= 1)
 			{
-				arr[i] = Pop();
+				arr[i] = Pop(sp);
 			}
 
-			Push(AllocateTraceable(std::move(arr)));
+			Push(sp, AllocateTraceable(std::move(arr)));
 			break;
 		}
 		case OpCode::CREATE_TUPLE:
@@ -1119,10 +1123,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			for (int i = count - 1; i >= 0; i -= 1)
 			{
-				tuple[i] = Pop();
+				tuple[i] = Pop(sp);
 			}
 
-			Push(AllocateTraceable(std::move(tuple)));
+			Push(sp, AllocateTraceable(std::move(tuple)));
 			break;
 		}
 		case OpCode::GET_ARRAY:
@@ -1130,16 +1134,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int num_indices = static_cast<int>(ReadByte(ip));
 			if (num_indices <= 0)
 			{
-				(void)Pop();
+				(void)Pop(sp);
 				break;
 			}
 
-			MidoriValue* indices_begin = m_value_stack_pointer - num_indices;
+			MidoriValue* indices_begin = sp - num_indices;
 			MidoriValue* arr_slot = indices_begin - 1;
 			MidoriValue arr = *arr_slot;
 			MidoriArray* arr_ref = &arr.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
 			const int last_index = num_indices - 1;
+			m_instruction_pointer = inst_ip;
 
 			for (int i = 0; i < num_indices; i += 1)
 			{
@@ -1148,7 +1153,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 				if (return_code != 0)
 				{
 					m_value_stack_pointer = arr_slot;
-					m_instruction_pointer = ip;
+					m_value_stack_base_pointer = bp;
+					m_curr_environment = env;
 					return return_code;
 				}
 
@@ -1162,7 +1168,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				else
 				{
 					*arr_slot = next_val;
-					m_value_stack_pointer = arr_slot + 1;
+					sp = arr_slot + 1;
 				}
 			}
 
@@ -1173,16 +1179,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int num_indices = static_cast<int>(ReadByte(ip));
 			if (num_indices <= 0)
 			{
-				(void)Pop();
+				(void)Pop(sp);
 				break;
 			}
 
-			MidoriValue* indices_begin = m_value_stack_pointer - num_indices;
+			MidoriValue* indices_begin = sp - num_indices;
 			MidoriValue* tuple_slot = indices_begin - 1;
 			MidoriValue tuple_value = *tuple_slot;
 			MidoriTuple* tuple_ref = &tuple_value.GetPointer()->GetTraceable<MidoriTuple>();
 			MidoriInteger tuple_size = static_cast<MidoriInteger>(tuple_ref->GetLength());
 			const int last_index = num_indices - 1;
+			m_instruction_pointer = inst_ip;
 
 			for (int i = 0; i < num_indices; i += 1)
 			{
@@ -1191,7 +1198,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 				if (return_code != 0)
 				{
 					m_value_stack_pointer = tuple_slot;
-					m_instruction_pointer = ip;
+					m_value_stack_base_pointer = bp;
+					m_curr_environment = env;
 					return return_code;
 				}
 
@@ -1205,7 +1213,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				else
 				{
 					*tuple_slot = next_val;
-					m_value_stack_pointer = tuple_slot + 1;
+					sp = tuple_slot + 1;
 				}
 			}
 
@@ -1213,31 +1221,32 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::UNPACK_TUPLE:
 		{
-			MidoriTuple& tuple = Pop().GetPointer()->GetTraceable<MidoriTuple>();
+			MidoriTuple& tuple = Pop(sp).GetPointer()->GetTraceable<MidoriTuple>();
 			const int length = tuple.GetLength();
 			for (int idx = 0; idx < length; idx += 1)
 			{
-				Push(tuple[idx]);
+				Push(sp, tuple[idx]);
 			}
 			break;
 		}
 		case OpCode::SET_ARRAY:
 		{
 			int num_indices = static_cast<int>(ReadByte(ip));
-			MidoriValue value_to_set = Pop();
+			MidoriValue value_to_set = Pop(sp);
 			if (num_indices <= 0)
 			{
-				(void)Pop();
-				Push(value_to_set);
+				(void)Pop(sp);
+				Push(sp, value_to_set);
 				break;
 			}
 
-			MidoriValue* indices_begin = m_value_stack_pointer - num_indices;
+			MidoriValue* indices_begin = sp - num_indices;
 			MidoriValue* arr_slot = indices_begin - 1;
 			MidoriValue arr = *arr_slot;
 			MidoriArray* arr_ref = &arr.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
 			const int last_index = num_indices - 1;
+			m_instruction_pointer = inst_ip;
 
 			for (int i = 0; i < num_indices; i += 1)
 			{
@@ -1246,7 +1255,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 				if (return_code != 0)
 				{
 					m_value_stack_pointer = arr_slot;
-					m_instruction_pointer = ip;
+					m_value_stack_base_pointer = bp;
+					m_curr_environment = env;
 					return return_code;
 				}
 				MidoriValue& next_val = (*arr_ref)[static_cast<int>(index.GetInteger())];
@@ -1262,13 +1272,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 
 			*arr_slot = value_to_set;
-			m_value_stack_pointer = arr_slot + 1;
+			sp = arr_slot + 1;
 			break;
 		}
 		case OpCode::ADD_BACK_ARRAY:
 		{
-			MidoriValue val = Pop();
-			MidoriValue& arr = Peek();
+			MidoriValue val = Pop(sp);
+			MidoriValue& arr = Peek(sp);
 
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			arr_ref.AddBack(val);
@@ -1277,8 +1287,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::ADD_FRONT_ARRAY:
 		{
-			MidoriValue arr = Pop();
-			MidoriValue& val = Peek();
+			MidoriValue arr = Pop(sp);
+			MidoriValue& val = Peek(sp);
 
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			arr_ref.AddFront(val);
@@ -1289,168 +1299,168 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GET_ARRAY_LENGTH:
 		{
-			MidoriValue arr = Pop();
+			MidoriValue arr = Pop(sp);
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriInteger length = static_cast<MidoriInteger>(arr_ref.GetLength());
-			Push(length);
+			Push(sp, length);
 			break;
 		}
 		case OpCode::CREATE_INT_RANGE:
 		{
-			MidoriValue end = Pop();
-			MidoriValue step = Pop();
-			MidoriValue start = Pop();
+			MidoriValue end = Pop(sp);
+			MidoriValue step = Pop(sp);
+			MidoriValue start = Pop(sp);
 
 			MidoriIntRange range(start.GetInteger(), end.GetInteger(), step.GetInteger());
 
-			Push(AllocateTraceable(std::move(range)));
+			Push(sp, AllocateTraceable(std::move(range)));
 			break;
 		}
 		case OpCode::CREATE_FLOAT_RANGE:
 		{
-			MidoriValue end = Pop();
-			MidoriValue step = Pop();
-			MidoriValue start = Pop();
+			MidoriValue end = Pop(sp);
+			MidoriValue step = Pop(sp);
+			MidoriValue start = Pop(sp);
 
 			MidoriFloatRange range(start.GetFloat(), end.GetFloat(), step.GetFloat());
 
-			Push(AllocateTraceable(std::move(range)));
+			Push(sp, AllocateTraceable(std::move(range)));
 			break;
 		}
 		case OpCode::GET_RANGE_START:
 		{
-			MidoriValue range_ptr = Pop();
+			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
 			if (ptr->IsTraceable<MidoriIntRange>())
 			{
-				Push(ptr->GetTraceable<MidoriIntRange>().GetStart());
+				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetStart());
 			}
 			else
 			{
-				Push(ptr->GetTraceable<MidoriFloatRange>().GetStart());
+				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetStart());
 			}
 			break;
 		}
 		case OpCode::GET_RANGE_END:
 		{
-			MidoriValue range_ptr = Pop();
+			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
 			if (ptr->IsTraceable<MidoriIntRange>())
 			{
-				Push(ptr->GetTraceable<MidoriIntRange>().GetEnd());
+				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetEnd());
 			}
 			else
 			{
-				Push(ptr->GetTraceable<MidoriFloatRange>().GetEnd());
+				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetEnd());
 			}
 			break;
 		}
 		case OpCode::GET_RANGE_STEP:
 		{
-			MidoriValue range_ptr = Pop();
+			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
 			if (ptr->IsTraceable<MidoriIntRange>())
 			{
-				Push(ptr->GetTraceable<MidoriIntRange>().GetStep());
+				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetStep());
 			}
 			else
 			{
-				Push(ptr->GetTraceable<MidoriFloatRange>().GetStep());
+				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetStep());
 			}
 			break;
 		}
 		case OpCode::INT_TO_FLOAT:
 		{
-			Peek() = static_cast<MidoriFloat>(Peek().GetInteger());
+			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetInteger());
 			break;
 		}
 		case OpCode::TEXT_TO_FLOAT:
 		{
-			Peek() = static_cast<MidoriFloat>(Peek().GetPointer()->GetTraceable<MidoriText>().ToFloat());
+			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetPointer()->GetTraceable<MidoriText>().ToFloat());
 			break;
 		}
 		case OpCode::FLOAT_TO_INT:
 		{
-			Peek() = static_cast<MidoriInteger>(Peek().GetFloat());
+			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::TEXT_TO_INT:
 		{
-			Peek() = static_cast<MidoriInteger>(Peek().GetPointer()->GetTraceable<MidoriText>().ToInteger());
+			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetPointer()->GetTraceable<MidoriText>().ToInteger());
 			break;
 		}
 		case OpCode::FLOAT_TO_TEXT:
 		{
-			Peek() = AllocateTraceable(MidoriText::FromFloat(Peek().GetFloat()));
+			Peek(sp) = AllocateTraceable(MidoriText::FromFloat(Peek(sp).GetFloat()));
 			break;
 		}
 		case OpCode::INT_TO_TEXT:
 		{
-			Peek() = AllocateTraceable(MidoriText::FromInteger(Peek().GetInteger()));
+			Peek(sp) = AllocateTraceable(MidoriText::FromInteger(Peek(sp).GetInteger()));
 			break;
 		}
 		case OpCode::BYTE_TO_INT:
 		{
-			Peek() = static_cast<MidoriInteger>(Peek().GetByte());
+			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetByte());
 			break;
 		}
 		case OpCode::INT_TO_BYTE:
 		{
-			Peek() = static_cast<MidoriByte>(Peek().GetInteger() & 0xFF);
+			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetInteger() & 0xFF);
 			break;
 		}
 		case OpCode::BYTE_TO_WORD:
 		{
-			Peek() = static_cast<MidoriWord>(Peek().GetByte());
+			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetByte());
 			break;
 		}
 		case OpCode::WORD_TO_BYTE:
 		{
-			Peek() = static_cast<MidoriByte>(Peek().GetWord() & 0xFF);
+			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetWord() & 0xFF);
 			break;
 		}
 		case OpCode::WORD_TO_INT:
 		{
-			Peek() = static_cast<MidoriInteger>(Peek().GetWord());
+			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetWord());
 			break;
 		}
 		case OpCode::INT_TO_WORD:
 		{
-			Peek() = static_cast<MidoriWord>(Peek().GetInteger());
+			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetInteger());
 			break;
 		}
 		case OpCode::BYTE_TO_FLOAT:
 		{
-			Peek() = static_cast<MidoriFloat>(Peek().GetByte());
+			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetByte());
 			break;
 		}
 		case OpCode::FLOAT_TO_BYTE:
 		{
-			Peek() = static_cast<MidoriByte>(Peek().GetFloat());
+			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::WORD_TO_FLOAT:
 		{
-			Peek() = static_cast<MidoriFloat>(Peek().GetWord());
+			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetWord());
 			break;
 		}
 		case OpCode::FLOAT_TO_WORD:
 		{
-			Peek() = static_cast<MidoriWord>(Peek().GetFloat());
+			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::LEFT_SHIFT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() << right.GetInteger();
 			break;
 		}
 		case OpCode::RIGHT_SHIFT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() >> right.GetInteger();
 
@@ -1458,8 +1468,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LEFT_SHIFT_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() << right.GetByte());
 
@@ -1467,8 +1477,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::RIGHT_SHIFT_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() >> right.GetByte());
 
@@ -1476,8 +1486,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LEFT_SHIFT_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() << right.GetWord();
 
@@ -1485,8 +1495,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::RIGHT_SHIFT_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() >> right.GetWord();
 
@@ -1494,8 +1504,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::BITWISE_AND:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() & right.GetInteger();
 
@@ -1503,8 +1513,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::BITWISE_OR:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() | right.GetInteger();
 
@@ -1512,8 +1522,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::BITWISE_XOR:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() ^ right.GetInteger();
 
@@ -1521,7 +1531,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::BITWISE_NOT:
 		{
-			MidoriValue& right = Peek();
+			MidoriValue& right = Peek(sp);
 
 			right = ~right.GetInteger();
 
@@ -1529,8 +1539,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::ADD_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() + right.GetFloat();
 
@@ -1538,8 +1548,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SUBTRACT_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() - right.GetFloat();
 
@@ -1547,8 +1557,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MULTIPLY_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() * right.GetFloat();
 
@@ -1556,8 +1566,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::DIVIDE_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() / right.GetFloat();
 
@@ -1565,8 +1575,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MODULO_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = std::fmod(left.GetFloat(), right.GetFloat());
 
@@ -1574,8 +1584,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::ADD_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() + right.GetInteger();
 
@@ -1583,8 +1593,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SUBTRACT_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() - right.GetInteger();
 
@@ -1592,8 +1602,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MULTIPLY_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() * right.GetInteger();
 
@@ -1601,8 +1611,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::DIVIDE_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() / right.GetInteger();
 
@@ -1610,8 +1621,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MODULO_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() % right.GetInteger();
 
@@ -1619,8 +1631,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::ADD_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() + right.GetByte());
 
@@ -1628,8 +1640,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SUBTRACT_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() - right.GetByte());
 
@@ -1637,8 +1649,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MULTIPLY_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() * right.GetByte());
 
@@ -1646,8 +1658,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::DIVIDE_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() / right.GetByte());
 
@@ -1655,8 +1668,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MODULO_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = static_cast<MidoriByte>(left.GetByte() % right.GetByte());
 
@@ -1664,8 +1678,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::ADD_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() + right.GetWord();
 
@@ -1673,8 +1687,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SUBTRACT_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() - right.GetWord();
 
@@ -1682,8 +1696,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MULTIPLY_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() * right.GetWord();
 
@@ -1691,8 +1705,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::DIVIDE_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() / right.GetWord();
 
@@ -1700,8 +1715,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::MODULO_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() % right.GetWord();
 
@@ -1709,21 +1725,21 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::CONCAT_ARRAY:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			MidoriArray& left_value_vector_ref = left.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MidoriArray>();
 			MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
 			left = AllocateTraceable(std::move(result));
-			TryCollect();
+			TryCollect(ip, sp, bp, env);
 			break;
 		}
 		case OpCode::CONCAT_TEXT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			MidoriText& left_value_string_ref = left.GetPointer()->GetTraceable<MidoriText>();
 			MidoriText& right_value_string_ref = right.GetPointer()->GetTraceable<MidoriText>();
@@ -1731,118 +1747,120 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
 			left = AllocateTraceable(std::move(result));
-			TryCollect();
+			TryCollect(ip, sp, bp, env);
 			break;
 		}
 		case OpCode::ADD_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() + value.GetInteger();
 			break;
 		}
 		case OpCode::ADD_ASSIGN_FLOAT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetFloat() + value.GetFloat();
 			break;
 		}
 		case OpCode::SUB_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() - value.GetInteger();
 			break;
 		}
 		case OpCode::SUB_ASSIGN_FLOAT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetFloat() - value.GetFloat();
 			break;
 		}
 		case OpCode::MUL_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() * value.GetInteger();
 			break;
 		}
 		case OpCode::MUL_ASSIGN_FLOAT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetFloat() * value.GetFloat();
 			break;
 		}
 		case OpCode::DIV_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() / value.GetInteger();
 			break;
 		}
 		case OpCode::DIV_ASSIGN_FLOAT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetFloat() / value.GetFloat();
 			break;
 		}
 		case OpCode::MOD_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			m_instruction_pointer = inst_ip;
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() % value.GetInteger();
 			break;
 		}
 		case OpCode::MOD_ASSIGN_FLOAT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = std::fmod(var.GetFloat(), value.GetFloat());
 			break;
 		}
 		case OpCode::AND_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() & value.GetInteger();
 			break;
 		}
 		case OpCode::OR_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() | value.GetInteger();
 			break;
 		}
 		case OpCode::XOR_ASSIGN_INT:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() ^ value.GetInteger();
 			break;
 		}
 		case OpCode::LEFT_SHIFT_ASSIGN:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() << value.GetInteger();
 			break;
 		}
 		case OpCode::RIGHT_SHIFT_ASSIGN:
 		{
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() >> value.GetInteger();
 			break;
 		}
 		case OpCode::EQUAL_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() == right.GetFloat();
 
@@ -1850,8 +1868,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::NOT_EQUAL_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() != right.GetFloat();
 
@@ -1859,8 +1877,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() > right.GetFloat();
 
@@ -1868,8 +1886,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_EQUAL_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() >= right.GetFloat();
 
@@ -1877,8 +1895,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() < right.GetFloat();
 
@@ -1886,8 +1904,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_EQUAL_FLOAT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetFloat() <= right.GetFloat();
 
@@ -1895,8 +1913,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::EQUAL_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() == right.GetInteger();
 
@@ -1904,8 +1922,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::NOT_EQUAL_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() != right.GetInteger();
 
@@ -1913,8 +1931,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() > right.GetInteger();
 
@@ -1922,8 +1940,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_EQUAL_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() >= right.GetInteger();
 
@@ -1931,8 +1949,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() < right.GetInteger();
 
@@ -1940,8 +1958,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_EQUAL_INTEGER:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetInteger() <= right.GetInteger();
 
@@ -1949,8 +1967,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::EQUAL_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() == right.GetByte();
 
@@ -1958,8 +1976,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::NOT_EQUAL_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() != right.GetByte();
 
@@ -1967,8 +1985,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() > right.GetByte();
 
@@ -1976,8 +1994,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_EQUAL_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() >= right.GetByte();
 
@@ -1985,8 +2003,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() < right.GetByte();
 
@@ -1994,8 +2012,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_EQUAL_BYTE:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetByte() <= right.GetByte();
 
@@ -2003,8 +2021,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::EQUAL_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() == right.GetWord();
 
@@ -2012,8 +2030,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::NOT_EQUAL_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() != right.GetWord();
 
@@ -2021,8 +2039,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() > right.GetWord();
 
@@ -2030,8 +2048,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GREATER_EQUAL_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() >= right.GetWord();
 
@@ -2039,8 +2057,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() < right.GetWord();
 
@@ -2048,8 +2066,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::LESS_EQUAL_WORD:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetWord() <= right.GetWord();
 
@@ -2057,8 +2075,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::EQUAL_TEXT:
 		{
-			MidoriValue right = Pop();
-			MidoriValue& left = Peek();
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
 
 			left = left.GetPointer()->GetTraceable<MidoriText>() == right.GetPointer()->GetTraceable<MidoriText>();
 
@@ -2066,25 +2084,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::NOT:
 		{
-			MidoriValue& value = Peek();
+			MidoriValue& value = Peek(sp);
 			value = !value.GetBool();
 			break;
 		}
 		case OpCode::NEGATE_FLOAT:
 		{
-			MidoriValue& value = Peek();
+			MidoriValue& value = Peek(sp);
 			value = -value.GetFloat();
 			break;
 		}
 		case OpCode::NEGATE_INTEGER:
 		{
-			MidoriValue& value = Peek();
+			MidoriValue& value = Peek(sp);
 			value = -value.GetInteger();
 			break;
 		}
 		case OpCode::JUMP_IF_FALSE:
 		{
-			MidoriValue value = Peek();
+			MidoriValue value = Peek(sp);
 
 			int offset = ReadShort(ip);
 			if (!value.GetBool())
@@ -2095,7 +2113,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::JUMP_IF_TRUE:
 		{
-			MidoriValue value = Peek();
+			MidoriValue value = Peek(sp);
 
 			int offset = ReadShort(ip);
 			if (value.GetBool())
@@ -2114,14 +2132,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
-			TryCollect();
+			TryCollect(ip, sp, bp, env);
 			break;
 		}
 		case OpCode::IF_INTEGER_LESS:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left < right))
 			{
@@ -2132,8 +2150,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_INTEGER_LESS_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left <= right))
 			{
@@ -2144,8 +2162,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_INTEGER_GREATER:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left > right))
 			{
@@ -2156,8 +2174,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_INTEGER_GREATER_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left >= right))
 			{
@@ -2168,8 +2186,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_INTEGER_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left == right))
 			{
@@ -2180,8 +2198,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_INTEGER_NOT_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop().GetInteger();
-			MidoriInteger left = Pop().GetInteger();
+			MidoriInteger right = Pop(sp).GetInteger();
+			MidoriInteger left = Pop(sp).GetInteger();
 
 			if (!(left != right))
 			{
@@ -2192,8 +2210,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_LESS:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left < right))
 			{
@@ -2204,8 +2222,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_LESS_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left <= right))
 			{
@@ -2216,8 +2234,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_GREATER:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left > right))
 			{
@@ -2228,8 +2246,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_GREATER_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left >= right))
 			{
@@ -2240,8 +2258,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left == right))
 			{
@@ -2252,8 +2270,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_FLOAT_NOT_EQUAL:
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop().GetFloat();
-			MidoriFloat left = Pop().GetFloat();
+			MidoriFloat right = Pop(sp).GetFloat();
+			MidoriFloat left = Pop(sp).GetFloat();
 
 			if (!(left != right))
 			{
@@ -2263,42 +2281,42 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::BREAK:
 		{
-			MidoriValue value = Pop();
+			MidoriValue value = Pop(sp);
 			int offset = ReadShort(ip);
 			ip += offset;
-			Push(value);
+			Push(sp, value);
 			break;
 		}
 		case OpCode::LOAD_TAG:
 		{
-			MidoriValue union_val = Pop();
+			MidoriValue union_val = Pop(sp);
 			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
 
 			for (int i = 0; i < union_ref.m_values.GetLength(); i += 1)
 			{
-				Push(union_ref.m_values[i]);
+				Push(sp, union_ref.m_values[i]);
 			}
 
-			Push(static_cast<MidoriInteger>(union_ref.m_index));
+			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
 			break;
 		}
 		case OpCode::GET_TAG:
 		{
-			MidoriValue union_val = Pop();
+			MidoriValue union_val = Pop(sp);
 			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
-			Push(static_cast<MidoriInteger>(union_ref.m_index));
+			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
 			break;
 		}
 		case OpCode::SET_TAG:
 		{
 			int tag = static_cast<int>(ReadByte(ip));
-			MidoriUnion& union_ref = Peek().GetPointer()->GetTraceable<MidoriUnion>();
+			MidoriUnion& union_ref = Peek(sp).GetPointer()->GetTraceable<MidoriUnion>();
 			union_ref.m_index = tag;
 			break;
 		}
 		case OpCode::MATCH_JUMP_TABLE:
 		{
-			MidoriInteger tag = Peek().GetInteger();
+			MidoriInteger tag = Peek(sp).GetInteger();
 			int case_count = static_cast<int>(ReadByte(ip));
 
 			// Read jump table offsets and jump to the matching case
@@ -2336,14 +2354,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::CALL_FOREIGN:
 		{
-			MidoriValue foreign_function_name = Pop();
+			MidoriValue foreign_function_name = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
 
 #if MIDORI_DEBUG_FULL
 			if (!foreign_function_name.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
 			}
 #endif
@@ -2367,7 +2385,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (proc == nullptr)
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
 			}
 
@@ -2379,7 +2397,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
-				MidoriValue arg = Pop();
+				MidoriValue arg = Pop(sp);
 
 				if (m_gc.Contains(arg.GetPointer()))
 				{
@@ -2416,12 +2434,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(""));
+					Push(sp, AllocateTraceable(""));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(AllocateTraceable(ffi_string));
+					Push(sp, AllocateTraceable(ffi_string));
 					std::free(ffi_string);
 				}
 			}
@@ -2436,7 +2454,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(MidoriArray()));
+					Push(sp, AllocateTraceable(MidoriArray()));
 				}
 				else
 				{
@@ -2445,14 +2463,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 					int length = ffi_array->length;
 
 					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(AllocateTraceable(std::move(wrapped_array)));
+					Push(sp, AllocateTraceable(std::move(wrapped_array)));
 
 					std::free(ffi_array);
 				}
 			}
 			else
 			{
-				Push(return_val);
+				Push(sp, return_val);
 			}
 
 			break;
@@ -2474,7 +2492,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
 				size_t idx = static_cast<size_t>(i);
-				MidoriValue arg = Pop();
+				MidoriValue arg = Pop(sp);
 				const FFIArgumentKind arg_kind = ffi_entry.m_arg_kinds[idx];
 				MidoriTraceable* ptr = arg.GetPointer();
 				const bool is_managed_traceable = ptr != nullptr && m_gc.Contains(ptr);
@@ -2541,12 +2559,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(""));
+					Push(sp, AllocateTraceable(""));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(AllocateTraceable(ffi_string));
+					Push(sp, AllocateTraceable(ffi_string));
 					std::free(ffi_string);
 				}
 			}
@@ -2561,7 +2579,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(MidoriArray()));
+					Push(sp, AllocateTraceable(MidoriArray()));
 				}
 				else
 				{
@@ -2570,7 +2588,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					int length = ffi_array->length;
 
 					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(AllocateTraceable(std::move(wrapped_array)));
+					Push(sp, AllocateTraceable(std::move(wrapped_array)));
 
 					std::free(ffi_array);
 				}
@@ -2586,7 +2604,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(AllocateTraceable(MidoriArray()));
+					Push(sp, AllocateTraceable(MidoriArray()));
 				}
 				else
 				{
@@ -2604,37 +2622,37 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 					std::free(ffi_strings);
 					std::free(ffi_array);
-					Push(AllocateTraceable(std::move(wrapped_array)));
+					Push(sp, AllocateTraceable(std::move(wrapped_array)));
 				}
 			}
 			else
 			{
-				Push(return_val);
+				Push(sp, return_val);
 			}
 
 			break;
 		}
 		case OpCode::CALL:
 		{
-			MidoriValue callable = Pop();
+			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			m_curr_environment = &closure.m_cell_values;
+			env = &closure.m_cell_values;
 
 			ip = GetProcEntry(closure.m_proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
@@ -2643,25 +2661,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::CALL_2:
 		case OpCode::CALL_3:
 		{
-			MidoriValue callable = Pop();
+			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_0);
 
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			m_curr_environment = &closure.m_cell_values;
+			env = &closure.m_cell_values;
 
 			ip = GetProcEntry(closure.m_proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
@@ -2670,12 +2688,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int proc_index = static_cast<int>(ReadByte(ip));
 			int arity = static_cast<int>(ReadByte(ip));
 
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			// Static functions have no captures, so no environment needed
-			m_curr_environment = nullptr;
+			env = nullptr;
 			ip = GetProcEntry(proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
@@ -2687,12 +2705,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int proc_index = static_cast<int>(ReadByte(ip));
 			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_PROC_0);
 
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			// Static functions have no captures, so no environment needed
-			m_curr_environment = nullptr;
+			env = nullptr;
 			ip = GetProcEntry(proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
@@ -2705,18 +2723,18 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			m_curr_environment = &closure.m_cell_values;
+			env = &closure.m_cell_values;
 
 			ip = GetProcEntry(closure.m_proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
@@ -2731,44 +2749,44 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
-			PushCallFrame(m_value_stack_base_pointer, ip, m_curr_environment);
+			PushCallFrame(bp, ip, env);
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			m_curr_environment = &closure.m_cell_values;
+			env = &closure.m_cell_values;
 
 			ip = GetProcEntry(closure.m_proc_index);
-			m_value_stack_base_pointer = m_value_stack_pointer - arity;
+			bp = sp - arity;
 
 			break;
 		}
 		case OpCode::TAIL_CALL:
 		{
-			MidoriValue callable = Pop();
+			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
 			// Move arguments down to base pointer
-			MidoriValue* args_source = m_value_stack_pointer - arity;
-			if (arity > 0 && args_source != m_value_stack_base_pointer)
+			MidoriValue* args_source = sp - arity;
+			if (arity > 0 && args_source != bp)
 			{
-				std::memmove(m_value_stack_base_pointer, args_source, arity * sizeof(MidoriValue));
+				std::memmove(bp, args_source, arity * sizeof(MidoriValue));
 			}
-			m_value_stack_pointer = m_value_stack_base_pointer + arity;
+			sp = bp + arity;
 
 			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			m_curr_environment = &closure.m_cell_values;
+			env = &closure.m_cell_values;
 
 			// Jump to the start of the function without creating a new call frame
 			ip = GetProcEntry(closure.m_proc_index);
@@ -2783,13 +2801,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			for (int i = size - 1; i >= 0; i -= 1)
 			{
-				args[i] = Pop();
+				args[i] = Pop(sp);
 			}
 
 			MidoriTuple& members = new_struct->GetTraceable<MidoriStruct>().m_values;
 			members = std::move(args);
 
-			Push(new_struct);
+			Push(sp, new_struct);
 			break;
 		}
 		case OpCode::CONSTRUCT_UNION:
@@ -2801,19 +2819,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			for (int i = size - 1; i >= 0; i -= 1)
 			{
-				args[i] = Pop();
+				args[i] = Pop(sp);
 			}
 
 			MidoriTuple& members = new_union->GetTraceable<MidoriUnion>().m_values;
 			members = std::move(args);
 
-			Push(new_union);
+			Push(sp, new_union);
 			break;
 		}
 		case OpCode::MAKE_CLOSURE:
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
-			Push(AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }));
+			Push(sp, AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }));
 			break;
 		}
 		case OpCode::MAKE_FUNCTION:
@@ -2823,7 +2841,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			size_t cache_index = static_cast<size_t>(proc_index);
 			if (cache_index < m_static_closure_cache.size() && m_static_closure_cache[cache_index])
 			{
-				Push(m_static_closure_cache[cache_index]);
+				Push(sp, m_static_closure_cache[cache_index]);
 			}
 			else
 			{
@@ -2832,7 +2850,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				{
 					m_static_closure_cache[cache_index] = closure;
 				}
-				Push(closure);
+				Push(sp, closure);
 			}
 
 			break;
@@ -2841,26 +2859,26 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int total_count = static_cast<int>(ReadByte(ip));
 
-			MidoriTuple& closure_env = (m_value_stack_pointer - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
-			int parent_count = m_curr_environment ? m_curr_environment->GetLength() : 0;
+			MidoriTuple& closure_env = (sp - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
+			int parent_count = env ? env->GetLength() : 0;
 			int local_capture_count = (total_count > parent_count) ? (total_count - parent_count) : 0;
 
 			MidoriTuple new_env(total_count);
-			MidoriValue* closure_slot = m_value_stack_pointer - 1;
+			MidoriValue* closure_slot = sp - 1;
 
 			// Copy parent environment
-			if (m_curr_environment)
+			if (env)
 			{
 				for (int i = 0; i < parent_count; i += 1)
 				{
-					new_env[i] = (*m_curr_environment)[i];
+					new_env[i] = (*env)[i];
 				}
 			}
 
 			// Capture local variables
 			for (int i = 0; i < local_capture_count; i += 1)
 			{
-				MidoriValue& local_slot = *(m_value_stack_base_pointer + i);
+				MidoriValue& local_slot = *(bp + i);
 				new_env[parent_count + i] = EnsureCellHandle(local_slot, closure_slot);
 			}
 
@@ -2869,7 +2887,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::DEFINE_GLOBAL:
 		{
-			MidoriValue value = Pop();
+			MidoriValue value = Pop(sp);
 			int global_idx = ReadGlobalVariable(ip);
 			MidoriValue& var = (*m_global_vars)[global_idx];
 			var = value;
@@ -2878,26 +2896,26 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::GET_GLOBAL:
 		{
 			int global_idx = ReadGlobalVariable(ip);
-			Push((*m_global_vars)[global_idx]);
+			Push(sp, (*m_global_vars)[global_idx]);
 			break;
 		}
 		case OpCode::SET_GLOBAL:
 		{
 			int global_idx = ReadGlobalVariable(ip);
 			MidoriValue& var = (*m_global_vars)[global_idx];
-			var = Peek();
+			var = Peek(sp);
 			break;
 		}
 		case OpCode::GET_LOCAL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			Push(*(m_value_stack_base_pointer + offset));
+			Push(sp, *(bp + offset));
 			break;
 		}
 		case OpCode::SET_LOCAL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			*(m_value_stack_base_pointer + offset) = Peek();
+			*(bp + offset) = Peek(sp);
 			break;
 		}
 		case OpCode::GET_LOCAL_0:
@@ -2906,7 +2924,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::GET_LOCAL_3:
 		{
 			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::GET_LOCAL_0);
-			Push(*(m_value_stack_base_pointer + offset));
+			Push(sp, *(bp + offset));
 			break;
 		}
 		case OpCode::SET_LOCAL_0:
@@ -2915,29 +2933,29 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SET_LOCAL_3:
 		{
 			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::SET_LOCAL_0);
-			*(m_value_stack_base_pointer + offset) = Peek();
+			*(bp + offset) = Peek(sp);
 			break;
 		}
 		case OpCode::GET_LOCAL_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			MidoriValue& slot = *(bp + offset);
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
-				Push(ptr->GetTraceable<MidoriCellValue>().GetValue());
+				Push(sp, ptr->GetTraceable<MidoriCellValue>().GetValue());
 			}
 			else
 			{
-				Push(slot);
+				Push(sp, slot);
 			}
 			break;
 		}
 		case OpCode::SET_LOCAL_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
-			MidoriValue value = Peek();
+			MidoriValue& slot = *(bp + offset);
+			MidoriValue value = Peek(sp);
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
@@ -2953,26 +2971,26 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 #if MIDORI_DEBUG_FULL
-			if (!m_curr_environment)
+			if (!env)
 			{
-				m_instruction_pointer = ip;
+				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
 			}
 #endif
-			MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			Push(cell_value);
+			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			Push(sp, cell_value);
 			break;
 		}
 		case OpCode::SET_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			cell_value = Peek();
+			MidoriValue& cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			cell_value = Peek(sp);
 			break;
 		}
 		case OpCode::DEFINE_GLOBAL_WIDE:
 		{
-			MidoriValue value = Pop();
+			MidoriValue value = Pop(sp);
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
@@ -2985,7 +3003,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
-			Push((*m_global_vars)[global_idx]);
+			Push(sp, (*m_global_vars)[global_idx]);
 			break;
 		}
 		case OpCode::SET_GLOBAL_WIDE:
@@ -2994,7 +3012,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
 			MidoriValue& var = (*m_global_vars)[global_idx];
-			var = Peek();
+			var = Peek(sp);
 			break;
 		}
 		case OpCode::GET_LOCAL_WIDE:
@@ -3002,7 +3020,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			Push(*(m_value_stack_base_pointer + offset));
+			Push(sp, *(bp + offset));
 			break;
 		}
 		case OpCode::SET_LOCAL_WIDE:
@@ -3010,7 +3028,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			*(m_value_stack_base_pointer + offset) = Peek();
+			*(bp + offset) = Peek(sp);
 			break;
 		}
 		case OpCode::GET_LOCAL_CELL_WIDE:
@@ -3018,15 +3036,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
+			MidoriValue& slot = *(bp + offset);
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
-				Push(ptr->GetTraceable<MidoriCellValue>().GetValue());
+				Push(sp, ptr->GetTraceable<MidoriCellValue>().GetValue());
 			}
 			else
 			{
-				Push(slot);
+				Push(sp, slot);
 			}
 			break;
 		}
@@ -3035,8 +3053,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& slot = *(m_value_stack_base_pointer + offset);
-			MidoriValue value = Peek();
+			MidoriValue& slot = *(bp + offset);
+			MidoriValue value = Peek(sp);
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
@@ -3053,8 +3071,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			Push(cell_value);
+			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			Push(sp, cell_value);
 			break;
 		}
 		case OpCode::SET_CELL_WIDE:
@@ -3062,99 +3080,99 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& cell_value = (*m_curr_environment)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			cell_value = Peek();
+			MidoriValue& cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
+			cell_value = Peek(sp);
 			break;
 		}
 		case OpCode::GET_MEMBER:
 		{
 			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue value = Pop();
-			Push(value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
+			MidoriValue value = Pop(sp);
+			Push(sp, value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
 			break;
 		}
 		case OpCode::SET_MEMBER:
 		{
 			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue value = Pop();
-			MidoriValue& var = Peek();
+			MidoriValue value = Pop(sp);
+			MidoriValue& var = Peek(sp);
 			MidoriValue& member = var.GetPointer()->GetTraceable<MidoriStruct>().m_values[index];
 			member = value;
 			break;
 		}
 		case OpCode::POP:
 		{
-			--m_value_stack_pointer;
+			--sp;
 			break;
 		}
 		case OpCode::DUP:
 		{
-			Push(Peek());
+			Push(sp, Peek(sp));
 			break;
 		}
 		case OpCode::SWAP:
 		{
-			MidoriValue first = Pop();
-			MidoriValue second = Pop();
-			Push(first);
-			Push(second);
+			MidoriValue first = Pop(sp);
+			MidoriValue second = Pop(sp);
+			Push(sp, first);
+			Push(sp, second);
 			break;
 		}
 		case OpCode::POP_LOCAL_SCOPE:
 		{
-			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
+			sp -= static_cast<int>(ReadByte(ip));
 			break;
 		}
 		case OpCode::POP_VALUES:
 		{
-			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
+			sp -= static_cast<int>(ReadByte(ip));
 			break;
 		}
 		case OpCode::POP_BLOCK_SCOPE:
 		{
-			MidoriValue final_value = Pop();
-			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
-			Push(final_value);
+			MidoriValue final_value = Pop(sp);
+			sp -= static_cast<int>(ReadByte(ip));
+			Push(sp, final_value);
 			break;
 		}
 		case OpCode::POP_MATCH_SCOPE:
 		{
-			MidoriValue final_value = Pop();
-			m_value_stack_pointer -= static_cast<int>(ReadByte(ip));
-			Push(final_value);
+			MidoriValue final_value = Pop(sp);
+			sp -= static_cast<int>(ReadByte(ip));
+			Push(sp, final_value);
 			break;
 		}
 		case OpCode::RETURN:
 		{
-			MidoriValue value = Pop();
+			MidoriValue value = Pop(sp);
 			--m_call_stack_pointer;
 			const CallFrame& frame = *m_call_stack_pointer;
 
-			// Callee's m_value_stack_base_pointer points to where args started, which is our return point
-			ValueStackPointer return_point = m_value_stack_base_pointer;
+			// Callee's bp points to where args started, which is our return point
+			ValueStackPointer return_point = bp;
 
-			m_value_stack_base_pointer = frame.m_return_bp;
-			m_value_stack_pointer = return_point;
+			bp = frame.m_return_bp;
+			sp = return_point;
 			ip = frame.m_return_ip;
-			m_curr_environment = frame.m_closure_ptr;
+			env = frame.m_closure_ptr;
 
-			Push(value);
+			Push(sp, value);
 
 			break;
 		}
 		case OpCode::HALT:
 		{
-			m_instruction_pointer = ip;
+			SyncMachineState(ip, sp, bp, env);
 			return 0;
 		}
 		case OpCode::PUSH_PLACEHOLDER:
 		{
-			Push(MidoriValue());
+			Push(sp, MidoriValue());
 			break;
 		}
 		case OpCode::UPDATE_PLACEHOLDER:
 		{
-			Peek() = Pop();
+			Peek(sp) = Pop(sp);
 			break;
 		}
 		case OpCode::SPAWN_WORKER:
@@ -3166,10 +3184,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::WORKER_IS_DONE:
 		case OpCode::WORKER_CANCEL:
 		{
+			SyncMachineState(ip, sp, bp, env);
 			if (!ExecuteConcurrencyInstruction(instruction, ip))
 			{
 				return EXIT_FAILURE;
 			}
+			sp = m_value_stack_pointer;
 			break;
 		}
 		default:
@@ -3177,7 +3197,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MIDORI_UNREACHABLE();
 		}
 		}
-		m_instruction_pointer = ip;
 	}
 
 }
