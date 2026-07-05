@@ -35,7 +35,10 @@ public:
 
 	void ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean = false);
 
-	bool ShouldCollect() const;
+	MIDORI_FORCE_INLINE bool ShouldCollect() const noexcept
+	{
+		return m_total_bytes_allocated >= m_gc_threshold;
+	}
 
 	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
 

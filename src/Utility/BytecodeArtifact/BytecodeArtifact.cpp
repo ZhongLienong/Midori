@@ -54,7 +54,7 @@ namespace
 		std::string object = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(object, "index", proc_index, first_field);
-		MidoriJson::AppendStringField(object, "name", std::string(executable.m_procedure_names[static_cast<size_t>(proc_index)].GetCString()), first_field);
+		MidoriJson::AppendStringField(object, "name", executable.m_procedure_names[static_cast<size_t>(proc_index)], first_field);
 		MidoriJson::AppendNumberField(object, "instructionCount", instruction_count, first_field);
 		MidoriJson::AppendRawField(object, "opcodes", opcodes_json, first_field);
 		MidoriJson::AppendRawField(object, "lines", lines_json, first_field);
@@ -75,7 +75,7 @@ namespace MidoriBytecodeArtifact
 		globals.reserve(static_cast<size_t>(executable.GetGlobalVariableCount()));
 		for (int index = 0; index < executable.GetGlobalVariableCount(); index += 1)
 		{
-			globals.emplace_back(executable.GetGlobalVariable(index).GetCString());
+			globals.emplace_back(executable.GetGlobalVariable(index));
 		}
 
 		const std::vector<std::string> strings = executable.GetStringPool();

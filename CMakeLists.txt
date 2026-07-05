@@ -142,6 +142,15 @@ add_library(MidoriCore STATIC
 midori_configure_target(MidoriCore)
 target_link_libraries(MidoriCore PRIVATE toml11::toml11)
 
+# The interpreter dispatch loop is compiled without whole-program optimization:
+# its hot dependencies are all force-inlined from headers, and opting out of
+# LTCG keeps its codegen stable instead of shifting with unrelated changes in
+# other translation units.
+if(MSVC)
+    set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp
+        PROPERTIES COMPILE_OPTIONS "/GL-")
+endif()
+
 if(UNIX)
     target_link_libraries(MidoriCore PUBLIC ${CMAKE_DL_LIBS})
 endif()

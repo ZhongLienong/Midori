@@ -13,9 +13,9 @@ namespace
 		std::string_view m_module_name;
 	};
 
-	ProcedureNameParts ParseProcedureName(const MidoriText& raw_name)
+	ProcedureNameParts ParseProcedureName(const std::string& raw_name)
 	{
-		const std::string_view raw_name_view(raw_name.GetCString());
+		const std::string_view raw_name_view(raw_name);
 		const size_t separator_index = raw_name_view.rfind(ModuleSeparator);
 		if (separator_index == std::string_view::npos)
 		{
@@ -68,7 +68,7 @@ namespace
 		global_indices.reserve(static_cast<size_t>(executable.GetGlobalVariableCount()));
 		for (int global_index = 0; global_index < executable.GetGlobalVariableCount(); global_index += 1)
 		{
-			global_indices.emplace(executable.GetGlobalVariable(global_index).GetCString(), global_index);
+			global_indices.emplace(executable.GetGlobalVariable(global_index), global_index);
 		}
 
 		for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)

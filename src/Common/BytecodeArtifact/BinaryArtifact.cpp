@@ -260,8 +260,8 @@ namespace
 		writer.WriteU32(static_cast<uint32_t>(executable.GetGlobalVariableCount()));
 		for (int index = 0; index < executable.GetGlobalVariableCount(); index += 1)
 		{
-			const MidoriText& name = executable.GetGlobalVariable(index);
-			writer.WriteString(std::string_view(name.GetCString(), static_cast<size_t>(name.GetByteLength())));
+			const std::string& name = executable.GetGlobalVariable(index);
+			writer.WriteString(name);
 		}
 
 		// procedures
@@ -269,8 +269,8 @@ namespace
 		for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)
 		{
 			// name
-			const MidoriText& proc_name = executable.m_procedure_names[static_cast<size_t>(proc_index)];
-			writer.WriteString(std::string_view(proc_name.GetCString(), static_cast<size_t>(proc_name.GetByteLength())));
+			const std::string& proc_name = executable.m_procedure_names[static_cast<size_t>(proc_index)];
+			writer.WriteString(proc_name);
 
 			// source_path
 			writer.WriteString(executable.GetProcedureSourcePath(proc_index));
@@ -530,7 +530,7 @@ namespace MidoriBinaryArtifact
 			{
 				return std::unexpected(std::format("Corrupt artifact: could not read global name {}.", index));
 			}
-			executable.AddGlobalVariable(MidoriText(name.c_str()));
+			executable.AddGlobalVariable(std::move(name));
 		}
 
 		// procedures
@@ -542,7 +542,7 @@ namespace MidoriBinaryArtifact
 
 		MidoriExecutable::Procedures procedures;
 		procedures.reserve(procedure_count);
-		std::vector<MidoriText> procedure_names;
+		std::vector<std::string> procedure_names;
 		procedure_names.reserve(procedure_count);
 		MidoriExecutable::ProcedureSourcePaths procedure_source_paths;
 		procedure_source_paths.reserve(procedure_count);
@@ -603,7 +603,7 @@ namespace MidoriBinaryArtifact
 			}
 
 			procedures.push_back(BytecodeStream::FromRaw(std::move(bytecode), std::move(line_info)));
-			procedure_names.push_back(MidoriText(proc_name.c_str()));
+			procedure_names.push_back(std::move(proc_name));
 			procedure_source_paths.push_back(std::move(source_path));
 		}
 

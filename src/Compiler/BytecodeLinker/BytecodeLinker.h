@@ -27,10 +27,10 @@ private:
 	std::unordered_map<std::string, size_t> m_module_base_global_indices;
 	std::unordered_map<std::string, std::vector<size_t>> m_module_string_index_mappings;
 	std::vector<std::string> m_global_string_pool;
-	std::vector<MidoriText> m_global_procedure_names;
+	std::vector<std::string> m_global_procedure_names;
 	std::vector<std::string> m_global_procedure_source_paths;
 	std::vector<BytecodeStream> m_global_procedures;
-	std::vector<MidoriText> m_global_variables;
+	std::vector<std::string> m_global_variables;
 	MidoriExecutable::SourceFileTable m_global_source_files;
 
 public:

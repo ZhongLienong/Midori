@@ -119,9 +119,9 @@ namespace
 		std::unordered_map<std::string, std::vector<std::string>> m_source_lines;
 	};
 
-	ProcedureDisplayName ParseProcedureName(const MidoriText& raw_name) noexcept
+	ProcedureDisplayName ParseProcedureName(const std::string& raw_name) noexcept
 	{
-		const std::string_view raw_view(raw_name.GetCString());
+		const std::string_view raw_view(raw_name);
 		const size_t separator_index = raw_view.rfind(ModuleSeparator);
 
 		std::string_view display_name = raw_view;
@@ -1748,6 +1748,24 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			left = AllocateTraceable(std::move(result));
 			TryCollect(ip, sp, bp, env);
+			break;
+		}
+		case OpCode::EXTEND_ARRAY:
+		{
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
+
+			left.GetPointer()->GetTraceable<MidoriArray>().Extend(right.GetPointer()->GetTraceable<MidoriArray>());
+
+			break;
+		}
+		case OpCode::EXTEND_TEXT:
+		{
+			MidoriValue right = Pop(sp);
+			MidoriValue& left = Peek(sp);
+
+			left.GetPointer()->GetTraceable<MidoriText>().Append(right.GetPointer()->GetTraceable<MidoriText>());
+
 			break;
 		}
 		case OpCode::ADD_ASSIGN_INT:

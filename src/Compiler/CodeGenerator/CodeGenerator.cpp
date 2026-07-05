@@ -1890,7 +1890,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 
 	if (is_global)
 	{
-		MidoriText variable_name(def.m_name.m_lexeme.c_str());
+		std::string variable_name(def.m_name.m_lexeme);
 		index.emplace(m_executable.AddGlobalVariable(std::move(variable_name)));
 		m_global_variables[def.m_name.m_lexeme] = index.value();
 	}
@@ -1950,7 +1950,7 @@ void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 
 	for (int i = static_cast<int>(def_tuple.m_names.size()) - 1; i >= 0; i -= 1)
 	{
-		MidoriText variable_name(def_tuple.m_names[static_cast<size_t>(i)].m_lexeme.c_str());
+		std::string variable_name(def_tuple.m_names[static_cast<size_t>(i)].m_lexeme);
 		int index = m_executable.AddGlobalVariable(std::move(variable_name));
 		m_global_variables[def_tuple.m_names[static_cast<size_t>(i)].m_lexeme] = index;
 		EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
@@ -1988,7 +1988,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 
 	if (is_global)
 	{
-		MidoriText variable_name(defun.m_name.m_lexeme.c_str());
+		std::string variable_name(defun.m_name.m_lexeme);
 		index.emplace(m_executable.AddGlobalVariable(std::move(variable_name)));
 		m_global_variables[defun.m_name.m_lexeme] = index.value();
 	}
@@ -2046,7 +2046,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 	std::optional<int> index = std::nullopt;
 	if (is_global)
 	{
-		MidoriText foreign_function_name(foreign.m_function_name.m_lexeme.c_str());
+		std::string foreign_function_name(foreign.m_function_name.m_lexeme);
 		index.emplace(m_executable.AddGlobalVariable(std::move(foreign_function_name)));
 		m_global_variables[foreign.m_function_name.m_lexeme] = index.value();
 	}
@@ -2112,7 +2112,7 @@ void CodeGenerator::operator()(MidoriStatement::Instance& instance_stmt)
 		}
 		else
 		{
-			MidoriText variable_name(defun.m_name.m_lexeme.c_str());
+			std::string variable_name(defun.m_name.m_lexeme);
 			index = m_executable.AddGlobalVariable(std::move(variable_name));
 			m_global_variables[defun.m_name.m_lexeme] = index;
 		}
@@ -2398,6 +2398,25 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	}
 }
 
+namespace
+{
+	// True when the expression always produces a fresh container the concat may
+	// mutate in place: another (non-typeclass) concat result, a text literal
+	// (LOAD_STRING pushes a fresh copy), or an array literal/comprehension.
+	bool IsFreshConcatTemporary(const MidoriExpression& expr)
+	{
+		if (expr.IsExpression<MidoriExpression::Binary>())
+		{
+			const MidoriExpression::Binary& binary = expr.GetExpression<MidoriExpression::Binary>();
+			return binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS && !binary.m_uses_concatenable;
+		}
+
+		return expr.IsExpression<MidoriExpression::TextLiteral>()
+			|| expr.IsExpression<MidoriExpression::Array>()
+			|| expr.IsExpression<MidoriExpression::ArrayComprehension>();
+	}
+}
+
 void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 {
 	int line = binary.m_op.m_line;
@@ -2455,13 +2474,14 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			}
 			else
 			{
+				const bool lhs_is_fresh = IsFreshConcatTemporary(*binary.m_left);
 				if (operand_type->IsType<MidoriType::TextType>())
 				{
-					EmitByte(OpCode::CONCAT_TEXT, line);
+					EmitByte(lhs_is_fresh ? OpCode::EXTEND_TEXT : OpCode::CONCAT_TEXT, line);
 				}
 				else if (operand_type->IsType<MidoriType::ArrayType>())
 				{
-					EmitByte(OpCode::CONCAT_ARRAY, line);
+					EmitByte(lhs_is_fresh ? OpCode::EXTEND_ARRAY : OpCode::CONCAT_ARRAY, line);
 				}
 				else
 				{

@@ -118,14 +118,14 @@ namespace
 		stream.AddByteCode(static_cast<OpCode>(low_byte), 0);
 	}
 
-	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> BuildInstanceGlobalInits(const std::vector<MidoriText>& procedure_names, const std::vector<MidoriText>& global_variables)
+	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> BuildInstanceGlobalInits(const std::vector<std::string>& procedure_names, const std::vector<std::string>& global_variables)
 	{
 		std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module;
 		std::unordered_set<size_t> initialized_globals;
 
 		for (size_t proc_idx = 0u; proc_idx < procedure_names.size(); proc_idx += 1u)
 		{
-			const std::string proc_name = procedure_names[proc_idx].GetCString();
+			const std::string& proc_name = procedure_names[proc_idx];
 			const size_t at_pos = proc_name.find(ModuleSeparator);
 			if (at_pos == std::string::npos)
 			{
@@ -142,12 +142,12 @@ namespace
 				continue;
 			}
 
-			const std::vector<MidoriText>::const_iterator global_it = std::ranges::find_if
+			const std::vector<std::string>::const_iterator global_it = std::ranges::find_if
 			(
 				global_variables,
-				[&base_name](const MidoriText& global_name)
+				[&base_name](const std::string& global_name)
 				{
-					return global_name.GetCString() == base_name;
+					return global_name == base_name;
 				}
 			);
 
@@ -278,7 +278,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 	// Create bootstrap name with entry module context for debugging
 	std::string bootstrap_name = std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
-	m_global_procedure_names.insert(m_global_procedure_names.begin(), MidoriText(bootstrap_name.c_str()));
+	m_global_procedure_names.insert(m_global_procedure_names.begin(), std::move(bootstrap_name));
 
 	PatchBootstrapOffsets();
 
@@ -295,7 +295,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	std::ranges::for_each
 	(
 		m_global_variables,
-		[&executable](MidoriText& global_var)
+		[&executable](std::string& global_var)
 		{
 			executable.AddGlobalVariable(std::move(global_var));
 		}
@@ -601,10 +601,10 @@ std::optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& 
 
 std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const
 {
-	std::vector<MidoriText>::const_iterator it = std::ranges::find_if
+	std::vector<std::string>::const_iterator it = std::ranges::find_if
 	(
 		module.m_global_variables,
-		[&symbol_name](const MidoriText& global_var) { return global_var.GetCString() == symbol_name; }
+		[&symbol_name](const std::string& global_var) { return global_var == symbol_name; }
 	);
 
 	if (it == module.m_global_variables.end())

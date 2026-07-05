@@ -1263,8 +1263,8 @@ namespace
 		{
 			for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
 			{
-				MidoriText variable_name = linked_executable.m_procedure_names[i];
-				Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.GetCString());
+				const std::string& variable_name = linked_executable.m_procedure_names[i];
+				Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.c_str());
 			}
 		}
 #endif

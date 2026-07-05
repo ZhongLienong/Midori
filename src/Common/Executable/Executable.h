@@ -262,6 +262,10 @@ enum class OpCode : uint8_t
 	CHANNEL_CLOSE,
 	WORKER_IS_DONE,
 	WORKER_CANCEL,
+
+	// In-place concatenation
+	EXTEND_ARRAY,
+	EXTEND_TEXT,
 };
 
 class BytecodeStream
@@ -313,12 +317,12 @@ public:
 class MidoriExecutable
 {
 public:
-	using GlobalNames = std::vector<MidoriText>;
+	using GlobalNames = std::vector<std::string>;
 	using Procedures = std::vector<BytecodeStream>;
 	using ProcedureSourcePaths = std::vector<std::string>;
 	using StringPool = std::vector<std::string>;
 	using SourceFileTable = std::unordered_map<std::string, std::vector<std::string>>;
-	std::vector<MidoriText> m_procedure_names;
+	std::vector<std::string> m_procedure_names;
 	std::string m_file_name;
 
 private:
@@ -330,15 +334,15 @@ private:
 
 public:
 
-	int AddGlobalVariable(MidoriText&& name);
+	int AddGlobalVariable(std::string&& name);
 
-	const MidoriText& GetGlobalVariable(int index) const;
+	const std::string& GetGlobalVariable(int index) const;
 
 	void AttachProcedures(Procedures&& bytecode);
 
 	void AddStringPool(StringPool&& string_pool);
 
-	void AttachProcedureNames(std::vector<MidoriText>&& procedure_names);
+	void AttachProcedureNames(std::vector<std::string>&& procedure_names);
 
 	void AttachProcedureSourcePaths(ProcedureSourcePaths&& procedure_source_paths);
 

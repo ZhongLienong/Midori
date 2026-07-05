@@ -152,7 +152,7 @@ namespace
 
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::string(executable.GetGlobalVariable(operand).GetCString()));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + executable.GetGlobalVariable(operand));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -180,7 +180,7 @@ namespace
 
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::string(executable.GetGlobalVariable(operand).GetCString()));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + executable.GetGlobalVariable(operand));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -318,7 +318,7 @@ namespace
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + std::string(executable.GetGlobalVariable(global_index).GetCString()) + ", params: " + std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + executable.GetGlobalVariable(global_index) + ", params: " + std::to_string(arity));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -335,7 +335,7 @@ namespace
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + std::string(executable.GetGlobalVariable(global_index).GetCString()) + ", params: " + std::to_string(arity));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + executable.GetGlobalVariable(global_index) + ", params: " + std::to_string(arity));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -969,6 +969,12 @@ namespace Disassembler
 			break;
 		case OpCode::WORKER_CANCEL:
 			SimpleInstruction("WORKER_CANCEL", offset);
+			break;
+		case OpCode::EXTEND_ARRAY:
+			SimpleInstruction("EXTEND_ARRAY", offset);
+			break;
+		case OpCode::EXTEND_TEXT:
+			SimpleInstruction("EXTEND_TEXT", offset);
 			break;
 		case OpCode::CALL_FOREIGN:
 			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);

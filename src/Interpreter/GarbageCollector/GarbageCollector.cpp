@@ -300,11 +300,6 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	m_gc_threshold = new_threshold;
 }
 
-bool GarbageCollector::ShouldCollect() const
-{
-	return m_total_bytes_allocated >= m_gc_threshold;
-}
-
 #if MIDORI_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {

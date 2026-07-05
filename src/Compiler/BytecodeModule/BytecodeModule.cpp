@@ -61,13 +61,13 @@ BytecodeModule BytecodeModule::WithString(std::string str) &&
 	return std::move(*this);
 }
 
-BytecodeModule BytecodeModule::WithProcedureName(MidoriText name) &&
+BytecodeModule BytecodeModule::WithProcedureName(std::string name) &&
 {
 	m_procedure_names.push_back(std::move(name));
 	return std::move(*this);
 }
 
-BytecodeModule BytecodeModule::WithGlobalVariable(MidoriText variable) &&
+BytecodeModule BytecodeModule::WithGlobalVariable(std::string variable) &&
 {
 	m_global_variables.push_back(std::move(variable));
 	return std::move(*this);

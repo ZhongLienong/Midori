@@ -132,13 +132,13 @@ BytecodeStream BytecodeStream::FromRaw(std::vector<OpCode>&& bytecode, std::vect
 	return stream;
 }
 
-int MidoriExecutable::AddGlobalVariable(MidoriText&& name)
+int MidoriExecutable::AddGlobalVariable(std::string&& name)
 {
 	m_globals.emplace_back(std::move(name));
 	return static_cast<int>(m_globals.size()) - 1;
 }
 
-const MidoriText& MidoriExecutable::GetGlobalVariable(int index) const
+const std::string& MidoriExecutable::GetGlobalVariable(int index) const
 {
 	return m_globals[static_cast<size_t>(index)];
 }
@@ -153,7 +153,7 @@ void MidoriExecutable::AddStringPool(StringPool&& string_pool)
 	m_string_pool = std::move(string_pool);
 }
 
-void MidoriExecutable::AttachProcedureNames(std::vector<MidoriText>&& procedure_names)
+void MidoriExecutable::AttachProcedureNames(std::vector<std::string>&& procedure_names)
 {
 	m_procedure_names = std::move(procedure_names);
 }

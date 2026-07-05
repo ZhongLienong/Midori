@@ -17,6 +17,15 @@
     #define MIDORI_FORCE_INLINE inline
 #endif
 
+// Cross-compiler no-inline macro for cold slow paths that must not bloat hot callers
+#if defined(_MSC_VER)
+    #define MIDORI_NOINLINE __declspec(noinline)
+#elif defined(__GNUC__) || defined(__clang__)
+    #define MIDORI_NOINLINE __attribute__((noinline))
+#else
+    #define MIDORI_NOINLINE
+#endif
+
 // Compiler hint for unreachable code
 #if defined(_MSC_VER)
     #define MIDORI_UNREACHABLE() __assume(0)

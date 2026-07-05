@@ -60,7 +60,7 @@ private:
 	struct BytecodeBuilder
 	{
 		MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
-		std::vector<MidoriText> m_procedure_names;
+		std::vector<std::string> m_procedure_names;
 		MidoriExecutable::StringPool m_string_pool;
 		size_t m_current_procedure_index = 0u;
 		int m_string_pool_index = 0;

@@ -58,8 +58,8 @@ struct BytecodeModule
 	using ExportList = std::vector<ExportedSymbol>;
 	using ImportList = std::vector<ImportedSymbol>;
 	using StringPool = std::vector<std::string>;
-	using ProcedureNameList = std::vector<MidoriText>;
-	using GlobalVariableList = std::vector<MidoriText>;
+	using ProcedureNameList = std::vector<std::string>;
+	using GlobalVariableList = std::vector<std::string>;
 	using GenericFunctionMap = std::unordered_map<std::string, GenericFunctionInfo>;
 	using SourceFileTable = MidoriExecutable::SourceFileTable;
 
@@ -81,8 +81,8 @@ struct BytecodeModule
 	[[nodiscard]] BytecodeModule WithExport(ExportedSymbol export_symbol) &&;
 	[[nodiscard]] BytecodeModule WithImport(ImportedSymbol import_symbol) &&;
 	[[nodiscard]] BytecodeModule WithString(std::string str) &&;
-	[[nodiscard]] BytecodeModule WithProcedureName(MidoriText name) &&;
-	[[nodiscard]] BytecodeModule WithGlobalVariable(MidoriText variable) &&;
+	[[nodiscard]] BytecodeModule WithProcedureName(std::string name) &&;
+	[[nodiscard]] BytecodeModule WithGlobalVariable(std::string variable) &&;
 	[[nodiscard]] BytecodeModule WithGenericFunction(std::string name, GenericFunctionInfo info) &&;
 
 	BytecodeModule(const BytecodeModule&) = delete;

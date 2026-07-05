@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <functional>
 #include <list>
 #include <memory>
@@ -51,19 +52,64 @@ private:
 #endif
 
 public:
-	MidoriValue() noexcept;
+	// Defined inline: these are the hottest functions in the interpreter loop,
+	// and relying on LTCG to inline them across translation units proved
+	// fragile (unrelated growth in Value.cpp flipped the inlining decision).
+	MIDORI_FORCE_INLINE MidoriValue() noexcept
+		: m_data{.m_integer = 0}
+#if MIDORI_DEBUG_FULL
+		, m_tag(UNIT)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriFloat d) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriFloat d) noexcept
+		: m_data{.m_float = d}
+#if MIDORI_DEBUG_FULL
+		, m_tag(FLOAT)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriInteger l) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriInteger l) noexcept
+		: m_data{.m_integer = l}
+#if MIDORI_DEBUG_FULL
+		, m_tag(INT)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriByte byte) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriByte byte) noexcept
+		: m_data{.m_integer = static_cast<MidoriInteger>(byte)}
+#if MIDORI_DEBUG_FULL
+		, m_tag(BYTE)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriWord word) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriWord word) noexcept
+		: m_data{.m_integer = static_cast<MidoriInteger>(word)}
+#if MIDORI_DEBUG_FULL
+		, m_tag(WORD)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriBool b) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriBool b) noexcept
+		: m_data{.m_bool = b}
+#if MIDORI_DEBUG_FULL
+		, m_tag(BOOL)
+#endif
+	{
+	}
 
-	MidoriValue(MidoriTraceable* o) noexcept;
+	MIDORI_FORCE_INLINE MidoriValue(MidoriTraceable* o) noexcept
+		: m_data{.m_pointer = o}
+#if MIDORI_DEBUG_FULL
+		, m_tag(POINTER)
+#endif
+	{
+	}
 
 	MidoriValue(const MidoriValue& other) noexcept = default;
 
@@ -73,24 +119,64 @@ public:
 
 	MidoriValue& operator=(MidoriValue&& other) noexcept = default;
 
-	MidoriFloat GetFloat() const noexcept;
+	MIDORI_FORCE_INLINE MidoriFloat GetFloat() const noexcept
+	{
+		return m_data.m_float;
+	}
 
-	MidoriInteger GetInteger() const noexcept;
+	MIDORI_FORCE_INLINE MidoriInteger GetInteger() const noexcept
+	{
+		return m_data.m_integer;
+	}
 
-	MidoriByte GetByte() const noexcept;
+	MIDORI_FORCE_INLINE MidoriByte GetByte() const noexcept
+	{
+		return static_cast<MidoriByte>(m_data.m_integer & 0xFF);
+	}
 
-	MidoriWord GetWord() const noexcept;
+	MIDORI_FORCE_INLINE MidoriWord GetWord() const noexcept
+	{
+		return static_cast<MidoriWord>(m_data.m_integer);
+	}
 
-	MidoriUnit GetUnit() const noexcept;
+	MIDORI_FORCE_INLINE MidoriUnit GetUnit() const noexcept
+	{
+		return {};
+	}
 
-	MidoriBool GetBool() const noexcept;
+	MIDORI_FORCE_INLINE MidoriBool GetBool() const noexcept
+	{
+		return m_data.m_bool;
+	}
 
-	MidoriTraceable* GetPointer() const noexcept;
+	MIDORI_FORCE_INLINE MidoriTraceable* GetPointer() const noexcept
+	{
+		return m_data.m_pointer;
+	}
 
-	const void* GetRawDataPtr() const noexcept;
+	MIDORI_FORCE_INLINE const void* GetRawDataPtr() const noexcept
+	{
+		return &m_data;
+	}
 
-	MidoriWord GetRawBits() const noexcept;
-	static MidoriValue FromRawBits(MidoriWord bits) noexcept;
+	MIDORI_FORCE_INLINE MidoriWord GetRawBits() const noexcept
+	{
+		static_assert(sizeof(MidoriWord) == sizeof(m_data));
+		MidoriWord bits = 0u;
+		std::memcpy(&bits, &m_data, sizeof(bits));
+		return bits;
+	}
+
+	static MIDORI_FORCE_INLINE MidoriValue FromRawBits(MidoriWord bits) noexcept
+	{
+		MidoriValue value;
+		static_assert(sizeof(MidoriWord) == sizeof(value.m_data));
+		std::memcpy(&value.m_data, &bits, sizeof(bits));
+#if MIDORI_DEBUG_FULL
+		value.m_tag = UNKNOWN;
+#endif
+		return value;
+	}
 
 #if MIDORI_DEBUG_FULL
 	MidoriText ToText() const;
@@ -161,9 +247,15 @@ public:
 
 	int GetLength() const noexcept;
 
-	int GetByteLength() const noexcept;
+	MIDORI_FORCE_INLINE int GetByteLength() const noexcept
+	{
+		return IsShort() ? GetShortSize() : m_long.m_size;
+	}
 
-	const char* GetCString() const noexcept;
+	MIDORI_FORCE_INLINE const char* GetCString() const noexcept
+	{
+		return IsShort() ? m_short.m_buffer : m_long.m_ptr;
+	}
 
 	MidoriText& Pop();
 
@@ -216,11 +308,22 @@ public:
 private:
 	void Expand(int new_size);
 
-	bool IsShort() const noexcept;
+	void GrowLongBuffer(int new_capacity);
 
-	void SetShortSize(int size);
+	MIDORI_FORCE_INLINE bool IsShort() const noexcept
+	{
+		return (m_short.m_size_flag & 1) != 0;
+	}
 
-	int GetShortSize() const;
+	MIDORI_FORCE_INLINE void SetShortSize(int size)
+	{
+		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
+	}
+
+	MIDORI_FORCE_INLINE int GetShortSize() const
+	{
+		return m_short.m_size_flag >> 1;
+	}
 };
 
 class MidoriArray
@@ -273,9 +376,15 @@ public:
 
 	~MidoriArray();
 
-	MidoriValue& operator[](int index);
+	MIDORI_FORCE_INLINE MidoriValue& operator[](int index)
+	{
+		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
+	}
 
-	const MidoriValue& operator[](int index) const;
+	MIDORI_FORCE_INLINE const MidoriValue& operator[](int index) const
+	{
+		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
+	}
 
 	void AddBack(const MidoriValue& value);
 
@@ -291,7 +400,10 @@ public:
 
 	bool Contains(const MidoriValue& value) const;
 
-	int GetLength() const;
+	MIDORI_FORCE_INLINE int GetLength() const
+	{
+		return IsShort() ? GetShortSize() : m_long.m_size;
+	}
 
 	size_t GetCapacity() const;
 
@@ -302,11 +414,20 @@ public:
 private:
 	void Expand(int new_capacity);
 
-	bool IsShort() const noexcept;
+	MIDORI_FORCE_INLINE bool IsShort() const noexcept
+	{
+		return (m_short.m_size_flag & 1) != 0;
+	}
 
-	void SetShortSize(int size);
+	MIDORI_FORCE_INLINE void SetShortSize(int size)
+	{
+		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
+	}
 
-	int GetShortSize() const;
+	MIDORI_FORCE_INLINE int GetShortSize() const
+	{
+		return m_short.m_size_flag >> 1;
+	}
 };
 
 class MidoriTuple
@@ -358,20 +479,38 @@ public:
 
 	~MidoriTuple();
 
-	MidoriValue& operator[](int index);
+	MIDORI_FORCE_INLINE MidoriValue& operator[](int index)
+	{
+		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
+	}
 
-	const MidoriValue& operator[](int index) const;
+	MIDORI_FORCE_INLINE const MidoriValue& operator[](int index) const
+	{
+		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
+	}
 
-	int GetLength() const;
+	MIDORI_FORCE_INLINE int GetLength() const
+	{
+		return IsShort() ? GetShortSize() : m_long.m_size;
+	}
 
 	size_t GetCapacity() const;
 
 private:
-	bool IsShort() const noexcept;
+	MIDORI_FORCE_INLINE bool IsShort() const noexcept
+	{
+		return (m_short.m_size_flag & 1) != 0;
+	}
 
-	void SetShortSize(int size);
+	MIDORI_FORCE_INLINE void SetShortSize(int size)
+	{
+		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
+	}
 
-	int GetShortSize() const;
+	MIDORI_FORCE_INLINE int GetShortSize() const
+	{
+		return m_short.m_size_flag >> 1;
+	}
 };
 
 class MidoriIntRange
