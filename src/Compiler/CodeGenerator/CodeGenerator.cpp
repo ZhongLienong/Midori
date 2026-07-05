@@ -3592,6 +3592,24 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 
 		if (call.m_is_foreign)
 		{
+			// Intrinsic lowering: hot builtins become single opcodes instead of
+			// paying FFI argument marshaling on every call.
+			if (ffi_index_opt.has_value() && arity == 2)
+			{
+				static const std::optional<size_t> s_array_append_index = MidoriFFIRegistry::FindIndex("MIDORI_FFI_ArrayAppend");
+				static const std::optional<size_t> s_text_append_index = MidoriFFIRegistry::FindIndex("MIDORI_FFI_TextAppend");
+				if (ffi_index_opt == s_array_append_index)
+				{
+					EmitByte(OpCode::ARRAY_APPEND, line);
+					return;
+				}
+				if (ffi_index_opt == s_text_append_index)
+				{
+					EmitByte(OpCode::TEXT_APPEND, line);
+					return;
+				}
+			}
+
 			uint8_t return_type_tag = 0;
 			if (call.m_type_data->IsType<MidoriType::TextType>())
 			{

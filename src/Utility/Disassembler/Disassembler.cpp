@@ -1020,6 +1020,12 @@ namespace Disassembler
 		case OpCode::EXTEND_TEXT:
 			SimpleInstruction("EXTEND_TEXT", offset);
 			break;
+		case OpCode::ARRAY_APPEND:
+			SimpleInstruction("ARRAY_APPEND", offset);
+			break;
+		case OpCode::TEXT_APPEND:
+			SimpleInstruction("TEXT_APPEND", offset);
+			break;
 		case OpCode::CALL_FOREIGN:
 			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);
 			break;

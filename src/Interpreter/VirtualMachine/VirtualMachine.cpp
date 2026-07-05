@@ -1862,6 +1862,24 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + second_index));
 			break;
 		}
+		case OpCode::ARRAY_APPEND:
+		{
+			MidoriValue element = Pop(sp);
+			MidoriValue container = Pop(sp);
+
+			container.GetPointer()->GetTraceable<MidoriArray>().AddBack(element);
+			Push(sp, MidoriValue());
+			break;
+		}
+		case OpCode::TEXT_APPEND:
+		{
+			MidoriValue element = Pop(sp);
+			MidoriValue container = Pop(sp);
+
+			container.GetPointer()->GetTraceable<MidoriText>().Append(element.GetPointer()->GetTraceable<MidoriText>());
+			Push(sp, MidoriValue());
+			break;
+		}
 		case OpCode::ADD_ASSIGN_INT:
 		{
 			MidoriValue value = Pop(sp);
