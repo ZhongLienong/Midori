@@ -1,6 +1,7 @@
 #include "OptimizerManager.h"
 #include "Optimizers/BaseOptimizer/BaseOptimizer.h"
 #include "Compiler/OptimizerManager/Optimizers/ConstantFolding/ConstantFolding.h"
+#include "Compiler/OptimizerManager/Optimizers/FunctionInlining/FunctionInlining.h"
 #include "Compiler/OptimizerManager/Optimizers/StrengthReduction/StrengthReduction.h"
 #include "Compiler/OptimizerManager/Optimizers/ConstantBranchElimination/ConstantBranchElimination.h"
 #include "Compiler/OptimizerManager/Optimizers/LocalConstantPropagation/LocalConstantPropagation.h"
@@ -21,6 +22,7 @@ OptimizerManager::OptimizerManager(MidoriProgramTree&& program_tree)
 	: m_program_tree(std::move(program_tree))
 {
 	AddOptimizer(std::make_unique<ConstantFolding>());
+	AddOptimizer(std::make_unique<FunctionInlining>());
 	AddOptimizer(std::make_unique<StrengthReduction>());
 	AddOptimizer(std::make_unique<ConstantBranchElimination>());
 	AddOptimizer(std::make_unique<LocalConstantPropagation>());
