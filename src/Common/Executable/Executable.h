@@ -266,6 +266,15 @@ enum class OpCode : uint8_t
 	// In-place concatenation
 	EXTEND_ARRAY,
 	EXTEND_TEXT,
+
+	// Fused local-operand superinstructions. Byte layouts are padded so
+	// RewriteEmittedLocalOps can rewrite them into the unfused sequence in
+	// place when a local is promoted to a cell.
+	ADD_LOCAL_INT,      // [op][local][imm8][pad][pad][local]           local += imm, push result
+	PUSH_LOCAL_SUB_INT, // [op][local][imm8][pad]                       push local - imm
+	IF_LOCAL_LE_INT,    // [op][local][imm8][pad][off_lo][off_hi]       branch if !(local <= imm)
+	IF_LOCAL_GE_LOCAL,  // [op][left][pad][right][pad][off_lo][off_hi]  branch if !(left >= right)
+	GET_LOCAL2,         // [op][first][pad][second]                     push two locals
 };
 
 class BytecodeStream

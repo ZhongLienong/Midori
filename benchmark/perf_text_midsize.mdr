@@ -1,0 +1,29 @@
+module PerfTextMidsize
+
+import
+{
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+def start = DateTime::NowUnixMillis();
+
+def matches = 0;
+def i = 0;
+loop
+{
+	if i >= 2000000
+	then break ()
+	else
+	{
+		def s = "some_longer_prefix_string_" ++ ((i % 1000) as Text) ++ "_and_a_longer_suffix_here";
+		if s == "some_longer_prefix_string_42_and_a_longer_suffix_here"
+		then matches += 1
+		else 0;
+		i += 1;
+	}
+};
+
+def end = DateTime::NowUnixMillis();
+
+IO::PrintLine("TextMidsize: " ++ (matches as Text) ++ " matches, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

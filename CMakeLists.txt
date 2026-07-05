@@ -39,6 +39,7 @@ endif()
 
 # Performance tuning options (Experimental is an aggressive, non-portable speed profile)
 option(MIDORI_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
+option(MIDORI_PROFILE_OPCODES "Count dynamic opcode pairs in the VM and dump them at HALT" OFF)
 
 set(MIDORI_BUILD_TESTS_DEFAULT ON)
 if(EMSCRIPTEN)
@@ -103,6 +104,7 @@ function(midori_configure_target target_name)
     target_compile_definitions(${target_name} PRIVATE
         ${MIDORI_ENDIAN_DEFINES}
         MIDORI_VERSION_STRING="${PROJECT_VERSION}"
+        $<$<BOOL:${MIDORI_PROFILE_OPCODES}>:MIDORI_PROFILE_OPCODES=1>
     )
 endfunction()
 

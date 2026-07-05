@@ -320,6 +320,16 @@ private:
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 
+	std::optional<int> GetFusibleLocalIndex(const MidoriExpression& expr) const;
+
+	static std::optional<MidoriInteger> GetFusibleSmallInt(const MidoriExpression& expr);
+
+	static OpCode GetSmallIntOpcode(MidoriInteger value);
+
+	bool TryEmitFusedBinary(MidoriExpression::Binary& binary, int line);
+
+	std::optional<int> TryEmitFusedConditionBranch(std::unique_ptr<MidoriExpression>& condition, int line);
+
 	int EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0, int direct_proc_global_index = -1);
 
 	bool IsGenericType(const std::shared_ptr<MidoriType>& type);

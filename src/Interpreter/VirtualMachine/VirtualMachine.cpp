@@ -913,6 +913,38 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 	return interned;
 }
 
+#ifndef MIDORI_PROFILE_OPCODES
+#define MIDORI_PROFILE_OPCODES 0
+#endif
+
+#if MIDORI_PROFILE_OPCODES
+namespace
+{
+	uint64_t s_opcode_pair_counts[256][256];
+	size_t s_previous_opcode = 255u;
+
+	void DumpOpcodeProfile()
+	{
+		std::FILE* file = std::fopen("midori_opcode_profile.txt", "w");
+		if (file == nullptr)
+		{
+			return;
+		}
+		for (size_t first = 0u; first < 256u; first += 1u)
+		{
+			for (size_t second = 0u; second < 256u; second += 1u)
+			{
+				if (s_opcode_pair_counts[first][second] != 0u)
+				{
+					std::fprintf(file, "%zu %zu %llu\n", first, second, static_cast<unsigned long long>(s_opcode_pair_counts[first][second]));
+				}
+			}
+		}
+		std::fclose(file);
+	}
+}
+#endif
+
 int VirtualMachine::ExecuteLoop() noexcept
 {
 	InstructionPointer ip = m_instruction_pointer;
@@ -991,6 +1023,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 		const InstructionPointer inst_ip = ip;
 		OpCode instruction = ReadByte(ip);
+#if MIDORI_PROFILE_OPCODES
+		s_opcode_pair_counts[s_previous_opcode][static_cast<size_t>(instruction)] += 1u;
+		s_previous_opcode = static_cast<size_t>(instruction);
+#endif
 
 		switch (instruction)
 		{
@@ -1768,6 +1804,64 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
+		case OpCode::ADD_LOCAL_INT:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			ip += 3;
+
+			MidoriValue& slot = *(bp + local_index);
+			MidoriInteger result = slot.GetInteger() + imm;
+			slot = result;
+			Push(sp, result);
+			break;
+		}
+		case OpCode::PUSH_LOCAL_SUB_INT:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			ip += 1;
+
+			Push(sp, (bp + local_index)->GetInteger() - imm);
+			break;
+		}
+		case OpCode::IF_LOCAL_LE_INT:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			ip += 1;
+			int offset = ReadShort(ip);
+
+			if (!((bp + local_index)->GetInteger() <= imm))
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::IF_LOCAL_GE_LOCAL:
+		{
+			int left_index = static_cast<int>(ReadByte(ip));
+			ip += 1;
+			int right_index = static_cast<int>(ReadByte(ip));
+			ip += 1;
+			int offset = ReadShort(ip);
+
+			if (!((bp + left_index)->GetInteger() >= (bp + right_index)->GetInteger()))
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::GET_LOCAL2:
+		{
+			int first_index = static_cast<int>(ReadByte(ip));
+			ip += 1;
+			int second_index = static_cast<int>(ReadByte(ip));
+
+			Push(sp, *(bp + first_index));
+			Push(sp, *(bp + second_index));
+			break;
+		}
 		case OpCode::ADD_ASSIGN_INT:
 		{
 			MidoriValue value = Pop(sp);
@@ -2337,36 +2431,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriInteger tag = Peek(sp).GetInteger();
 			int case_count = static_cast<int>(ReadByte(ip));
 
-			// Read jump table offsets and jump to the matching case
 			if (tag >= 0 && tag < case_count)
 			{
-				int tag_int = static_cast<int>(tag);
-
-				// Skip to the offset for this tag
-				for (int i = 0; i < tag_int; i += 1)
-				{
-					ReadShort(ip); // Skip offsets for previous cases
-				}
-
-				// Read the offset for our case
-				int offset = ReadShort(ip);
-
-				// Skip remaining offsets
-				for (int i = tag_int + 1; i < case_count; i += 1)
-				{
-					ReadShort(ip);
-				}
-
-				// Jump to the case body
-				ip += offset;
+				InstructionPointer offset_ptr = ip + 2 * static_cast<int>(tag);
+				int offset = ReadShort(offset_ptr);
+				ip += 2 * case_count + offset;
 			}
 			else
 			{
-				// Invalid tag: skip all offsets
-				for (int i = 0; i < case_count; i += 1)
-				{
-					ReadShort(ip);
-				}
+				ip += 2 * case_count;
 			}
 			break;
 		}
@@ -3180,6 +3253,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::HALT:
 		{
+#if MIDORI_PROFILE_OPCODES
+			DumpOpcodeProfile();
+#endif
 			SyncMachineState(ip, sp, bp, env);
 			return 0;
 		}

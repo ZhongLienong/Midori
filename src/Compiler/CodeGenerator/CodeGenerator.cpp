@@ -383,6 +383,71 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			advance = 3;
 			break;
 		}
+		case OpCode::ADD_LOCAL_INT:
+		{
+			const int index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			if (index == target_index)
+			{
+				const MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(procedure.ReadByteCode(offset + 2)));
+				procedure.SetByteCode(offset, map_opcode(OpCode::GET_LOCAL));
+				procedure.SetByteCode(offset + 2, GetSmallIntOpcode(imm < 0 ? -imm : imm));
+				procedure.SetByteCode(offset + 3, imm < 0 ? OpCode::SUB_ASSIGN_INT : OpCode::ADD_ASSIGN_INT);
+				procedure.SetByteCode(offset + 4, map_opcode(OpCode::SET_LOCAL));
+			}
+			advance = 6;
+			break;
+		}
+		case OpCode::PUSH_LOCAL_SUB_INT:
+		{
+			const int index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			if (index == target_index)
+			{
+				const MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(procedure.ReadByteCode(offset + 2)));
+				procedure.SetByteCode(offset, map_opcode(OpCode::GET_LOCAL));
+				procedure.SetByteCode(offset + 2, GetSmallIntOpcode(imm));
+				procedure.SetByteCode(offset + 3, OpCode::SUBTRACT_INTEGER);
+			}
+			advance = 4;
+			break;
+		}
+		case OpCode::IF_LOCAL_LE_INT:
+		{
+			const int index = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			if (index == target_index)
+			{
+				const MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(procedure.ReadByteCode(offset + 2)));
+				procedure.SetByteCode(offset, map_opcode(OpCode::GET_LOCAL));
+				procedure.SetByteCode(offset + 2, GetSmallIntOpcode(imm));
+				procedure.SetByteCode(offset + 3, OpCode::IF_INTEGER_LESS_EQUAL);
+			}
+			advance = 6;
+			break;
+		}
+		case OpCode::IF_LOCAL_GE_LOCAL:
+		{
+			const int left = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			const int right = static_cast<int>(procedure.ReadByteCode(offset + 3));
+			if (left == target_index || right == target_index)
+			{
+				procedure.SetByteCode(offset, left == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
+				procedure.SetByteCode(offset + 2, right == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
+				procedure.SetByteCode(offset + 4, OpCode::IF_INTEGER_GREATER_EQUAL);
+			}
+			advance = 7;
+			break;
+		}
+		case OpCode::GET_LOCAL2:
+		{
+			const int first = static_cast<int>(procedure.ReadByteCode(offset + 1));
+			const int second = static_cast<int>(procedure.ReadByteCode(offset + 3));
+			if (first == target_index || second == target_index)
+			{
+				procedure.SetByteCode(offset, first == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
+				procedure.SetByteCode(offset + 2, second == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
+			}
+			advance = 4;
+			break;
+		}
 		case OpCode::INTEGER_CONSTANT:
 		case OpCode::FLOAT_CONSTANT:
 		case OpCode::WORD_CONSTANT:
@@ -2398,6 +2463,175 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	}
 }
 
+std::optional<int> CodeGenerator::GetFusibleLocalIndex(const MidoriExpression& expr) const
+{
+	if (!expr.IsExpression<MidoriExpression::NameAccess>())
+	{
+		return std::nullopt;
+	}
+
+	const MidoriExpression::NameAccess& access = expr.GetExpression<MidoriExpression::NameAccess>();
+	const MidoriExpression::NameContext::Local* local = std::get_if<MidoriExpression::NameContext::Local>(&access.m_name_ctx);
+	if (local == nullptr || local->m_index < 0 || local->m_index > static_cast<int>(UINT8_MAX))
+	{
+		return std::nullopt;
+	}
+
+	if (GetLocalStorageKind(local->m_index) != LocalStorageKind::ValueLocal)
+	{
+		return std::nullopt;
+	}
+
+	return local->m_index;
+}
+
+std::optional<MidoriInteger> CodeGenerator::GetFusibleSmallInt(const MidoriExpression& expr)
+{
+	if (!expr.IsExpression<MidoriExpression::IntegerLiteral>())
+	{
+		return std::nullopt;
+	}
+
+	MidoriInteger value = 0;
+	try
+	{
+		value = std::stoll(expr.GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+	}
+	catch (...)
+	{
+		return std::nullopt;
+	}
+
+	// Restricted to values with dedicated small-constant opcodes so the fused
+	// form stays rewritable into the unfused sequence.
+	switch (value)
+	{
+	case 0:
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+	case 10:
+		return value;
+	default:
+		return std::nullopt;
+	}
+}
+
+OpCode CodeGenerator::GetSmallIntOpcode(MidoriInteger value)
+{
+	switch (value)
+	{
+	case -1:
+		return OpCode::INT_MINUS_1;
+	case 0:
+		return OpCode::INT_0;
+	case 1:
+		return OpCode::INT_1;
+	case 2:
+		return OpCode::INT_2;
+	case 3:
+		return OpCode::INT_3;
+	case 4:
+		return OpCode::INT_4;
+	case 5:
+		return OpCode::INT_5;
+	default:
+		return OpCode::INT_10;
+	}
+}
+
+bool CodeGenerator::TryEmitFusedBinary(MidoriExpression::Binary& binary, int line)
+{
+	if (binary.m_op.m_token_name != Token::Name::SINGLE_MINUS)
+	{
+		return false;
+	}
+
+	const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
+	if (!operand_type->IsType<MidoriType::IntegerType>())
+	{
+		return false;
+	}
+
+	std::optional<int> local_index = GetFusibleLocalIndex(*binary.m_left);
+	std::optional<MidoriInteger> imm = GetFusibleSmallInt(*binary.m_right);
+	if (!local_index.has_value() || !imm.has_value())
+	{
+		return false;
+	}
+
+	EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
+	EmitByte(static_cast<OpCode>(local_index.value()), line);
+	EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(imm.value()))), line);
+	EmitByte(static_cast<OpCode>(0), line);
+	return true;
+}
+
+std::optional<int> CodeGenerator::TryEmitFusedConditionBranch(std::unique_ptr<MidoriExpression>& condition, int line)
+{
+	if (!condition->IsExpression<MidoriExpression::Binary>())
+	{
+		return std::nullopt;
+	}
+
+	MidoriExpression::Binary& binary = condition->GetExpression<MidoriExpression::Binary>();
+	if (binary.m_uses_orderable || binary.m_uses_equatable)
+	{
+		return std::nullopt;
+	}
+
+	const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
+	if (!operand_type->IsType<MidoriType::IntegerType>())
+	{
+		return std::nullopt;
+	}
+
+	std::optional<int> left_local = GetFusibleLocalIndex(*binary.m_left);
+	if (!left_local.has_value())
+	{
+		return std::nullopt;
+	}
+
+	if (binary.m_op.m_token_name == Token::Name::LESS_EQUAL)
+	{
+		std::optional<MidoriInteger> imm = GetFusibleSmallInt(*binary.m_right);
+		if (!imm.has_value())
+		{
+			return std::nullopt;
+		}
+
+		EmitByte(OpCode::IF_LOCAL_LE_INT, line);
+		EmitByte(static_cast<OpCode>(left_local.value()), line);
+		EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(imm.value()))), line);
+		EmitByte(static_cast<OpCode>(0), line);
+		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+		return m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 2;
+	}
+
+	if (binary.m_op.m_token_name == Token::Name::GREATER_EQUAL)
+	{
+		std::optional<int> right_local = GetFusibleLocalIndex(*binary.m_right);
+		if (!right_local.has_value())
+		{
+			return std::nullopt;
+		}
+
+		EmitByte(OpCode::IF_LOCAL_GE_LOCAL, line);
+		EmitByte(static_cast<OpCode>(left_local.value()), line);
+		EmitByte(static_cast<OpCode>(0), line);
+		EmitByte(static_cast<OpCode>(right_local.value()), line);
+		EmitByte(static_cast<OpCode>(0), line);
+		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
+		return m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 2;
+	}
+
+	return std::nullopt;
+}
+
 namespace
 {
 	// True when the expression always produces a fresh container the concat may
@@ -2440,8 +2674,25 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 	}
 	else
 	{
-		Visit(binary.m_left);
-		Visit(binary.m_right);
+		if (TryEmitFusedBinary(binary, line))
+		{
+			return;
+		}
+
+		std::optional<int> left_local = GetFusibleLocalIndex(*binary.m_left);
+		std::optional<int> right_local = GetFusibleLocalIndex(*binary.m_right);
+		if (left_local.has_value() && right_local.has_value())
+		{
+			EmitByte(OpCode::GET_LOCAL2, line);
+			EmitByte(static_cast<OpCode>(left_local.value()), line);
+			EmitByte(static_cast<OpCode>(0), line);
+			EmitByte(static_cast<OpCode>(right_local.value()), line);
+		}
+		else
+		{
+			Visit(binary.m_left);
+			Visit(binary.m_right);
+		}
 		const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
 
 		switch (binary.m_op.m_token_name)
@@ -3601,6 +3852,28 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		}
 	};
 
+	if ((compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL || compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL)
+		&& compound_assign.m_type_data->IsType<MidoriType::IntegerType>())
+	{
+		const MidoriExpression::NameContext::Local* local = std::get_if<MidoriExpression::NameContext::Local>(&compound_assign.m_name_ctx);
+		std::optional<MidoriInteger> imm = GetFusibleSmallInt(*compound_assign.m_value);
+		if (local != nullptr
+			&& local->m_index >= 0
+			&& local->m_index <= static_cast<int>(UINT8_MAX)
+			&& GetLocalStorageKind(local->m_index) == LocalStorageKind::ValueLocal
+			&& imm.has_value())
+		{
+			MidoriInteger delta = compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ? -imm.value() : imm.value();
+			EmitByte(OpCode::ADD_LOCAL_INT, line);
+			EmitByte(static_cast<OpCode>(local->m_index), line);
+			EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(delta))), line);
+			EmitByte(static_cast<OpCode>(0), line);
+			EmitByte(static_cast<OpCode>(0), line);
+			EmitByte(static_cast<OpCode>(local->m_index), line);
+			return;
+		}
+	}
+
 	std::visit(CompoundAssignLoadVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 
 	Visit(compound_assign.m_value);
@@ -3969,6 +4242,25 @@ void CodeGenerator::operator()(MidoriExpression::RangeTernary& range_ternary)
 void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 {
 	int line = if_else.m_if_token.m_line;
+
+	if (if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER)
+	{
+		std::optional<int> fused_jump = TryEmitFusedConditionBranch(if_else.m_condition, line);
+		if (fused_jump.has_value())
+		{
+			Visit(if_else.m_true_branch);
+
+			int else_jump = EmitJump(OpCode::JUMP, line);
+			PatchJump(fused_jump.value(), line);
+			if (if_else.m_else_branch != nullptr)
+			{
+				Visit(if_else.m_else_branch);
+			}
+			PatchJump(else_jump, line);
+			return;
+		}
+	}
+
 	Visit(if_else.m_condition);
 
 	if (if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::INTEGER || if_else.m_condition_operand_type == MidoriExpression::ConditionOperandType::FLOAT)

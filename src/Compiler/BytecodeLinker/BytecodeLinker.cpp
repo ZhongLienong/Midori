@@ -807,6 +807,14 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 {
 	switch (opcode)
 	{
+		case OpCode::ADD_LOCAL_INT:
+		case OpCode::IF_LOCAL_LE_INT:
+			return 6;
+		case OpCode::IF_LOCAL_GE_LOCAL:
+			return 7;
+		case OpCode::PUSH_LOCAL_SUB_INT:
+		case OpCode::GET_LOCAL2:
+			return 4;
 		case OpCode::INTEGER_CONSTANT:
 		case OpCode::FLOAT_CONSTANT:
 		case OpCode::WORD_CONSTANT:

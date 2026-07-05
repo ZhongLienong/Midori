@@ -970,6 +970,50 @@ namespace Disassembler
 		case OpCode::WORKER_CANCEL:
 			SimpleInstruction("WORKER_CANCEL", offset);
 			break;
+		case OpCode::ADD_LOCAL_INT:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("ADD_LOCAL_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			offset += 6;
+			break;
+		}
+		case OpCode::PUSH_LOCAL_SUB_INT:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("PUSH_LOCAL_SUB_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			offset += 4;
+			break;
+		}
+		case OpCode::IF_LOCAL_LE_INT:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LE_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 6 + (low | (high << 8))) + "\n");
+			offset += 6;
+			break;
+		}
+		case OpCode::IF_LOCAL_GE_LOCAL:
+		{
+			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int right = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 6, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_GE_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 7 + (low | (high << 8))) + "\n");
+			offset += 7;
+			break;
+		}
+		case OpCode::GET_LOCAL2:
+		{
+			const int first = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("GET_LOCAL2")) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + "\n");
+			offset += 4;
+			break;
+		}
 		case OpCode::EXTEND_ARRAY:
 			SimpleInstruction("EXTEND_ARRAY", offset);
 			break;
