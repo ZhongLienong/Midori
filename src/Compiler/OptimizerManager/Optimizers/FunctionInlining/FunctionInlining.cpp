@@ -51,6 +51,7 @@ void FunctionInlining::CollectCandidates(const MidoriProgramTree& program_tree)
 		int node_budget = s_max_body_nodes;
 		const int arity = static_cast<int>(defun.m_params.size());
 		InlineCandidate candidate;
+		candidate.m_defun = &defun;
 		candidate.m_body = body;
 		candidate.m_arity = arity;
 		candidate.m_param_use_counts.assign(static_cast<size_t>(arity), 0);
@@ -264,7 +265,7 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneSimple(const MidoriExpr
 	return clone;
 }
 
-std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const MidoriExpression& expr, const std::vector<std::unique_ptr<MidoriExpression>>* arguments)
+std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const MidoriExpression& expr, const std::vector<std::unique_ptr<MidoriExpression>>* arguments, int param_offset)
 {
 	if (expr.IsExpression<MidoriExpression::NameAccess>())
 	{
@@ -276,14 +277,21 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const 
 			return IsSimpleArgument(argument) ? CloneSimple(argument) : CloneWithSubstitution(argument, nullptr);
 		}
 
+		if (local != nullptr && param_offset > 0)
+		{
+			std::unique_ptr<MidoriExpression> remapped = std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(access.m_name, MidoriExpression::NameContext::Local{ local->m_index + param_offset }));
+			remapped->GetType() = expr.GetType();
+			return remapped;
+		}
+
 		return CloneSimple(expr);
 	}
 
 	if (expr.IsExpression<MidoriExpression::Binary>())
 	{
 		const MidoriExpression::Binary& binary = expr.GetExpression<MidoriExpression::Binary>();
-		std::unique_ptr<MidoriExpression> left = CloneWithSubstitution(*binary.m_left, arguments);
-		std::unique_ptr<MidoriExpression> right = CloneWithSubstitution(*binary.m_right, arguments);
+		std::unique_ptr<MidoriExpression> left = CloneWithSubstitution(*binary.m_left, arguments, param_offset);
+		std::unique_ptr<MidoriExpression> right = CloneWithSubstitution(*binary.m_right, arguments, param_offset);
 		if (left == nullptr || right == nullptr)
 		{
 			return nullptr;
@@ -299,7 +307,7 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const 
 
 	if (expr.IsExpression<MidoriExpression::Group>())
 	{
-		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*expr.GetExpression<MidoriExpression::Group>().m_expr_in, arguments);
+		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*expr.GetExpression<MidoriExpression::Group>().m_expr_in, arguments, param_offset);
 		if (inner == nullptr)
 		{
 			return nullptr;
@@ -313,7 +321,7 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const 
 	if (expr.IsExpression<MidoriExpression::UnaryPrefix>())
 	{
 		const MidoriExpression::UnaryPrefix& unary = expr.GetExpression<MidoriExpression::UnaryPrefix>();
-		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*unary.m_expr, arguments);
+		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*unary.m_expr, arguments, param_offset);
 		if (inner == nullptr)
 		{
 			return nullptr;
@@ -328,7 +336,7 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const 
 	if (expr.IsExpression<MidoriExpression::As>())
 	{
 		const MidoriExpression::As& as = expr.GetExpression<MidoriExpression::As>();
-		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*as.m_expr, arguments);
+		std::unique_ptr<MidoriExpression> inner = CloneWithSubstitution(*as.m_expr, arguments, param_offset);
 		if (inner == nullptr)
 		{
 			return nullptr;
@@ -344,9 +352,9 @@ std::unique_ptr<MidoriExpression> FunctionInlining::CloneWithSubstitution(const 
 	if (expr.IsExpression<MidoriExpression::IfElse>())
 	{
 		const MidoriExpression::IfElse& if_else = expr.GetExpression<MidoriExpression::IfElse>();
-		std::unique_ptr<MidoriExpression> condition = CloneWithSubstitution(*if_else.m_condition, arguments);
-		std::unique_ptr<MidoriExpression> true_branch = CloneWithSubstitution(*if_else.m_true_branch, arguments);
-		std::unique_ptr<MidoriExpression> else_branch = CloneWithSubstitution(*if_else.m_else_branch, arguments);
+		std::unique_ptr<MidoriExpression> condition = CloneWithSubstitution(*if_else.m_condition, arguments, param_offset);
+		std::unique_ptr<MidoriExpression> true_branch = CloneWithSubstitution(*if_else.m_true_branch, arguments, param_offset);
+		std::unique_ptr<MidoriExpression> else_branch = CloneWithSubstitution(*if_else.m_else_branch, arguments, param_offset);
 		if (condition == nullptr || true_branch == nullptr || else_branch == nullptr)
 		{
 			return nullptr;
@@ -377,24 +385,50 @@ void FunctionInlining::operator()(MidoriExpression::Call& call)
 		return;
 	}
 
-	const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
-	if (!std::holds_alternative<MidoriExpression::NameContext::Global>(callee.m_name_ctx))
+	bool arguments_ok = false;
+	const InlineCandidate* candidate = FindSubstitutionCandidate(call, arguments_ok);
+	if (candidate == nullptr || !arguments_ok)
 	{
 		return;
 	}
 
-	std::unordered_map<std::string, InlineCandidate>::iterator candidate_it = m_candidates.find(callee.m_name.m_lexeme);
-	if (candidate_it == m_candidates.end())
+	std::unique_ptr<MidoriExpression> inlined = CloneWithSubstitution(*candidate->m_body, &call.m_arguments);
+	if (inlined == nullptr)
 	{
 		return;
+	}
+
+	m_pending_replacement = std::move(inlined);
+	MarkOptimization();
+}
+
+const FunctionInlining::InlineCandidate* FunctionInlining::FindSubstitutionCandidate(const MidoriExpression::Call& call, bool& arguments_ok) const
+{
+	arguments_ok = false;
+	if (call.m_is_foreign || !call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	{
+		return nullptr;
+	}
+
+	const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+	if (!std::holds_alternative<MidoriExpression::NameContext::Global>(callee.m_name_ctx))
+	{
+		return nullptr;
+	}
+
+	std::unordered_map<std::string, InlineCandidate>::const_iterator candidate_it = m_candidates.find(callee.m_name.m_lexeme);
+	if (candidate_it == m_candidates.end())
+	{
+		return nullptr;
 	}
 
 	const InlineCandidate& candidate = candidate_it->second;
 	if (candidate.m_arity != static_cast<int>(call.m_arguments.size()))
 	{
-		return;
+		return nullptr;
 	}
 
+	arguments_ok = true;
 	for (size_t param = 0u; param < call.m_arguments.size(); param += 1u)
 	{
 		const MidoriExpression& argument = *call.m_arguments[param];
@@ -412,15 +446,192 @@ void FunctionInlining::operator()(MidoriExpression::Call& call)
 			continue;
 		}
 
-		return;
+		arguments_ok = false;
+		break;
 	}
 
-	std::unique_ptr<MidoriExpression> inlined = CloneWithSubstitution(*candidate.m_body, &call.m_arguments);
-	if (inlined == nullptr)
+	return &candidate;
+}
+
+// Binding inlining: when substitution is not possible but the call sits at a
+// clean-stack position (statement expression, definition value, block final,
+// or return value) with a known local depth, bind each argument to a fresh
+// local in a block and remap the body's parameter reads onto those slots.
+// Operand positions are excluded: locals declared while temporaries are on
+// the stack do not line up with their frame slots.
+void FunctionInlining::TryBindingInline(std::unique_ptr<MidoriExpression>& expr)
+{
+	if (!m_depth_known || expr == nullptr || !expr->IsExpression<MidoriExpression::Call>())
 	{
 		return;
 	}
 
-	m_pending_replacement = std::move(inlined);
+	MidoriExpression::Call& call = expr->GetExpression<MidoriExpression::Call>();
+	bool arguments_ok = false;
+	const InlineCandidate* candidate = FindSubstitutionCandidate(call, arguments_ok);
+	if (candidate == nullptr || arguments_ok)
+	{
+		return;
+	}
+
+	std::unique_ptr<MidoriExpression> body = CloneWithSubstitution(*candidate->m_body, nullptr, m_local_depth);
+	if (body == nullptr)
+	{
+		return;
+	}
+
+	std::vector<std::unique_ptr<MidoriStatement>> bindings;
+	bindings.reserve(call.m_arguments.size());
+	for (size_t param = 0u; param < call.m_arguments.size(); param += 1u)
+	{
+		std::optional<std::shared_ptr<MidoriType>> annotated_type = candidate->m_defun->m_param_types[param];
+		MidoriStatement::VariableDefinition binding(
+			candidate->m_defun->m_params[param],
+			std::move(call.m_arguments[param]),
+			std::move(annotated_type),
+			m_local_depth + static_cast<int>(param));
+		bindings.emplace_back(std::make_unique<MidoriStatement>(std::move(binding)));
+	}
+
+	const std::shared_ptr<MidoriType> result_type = expr->GetType();
+	MidoriExpression::Block block(call.m_paren, std::move(bindings), candidate->m_arity, std::move(body));
+	block.m_type_data = result_type;
+	expr = std::make_unique<MidoriExpression>(std::move(block));
 	MarkOptimization();
+}
+
+void FunctionInlining::operator()(MidoriStatement::FunctionDefinition& defun)
+{
+	const int saved_depth = m_local_depth;
+	const bool saved_known = m_depth_known;
+	m_local_depth = static_cast<int>(defun.m_params.size());
+	m_depth_known = true;
+
+	VisitAndReplace(defun.m_body);
+
+	m_local_depth = saved_depth;
+	m_depth_known = saved_known;
+}
+
+void FunctionInlining::operator()(MidoriExpression::Function& function)
+{
+	const int saved_depth = m_local_depth;
+	const bool saved_known = m_depth_known;
+	m_local_depth = static_cast<int>(function.m_params.size());
+	m_depth_known = true;
+
+	VisitAndReplace(function.m_body);
+
+	m_local_depth = saved_depth;
+	m_depth_known = saved_known;
+}
+
+void FunctionInlining::operator()(MidoriStatement::VariableDefinition& def)
+{
+	if (def.m_is_elided)
+	{
+		return;
+	}
+
+	if (def.m_local_index.has_value() && m_depth_known)
+	{
+		if (def.m_local_index.value() != m_local_depth)
+		{
+			// The recorded slot disagrees with the model: stop trusting it.
+			m_depth_known = false;
+			VisitAndReplace(def.m_value);
+			return;
+		}
+
+		// The definition's own slot is reserved before its initializer runs,
+		// so expressions inside the value see one extra live slot.
+		m_local_depth += 1;
+		VisitAndReplace(def.m_value);
+		TryBindingInline(def.m_value);
+		return;
+	}
+
+	VisitAndReplace(def.m_value);
+	if (def.m_local_index.has_value())
+	{
+		m_depth_known = false;
+	}
+	else
+	{
+		TryBindingInline(def.m_value);
+	}
+}
+
+void FunctionInlining::operator()(MidoriStatement::TupleDefinition& def_tuple)
+{
+	MidoriOptimizer::operator()(def_tuple);
+	m_depth_known = false;
+}
+
+void FunctionInlining::operator()(MidoriStatement::ExpressionStatement& simple)
+{
+	VisitAndReplace(simple.m_expr);
+	TryBindingInline(simple.m_expr);
+}
+
+void FunctionInlining::operator()(MidoriExpression::Block& block)
+{
+	const int saved_depth = m_local_depth;
+	const bool saved_known = m_depth_known;
+
+	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	{
+		VisitStatement(statement);
+	}
+
+	if (block.m_final_expr.has_value())
+	{
+		VisitAndReplace(block.m_final_expr.value());
+		TryBindingInline(block.m_final_expr.value());
+	}
+
+	m_local_depth = saved_depth;
+	m_depth_known = saved_known;
+}
+
+void FunctionInlining::operator()(MidoriExpression::Return& return_expr)
+{
+	VisitAndReplace(return_expr.m_value);
+	TryBindingInline(return_expr.m_value);
+}
+
+void FunctionInlining::operator()(MidoriExpression::Match& match)
+{
+	const bool saved_known = m_depth_known;
+	m_depth_known = false;
+
+	VisitAndReplace(match.m_arg_expr);
+	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+	{
+		VisitAndReplace(case_expr);
+	}
+
+	m_depth_known = saved_known;
+}
+
+void FunctionInlining::operator()(MidoriExpression::For& for_expr)
+{
+	const bool saved_known = m_depth_known;
+	m_depth_known = false;
+
+	VisitAndReplace(for_expr.m_range);
+	VisitAndReplace(for_expr.m_body);
+
+	m_depth_known = saved_known;
+}
+
+void FunctionInlining::operator()(MidoriExpression::ArrayComprehension& comp)
+{
+	const bool saved_known = m_depth_known;
+	m_depth_known = false;
+
+	VisitAndReplace(comp.m_transform_expr);
+	VisitAndReplace(comp.m_range);
+
+	m_depth_known = saved_known;
 }

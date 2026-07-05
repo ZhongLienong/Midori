@@ -22,6 +22,7 @@ public:
 private:
 	struct InlineCandidate
 	{
+		const MidoriStatement::FunctionDefinition* m_defun = nullptr;
 		const MidoriExpression* m_body = nullptr;
 		int m_arity = 0;
 		// Per parameter: how often the body reads it, and whether any read sits
@@ -46,7 +47,37 @@ private:
 
 	static std::unique_ptr<MidoriExpression> CloneSimple(const MidoriExpression& expr);
 
-	static std::unique_ptr<MidoriExpression> CloneWithSubstitution(const MidoriExpression& expr, const std::vector<std::unique_ptr<MidoriExpression>>* arguments);
+	static std::unique_ptr<MidoriExpression> CloneWithSubstitution(const MidoriExpression& expr, const std::vector<std::unique_ptr<MidoriExpression>>* arguments, int param_offset = 0);
+
+	const InlineCandidate* FindSubstitutionCandidate(const MidoriExpression::Call& call, bool& arguments_ok) const;
+
+	void TryBindingInline(std::unique_ptr<MidoriExpression>& expr);
 
 	void operator()(MidoriExpression::Call& call) override;
+
+	// Live declared-local count tracking. Mirrors the parser's stack-discipline
+	// slot assignment so binding blocks can claim fresh local indices; any
+	// construct this model does not cover clears m_depth_known for its subtree.
+	int m_local_depth = 0;
+	bool m_depth_known = false;
+
+	void operator()(MidoriStatement::FunctionDefinition& defun) override;
+
+	void operator()(MidoriStatement::VariableDefinition& def) override;
+
+	void operator()(MidoriStatement::TupleDefinition& def_tuple) override;
+
+	void operator()(MidoriStatement::ExpressionStatement& simple) override;
+
+	void operator()(MidoriExpression::Function& function) override;
+
+	void operator()(MidoriExpression::Block& block) override;
+
+	void operator()(MidoriExpression::Return& return_expr) override;
+
+	void operator()(MidoriExpression::Match& match) override;
+
+	void operator()(MidoriExpression::For& for_expr) override;
+
+	void operator()(MidoriExpression::ArrayComprehension& comp) override;
 };
