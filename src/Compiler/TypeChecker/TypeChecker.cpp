@@ -775,7 +775,7 @@ std::size_t TypePairHash::operator()(const std::pair<MidoriType*, MidoriType*>& 
 {
 	std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
 	std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
-	return h1 ^ (h2 << 1);
+	return h1 ^ (h2 * 0x9e3779b97f4a7c15 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
 }
 
 const std::array<Token::Name, 5u> TypeChecker::kBinaryArithmeticOperators{
@@ -848,9 +848,9 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
 }
 
-bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type) const
+bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type)
 {
-	const std::shared_ptr<MidoriType> resolved_type = const_cast<TypeChecker*>(this)->ApplySubstitution(type);
+	std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
 
 	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
 	{
@@ -859,7 +859,7 @@ bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::
 			continue;
 		}
 
-		const std::shared_ptr<MidoriType> resolved_constraint_type = const_cast<TypeChecker*>(this)->ApplySubstitution(constraint.m_type_args[0u]);
+		std::shared_ptr<MidoriType> resolved_constraint_type = ApplySubstitution(constraint.m_type_args[0u]);
 		if (*resolved_constraint_type == *resolved_type)
 		{
 			return true;
@@ -1389,6 +1389,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		left_subst->IsType<MidoriType::StructType>() || 
 		left_subst->IsType<MidoriType::UnionType>() ||
 		left_subst->IsType<MidoriType::ArrayType>() ||
+		left_subst->IsType<MidoriType::RangeType>() ||
 		left_subst->IsType<MidoriType::WorkerType>() ||
 		left_subst->IsType<MidoriType::ChannelType>() ||
 		left_subst->IsType<MidoriType::FunctionType>();
@@ -1459,6 +1460,15 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	else if (left_subst->IsType<MidoriType::ChannelType>() && right_subst->IsType<MidoriType::ChannelType>())
 	{
 		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ChannelType>().m_element_type, right_subst->GetType<MidoriType::ChannelType>().m_element_type, diagnostic_mode);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
+	}
+	else if (left_subst->IsType<MidoriType::RangeType>() && right_subst->IsType<MidoriType::RangeType>())
+	{
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::RangeType>().m_element_type, right_subst->GetType<MidoriType::RangeType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
@@ -1975,6 +1985,16 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		MidoriType::RangeType& range_type = type->GetType<MidoriType::RangeType>();
 		return MidoriType::MakeRangeType(Freshen(range_type.m_element_type, context));
 	}
+	else if (type->IsType<MidoriType::WorkerType>())
+	{
+		MidoriType::WorkerType& worker_type = type->GetType<MidoriType::WorkerType>();
+		return MidoriType::MakeWorkerType(Freshen(worker_type.m_result_type, context));
+	}
+	else if (type->IsType<MidoriType::ChannelType>())
+	{
+		MidoriType::ChannelType& channel_type = type->GetType<MidoriType::ChannelType>();
+		return MidoriType::MakeChannelType(Freshen(channel_type.m_element_type, context));
+	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
@@ -2463,6 +2483,14 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	else if (subst_type->IsType<MidoriType::RangeType>())
 	{
 		return OccursCheck(var_id, subst_type->GetType<MidoriType::RangeType>().m_element_type, visited);
+	}
+	else if (subst_type->IsType<MidoriType::WorkerType>())
+	{
+		return OccursCheck(var_id, subst_type->GetType<MidoriType::WorkerType>().m_result_type, visited);
+	}
+	else if (subst_type->IsType<MidoriType::ChannelType>())
+	{
+		return OccursCheck(var_id, subst_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 	}
 	else if (subst_type->IsType<MidoriType::FunctionType>())
 	{

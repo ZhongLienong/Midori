@@ -91,8 +91,8 @@ TEST_CASE("BinaryArtifact round-trip preserves procedure count and names", "[byt
 	REQUIRE(reloaded.GetProcedureCount() == executable.GetProcedureCount());
 	for (int index = 0; index < executable.GetProcedureCount(); index += 1)
 	{
-		REQUIRE(reloaded.m_procedure_names[static_cast<size_t>(index)].GetCString()
-			== std::string(executable.m_procedure_names[static_cast<size_t>(index)].GetCString()));
+		REQUIRE(reloaded.m_procedure_names[static_cast<size_t>(index)].c_str()
+			== std::string(executable.m_procedure_names[static_cast<size_t>(index)].c_str()));
 	}
 }
 

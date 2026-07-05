@@ -286,7 +286,7 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Break& break_expr);
 
-	bool HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type) const;
+	bool HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type);
 
 	std::optional<CompilerError> EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type);
 

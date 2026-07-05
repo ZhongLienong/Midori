@@ -618,7 +618,7 @@ defun main(): Int => 0;
 	const MidoriExecutable& executable = compile_result.value();
 	CHECK(executable.GetFileName() == "App.Main");
 	REQUIRE_FALSE(executable.m_procedure_names.empty());
-	CHECK(std::string(executable.m_procedure_names[0u].GetCString()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
+	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
 }
 
 TEST_CASE("Parser builds constructor and wildcard match patterns without brittle tree snapshots", "[parser]")
