@@ -320,6 +320,21 @@ private:
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 
+	// Operand-position block support: locals declared while operand temporaries
+	// are pending on the value stack physically live above those temporaries,
+	// so their emitted indices are shifted by the pending operand count.
+	struct OperandBlockShift
+	{
+		int m_first_local_index = 0;
+		int m_offset = 0;
+	};
+
+	std::vector<OperandBlockShift> m_operand_block_shifts;
+	std::unordered_map<size_t, std::unordered_set<int>> m_operand_scoped_locals;
+	int m_operand_depth = 0;
+
+	int EffectiveLocalIndex(int variable_index) const;
+
 	std::optional<int> GetFusibleLocalIndex(const MidoriExpression& expr) const;
 
 	static std::optional<MidoriInteger> GetFusibleSmallInt(const MidoriExpression& expr);

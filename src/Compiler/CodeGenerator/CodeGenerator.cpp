@@ -318,6 +318,15 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		return;
 	}
 
+	// Locals declared in operand-position blocks are emitted with shifted
+	// indices; the rewrite below matches parser indices and cannot reach them.
+	std::unordered_map<size_t, std::unordered_set<int>>::const_iterator scoped_it = m_operand_scoped_locals.find(m_builder.m_current_procedure_index);
+	if (scoped_it != m_operand_scoped_locals.end() && scoped_it->second.contains(variable_index))
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Capturing a variable declared in a block used inside a larger expression is not supported.", 0, m_file_name, m_source_lines));
+		return;
+	}
+
 	auto map_opcode = [previous_kind, new_kind](OpCode opcode) -> OpCode
 	{
 		if (previous_kind == LocalStorageKind::ValueLocal)
@@ -589,8 +598,70 @@ OpCode CodeGenerator::GetLocalStoreOpcode(int variable_index) const
 	}
 }
 
+namespace
+{
+	std::optional<int> FindFirstBlockLocalIndex(const MidoriExpression::Block& block)
+	{
+		for (const std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+		{
+			if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+			{
+				const std::optional<int>& index = statement->GetStatement<MidoriStatement::VariableDefinition>().m_local_index;
+				if (index.has_value())
+				{
+					return index;
+				}
+			}
+			else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+			{
+				const std::optional<int>& index = statement->GetStatement<MidoriStatement::FunctionDefinition>().m_local_index;
+				if (index.has_value())
+				{
+					return index;
+				}
+			}
+			else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
+			{
+				const std::optional<int>& index = statement->GetStatement<MidoriStatement::ForeignDefinition>().m_local_index;
+				if (index.has_value())
+				{
+					return index;
+				}
+			}
+			else if (statement->IsStatement<MidoriStatement::TupleDefinition>())
+			{
+				for (const std::optional<int>& index : statement->GetStatement<MidoriStatement::TupleDefinition>().m_local_indices)
+				{
+					if (index.has_value())
+					{
+						return index;
+					}
+				}
+			}
+		}
+		return std::nullopt;
+	}
+}
+
+int CodeGenerator::EffectiveLocalIndex(int variable_index) const
+{
+	for (std::vector<OperandBlockShift>::const_reverse_iterator it = m_operand_block_shifts.rbegin(); it != m_operand_block_shifts.rend(); ++it)
+	{
+		if (variable_index >= it->m_first_local_index)
+		{
+			return variable_index + it->m_offset;
+		}
+	}
+	return variable_index;
+}
+
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 {
+	if (op == OpCode::GET_LOCAL || op == OpCode::SET_LOCAL || op == OpCode::GET_LOCAL_CELL || op == OpCode::SET_LOCAL_CELL)
+	{
+		variable_index = EffectiveLocalIndex(variable_index);
+	}
+
 	if (op == OpCode::GET_LOCAL)
 	{
 		op = GetLocalLoadOpcode(variable_index);
@@ -2562,8 +2633,14 @@ bool CodeGenerator::TryEmitFusedBinary(MidoriExpression::Binary& binary, int lin
 		return false;
 	}
 
+	const int effective_index = EffectiveLocalIndex(local_index.value());
+	if (effective_index > static_cast<int>(UINT8_MAX))
+	{
+		return false;
+	}
+
 	EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
-	EmitByte(static_cast<OpCode>(local_index.value()), line);
+	EmitByte(static_cast<OpCode>(effective_index), line);
 	EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(imm.value()))), line);
 	EmitByte(static_cast<OpCode>(0), line);
 	return true;
@@ -2602,8 +2679,14 @@ std::optional<int> CodeGenerator::TryEmitFusedConditionBranch(std::unique_ptr<Mi
 			return std::nullopt;
 		}
 
+		const int effective_left = EffectiveLocalIndex(left_local.value());
+		if (effective_left > static_cast<int>(UINT8_MAX))
+		{
+			return std::nullopt;
+		}
+
 		EmitByte(OpCode::IF_LOCAL_LE_INT, line);
-		EmitByte(static_cast<OpCode>(left_local.value()), line);
+		EmitByte(static_cast<OpCode>(effective_left), line);
 		EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(imm.value()))), line);
 		EmitByte(static_cast<OpCode>(0), line);
 		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
@@ -2619,10 +2702,17 @@ std::optional<int> CodeGenerator::TryEmitFusedConditionBranch(std::unique_ptr<Mi
 			return std::nullopt;
 		}
 
+		const int effective_left = EffectiveLocalIndex(left_local.value());
+		const int effective_right = EffectiveLocalIndex(right_local.value());
+		if (effective_left > static_cast<int>(UINT8_MAX) || effective_right > static_cast<int>(UINT8_MAX))
+		{
+			return std::nullopt;
+		}
+
 		EmitByte(OpCode::IF_LOCAL_GE_LOCAL, line);
-		EmitByte(static_cast<OpCode>(left_local.value()), line);
+		EmitByte(static_cast<OpCode>(effective_left), line);
 		EmitByte(static_cast<OpCode>(0), line);
-		EmitByte(static_cast<OpCode>(right_local.value()), line);
+		EmitByte(static_cast<OpCode>(effective_right), line);
 		EmitByte(static_cast<OpCode>(0), line);
 		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
 		EmitByte(static_cast<OpCode>(BYTE_MASK), line);
@@ -2681,17 +2771,23 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 
 		std::optional<int> left_local = GetFusibleLocalIndex(*binary.m_left);
 		std::optional<int> right_local = GetFusibleLocalIndex(*binary.m_right);
-		if (left_local.has_value() && right_local.has_value())
+		const int left_effective = left_local.has_value() ? EffectiveLocalIndex(left_local.value()) : -1;
+		const int right_effective = right_local.has_value() ? EffectiveLocalIndex(right_local.value()) : -1;
+		if (left_local.has_value() && right_local.has_value()
+			&& left_effective <= static_cast<int>(UINT8_MAX)
+			&& right_effective <= static_cast<int>(UINT8_MAX))
 		{
 			EmitByte(OpCode::GET_LOCAL2, line);
-			EmitByte(static_cast<OpCode>(left_local.value()), line);
+			EmitByte(static_cast<OpCode>(left_effective), line);
 			EmitByte(static_cast<OpCode>(0), line);
-			EmitByte(static_cast<OpCode>(right_local.value()), line);
+			EmitByte(static_cast<OpCode>(right_effective), line);
 		}
 		else
 		{
 			Visit(binary.m_left);
+			m_operand_depth += 1;
 			Visit(binary.m_right);
+			m_operand_depth -= 1;
 		}
 		const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
 
@@ -3100,8 +3196,10 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 		[this](const std::unique_ptr<MidoriExpression>& elem)
 		{
 			Visit(elem);
+			m_operand_depth += 1;
 		}
 	);
+	m_operand_depth -= static_cast<int>(tuple.m_elements.size());
 
 	EmitByte(OpCode::CREATE_TUPLE, line);
 	EmitThreeBytes(size, size >> 8, size >> 16, line);
@@ -3309,7 +3407,9 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
 	{
 		Visit(argument);
+		m_operand_depth += 1;
 	}
+	m_operand_depth -= static_cast<int>(spawn.m_arguments.size());
 
 	EmitByte(OpCode::SPAWN_WORKER, line);
 	EmitTwoBytes((spawn.m_global_index >> SHIFT_8_BITS) & BYTE_MASK, spawn.m_global_index & BYTE_MASK, line);
@@ -3331,7 +3431,9 @@ void CodeGenerator::operator()(MidoriExpression::ChannelCreate& channel_create)
 void CodeGenerator::operator()(MidoriExpression::Send& send)
 {
 	Visit(send.m_channel);
+	m_operand_depth += 1;
 	Visit(send.m_value);
+	m_operand_depth -= 1;
 	EmitByte(OpCode::CHANNEL_SEND, send.m_arrow.m_line);
 }
 
@@ -3467,8 +3569,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
 				Visit(param);
+				m_operand_depth += 1;
 			}
 		);
+		m_operand_depth -= static_cast<int>(call.m_arguments.size());
 
 
 		if (generic_info.m_captured_count == 0)
@@ -3521,8 +3625,10 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			[this](std::unique_ptr<MidoriExpression>& param)
 			{
 				Visit(param);
+				m_operand_depth += 1;
 			}
 		);
+		m_operand_depth -= static_cast<int>(call.m_arguments.size());
 
 		bool can_emit_call_global = false;
 		int call_global_index = -1;
@@ -3668,7 +3774,9 @@ void CodeGenerator::operator()(MidoriExpression::MemberAssignment& set)
 	int line = set.m_member_name.m_line;
 
 	Visit(set.m_struct);
+	m_operand_depth += 1;
 	Visit(set.m_value);
+	m_operand_depth -= 1;
 	EmitByte(OpCode::SET_MEMBER, line);
 	EmitByte(static_cast<OpCode>(set.m_index), line);
 }
@@ -3748,7 +3856,9 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 		EmitByte(OpCode::DUP, line);
 		EmitByte(OpCode::GET_MEMBER, line);
 		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
+		m_operand_depth += 2;
 		Visit(compound_assign.m_value);
+		m_operand_depth -= 2;
 
 		bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 		switch (compound_assign.m_op.m_token_name)
@@ -3875,26 +3985,29 @@ void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign
 	{
 		const MidoriExpression::NameContext::Local* local = std::get_if<MidoriExpression::NameContext::Local>(&compound_assign.m_name_ctx);
 		std::optional<MidoriInteger> imm = GetFusibleSmallInt(*compound_assign.m_value);
+		const int effective_index = local != nullptr ? EffectiveLocalIndex(local->m_index) : -1;
 		if (local != nullptr
 			&& local->m_index >= 0
-			&& local->m_index <= static_cast<int>(UINT8_MAX)
+			&& effective_index <= static_cast<int>(UINT8_MAX)
 			&& GetLocalStorageKind(local->m_index) == LocalStorageKind::ValueLocal
 			&& imm.has_value())
 		{
 			MidoriInteger delta = compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ? -imm.value() : imm.value();
 			EmitByte(OpCode::ADD_LOCAL_INT, line);
-			EmitByte(static_cast<OpCode>(local->m_index), line);
+			EmitByte(static_cast<OpCode>(effective_index), line);
 			EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(delta))), line);
 			EmitByte(static_cast<OpCode>(0), line);
 			EmitByte(static_cast<OpCode>(0), line);
-			EmitByte(static_cast<OpCode>(local->m_index), line);
+			EmitByte(static_cast<OpCode>(effective_index), line);
 			return;
 		}
 	}
 
 	std::visit(CompoundAssignLoadVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
 
+	m_operand_depth += 1;
 	Visit(compound_assign.m_value);
+	m_operand_depth -= 1;
 
 	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
 	switch (compound_assign.m_op.m_token_name)
@@ -4108,8 +4221,10 @@ void CodeGenerator::operator()(MidoriExpression::Construct& construct)
 		[this](std::unique_ptr<MidoriExpression>& param)
 		{
 			Visit(param);
+			m_operand_depth += 1;
 		}
 	);
+	m_operand_depth -= static_cast<int>(construct.m_params.size());
 
 	if (is_struct)
 	{
@@ -4153,8 +4268,10 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 		[this](std::unique_ptr<MidoriExpression>& elem)
 		{
 			Visit(elem);
+			m_operand_depth += 1;
 		}
 	);
+	m_operand_depth -= static_cast<int>(array.m_elems.size());
 	EmitByte(OpCode::CREATE_ARRAY, line);
 	EmitThreeBytes(length, length >> 8, length >> 16, line);
 }
@@ -4170,6 +4287,7 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 	}
 
 	Visit(array_get.m_arr_var);
+	m_operand_depth += 1;
 
 	std::ranges::for_each
 	(
@@ -4177,8 +4295,10 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 		[this](std::unique_ptr<MidoriExpression>& index)
 		{
 			Visit(index);
+			m_operand_depth += 1;
 		}
 	);
+	m_operand_depth -= 1 + static_cast<int>(array_get.m_indices.size());
 
 	EmitByte(OpCode::GET_ARRAY, line);
 	EmitByte(static_cast<OpCode>(array_get.m_indices.size()), line);
@@ -4195,6 +4315,7 @@ void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
 	}
 
 	Visit(array_set.m_arr_var);
+	m_operand_depth += 1;
 
 	std::ranges::for_each
 	(
@@ -4202,10 +4323,12 @@ void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
 		[this](std::unique_ptr<MidoriExpression>& index)
 		{
 			Visit(index);
+			m_operand_depth += 1;
 		}
 	);
 
 	Visit(array_set.m_value);
+	m_operand_depth -= 1 + static_cast<int>(array_set.m_indices.size());
 
 	EmitByte(OpCode::SET_ARRAY, line);
 	EmitByte(static_cast<OpCode>(array_set.m_indices.size()), line);
@@ -4216,6 +4339,7 @@ void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
 	int line = range_binary.m_range_op.m_line;
 
 	Visit(range_binary.m_start);
+	m_operand_depth += 1;
 
 	// Generate code for default step (1 for Int, 1.0 for Float)
 	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
@@ -4226,8 +4350,10 @@ void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
 	{
 		EmitFloatConstant(1.0, line);
 	}
+	m_operand_depth += 1;
 
 	Visit(range_binary.m_end);
+	m_operand_depth -= 2;
 
 	if (range_binary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
 	{
@@ -4244,8 +4370,11 @@ void CodeGenerator::operator()(MidoriExpression::RangeTernary& range_ternary)
 	int line = range_ternary.m_first_range_op.m_line;
 
 	Visit(range_ternary.m_start);
+	m_operand_depth += 1;
 	Visit(range_ternary.m_step);
+	m_operand_depth += 1;
 	Visit(range_ternary.m_end);
+	m_operand_depth -= 2;
 
 	if (range_ternary.m_type_data->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::IntegerType>())
 	{
@@ -4300,6 +4429,22 @@ void CodeGenerator::operator()(MidoriExpression::IfElse& if_else)
 
 void CodeGenerator::operator()(MidoriExpression::Block& block)
 {
+	bool pushed_shift = false;
+	if (m_operand_depth > 0 && block.m_local_count > 0)
+	{
+		std::optional<int> first_local_index = FindFirstBlockLocalIndex(block);
+		if (first_local_index.has_value())
+		{
+			m_operand_block_shifts.emplace_back(OperandBlockShift{ first_local_index.value(), m_operand_depth });
+			std::unordered_set<int>& scoped_locals = m_operand_scoped_locals[m_builder.m_current_procedure_index];
+			for (int local = 0; local < block.m_local_count; local += 1)
+			{
+				scoped_locals.insert(first_local_index.value() + local);
+			}
+			pushed_shift = true;
+		}
+	}
+
 	std::ranges::for_each
 	(
 		block.m_stmts,
@@ -4312,6 +4457,10 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 	// Discard everything else when encountered "return"
 	if (!m_builder.m_procedures[m_builder.m_current_procedure_index].IsByteCodeEmpty() && m_builder.m_procedures[m_builder.m_current_procedure_index].ReadByteCode(m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
 	{
+		if (pushed_shift)
+		{
+			m_operand_block_shifts.pop_back();
+		}
 		return;
 	}
 	else
@@ -4341,6 +4490,11 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 			EmitByte(static_cast<OpCode>(count_to_pop), block.m_right_brace.m_line);
 			block.m_local_count -= count_to_pop;
 		}
+	}
+
+	if (pushed_shift)
+	{
+		m_operand_block_shifts.pop_back();
 	}
 }
 
@@ -5425,7 +5579,16 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_procedure_capture_counts[specialized_proc_index] = generic_info.m_captured_count;
 	m_specialized_functions[signature] = static_cast<int>(specialized_proc_index);
 
+	const int saved_operand_depth = m_operand_depth;
+	std::vector<OperandBlockShift> saved_shifts = std::move(m_operand_block_shifts);
+	m_operand_depth = 0;
+	m_operand_block_shifts.clear();
+
 	Visit(generic_info.m_body);
+
+	m_operand_depth = saved_operand_depth;
+	m_operand_block_shifts = std::move(saved_shifts);
+
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
@@ -6018,7 +6181,16 @@ int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_pt
 	{
 		m_direct_proc_global_indices[direct_proc_global_index] = static_cast<int>(closure_proc_index);
 	}
+
+	const int saved_operand_depth = m_operand_depth;
+	std::vector<OperandBlockShift> saved_shifts = std::move(m_operand_block_shifts);
+	m_operand_depth = 0;
+	m_operand_block_shifts.clear();
+
 	Visit(body);
+
+	m_operand_depth = saved_operand_depth;
+	m_operand_block_shifts = std::move(saved_shifts);
 
 	EmitByte(OpCode::RETURN, line);
 

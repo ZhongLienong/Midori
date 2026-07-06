@@ -1,0 +1,35 @@
+module OperandPositionBlock
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+def a = 10;
+def w = a + { def q = a + 1; q * 2 };
+def v = (a + { def q = a + 2; q }) * { def r = a - 8; r + 1 };
+def deep = a + (a * { def x = a + 1; def y = x + a; { def z = y - x; z + y } });
+
+defun Work(n : Int) : Int =>
+{
+	def base = n * 2;
+	def w_local = base + { def q = n + 1; q * 2 };
+	def i = 0;
+	def acc = 0;
+	loop
+	{
+		if i >= 3
+		then break ()
+		else
+		{
+			acc += w_local + { def t = i + n; t * 2 };
+			i += 1;
+		}
+	};
+	acc + (base * { def m = n - 5; m + i })
+};
+
+IO::PrintLine(w as Text);
+IO::PrintLine(v as Text);
+IO::PrintLine(deep as Text);
+IO::PrintLine(Work(7) as Text);
