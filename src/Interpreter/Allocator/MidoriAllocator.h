@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <unordered_set>
 #include <vector>
 
 class MidoriAllocator
@@ -64,6 +63,30 @@ private:
 	bool UntrackLargeAllocation(void* ptr) noexcept;
 	bool ContainsLargeAllocation(const void* ptr) const noexcept;
 #else
-	std::unordered_set<void*> m_allocated;
+	struct FreeNode
+	{
+		FreeNode* m_next;
+	};
+
+	static constexpr size_t USABLE_BLOCK_BYTES = SLOTS_PER_BLOCK * SLOT_SIZE;
+	static constexpr size_t LIVE_WORDS_PER_BLOCK = (SLOTS_PER_BLOCK + 63uz) / 64uz;
+	static constexpr size_t BITS_PER_BLOCK = LIVE_WORDS_PER_BLOCK * 64uz;
+
+	std::vector<uint8_t*> m_blocks;
+	std::vector<uint64_t> m_live_bits;
+	FreeNode* m_free_list = nullptr;
+	std::vector<void*> m_large_allocs;
+
+	void* AllocateSmall();
+	void* AllocateLarge(size_t size);
+	bool AllocateBlock();
+	bool EnsureFreeList();
+	FreeNode* PopFreeNode() noexcept;
+	FreeNode* PushFreeNode(FreeNode* node) noexcept;
+	bool SetLiveBit(void* ptr, bool is_live) noexcept;
+	bool TrackLargeAllocation(void* ptr);
+	bool UntrackLargeAllocation(void* ptr) noexcept;
+	bool ContainsLargeAllocation(const void* ptr) const noexcept;
+	std::optional<size_t> FindBlockIndex(const void* ptr) const noexcept;
 #endif
 };

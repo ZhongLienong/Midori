@@ -8,8 +8,25 @@ static_assert(sizeof(MidoriTraceable) <= MidoriAllocator::SLOT_SIZE, "MidoriTrac
 
 #ifdef __EMSCRIPTEN__
 
-MidoriAllocator::MidoriAllocator() = default;
-MidoriAllocator::~MidoriAllocator() = default;
+#include <algorithm>
+#include <bit>
+
+MidoriAllocator::MidoriAllocator()
+{
+	AllocateBlock();
+}
+
+MidoriAllocator::~MidoriAllocator()
+{
+	for (uint8_t* block : m_blocks)
+	{
+		std::free(block);
+	}
+	m_blocks.clear();
+	m_live_bits.clear();
+	m_large_allocs.clear();
+	m_free_list = nullptr;
+}
 
 void* MidoriAllocator::Allocate(size_t size)
 {
@@ -18,21 +35,68 @@ void* MidoriAllocator::Allocate(size_t size)
 		return nullptr;
 	}
 
-	void* ptr = std::malloc(size);
-	if (ptr != nullptr)
+	if (size > SLOT_SIZE)
 	{
-		m_allocated.emplace(ptr);
+		return AllocateLarge(size);
+	}
+
+	return AllocateSmall();
+}
+
+void* MidoriAllocator::AllocateSmall()
+{
+	if (!EnsureFreeList())
+	{
+		return nullptr;
+	}
+
+	FreeNode* node = PopFreeNode();
+	if (node == nullptr)
+	{
+		return nullptr;
+	}
+
+	if (!SetLiveBit(node, true))
+	{
+		PushFreeNode(node);
+		return nullptr;
+	}
+	return static_cast<void*>(node);
+}
+
+void* MidoriAllocator::AllocateLarge(size_t size)
+{
+	void* ptr = std::malloc(size);
+	if (ptr == nullptr)
+	{
+		return nullptr;
+	}
+
+	if (!TrackLargeAllocation(ptr))
+	{
+		std::free(ptr);
+		return nullptr;
 	}
 	return ptr;
 }
 
 MidoriAllocator& MidoriAllocator::Free(void* ptr, size_t size) &
 {
-	(void)size;
-	if (ptr != nullptr)
+	if (ptr == nullptr || size == 0uz)
 	{
-		m_allocated.erase(ptr);
+		return *this;
 	}
+
+	if (size <= SLOT_SIZE)
+	{
+		if (SetLiveBit(ptr, false))
+		{
+			PushFreeNode(static_cast<FreeNode*>(ptr));
+		}
+		return *this;
+	}
+
+	UntrackLargeAllocation(ptr);
 	std::free(ptr);
 	return *this;
 }
@@ -43,14 +107,186 @@ MidoriAllocator&& MidoriAllocator::Free(void* ptr, size_t size) &&
 	return std::move(*this);
 }
 
+bool MidoriAllocator::AllocateBlock()
+{
+	uint8_t* block = static_cast<uint8_t*>(std::malloc(BLOCK_SIZE));
+	if (block == nullptr)
+	{
+		return false;
+	}
+
+	m_blocks.push_back(block);
+	m_live_bits.insert(m_live_bits.end(), LIVE_WORDS_PER_BLOCK, 0ull);
+
+	uint8_t* slot_ptr = block;
+	for (size_t i = 0uz; i < SLOTS_PER_BLOCK; i += 1uz)
+	{
+		PushFreeNode(reinterpret_cast<FreeNode*>(slot_ptr));
+		slot_ptr += SLOT_SIZE;
+	}
+
+	return true;
+}
+
+std::optional<size_t> MidoriAllocator::FindBlockIndex(const void* ptr) const noexcept
+{
+	const uint8_t* address = static_cast<const uint8_t*>(ptr);
+	for (size_t block_index = 0uz; block_index < m_blocks.size(); block_index += 1uz)
+	{
+		const uint8_t* base = m_blocks[block_index];
+		if (address >= base && address < base + BLOCK_SIZE)
+		{
+			return block_index;
+		}
+	}
+	return std::nullopt;
+}
+
+std::optional<size_t> MidoriAllocator::TryGetSlotIndex(const void* ptr) const noexcept
+{
+	const std::optional<size_t> block_index = FindBlockIndex(ptr);
+	if (!block_index.has_value())
+	{
+		return std::nullopt;
+	}
+
+	const size_t block_offset = static_cast<size_t>(static_cast<const uint8_t*>(ptr) - m_blocks[*block_index]);
+	if (block_offset % SLOT_SIZE != 0uz || block_offset >= USABLE_BLOCK_BYTES)
+	{
+		return std::nullopt;
+	}
+
+	return *block_index * BITS_PER_BLOCK + block_offset / SLOT_SIZE;
+}
+
+void* MidoriAllocator::SlotAt(size_t slot_index) const noexcept
+{
+	const size_t block_index = slot_index / BITS_PER_BLOCK;
+	const size_t slot_in_block = slot_index % BITS_PER_BLOCK;
+	return m_blocks[block_index] + slot_in_block * SLOT_SIZE;
+}
+
+size_t MidoriAllocator::SlotWordCount() const noexcept
+{
+	return m_live_bits.size();
+}
+
+const uint64_t* MidoriAllocator::LiveBitWords() const noexcept
+{
+	return m_live_bits.data();
+}
+
+size_t MidoriAllocator::LiveSlotCount() const noexcept
+{
+	size_t count = 0uz;
+	for (uint64_t word : m_live_bits)
+	{
+		count += static_cast<size_t>(std::popcount(word));
+	}
+	return count;
+}
+
 bool MidoriAllocator::Contains(const void* ptr) const noexcept
+{
+	const std::optional<size_t> slot_index = TryGetSlotIndex(ptr);
+	if (slot_index.has_value())
+	{
+		return (m_live_bits[*slot_index / 64uz] & (1ull << (*slot_index % 64uz))) != 0ull;
+	}
+	return ContainsLargeAllocation(ptr);
+}
+
+bool MidoriAllocator::SetLiveBit(void* ptr, bool is_live) noexcept
+{
+	const std::optional<size_t> slot_index = TryGetSlotIndex(ptr);
+	if (!slot_index.has_value())
+	{
+		return false;
+	}
+
+	const uint64_t mask = 1ull << (*slot_index % 64uz);
+	if (is_live)
+	{
+		m_live_bits[*slot_index / 64uz] |= mask;
+	}
+	else
+	{
+		m_live_bits[*slot_index / 64uz] &= ~mask;
+	}
+	return true;
+}
+
+bool MidoriAllocator::EnsureFreeList()
+{
+	if (m_free_list != nullptr)
+	{
+		return true;
+	}
+
+	return AllocateBlock();
+}
+
+MidoriAllocator::FreeNode* MidoriAllocator::PopFreeNode() noexcept
+{
+	if (m_free_list == nullptr)
+	{
+		return nullptr;
+	}
+
+	FreeNode* node = m_free_list;
+	m_free_list = node->m_next;
+	return node;
+}
+
+MidoriAllocator::FreeNode* MidoriAllocator::PushFreeNode(FreeNode* node) noexcept
+{
+	if (node == nullptr)
+	{
+		return m_free_list;
+	}
+
+	node->m_next = m_free_list;
+	m_free_list = node;
+	return node;
+}
+
+bool MidoriAllocator::TrackLargeAllocation(void* ptr)
 {
 	if (ptr == nullptr)
 	{
 		return false;
 	}
 
-	return m_allocated.contains(const_cast<void*>(ptr));
+	m_large_allocs.push_back(ptr);
+	return true;
+}
+
+bool MidoriAllocator::UntrackLargeAllocation(void* ptr) noexcept
+{
+	if (ptr == nullptr || m_large_allocs.empty())
+	{
+		return false;
+	}
+
+	std::vector<void*>::iterator it = std::find(m_large_allocs.begin(), m_large_allocs.end(), ptr);
+	if (it == m_large_allocs.end())
+	{
+		return false;
+	}
+
+	*it = m_large_allocs.back();
+	m_large_allocs.pop_back();
+	return true;
+}
+
+bool MidoriAllocator::ContainsLargeAllocation(const void* ptr) const noexcept
+{
+	if (ptr == nullptr || m_large_allocs.empty())
+	{
+		return false;
+	}
+
+	return std::find(m_large_allocs.begin(), m_large_allocs.end(), const_cast<void*>(ptr)) != m_large_allocs.end();
 }
 
 #else
