@@ -611,7 +611,6 @@ private:
 		MidoriClosure m_closure;
 	};
 	TraceableType m_type;
-	bool m_is_marked = false;
 
 	template<typename T>
 	static constexpr TraceableType TypeToEnum()
@@ -708,10 +707,6 @@ public:
 	}
 
 	size_t GetSize() const;
-
-	void Mark();
-	void Unmark();
-	bool IsMarked() const;
 
 #if MIDORI_DEBUG_FULL
 	MidoriText ToText();

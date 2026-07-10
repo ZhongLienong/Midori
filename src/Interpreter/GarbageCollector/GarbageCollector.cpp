@@ -3,6 +3,7 @@
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <algorithm>
+#include <bit>
 
 #if MIDORI_DEBUG_INFO
 #include "Common\Printer\Printer.h"
@@ -88,47 +89,44 @@ bool GarbageCollector::Contains(MidoriTraceable* ptr) const
 	return m_allocator != nullptr && m_allocator->Contains(ptr);
 }
 
-void GarbageCollector::RegisterObject(MidoriTraceable* traceable)
-{
-	const size_t next_size = m_traceables.size() + 1uz;
-	if (next_size > m_traceables.capacity())
-	{
-		const size_t current_capacity = m_traceables.capacity();
-		size_t new_capacity = current_capacity == 0uz ? 64uz : current_capacity * 2uz;
-		if (new_capacity < next_size)
-		{
-			new_capacity = next_size;
-		}
-		m_traceables.reserve(new_capacity);
-	}
-
-	m_total_bytes_allocated += traceable->GetSize();
-	m_traceables.emplace_back(traceable);
-}
-
 void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 {
-	if (child_ptr == nullptr || !Contains(child_ptr) || child_ptr->IsMarked())
+	if (child_ptr == nullptr || m_allocator == nullptr)
 	{
 		return;
 	}
+
+	const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(child_ptr);
+	if (!slot_index.has_value())
+	{
+		return;
+	}
+
+	const size_t word_index = *slot_index / 64uz;
+	const uint64_t mask = 1ull << (*slot_index % 64uz);
+	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull)
+	{
+		return;
+	}
+	if ((m_mark_bits[word_index] & mask) != 0ull)
+	{
+		return;
+	}
+
 #if MIDORI_DEBUG_FULL
 	if (MidoriBuild::ShouldEmitInternalDiagnostics())
 	{
 		Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
 	}
 #endif
-	child_ptr->Mark();
+
+	m_mark_bits[word_index] |= mask;
 	m_mark_stack.emplace_back(child_ptr);
 }
 
 void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 {
 	m_mark_stack.clear();
-	if (roots.empty())
-	{
-		return;
-	}
 
 	auto mark_tuple_values = [this](MidoriTuple& tuple)
 		{
@@ -182,6 +180,31 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 	}
 }
 
+void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed)
+{
+	const uint64_t* live_words = allocator.LiveBitWords();
+	const size_t word_count = allocator.SlotWordCount();
+
+	for (size_t word_index = 0uz; word_index < word_count; word_index += 1uz)
+	{
+		uint64_t garbage = live_words[word_index] & ~m_mark_bits[word_index];
+		while (garbage != 0ull)
+		{
+			const size_t bit = static_cast<size_t>(std::countr_zero(garbage));
+			garbage &= garbage - 1ull;
+
+			MidoriTraceable* ptr = static_cast<MidoriTraceable*>(allocator.SlotAt(word_index * 64uz + bit));
+			const size_t registered_size = ptr->GetSize();
+			bytes_reclaimed += registered_size;
+			m_total_bytes_allocated -= std::min(registered_size, m_total_bytes_allocated);
+			sweep_count += 1uz;
+
+			ptr->~MidoriTraceable();
+			allocator.Free(ptr, sizeof(MidoriTraceable));
+		}
+	}
+}
+
 void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
 {
 	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
@@ -206,7 +229,6 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 #endif
 
-	size_t mark_count = 0u;
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
@@ -214,6 +236,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 #endif
 	// Mark
+	m_mark_bits.assign(allocator.SlotWordCount(), 0ull);
 	Trace(roots);
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
@@ -222,8 +245,8 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 #endif
 
-	size_t sweep_count = 0u;
-	size_t bytes_reclaimed = 0u;
+	size_t sweep_count = 0uz;
+	size_t bytes_reclaimed = 0uz;
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
@@ -231,34 +254,8 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 #endif
 
-	size_t write_index = 0uz;
-	for (size_t read_index = 0uz; read_index < m_traceables.size(); read_index += 1uz)
-	{
-		MidoriTraceable* ptr = m_traceables[read_index];
-		if (ptr->IsMarked())
-		{
-			ptr->Unmark();
-			++mark_count;
-			m_traceables[write_index++] = ptr;
-		}
-		else
-		{
-			++sweep_count;
-			size_t registered_size = ptr->GetSize();
-			bytes_reclaimed += registered_size;
-			if (m_total_bytes_allocated >= registered_size)
-			{
-				m_total_bytes_allocated -= registered_size;
-			}
-			else
-			{
-				m_total_bytes_allocated = 0uz;
-			}
-			ptr->~MidoriTraceable();
-			allocator.Free(ptr, sizeof(MidoriTraceable));
-		}
-	}
-	m_traceables.resize(write_index);
+	// Sweep
+	Sweep(allocator, sweep_count, bytes_reclaimed);
 
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
@@ -284,7 +281,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 					FormatTime(ns_sweep),
 					FormatTime(ns_total),
 					roots.size(),
-					mark_count,
+					allocator.LiveSlotCount(),
 					sweep_count,
 					FormatBytes(bytes_reclaimed)
 				)
@@ -309,7 +306,7 @@ void GarbageCollector::PrintMemoryTelemetry()
 			(
 				"Total allocated: {}\nObject count:    {}\n----------------------------------------------\n",
 				FormatBytes(m_total_bytes_allocated),
-				m_traceables.size()
+				m_allocator != nullptr ? m_allocator->LiveSlotCount() : 0uz
 			)
 		);
 }

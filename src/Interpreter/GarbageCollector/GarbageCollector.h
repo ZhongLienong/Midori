@@ -2,12 +2,11 @@
 
 #include "Common/Value/Value.h"
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Interpreter/Allocator/MidoriAllocator.h"
 
-#include <functional>
-#include <vector>
 #include <cstddef>
-
-class MidoriAllocator;
+#include <cstdint>
+#include <vector>
 
 class GarbageCollector
 {
@@ -18,13 +17,13 @@ public:
 	static constexpr inline double GC_GROWTH_FACTOR = 1.5;
 
 	using GarbageCollectionRoots = std::vector<MidoriTraceable*>;
-	using Deallocator = std::function<void(MidoriTraceable*)>;
 
 private:
 	size_t m_total_bytes_allocated = 0uz;
 	size_t m_gc_threshold = INITIAL_GC_THRESHOLD;
-	std::vector<MidoriTraceable*> m_traceables;
+	std::vector<uint64_t> m_mark_bits;
 	std::vector<MidoriTraceable*> m_mark_stack;
+	const MidoriAllocator* m_allocator = nullptr;
 
 public:
 	GarbageCollector() = default;
@@ -42,7 +41,10 @@ public:
 
 	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
 
-	void RegisterObject(MidoriTraceable* traceable);
+	MIDORI_FORCE_INLINE void RegisterObject(MidoriTraceable* traceable) noexcept
+	{
+		m_total_bytes_allocated += traceable->GetSize();
+	}
 
 #if MIDORI_DEBUG_INFO
 	void PrintMemoryTelemetry();
@@ -53,6 +55,5 @@ public:
 private:
 	void Trace(const GarbageCollectionRoots& roots);
 	void TryMark(MidoriTraceable* child_ptr);
-
-	const MidoriAllocator* m_allocator = nullptr;
+	void Sweep(MidoriAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed);
 };

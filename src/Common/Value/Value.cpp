@@ -509,21 +509,6 @@ size_t MidoriTraceable::GetSize() const
 	return sizeof(MidoriTraceable) + dynamic_size;
 }
 
-void MidoriTraceable::Mark()
-{
-	m_is_marked = true;
-}
-
-void MidoriTraceable::Unmark()
-{
-	m_is_marked = false;
-}
-
-bool MidoriTraceable::IsMarked() const
-{
-	return m_is_marked;
-}
-
 void* MidoriTraceable::operator new(size_t size) noexcept
 {
 	void* object = ::operator new(size);
