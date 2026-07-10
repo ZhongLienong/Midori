@@ -55,6 +55,9 @@ bool MidoriAllocator::Contains(const void* ptr) const noexcept
 
 #else
 
+#include <bit>
+#include <optional>
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -248,50 +251,79 @@ MidoriAllocator::FreeNode* MidoriAllocator::PushFreeNode(FreeNode* node) noexcep
 // range check plus a slot-alignment check plus a live-bit test.
 bool MidoriAllocator::Contains(const void* ptr) const noexcept
 {
-	const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(m_region_base));
-	if (offset < m_committed_bytes)
+	const std::optional<size_t> slot_index = TryGetSlotIndex(ptr);
+	if (slot_index.has_value())
 	{
-		const size_t block_offset = offset % BLOCK_SIZE;
-		if (block_offset % SLOT_SIZE != 0uz || block_offset >= USABLE_BLOCK_BYTES)
-		{
-			return false;
-		}
-
-		const size_t slot_index = block_offset / SLOT_SIZE;
-		const size_t word_index = (offset / BLOCK_SIZE) * LIVE_WORDS_PER_BLOCK + (slot_index / 64uz);
-		const uint64_t mask = 1ull << (slot_index % 64uz);
-		return (m_live_bits[word_index] & mask) != 0ull;
+		return (m_live_bits[*slot_index / 64uz] & (1ull << (*slot_index % 64uz))) != 0ull;
 	}
-
 	return ContainsLargeAllocation(ptr);
 }
 
 bool MidoriAllocator::SetLiveBit(void* ptr, bool is_live) noexcept
 {
+	const std::optional<size_t> slot_index = TryGetSlotIndex(ptr);
+	if (!slot_index.has_value())
+	{
+		return false;
+	}
+
+	const uint64_t mask = 1ull << (*slot_index % 64uz);
+	if (is_live)
+	{
+		m_live_bits[*slot_index / 64uz] |= mask;
+	}
+	else
+	{
+		m_live_bits[*slot_index / 64uz] &= ~mask;
+	}
+	return true;
+}
+
+// Slot indices are global bit indices compatible with m_live_bits: each block
+// contributes BITS_PER_BLOCK positions (LIVE_WORDS_PER_BLOCK words * 64), of
+// which only the first SLOTS_PER_BLOCK are real slots; padding bits are never set.
+std::optional<size_t> MidoriAllocator::TryGetSlotIndex(const void* ptr) const noexcept
+{
 	const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(m_region_base));
 	if (offset >= m_committed_bytes)
 	{
-		return false;
+		return std::nullopt;
 	}
 
 	const size_t block_offset = offset % BLOCK_SIZE;
 	if (block_offset % SLOT_SIZE != 0uz || block_offset >= USABLE_BLOCK_BYTES)
 	{
-		return false;
+		return std::nullopt;
 	}
 
-	const size_t slot_index = block_offset / SLOT_SIZE;
-	const size_t word_index = (offset / BLOCK_SIZE) * LIVE_WORDS_PER_BLOCK + (slot_index / 64uz);
-	const uint64_t mask = 1ull << (slot_index % 64uz);
-	if (is_live)
+	return (offset / BLOCK_SIZE) * BITS_PER_BLOCK + block_offset / SLOT_SIZE;
+}
+
+void* MidoriAllocator::SlotAt(size_t slot_index) const noexcept
+{
+	const size_t block_index = slot_index / BITS_PER_BLOCK;
+	const size_t slot_in_block = slot_index % BITS_PER_BLOCK;
+	return m_region_base + block_index * BLOCK_SIZE + slot_in_block * SLOT_SIZE;
+}
+
+size_t MidoriAllocator::SlotWordCount() const noexcept
+{
+	return m_live_bits.size();
+}
+
+const uint64_t* MidoriAllocator::LiveBitWords() const noexcept
+{
+	return m_live_bits.data();
+}
+
+size_t MidoriAllocator::LiveSlotCount() const noexcept
+{
+	size_t count = 0uz;
+	for (uint64_t word : m_live_bits)
 	{
-		m_live_bits[word_index] |= mask;
+		count += static_cast<size_t>(std::popcount(word));
 	}
-	else
-	{
-		m_live_bits[word_index] &= ~mask;
-	}
-	return true;
+	return count;
 }
 
 bool MidoriAllocator::TrackLargeAllocation(void* ptr)
