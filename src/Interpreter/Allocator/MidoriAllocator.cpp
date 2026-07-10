@@ -299,6 +299,9 @@ std::optional<size_t> MidoriAllocator::TryGetSlotIndex(const void* ptr) const no
 	return (offset / BLOCK_SIZE) * BITS_PER_BLOCK + block_offset / SLOT_SIZE;
 }
 
+// Precondition: slot_index must correspond to a set live bit (callers derive indices
+// from LiveBitWords/TryGetSlotIndex); out-of-range or padding indices yield pointers
+// outside the slot area.
 void* MidoriAllocator::SlotAt(size_t slot_index) const noexcept
 {
 	const size_t block_index = slot_index / BITS_PER_BLOCK;

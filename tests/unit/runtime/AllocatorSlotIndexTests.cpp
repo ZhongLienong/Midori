@@ -40,6 +40,11 @@ TEST_CASE("Slot index rejects foreign and misaligned pointers", "[allocator][gc]
 	uint8_t* misaligned = static_cast<uint8_t*>(slot) + 1;
 	REQUIRE_FALSE(allocator.TryGetSlotIndex(misaligned).has_value());
 
+	// Offset SLOTS_PER_BLOCK * SLOT_SIZE is slot-aligned but lands in the tail
+	// padding of the first block, past the last real slot.
+	uint8_t* padding_ptr = static_cast<uint8_t*>(allocator.SlotAt(0uz)) + MidoriAllocator::SLOTS_PER_BLOCK * MidoriAllocator::SLOT_SIZE;
+	REQUIRE_FALSE(allocator.TryGetSlotIndex(padding_ptr).has_value());
+
 	allocator.Free(slot, MidoriAllocator::SLOT_SIZE);
 }
 
