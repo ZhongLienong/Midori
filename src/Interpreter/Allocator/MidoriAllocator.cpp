@@ -5,10 +5,10 @@
 #include <cstdlib>
 
 static_assert(sizeof(MidoriTraceable) <= MidoriAllocator::SLOT_SIZE, "MidoriTraceable must fit one allocator slot");
+static_assert(alignof(MidoriTraceable) <= alignof(std::max_align_t), "slots rely on malloc alignment");
 
 #ifdef __EMSCRIPTEN__
 
-#include <algorithm>
 #include <bit>
 
 MidoriAllocator::MidoriAllocator()
@@ -128,12 +128,15 @@ bool MidoriAllocator::AllocateBlock()
 	return true;
 }
 
+// Blocks are append-only and never sorted: persistent GC bitmaps are keyed by slot
+// index, so renumbering is forbidden — do not replace this linear scan with a sorted
+// table/binary search.
 std::optional<size_t> MidoriAllocator::FindBlockIndex(const void* ptr) const noexcept
 {
-	const uint8_t* address = static_cast<const uint8_t*>(ptr);
+	const uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
 	for (size_t block_index = 0uz; block_index < m_blocks.size(); block_index += 1uz)
 	{
-		const uint8_t* base = m_blocks[block_index];
+		const uintptr_t base = reinterpret_cast<uintptr_t>(m_blocks[block_index]);
 		if (address >= base && address < base + BLOCK_SIZE)
 		{
 			return block_index;
@@ -159,6 +162,9 @@ std::optional<size_t> MidoriAllocator::TryGetSlotIndex(const void* ptr) const no
 	return *block_index * BITS_PER_BLOCK + block_offset / SLOT_SIZE;
 }
 
+// Precondition: slot_index must correspond to a set live bit (callers derive indices
+// from LiveBitWords/TryGetSlotIndex); out-of-range or padding indices yield pointers
+// outside the slot area.
 void* MidoriAllocator::SlotAt(size_t slot_index) const noexcept
 {
 	const size_t block_index = slot_index / BITS_PER_BLOCK;
@@ -286,7 +292,17 @@ bool MidoriAllocator::ContainsLargeAllocation(const void* ptr) const noexcept
 		return false;
 	}
 
-	return std::find(m_large_allocs.begin(), m_large_allocs.end(), const_cast<void*>(ptr)) != m_large_allocs.end();
+	std::vector<void*>::const_iterator it = std::find_if
+	(
+		m_large_allocs.begin(),
+		m_large_allocs.end(),
+		[ptr](const void* entry)
+		{
+			return entry == ptr;
+		}
+	);
+
+	return it != m_large_allocs.end();
 }
 
 #else
