@@ -17,7 +17,14 @@ namespace
 	MidoriTraceable* AllocateArrayOf(MidoriAllocator& allocator, GarbageCollector& gc, MidoriTraceable* element)
 	{
 		MidoriArray array;
-		array.AddBack(MidoriValue(element));
+		if (element != nullptr)
+		{
+			array.AddBack(MidoriValue(element));
+		}
+		else
+		{
+			array.AddBack(MidoriValue(static_cast<MidoriInteger>(0)));
+		}
 		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array));
 		gc.RegisterObject(traceable);
@@ -143,4 +150,69 @@ TEST_CASE("Collection sweeps garbage across multiple bitmap words", "[gc]")
 	GarbageCollector::GarbageCollectionRoots no_roots;
 	gc.ReclaimMemory(no_roots, allocator, true);
 	REQUIRE(allocator.LiveSlotCount() == 0uz);
+}
+
+TEST_CASE("Minor collection skips old objects but write barrier keeps old-to-young edges alive", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	GarbageCollector::GarbageCollectionRoots holder_roots{ old_holder };
+	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
+	REQUIRE(allocator.Contains(old_holder));
+
+	MidoriTraceable* young_child = AllocateText(allocator, gc, "young");
+	gc.WriteBarrier(old_holder);
+	old_holder->GetTraceable<MidoriArray>()[0] = MidoriValue(young_child);
+
+	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
+	REQUIRE(allocator.Contains(old_holder));
+	REQUIRE(allocator.Contains(young_child));
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
+	REQUIRE_FALSE(allocator.Contains(old_holder));
+	REQUIRE_FALSE(allocator.Contains(young_child));
+}
+
+TEST_CASE("Minor collection without barrier does not retain unreferenced young objects", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	MidoriTraceable* rooted = AllocateText(allocator, gc, "rooted");
+	GarbageCollector::GarbageCollectionRoots roots{ rooted };
+	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
+
+	MidoriTraceable* young_garbage = AllocateText(allocator, gc, "young-garbage");
+	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
+
+	REQUIRE(allocator.Contains(rooted));
+	REQUIRE_FALSE(allocator.Contains(young_garbage));
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
+}
+
+TEST_CASE("Write barrier deduplicates remembered objects", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	GarbageCollector::GarbageCollectionRoots roots{ old_holder };
+	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
+
+	gc.WriteBarrier(old_holder);
+	gc.WriteBarrier(old_holder);
+	gc.WriteBarrier(old_holder);
+	REQUIRE(gc.RememberedSetSize() == 1uz);
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
+	REQUIRE(gc.RememberedSetSize() == 0uz);
 }

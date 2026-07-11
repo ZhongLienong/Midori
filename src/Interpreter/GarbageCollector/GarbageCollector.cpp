@@ -143,6 +143,11 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		TryMark(root);
 	}
 
+	for (MidoriTraceable* remembered : m_remembered_set)
+	{
+		m_mark_stack.emplace_back(remembered);
+	}
+
 	while (!m_mark_stack.empty())
 	{
 		MidoriTraceable* current = m_mark_stack.back();
@@ -206,13 +211,14 @@ void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, si
 	}
 }
 
-void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
+void GarbageCollector::ClearRememberedSet() noexcept
 {
-	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
-	{
-		return;
-	}
+	m_remembered_set.clear();
+	std::fill(m_logged_bits.begin(), m_logged_bits.end(), 0ull);
+}
 
+void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, CollectionKind kind)
+{
 #if MIDORI_DEBUG_INFO
 	const bool emit_gc_diagnostics = MidoriBuild::ShouldEmitInternalDiagnostics();
 	using Clock = std::chrono::high_resolution_clock;
@@ -236,8 +242,25 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 		t_mark_start = Clock::now();
 	}
 #endif
-	// Mark
-	m_mark_bits.assign(allocator.SlotWordCount(), 0ull);
+	// Mark. Sticky: resize preserves existing mark bits and zero-fills only new
+	// words, so blocks committed since the last collection start out young.
+	m_mark_bits.resize(allocator.SlotWordCount(), 0ull);
+
+	if (kind == CollectionKind::Major)
+	{
+		std::fill(m_mark_bits.begin(), m_mark_bits.end(), 0ull);
+		ClearRememberedSet();
+#if MIDORI_DEBUG_INFO
+		m_major_collection_count += 1uz;
+#endif
+	}
+#if MIDORI_DEBUG_INFO
+	else
+	{
+		m_minor_collection_count += 1uz;
+	}
+#endif
+
 	Trace(roots);
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
@@ -258,6 +281,17 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	// Sweep
 	Sweep(allocator, sweep_count, bytes_reclaimed);
 
+	if (kind == CollectionKind::Minor)
+	{
+		// Young targets of remembered objects were promoted during the trace,
+		// so the remembered set can be safely cleared after a minor collection.
+		ClearRememberedSet();
+	}
+	else
+	{
+		m_live_bytes_after_major = std::max(m_total_bytes_allocated, MIN_GC_THRESHOLD);
+	}
+
 #if MIDORI_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
@@ -272,16 +306,24 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 			(
 				std::format
 				(
-					"\n[GC] Mark time:    {}\n"
+					"\n[GC] Kind:         {}\n"
+					"[GC] Minor count:  {}\n"
+					"[GC] Major count:  {}\n"
+					"[GC] Mark time:    {}\n"
 					"[GC] Sweep time:   {}\n"
 					"[GC] Total time:   {}\n"
 					"[GC] Roots traced: {}\n"
+					"[GC] Remembered:   {}\n"
 					"[GC] Survivors:    {}\n"
 					"[GC] Collected:    {} ({})\n",
+					kind == CollectionKind::Major ? "Major" : "Minor",
+					m_minor_collection_count,
+					m_major_collection_count,
 					FormatTime(ns_mark),
 					FormatTime(ns_sweep),
 					FormatTime(ns_total),
 					roots.size(),
+					m_remembered_set.size(),
 					allocator.LiveSlotCount(),
 					sweep_count,
 					FormatBytes(bytes_reclaimed)
@@ -296,6 +338,26 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	new_threshold = std::max(new_threshold, MIN_GC_THRESHOLD);
 	new_threshold = std::min(new_threshold, MAX_GC_THRESHOLD);
 	m_gc_threshold = new_threshold;
+}
+
+void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
+{
+	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
+	{
+		return;
+	}
+
+	if (force_clean)
+	{
+		CollectNow(roots, allocator, CollectionKind::Major);
+		return;
+	}
+
+	CollectNow(roots, allocator, CollectionKind::Minor);
+	if (m_total_bytes_allocated > 2uz * m_live_bytes_after_major)
+	{
+		CollectNow(roots, allocator, CollectionKind::Major);
+	}
 }
 
 #if MIDORI_DEBUG_INFO
