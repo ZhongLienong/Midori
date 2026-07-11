@@ -6,49 +6,60 @@ import
 	"../../MidoriPrelude/IO.mdr"
 }
 
-def seed = 0;
-def counter = fn(delta : Int) : Int => { seed = seed + delta; seed };
-
-def keeper : Array<Text> = [];
-def init = 0;
-loop
+defun Main() : Unit =>
 {
-	if init >= 32
-	then break ()
-	else
-	{
-		Appendable::Append(keeper, "seed-" ++ (init as Text));
-		init = init + 1;
-	}
-};
+	def seed = 0;
+	def counter = fn(delta : Int) : Int => { seed = seed + delta; seed };
 
-def i = 0;
-loop
-{
-	if i >= 32000
-	then break ()
-	else
-	{
-		def scratch : Array<Text> = [];
-		Appendable::Append(scratch, "churn-" ++ (i as Text));
-		Appendable::Append(scratch, scratch[0] ++ "-x");
-		Appendable::Append(scratch, scratch[1] ++ "-y");
-		Appendable::Append(scratch, scratch[2] ++ "-z");
+	def last = "tracker-initial";
+	def tracker = fn(t : Text) : Text => { if t == "" then last else { last = t; last } };
 
-		if i % 1000 == 0
-		then
+	def keeper : Array<Text> = [];
+	def init = 0;
+	loop
+	{
+		if init >= 32
+		then break ()
+		else
 		{
-			keeper[i / 1000] = "fresh-" ++ (i as Text);
-			counter(1);
-			()
+			Appendable::Append(keeper, "seed-" ++ (init as Text));
+			init = init + 1;
 		}
-		else ();
+	};
 
-		i = i + 1;
-	}
+	def i = 0;
+	loop
+	{
+		if i >= 32000
+		then break ()
+		else
+		{
+			def scratch : Array<Text> = [];
+			Appendable::Append(scratch, "churn-" ++ (i as Text));
+			Appendable::Append(scratch, scratch[0] ++ "-x");
+			Appendable::Append(scratch, scratch[1] ++ "-y");
+			Appendable::Append(scratch, scratch[2] ++ "-z");
+
+			if i % 1000 == 0
+			then
+			{
+				def fresh = "fresh-" ++ (i as Text);
+				keeper[i / 1000] = fresh;
+				tracker(fresh);
+				counter(1);
+				()
+			}
+			else ();
+
+			i = i + 1;
+		}
+	};
+
+	for item in keeper {
+		IO::PrintLine(item);
+	};
+	IO::PrintLine(tracker(""));
+	IO::PrintLine(counter(0) as Text);
 };
 
-for item in keeper {
-	IO::PrintLine(item);
-};
-IO::PrintLine(counter(0) as Text);
+Main();
