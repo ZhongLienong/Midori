@@ -26,6 +26,7 @@ WORKLOADS = [
     ROOT / "benchmark" / "all.mdr",
     ROOT / "benchmark" / "perf_sort_100k.mdr",
     ROOT / "benchmark" / "perf_text_midsize.mdr",
+    ROOT / "benchmark" / "gc_churn.mdr",
 ]
 
 RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re.MULTILINE)

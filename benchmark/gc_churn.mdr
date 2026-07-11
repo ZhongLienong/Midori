@@ -1,0 +1,66 @@
+module GCChurn
+
+import
+{
+	"../MidoriPrelude/Appendable.mdr",
+	"../MidoriPrelude/IO.mdr",
+	"../MidoriPrelude/DateTime.mdr"
+}
+
+defun Main() : Unit =>
+{
+	def start = DateTime::NowUnixMillis();
+
+	// Long-lived keeper: ~300,000 distinct Text entries, comfortably above the
+	// ~4MB minor-collection threshold, so every collection triggered by the
+	// churn phase below must trace and sweep it (old GC: every object, every
+	// cycle; new GC: only if promoted/young + remembered set).
+	def pad = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-keeper-record-payload-";
+	def keeper : Array<Text> = [];
+	def k = 0;
+	loop
+	{
+		if k >= 300000
+		then break ()
+		else
+		{
+			Appendable::Append(keeper, pad ++ (k as Text));
+			k = k + 1;
+		}
+	};
+
+	// Churn phase: sustained short-lived allocation with periodic old->young
+	// mutations into the keeper (exercises the write barrier / remembered set).
+	def i = 0;
+	loop
+	{
+		if i >= 800000
+		then break ()
+		else
+		{
+			def scratch : Array<Text> = [];
+			Appendable::Append(scratch, "churn-" ++ (i as Text));
+			Appendable::Append(scratch, scratch[0] ++ "-x");
+			Appendable::Append(scratch, scratch[1] ++ "-y");
+			Appendable::Append(scratch, scratch[2] ++ "-z");
+
+			if i % 1000 == 0
+			then
+			{
+				def fresh = "fresh-" ++ (i as Text) ++ "-" ++ scratch[3];
+				keeper[(i / 1000) % 300000] = fresh;
+				()
+			}
+			else ();
+
+			i = i + 1;
+		}
+	};
+
+	def end = DateTime::NowUnixMillis();
+
+	IO::PrintLine("GC churn benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("checksum: keeper_len=" ++ ((#keeper) as Text) ++ " keeper[0]=" ++ keeper[0] ++ " keeper[299999]=" ++ keeper[299999]);
+};
+
+Main();
