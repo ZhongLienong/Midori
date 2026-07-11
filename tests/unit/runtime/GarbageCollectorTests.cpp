@@ -197,6 +197,31 @@ TEST_CASE("Minor collection without barrier does not retain unreferenced young o
 	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
 }
 
+TEST_CASE("Minor collection loses old-to-young edges when the barrier is skipped", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	GarbageCollector::GarbageCollectionRoots holder_roots{ old_holder };
+	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
+	REQUIRE(allocator.Contains(old_holder));
+
+	MidoriTraceable* young_text = AllocateText(allocator, gc, "young");
+	// Deliberately NO WriteBarrier here: the old-to-young edge is unrecorded.
+	old_holder->GetTraceable<MidoriArray>()[0] = MidoriValue(young_text);
+
+	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
+	REQUIRE(allocator.Contains(old_holder));
+	// Containment check only: young_text is dangling after the collection and
+	// must never be dereferenced.
+	REQUIRE_FALSE(allocator.Contains(young_text));
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
+}
+
 TEST_CASE("Write barrier deduplicates remembered objects", "[gc][generational]")
 {
 	MidoriAllocator allocator;

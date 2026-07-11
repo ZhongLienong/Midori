@@ -101,9 +101,10 @@ public:
 		m_total_bytes_allocated += traceable->GetSize();
 	}
 
-#if MIDORI_DEBUG_INFO
+	// Declared unconditionally so the class definition is identical across translation
+	// units regardless of MIDORI_DEBUG_INFO; the definition (and every call site) stays
+	// guarded in the .cpp, so non-debug builds never reference it.
 	void PrintMemoryTelemetry();
-#endif
 
 	bool Contains(MidoriTraceable* ptr) const;
 
