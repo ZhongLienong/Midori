@@ -1,0 +1,54 @@
+module GenerationalChurn
+
+import
+{
+	"../../MidoriPrelude/Appendable.mdr",
+	"../../MidoriPrelude/IO.mdr"
+}
+
+def seed = 0;
+def counter = fn(delta : Int) : Int => { seed = seed + delta; seed };
+
+def keeper : Array<Text> = [];
+def init = 0;
+loop
+{
+	if init >= 32
+	then break ()
+	else
+	{
+		Appendable::Append(keeper, "seed-" ++ (init as Text));
+		init = init + 1;
+	}
+};
+
+def i = 0;
+loop
+{
+	if i >= 32000
+	then break ()
+	else
+	{
+		def scratch : Array<Text> = [];
+		Appendable::Append(scratch, "churn-" ++ (i as Text));
+		Appendable::Append(scratch, scratch[0] ++ "-x");
+		Appendable::Append(scratch, scratch[1] ++ "-y");
+		Appendable::Append(scratch, scratch[2] ++ "-z");
+
+		if i % 1000 == 0
+		then
+		{
+			keeper[i / 1000] = "fresh-" ++ (i as Text);
+			counter(1);
+			()
+		}
+		else ();
+
+		i = i + 1;
+	}
+};
+
+for item in keeper {
+	IO::PrintLine(item);
+};
+IO::PrintLine(counter(0) as Text);
