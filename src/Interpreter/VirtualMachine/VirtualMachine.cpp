@@ -3000,6 +3000,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				new_env[parent_count + i] = EnsureCellHandle(local_slot, closure_slot);
 			}
 
+			// Closure is freshly allocated by the preceding MAKE_CLOSURE and cannot have
+			// tenured (no GC safepoint runs between allocation and here), so this barrier
+			// is normally a no-op. Kept as insurance against future codegen/safepoint changes.
+			m_gc.WriteBarrier(closure_slot->GetPointer());
 			closure_env = std::move(new_env);
 			break;
 		}
