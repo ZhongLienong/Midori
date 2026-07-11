@@ -1279,7 +1279,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue* indices_begin = sp - num_indices;
 			MidoriValue* arr_slot = indices_begin - 1;
 			MidoriValue arr = *arr_slot;
-			MidoriArray* arr_ref = &arr.GetPointer()->GetTraceable<MidoriArray>();
+			MidoriTraceable* arr_owner = arr.GetPointer();
+			MidoriArray* arr_ref = &arr_owner->GetTraceable<MidoriArray>();
 			MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
 			const int last_index = num_indices - 1;
 			m_instruction_pointer = inst_ip;
@@ -1298,11 +1299,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 				MidoriValue& next_val = (*arr_ref)[static_cast<int>(index.GetInteger())];
 				if (i != last_index)
 				{
-					arr_ref = &next_val.GetPointer()->GetTraceable<MidoriArray>();
+					arr_owner = next_val.GetPointer();
+					arr_ref = &arr_owner->GetTraceable<MidoriArray>();
 					arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
 				}
 				else
 				{
+					m_gc.WriteBarrier(arr_owner);
 					next_val = value_to_set;
 				}
 			}
@@ -1316,6 +1319,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue val = Pop(sp);
 			MidoriValue& arr = Peek(sp);
 
+			m_gc.WriteBarrier(arr.GetPointer());
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			arr_ref.AddBack(val);
 
@@ -1326,6 +1330,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue arr = Pop(sp);
 			MidoriValue& val = Peek(sp);
 
+			m_gc.WriteBarrier(arr.GetPointer());
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			arr_ref.AddFront(val);
 
@@ -1791,6 +1796,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
+			m_gc.WriteBarrier(left.GetPointer());
 			left.GetPointer()->GetTraceable<MidoriArray>().Extend(right.GetPointer()->GetTraceable<MidoriArray>());
 
 			break;
@@ -1867,6 +1873,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue element = Pop(sp);
 			MidoriValue container = Pop(sp);
 
+			m_gc.WriteBarrier(container.GetPointer());
 			container.GetPointer()->GetTraceable<MidoriArray>().AddBack(element);
 			Push(sp, MidoriValue());
 			break;
@@ -2522,6 +2529,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 						array_arg.data = &array[0u];
 						array_arg.length = array.GetLength();
 						m_ffi_array_args.push_back(array_arg);
+						m_gc.WriteBarrier(ptr);
 						m_ffi_args[static_cast<size_t>(idx)] = &m_ffi_array_args.back();
 					}
 					else
@@ -2626,6 +2634,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 						array_arg.data = array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr;
 						array_arg.length = array.GetLength();
 						m_ffi_array_args.push_back(array_arg);
+						m_gc.WriteBarrier(ptr);
 						m_ffi_args[idx] = &m_ffi_array_args.back();
 					}
 					else
@@ -3068,6 +3077,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
+				m_gc.WriteBarrier(ptr);
 				ptr->GetTraceable<MidoriCellValue>().GetValue() = value;
 			}
 			else
@@ -3093,8 +3103,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::SET_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			cell_value = Peek(sp);
+			MidoriTraceable* cell_owner = (*env)[offset].GetPointer();
+			m_gc.WriteBarrier(cell_owner);
+			cell_owner->GetTraceable<MidoriCellValue>().GetValue() = Peek(sp);
 			break;
 		}
 		case OpCode::DEFINE_GLOBAL_WIDE:
@@ -3167,6 +3178,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriTraceable* ptr = slot.GetPointer();
 			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
 			{
+				m_gc.WriteBarrier(ptr);
 				ptr->GetTraceable<MidoriCellValue>().GetValue() = value;
 			}
 			else
@@ -3189,8 +3201,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			cell_value = Peek(sp);
+			MidoriTraceable* cell_owner = (*env)[offset].GetPointer();
+			m_gc.WriteBarrier(cell_owner);
+			cell_owner->GetTraceable<MidoriCellValue>().GetValue() = Peek(sp);
 			break;
 		}
 		case OpCode::GET_MEMBER:
@@ -3205,6 +3218,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue value = Pop(sp);
 			MidoriValue& var = Peek(sp);
+			m_gc.WriteBarrier(var.GetPointer());
 			MidoriValue& member = var.GetPointer()->GetTraceable<MidoriStruct>().m_values[index];
 			member = value;
 			break;
