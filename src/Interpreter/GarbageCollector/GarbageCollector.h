@@ -55,37 +55,13 @@ public:
 
 	size_t RememberedSetSize() const noexcept { return m_remembered_set.size(); }
 
-	MIDORI_FORCE_INLINE void WriteBarrier(MidoriTraceable* target) noexcept
-	{
-		if (m_allocator == nullptr)
-		{
-			return;
-		}
-
-		const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(target);
-		if (!slot_index.has_value())
-		{
-			return;
-		}
-
-		const size_t word_index = *slot_index / 64uz;
-		const uint64_t mask = 1ull << (*slot_index % 64uz);
-		if (word_index >= m_mark_bits.size() || (m_mark_bits[word_index] & mask) == 0ull)
-		{
-			return;
-		}
-		if (word_index < m_logged_bits.size() && (m_logged_bits[word_index] & mask) != 0ull)
-		{
-			return;
-		}
-
-		if (m_logged_bits.size() < m_mark_bits.size())
-		{
-			m_logged_bits.resize(m_mark_bits.size(), 0ull);
-		}
-		m_logged_bits[word_index] |= mask;
-		m_remembered_set.emplace_back(target);
-	}
+	// Outlined (defined in GarbageCollector.cpp, MIDORI_NOINLINE) rather than force-inlined:
+	// every check needs the out-of-line MidoriAllocator::TryGetSlotIndex call, so there is no
+	// cheap inlinable pre-filter. Force-inlining expanded this body at 13 sites inside the
+	// VirtualMachine dispatch loop (compiled /GL-, so no cross-TU inlining anyway), bloating
+	// the hottest function and regressing even barrier-free workloads. Semantics are byte
+	// identical to the previous inline body.
+	MIDORI_NOINLINE void WriteBarrier(MidoriTraceable* target) noexcept;
 
 	MIDORI_FORCE_INLINE bool ShouldCollect() const noexcept
 	{

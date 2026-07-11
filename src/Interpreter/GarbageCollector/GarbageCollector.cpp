@@ -90,6 +90,38 @@ bool GarbageCollector::Contains(MidoriTraceable* ptr) const
 	return m_allocator != nullptr && m_allocator->Contains(ptr);
 }
 
+void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
+{
+	if (m_allocator == nullptr)
+	{
+		return;
+	}
+
+	const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(target);
+	if (!slot_index.has_value())
+	{
+		return;
+	}
+
+	const size_t word_index = *slot_index / 64uz;
+	const uint64_t mask = 1ull << (*slot_index % 64uz);
+	if (word_index >= m_mark_bits.size() || (m_mark_bits[word_index] & mask) == 0ull)
+	{
+		return;
+	}
+	if (word_index < m_logged_bits.size() && (m_logged_bits[word_index] & mask) != 0ull)
+	{
+		return;
+	}
+
+	if (m_logged_bits.size() < m_mark_bits.size())
+	{
+		m_logged_bits.resize(m_mark_bits.size(), 0ull);
+	}
+	m_logged_bits[word_index] |= mask;
+	m_remembered_set.emplace_back(target);
+}
+
 void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 {
 	if (child_ptr == nullptr || m_allocator == nullptr)
