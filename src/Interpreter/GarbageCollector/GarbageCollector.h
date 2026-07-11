@@ -39,6 +39,8 @@ public:
 		return m_total_bytes_allocated >= m_gc_threshold;
 	}
 
+	size_t TotalBytesAllocated() const noexcept { return m_total_bytes_allocated; }
+
 	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
 
 	MIDORI_FORCE_INLINE void RegisterObject(MidoriTraceable* traceable) noexcept

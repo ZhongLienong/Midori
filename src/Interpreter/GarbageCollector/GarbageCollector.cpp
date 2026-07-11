@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <optional>
 
 #if MIDORI_DEBUG_INFO
 #include "Common\Printer\Printer.h"
