@@ -139,3 +139,16 @@ minor/major cycle counters.
   mutating a long-lived structure (old→young pointers), validating barrier and
   promotion correctness under forced collections.
 - Phase 1 is implemented, verified, and benchmarked before Phase 2 begins.
+
+## Implementation deviations (accepted)
+
+- Emscripten block table is append-only with linear `FindBlockIndex` (not
+  sorted/binary-search): slot indices must stay stable because persistent
+  mark/logged bitmaps are keyed by them.
+- `WriteBarrier` takes only the target (no stored-value young test):
+  conservative over-approximation, deduped by logged bits; there are 13
+  barrier sites plus a defensive `BIND_CAPTURES` barrier, not four.
+- `WriteBarrier` is out-of-line (`MIDORI_NOINLINE`), not an inline bit test:
+  `ExecuteLoop` is code-alignment sensitive; see commit 0a7921e.
+- Minor/major collection counters are unconditional data members (debug-only
+  members caused cross-TU layout divergence; commit 3ae741b).

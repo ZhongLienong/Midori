@@ -1658,7 +1658,7 @@ Fix anything it flags.
 git commit --allow-empty -m "perf(gc): generational GC final benchmark record"
 ```
 
-- [ ] **Step 8.5: Use superpowers:finishing-a-development-branch** to decide merge/PR/cleanup (work is on branch `mono-vm` — confirm with the user how they want it integrated).
+- [ ] **Step 8.5: Use superpowers:finishing-a-development-branch** to decide merge/PR/cleanup (work is on branch `gc-overhaul`, branched off `mono-vm` — confirm with the user how they want it integrated).
 
 ---
 
