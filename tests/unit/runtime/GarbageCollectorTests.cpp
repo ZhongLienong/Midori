@@ -30,6 +30,20 @@ namespace
 		gc.RegisterObject(traceable);
 		return traceable;
 	}
+
+	// A text whose registered GetSize (sizeof(MidoriTraceable) + GetCapacity()) is large
+	// enough to push total allocated bytes past INITIAL_GC_THRESHOLD after only a few
+	// allocations. MidoriText::GetCapacity() reflects the long-buffer capacity reserved
+	// via Reserve(), not the logical string length.
+	MidoriTraceable* AllocateLargeText(MidoriAllocator& allocator, GarbageCollector& gc, int reserve_bytes)
+	{
+		MidoriText text;
+		text.Reserve(reserve_bytes);
+		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
+		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(text));
+		gc.RegisterObject(traceable);
+		return traceable;
+	}
 }
 
 TEST_CASE("Collection keeps rooted objects and reclaims garbage", "[gc]")
@@ -220,6 +234,45 @@ TEST_CASE("Minor collection loses old-to-young edges when the barrier is skipped
 
 	GarbageCollector::GarbageCollectionRoots no_roots;
 	gc.CollectNow(no_roots, allocator, GarbageCollector::CollectionKind::Major);
+}
+
+TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay high", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	// Each text reserves 4MB of long-buffer capacity, so registered GetSize() is
+	// roughly 4MB + sizeof(MidoriTraceable) per object (MidoriText::GetCapacity()
+	// reflects buffer capacity, not logical length). Three of them register
+	// ~12.6MB, comfortably above INITIAL_GC_THRESHOLD (4,096,000 bytes) so a
+	// non-forced ReclaimMemory actually collects, and comfortably above
+	// 2 * m_live_bytes_after_major (2 * 4,096,000 = 8,192,000 bytes, since
+	// m_live_bytes_after_major starts at INITIAL_GC_THRESHOLD) so the survivors
+	// left live after the minor collection force an escalation to a major one.
+	constexpr int RESERVE_BYTES = 4 * 1024 * 1024;
+	GarbageCollector::GarbageCollectionRoots roots;
+	roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+	roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+	roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+
+	REQUIRE(gc.ShouldCollect());
+	REQUIRE(gc.MinorCollectionCount() == 0uz);
+	REQUIRE(gc.MajorCollectionCount() == 0uz);
+
+	gc.ReclaimMemory(roots, allocator, false);
+
+	REQUIRE(gc.MinorCollectionCount() == 1uz);
+	REQUIRE(gc.MajorCollectionCount() == 1uz);
+	for (MidoriTraceable* rooted : roots)
+	{
+		REQUIRE(allocator.Contains(rooted));
+	}
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.ReclaimMemory(no_roots, allocator, true);
+	REQUIRE(gc.MajorCollectionCount() == 2uz);
+	REQUIRE(allocator.LiveSlotCount() == 0uz);
 }
 
 TEST_CASE("Write barrier deduplicates remembered objects", "[gc][generational]")

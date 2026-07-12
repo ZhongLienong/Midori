@@ -55,12 +55,13 @@ public:
 
 	size_t RememberedSetSize() const noexcept { return m_remembered_set.size(); }
 
-	// Outlined (defined in GarbageCollector.cpp, MIDORI_NOINLINE) rather than force-inlined:
-	// every check needs the out-of-line MidoriAllocator::TryGetSlotIndex call, so there is no
-	// cheap inlinable pre-filter. Force-inlining expanded this body at 13 sites inside the
-	// VirtualMachine dispatch loop (compiled /GL-, so no cross-TU inlining anyway), bloating
-	// the hottest function and regressing even barrier-free workloads. Semantics are byte
-	// identical to the previous inline body.
+	size_t MinorCollectionCount() const noexcept { return m_minor_collection_count; }
+
+	size_t MajorCollectionCount() const noexcept { return m_major_collection_count; }
+
+	// Out-of-line (MIDORI_NOINLINE): the barrier fires only on container-mutation opcodes,
+	// and keeping it out of the dispatch-loop TU minimizes code-size/alignment perturbation
+	// of ExecuteLoop, whose performance is highly layout-sensitive (see commit 0a7921e).
 	MIDORI_NOINLINE void WriteBarrier(MidoriTraceable* target) noexcept;
 
 	MIDORI_FORCE_INLINE bool ShouldCollect() const noexcept

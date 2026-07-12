@@ -251,6 +251,11 @@ void GarbageCollector::ClearRememberedSet() noexcept
 
 void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, CollectionKind kind)
 {
+	// Captured before any ClearRememberedSet() call in this function (the Major-path clear
+	// below, or the Minor-path clear after sweep) so the debug telemetry below reports the
+	// remembered-set size that was actually traced, not zero.
+	const size_t remembered_count = m_remembered_set.size();
+
 #if MIDORI_DEBUG_INFO
 	const bool emit_gc_diagnostics = MidoriBuild::ShouldEmitInternalDiagnostics();
 	using Clock = std::chrono::high_resolution_clock;
@@ -282,16 +287,12 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	{
 		std::fill(m_mark_bits.begin(), m_mark_bits.end(), 0ull);
 		ClearRememberedSet();
-#if MIDORI_DEBUG_INFO
 		m_major_collection_count += 1uz;
-#endif
 	}
-#if MIDORI_DEBUG_INFO
 	else
 	{
 		m_minor_collection_count += 1uz;
 	}
-#endif
 
 	Trace(roots);
 #if MIDORI_DEBUG_INFO
@@ -355,7 +356,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 					FormatTime(ns_sweep),
 					FormatTime(ns_total),
 					roots.size(),
-					m_remembered_set.size(),
+					remembered_count,
 					allocator.LiveSlotCount(),
 					sweep_count,
 					FormatBytes(bytes_reclaimed)
