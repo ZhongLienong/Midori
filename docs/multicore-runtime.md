@@ -21,7 +21,7 @@ Communication between workers happens exclusively through message passing
 | Value stack | No | Per-VM, 10k slots |
 | Call stack | No | Per-VM, 10k slots |
 | Heap / Allocator | No | Per-VM `MidoriAllocator` |
-| Garbage collector | No | Per-VM, independent collection |
+| Garbage collector | No | Per-VM, independent generational collection |
 | Global variables | No | Per-VM, zero-initialized for workers |
 | String literal cache | No | Per-VM |
 | Static closure cache | No | Per-VM |

@@ -700,7 +700,7 @@ defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
 - **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
 - **Optimizer**: Constant folding, strength reduction, constant branch elimination, local constant propagation, dead code elimination, canonicalization cleanup, closure lifting, and tail call optimization; rerun until a fixpoint or the 8-iteration cap is reached
 - **Backend**: Bytecode generator → Linker
-- **Runtime**: Single `VirtualMachine` execution path with mark-and-sweep garbage collection
+- **Runtime**: Single `VirtualMachine` execution path with a non-moving, generational (bitmap mark-sweep) garbage collector
 
 See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execution, closure capture, and memory management.
 
