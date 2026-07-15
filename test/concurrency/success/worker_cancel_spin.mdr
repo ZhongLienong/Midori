@@ -1,0 +1,32 @@
+module worker_cancel_spin
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+import { "../../../MidoriPrelude/System.mdr" }
+use System.{Sleep}
+
+defun Spin(_dummy: Int) : Int => {
+    def i = 0;
+    loop
+    {
+        i = i + 1;
+        if i < 0 then break () else ();
+    };
+    i
+};
+
+def w = spawn Spin(0);
+Sleep(50);
+def cancelled = cancel(w);
+def attempts = 0;
+loop
+{
+    if is_done(w) then break () else ();
+    Sleep(10);
+    attempts = attempts + 1;
+    if attempts >= 500 then break () else ();
+};
+if cancelled && is_done(w)
+then PrintLine("spin worker cancelled")
+else PrintLine("spin worker still running");

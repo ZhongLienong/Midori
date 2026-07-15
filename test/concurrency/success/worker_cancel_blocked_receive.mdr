@@ -1,0 +1,28 @@
+module worker_cancel_blocked_receive
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+import { "../../../MidoriPrelude/System.mdr" }
+use System.{Sleep}
+
+defun BlockOnChannel(ch: Channel<Int>) : Int => {
+    def v = <- ch;
+    v
+};
+
+def ch = channel<Int>(1);
+def w = spawn BlockOnChannel(ch);
+Sleep(50);
+def cancelled = cancel(w);
+def attempts = 0;
+loop
+{
+    if is_done(w) then break () else ();
+    Sleep(10);
+    attempts = attempts + 1;
+    if attempts >= 500 then break () else ();
+};
+if cancelled && is_done(w)
+then PrintLine("blocked worker cancelled")
+else PrintLine("blocked worker still running");
