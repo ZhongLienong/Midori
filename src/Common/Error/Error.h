@@ -76,7 +76,8 @@ enum class RuntimeErrorCode
 	DivisionByZero,
 	InternalTypeError,
 	InternalFFITypeError,
-	UnsupportedPlatformOperation
+	UnsupportedPlatformOperation,
+	WorkerCancelled
 };
 
 enum class RuntimeDiagnosticKind

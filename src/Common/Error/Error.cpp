@@ -140,6 +140,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "InternalFFITypeError";
 	case RuntimeErrorCode::UnsupportedPlatformOperation:
 		return "UnsupportedPlatformOperation";
+	case RuntimeErrorCode::WorkerCancelled:
+		return "WorkerCancelled";
 	default:
 		return "None";
 	}
@@ -362,6 +364,7 @@ namespace
 		case RuntimeErrorCode::ArrayPopEmpty:
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
+		case RuntimeErrorCode::WorkerCancelled:
 		default:
 			return false;
 		}
