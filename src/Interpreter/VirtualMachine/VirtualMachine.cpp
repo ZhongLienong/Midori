@@ -2927,6 +2927,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// Jump to the start of the function without creating a new call frame
 			ip = GetProcEntry(closure.m_proc_index);
 
+			if (m_stop_possible && m_stop_token.stop_requested()) [[unlikely]]
+			{
+				SyncMachineState(ip, sp, bp, env);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
+			}
+
 			break;
 		}
 		case OpCode::CONSTRUCT_STRUCT:

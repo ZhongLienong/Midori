@@ -72,3 +72,29 @@ defun main(): Int => 0;
 	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
 }
+
+TEST_CASE("Joining a cancelled tail-recursive worker reports a cancellation error", "[runtime][worker][cancel]")
+{
+	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
+	const MidoriTest::TempDir temp_dir("midori-worker-cancel-tail");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mdr";
+
+	const std::string source_code = std::format(
+		R"(module WorkerCancelTailJoin
+import {{ "{}" }}
+defun SpinTail(i: Int) : Int => SpinTail(i + 1);
+def w = spawn SpinTail(0);
+System::Sleep(50);
+def cancelled = cancel(w);
+def r = join w;
+defun main(): Int => 0;
+)",
+		MidoriPathLiteral(system_module_path));
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
+}
