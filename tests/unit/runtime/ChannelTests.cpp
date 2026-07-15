@@ -101,6 +101,8 @@ TEST_CASE("Registry erases a channel once closed and drained", "[channel][regist
 
 	const ChannelReceiveResult drained = registry.Receive(channel_id, std::stop_token{});
 	REQUIRE(drained.m_status == ChannelOpStatus::Ok);
+	REQUIRE(drained.m_value.has_value());
+	REQUIRE(drained.m_value.value().m_raw_bits == 7u);
 	REQUIRE(registry.GetChannelCount() == baseline);
 
 	const ChannelReceiveResult after = registry.Receive(channel_id, std::stop_token{});
