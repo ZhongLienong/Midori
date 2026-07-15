@@ -433,15 +433,28 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 			return false;
 		}
 
-		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()), std::stop_token{});
+		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()), m_stop_token);
+		if (send_status == ChannelOpStatus::Cancelled)
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine())));
+			return false;
+		}
+
 		Push(send_status == ChannelOpStatus::Ok);
 		return true;
 	}
 	case OpCode::CHANNEL_RECEIVE:
 	{
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, std::stop_token{});
-		if (received_value.m_status != ChannelOpStatus::Ok)
+		ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, m_stop_token);
+		if (received_value.m_status == ChannelOpStatus::Cancelled)
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine())));
+			return false;
+		}
+		if (received_value.m_status == ChannelOpStatus::Closed)
 		{
 			m_instruction_pointer = ip;
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "Cannot receive from a closed and empty channel.", GetLine())));
@@ -2269,6 +2282,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
+			if (m_stop_possible && m_stop_token.stop_requested()) [[unlikely]]
+			{
+				SyncMachineState(ip, sp, bp, env);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
+			}
 			TryCollect(ip, sp, bp, env);
 			break;
 		}

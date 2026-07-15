@@ -14,6 +14,7 @@
 #include <expected>
 #include <memory>
 #include <new>
+#include <stop_token>
 #include <vector>
 
 class VirtualMachine
@@ -109,6 +110,8 @@ private:
     size_t m_stack_page_size = 0u;
 	std::optional<RuntimeError> m_last_error = std::nullopt;
 	int m_worker_proc_index = -1;
+	std::stop_token m_stop_token;
+	bool m_stop_possible = false;
 
 
 public:
@@ -131,6 +134,12 @@ public:
 	void SetGlobalValue(int global_index, MidoriValue value) noexcept { (*m_global_vars)[global_index] = value; }
 
     void PrepareWorkerCall(int proc_index) noexcept;
+
+    void SetStopToken(std::stop_token stop_token) noexcept
+    {
+        m_stop_token = std::move(stop_token);
+        m_stop_possible = m_stop_token.stop_possible();
+    }
 
     MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 

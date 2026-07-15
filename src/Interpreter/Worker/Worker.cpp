@@ -138,6 +138,7 @@ void Worker::Execute(std::stop_token stop_token)
 		}
 
 		VirtualMachine worker_vm(m_executable, 0, nullptr);
+		worker_vm.SetStopToken(stop_token);
 
 		std::expected<void, std::string> safety_check = worker_vm.GetDynamicFFIRegistry().ValidateWorkerSafety();
 		if (!safety_check.has_value())
