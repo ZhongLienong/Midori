@@ -4,18 +4,33 @@
 
 #include <condition_variable>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <optional>
+#include <stop_token>
 #include <unordered_map>
+
+enum class ChannelOpStatus
+{
+	Ok,
+	Closed,
+	Cancelled
+};
+
+struct ChannelReceiveResult
+{
+	ChannelOpStatus m_status = ChannelOpStatus::Closed;
+	std::optional<SerializedValue> m_value = std::nullopt;
+};
 
 class Channel
 {
 public:
 	explicit Channel(int capacity);
 
-	bool Send(SerializedValue message);
+	ChannelOpStatus Send(SerializedValue message, std::stop_token stop_token);
 
-	std::optional<SerializedValue> Receive();
+	ChannelReceiveResult Receive(std::stop_token stop_token);
 
 	std::optional<SerializedValue> TryReceive();
 
@@ -23,10 +38,12 @@ public:
 
 	bool IsClosed() const;
 
+	bool IsDrained() const;
+
 private:
 	mutable std::mutex m_mutex;
-	std::condition_variable m_not_empty;
-	std::condition_variable m_not_full;
+	std::condition_variable_any m_not_empty;
+	std::condition_variable_any m_not_full;
 	std::deque<SerializedValue> m_queue;
 	int m_capacity;
 	bool m_closed = false;
@@ -39,9 +56,9 @@ public:
 
 	int CreateChannel(int capacity);
 
-	bool Send(int channel_id, SerializedValue message);
+	ChannelOpStatus Send(int channel_id, SerializedValue message, std::stop_token stop_token);
 
-	std::optional<SerializedValue> Receive(int channel_id);
+	ChannelReceiveResult Receive(int channel_id, std::stop_token stop_token);
 
 	std::optional<SerializedValue> TryReceive(int channel_id);
 

@@ -7,41 +7,51 @@ Channel::Channel(int capacity)
 {
 }
 
-bool Channel::Send(SerializedValue message)
+ChannelOpStatus Channel::Send(SerializedValue message, std::stop_token stop_token)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
-	m_not_full.wait(lock, [this]()
+	const bool ready = m_not_full.wait(lock, stop_token, [this]()
 	{
 		return m_closed || static_cast<int>(m_queue.size()) < m_capacity;
 	});
 
+	if (!ready)
+	{
+		return ChannelOpStatus::Cancelled;
+	}
+
 	if (m_closed)
 	{
-		return false;
+		return ChannelOpStatus::Closed;
 	}
 
 	m_queue.push_back(std::move(message));
 	m_not_empty.notify_one();
-	return true;
+	return ChannelOpStatus::Ok;
 }
 
-std::optional<SerializedValue> Channel::Receive()
+ChannelReceiveResult Channel::Receive(std::stop_token stop_token)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
-	m_not_empty.wait(lock, [this]()
+	const bool ready = m_not_empty.wait(lock, stop_token, [this]()
 	{
 		return !m_queue.empty() || m_closed;
 	});
 
+	if (!ready)
+	{
+		return ChannelReceiveResult{ ChannelOpStatus::Cancelled, std::nullopt };
+	}
+
 	if (m_queue.empty())
 	{
-		return std::nullopt;
+		return ChannelReceiveResult{ ChannelOpStatus::Closed, std::nullopt };
 	}
 
 	SerializedValue message = std::move(m_queue.front());
 	m_queue.pop_front();
 	m_not_full.notify_one();
-	return message;
+	return ChannelReceiveResult{ ChannelOpStatus::Ok, std::move(message) };
 }
 
 std::optional<SerializedValue> Channel::TryReceive()
@@ -72,6 +82,12 @@ bool Channel::IsClosed() const
 	return m_closed;
 }
 
+bool Channel::IsDrained() const
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	return m_closed && m_queue.empty();
+}
+
 ChannelRegistry& ChannelRegistry::GetInstance()
 {
 	static ChannelRegistry instance;
@@ -87,24 +103,24 @@ int ChannelRegistry::CreateChannel(int capacity)
 	return id;
 }
 
-bool ChannelRegistry::Send(int channel_id, SerializedValue message)
+ChannelOpStatus ChannelRegistry::Send(int channel_id, SerializedValue message, std::stop_token stop_token)
 {
 	Channel* channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
-		return false;
+		return ChannelOpStatus::Closed;
 	}
-	return channel->Send(std::move(message));
+	return channel->Send(std::move(message), std::move(stop_token));
 }
 
-std::optional<SerializedValue> ChannelRegistry::Receive(int channel_id)
+ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token stop_token)
 {
 	Channel* channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
-		return std::nullopt;
+		return ChannelReceiveResult{ ChannelOpStatus::Closed, std::nullopt };
 	}
-	return channel->Receive();
+	return channel->Receive(std::move(stop_token));
 }
 
 std::optional<SerializedValue> ChannelRegistry::TryReceive(int channel_id)

@@ -433,22 +433,22 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 			return false;
 		}
 
-		const bool sent = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()));
-		Push(sent);
+		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()), std::stop_token{});
+		Push(send_status == ChannelOpStatus::Ok);
 		return true;
 	}
 	case OpCode::CHANNEL_RECEIVE:
 	{
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		std::optional<SerializedValue> received_value = ChannelRegistry::GetInstance().Receive(channel_id);
-		if (!received_value.has_value())
+		ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, std::stop_token{});
+		if (received_value.m_status != ChannelOpStatus::Ok)
 		{
 			m_instruction_pointer = ip;
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "Cannot receive from a closed and empty channel.", GetLine())));
 			return false;
 		}
 
-		std::expected<MidoriValue, std::string> deserialized_value = ValueTransfer::Deserialize(received_value.value(), *this);
+		std::expected<MidoriValue, std::string> deserialized_value = ValueTransfer::Deserialize(received_value.m_value.value(), *this);
 		if (!deserialized_value.has_value())
 		{
 			m_instruction_pointer = ip;
