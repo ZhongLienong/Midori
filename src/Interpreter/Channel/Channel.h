@@ -2,6 +2,7 @@
 
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -40,6 +41,8 @@ public:
 
 	bool IsDrained() const;
 
+	bool IsCloseRequested() const noexcept;
+
 private:
 	mutable std::mutex m_mutex;
 	std::condition_variable_any m_not_empty;
@@ -47,6 +50,7 @@ private:
 	std::deque<SerializedValue> m_queue;
 	int m_capacity;
 	bool m_closed = false;
+	std::atomic<bool> m_close_requested{ false };
 };
 
 class ChannelRegistry
@@ -75,5 +79,5 @@ private:
 
 	std::shared_ptr<Channel> FindChannel(int channel_id) const;
 
-	void EraseIfDrained(int channel_id);
+	void EraseIfDrained(int channel_id, const std::shared_ptr<Channel>& channel);
 };

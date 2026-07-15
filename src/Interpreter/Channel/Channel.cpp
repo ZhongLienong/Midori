@@ -72,6 +72,7 @@ void Channel::Close()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	m_closed = true;
+	m_close_requested.store(true, std::memory_order_release);
 	m_not_empty.notify_all();
 	m_not_full.notify_all();
 }
@@ -86,6 +87,11 @@ bool Channel::IsDrained() const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	return m_closed && m_queue.empty();
+}
+
+bool Channel::IsCloseRequested() const noexcept
+{
+	return m_close_requested.load(std::memory_order_acquire);
 }
 
 ChannelRegistry& ChannelRegistry::GetInstance()
@@ -122,7 +128,7 @@ ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token st
 	}
 
 	ChannelReceiveResult result = channel->Receive(std::move(stop_token));
-	EraseIfDrained(channel_id);
+	EraseIfDrained(channel_id, channel);
 	return result;
 }
 
@@ -135,7 +141,7 @@ std::optional<SerializedValue> ChannelRegistry::TryReceive(int channel_id)
 	}
 
 	std::optional<SerializedValue> result = channel->TryReceive();
-	EraseIfDrained(channel_id);
+	EraseIfDrained(channel_id, channel);
 	return result;
 }
 
@@ -145,7 +151,7 @@ void ChannelRegistry::Close(int channel_id)
 	if (channel != nullptr)
 	{
 		channel->Close();
-		EraseIfDrained(channel_id);
+		EraseIfDrained(channel_id, channel);
 	}
 }
 
@@ -166,8 +172,14 @@ std::shared_ptr<Channel> ChannelRegistry::FindChannel(int channel_id) const
 	return channel_it->second;
 }
 
-void ChannelRegistry::EraseIfDrained(int channel_id)
+// Lock order: registry mutex, then channel mutex (via IsDrained). Channel must never call back into the registry.
+void ChannelRegistry::EraseIfDrained(int channel_id, const std::shared_ptr<Channel>& channel)
 {
+	if (!channel->IsCloseRequested())
+	{
+		return;
+	}
+
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::unordered_map<int, std::shared_ptr<Channel>>::iterator channel_it = m_channels.find(channel_id);
 	if (channel_it != m_channels.end() && channel_it->second->IsDrained())
