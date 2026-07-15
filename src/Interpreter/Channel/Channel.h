@@ -64,12 +64,16 @@ public:
 
 	void Close(int channel_id);
 
+	size_t GetChannelCount() const;
+
 private:
 	ChannelRegistry() = default;
 
 	mutable std::mutex m_mutex;
-	std::unordered_map<int, std::unique_ptr<Channel>> m_channels;
+	std::unordered_map<int, std::shared_ptr<Channel>> m_channels;
 	int m_next_id = 1;
 
-	Channel* FindChannel(int channel_id) const;
+	std::shared_ptr<Channel> FindChannel(int channel_id) const;
+
+	void EraseIfDrained(int channel_id);
 };

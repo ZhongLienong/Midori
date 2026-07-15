@@ -83,3 +83,39 @@ TEST_CASE("Send to a closed channel reports Closed", "[channel]")
 	SerializedValue message;
 	REQUIRE(channel.Send(std::move(message), std::stop_token{}) == ChannelOpStatus::Closed);
 }
+
+TEST_CASE("Registry erases a channel once closed and drained", "[channel][registry]")
+{
+	ChannelRegistry& registry = ChannelRegistry::GetInstance();
+	const size_t baseline = registry.GetChannelCount();
+
+	const int channel_id = registry.CreateChannel(1);
+	REQUIRE(registry.GetChannelCount() == baseline + 1u);
+
+	SerializedValue message;
+	message.m_raw_bits = 7u;
+	REQUIRE(registry.Send(channel_id, std::move(message), std::stop_token{}) == ChannelOpStatus::Ok);
+
+	registry.Close(channel_id);
+	REQUIRE(registry.GetChannelCount() == baseline + 1u);
+
+	const ChannelReceiveResult drained = registry.Receive(channel_id, std::stop_token{});
+	REQUIRE(drained.m_status == ChannelOpStatus::Ok);
+	REQUIRE(registry.GetChannelCount() == baseline);
+
+	const ChannelReceiveResult after = registry.Receive(channel_id, std::stop_token{});
+	REQUIRE(after.m_status == ChannelOpStatus::Closed);
+}
+
+TEST_CASE("Registry erases an empty channel on close", "[channel][registry]")
+{
+	ChannelRegistry& registry = ChannelRegistry::GetInstance();
+	const size_t baseline = registry.GetChannelCount();
+
+	const int channel_id = registry.CreateChannel(1);
+	registry.Close(channel_id);
+	REQUIRE(registry.GetChannelCount() == baseline);
+
+	SerializedValue message;
+	REQUIRE(registry.Send(channel_id, std::move(message), std::stop_token{}) == ChannelOpStatus::Closed);
+}

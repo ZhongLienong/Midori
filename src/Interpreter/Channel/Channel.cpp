@@ -99,13 +99,13 @@ int ChannelRegistry::CreateChannel(int capacity)
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int id = m_next_id;
 	m_next_id += 1;
-	m_channels.emplace(id, std::make_unique<Channel>(capacity));
+	m_channels.emplace(id, std::make_shared<Channel>(capacity));
 	return id;
 }
 
 ChannelOpStatus ChannelRegistry::Send(int channel_id, SerializedValue message, std::stop_token stop_token)
 {
-	Channel* channel = FindChannel(channel_id);
+	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
 		return ChannelOpStatus::Closed;
@@ -115,40 +115,63 @@ ChannelOpStatus ChannelRegistry::Send(int channel_id, SerializedValue message, s
 
 ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token stop_token)
 {
-	Channel* channel = FindChannel(channel_id);
+	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
 		return ChannelReceiveResult{ ChannelOpStatus::Closed, std::nullopt };
 	}
-	return channel->Receive(std::move(stop_token));
+
+	ChannelReceiveResult result = channel->Receive(std::move(stop_token));
+	EraseIfDrained(channel_id);
+	return result;
 }
 
 std::optional<SerializedValue> ChannelRegistry::TryReceive(int channel_id)
 {
-	Channel* channel = FindChannel(channel_id);
+	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)
 	{
 		return std::nullopt;
 	}
-	return channel->TryReceive();
+
+	std::optional<SerializedValue> result = channel->TryReceive();
+	EraseIfDrained(channel_id);
+	return result;
 }
 
 void ChannelRegistry::Close(int channel_id)
 {
-	Channel* channel = FindChannel(channel_id);
+	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel != nullptr)
 	{
 		channel->Close();
+		EraseIfDrained(channel_id);
 	}
 }
 
-Channel* ChannelRegistry::FindChannel(int channel_id) const
+size_t ChannelRegistry::GetChannelCount() const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::unordered_map<int, std::unique_ptr<Channel>>::const_iterator channel_it = m_channels.find(channel_id);
+	return m_channels.size();
+}
+
+std::shared_ptr<Channel> ChannelRegistry::FindChannel(int channel_id) const
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	std::unordered_map<int, std::shared_ptr<Channel>>::const_iterator channel_it = m_channels.find(channel_id);
 	if (channel_it == m_channels.end())
 	{
 		return nullptr;
 	}
-	return channel_it->second.get();
+	return channel_it->second;
+}
+
+void ChannelRegistry::EraseIfDrained(int channel_id)
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	std::unordered_map<int, std::shared_ptr<Channel>>::iterator channel_it = m_channels.find(channel_id);
+	if (channel_it != m_channels.end() && channel_it->second->IsDrained())
+	{
+		m_channels.erase(channel_it);
+	}
 }
