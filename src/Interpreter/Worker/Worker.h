@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/Error/Error.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
@@ -13,6 +14,12 @@
 #include <unordered_map>
 #include <vector>
 
+struct WorkerError
+{
+	RuntimeErrorCode m_code = RuntimeErrorCode::InternalTypeError;
+	std::string m_message;
+};
+
 class Worker
 {
 public:
@@ -25,7 +32,7 @@ public:
 	Worker(Worker&&) = delete;
 	Worker& operator=(Worker&&) = delete;
 
-	std::expected<SerializedValue, std::string> JoinValue();
+	std::expected<SerializedValue, WorkerError> JoinValue();
 
 
 
@@ -45,6 +52,7 @@ private:
 	std::mutex m_result_mutex;
 	std::optional<SerializedValue> m_result;
 	std::string m_error;
+	RuntimeErrorCode m_error_code = RuntimeErrorCode::InternalTypeError;
 	int m_exit_code = 0;
 	bool m_had_error = false;
 };
@@ -56,7 +64,7 @@ public:
 
 	int SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args);
 
-	std::expected<SerializedValue, std::string> JoinWorkerValue(int worker_id);
+	std::expected<SerializedValue, WorkerError> JoinWorkerValue(int worker_id);
 
 	bool IsWorkerDone(int worker_id) const;
 

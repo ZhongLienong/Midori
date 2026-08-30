@@ -1,5 +1,6 @@
 #include "Worker.h"
 
+#include "Common/Cancellation/Cancellation.h"
 #include "Common/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
 
@@ -29,19 +30,19 @@ namespace
 		};
 	}
 
-	std::expected<void, std::string> ExecuteWorkerInitializer(VirtualMachine& worker_vm, int proc_index)
+	std::expected<void, WorkerError> ExecuteWorkerInitializer(VirtualMachine& worker_vm, int proc_index)
 	{
 		worker_vm.PrepareWorkerCall(proc_index);
 		VirtualMachine::ExecuteResult init_result = worker_vm.Execute();
 		if (!init_result.has_value())
 		{
-			return std::unexpected(std::string(init_result.error().m_message));
+			return std::unexpected(WorkerError{ init_result.error().m_code, std::string(init_result.error().m_message) });
 		}
 
 		return {};
 	}
 
-	std::expected<void, std::string> InitializeWorkerGlobals(VirtualMachine& worker_vm, const MidoriExecutable& executable)
+	std::expected<void, WorkerError> InitializeWorkerGlobals(VirtualMachine& worker_vm, const MidoriExecutable& executable)
 	{
 		std::string_view entry_module_name;
 		if (!executable.m_procedure_names.empty())
@@ -57,7 +58,7 @@ namespace
 				continue;
 			}
 
-			std::expected<void, std::string> init_result = ExecuteWorkerInitializer(worker_vm, proc_index);
+			std::expected<void, WorkerError> init_result = ExecuteWorkerInitializer(worker_vm, proc_index);
 			if (!init_result.has_value())
 			{
 				return init_result;
@@ -132,6 +133,7 @@ void Worker::Execute(std::stop_token stop_token)
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
 			m_error = "Worker cancelled before execution.";
+			m_error_code = RuntimeErrorCode::WorkerCancelled;
 			m_had_error = true;
 			m_done.store(true);
 			return;
@@ -139,22 +141,25 @@ void Worker::Execute(std::stop_token stop_token)
 
 		VirtualMachine worker_vm(m_executable, 0, nullptr);
 		worker_vm.SetStopToken(stop_token);
+		ThreadCancellation::SetCurrentThreadStopToken(stop_token);
 
 		std::expected<void, std::string> safety_check = worker_vm.GetDynamicFFIRegistry().ValidateWorkerSafety();
 		if (!safety_check.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
 			m_error = safety_check.error();
+			m_error_code = RuntimeErrorCode::InternalTypeError;
 			m_had_error = true;
 			m_done.store(true);
 			return;
 		}
 
-		std::expected<void, std::string> init_result = InitializeWorkerGlobals(worker_vm, *m_executable);
+		std::expected<void, WorkerError> init_result = InitializeWorkerGlobals(worker_vm, *m_executable);
 		if (!init_result.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
-			m_error = init_result.error();
+			m_error = init_result.error().m_message;
+			m_error_code = init_result.error().m_code;
 			m_had_error = true;
 			m_done.store(true);
 			return;
@@ -168,6 +173,7 @@ void Worker::Execute(std::stop_token stop_token)
 			{
 				std::lock_guard<std::mutex> lock(m_result_mutex);
 				m_error = deserialized_arg.error();
+				m_error_code = RuntimeErrorCode::InternalTypeError;
 				m_had_error = true;
 				m_done.store(true);
 				return;
@@ -182,6 +188,7 @@ void Worker::Execute(std::stop_token stop_token)
 		if (!execution_result.has_value())
 		{
 			m_error = std::string(execution_result.error().m_message);
+			m_error_code = execution_result.error().m_code;
 			m_had_error = true;
 			m_done.store(true);
 			return;
@@ -192,6 +199,7 @@ void Worker::Execute(std::stop_token stop_token)
 		if (!serialized_result.has_value())
 		{
 			m_error = serialized_result.error();
+			m_error_code = RuntimeErrorCode::InternalTypeError;
 			m_had_error = true;
 			m_done.store(true);
 			return;
@@ -205,6 +213,7 @@ void Worker::Execute(std::stop_token stop_token)
 	{
 		std::lock_guard<std::mutex> lock(m_result_mutex);
 		m_error = std::string("Unhandled worker exception: ") + exception.what();
+		m_error_code = RuntimeErrorCode::InternalTypeError;
 		m_had_error = true;
 		m_done.store(true);
 	}
@@ -212,12 +221,13 @@ void Worker::Execute(std::stop_token stop_token)
 	{
 		std::lock_guard<std::mutex> lock(m_result_mutex);
 		m_error = "Unhandled worker exception.";
+		m_error_code = RuntimeErrorCode::InternalTypeError;
 		m_had_error = true;
 		m_done.store(true);
 	}
 }
 
-std::expected<SerializedValue, std::string> Worker::JoinValue()
+std::expected<SerializedValue, WorkerError> Worker::JoinValue()
 {
 	m_joined.store(true);
 	if (m_thread.joinable())
@@ -228,11 +238,11 @@ std::expected<SerializedValue, std::string> Worker::JoinValue()
 	std::lock_guard<std::mutex> lock(m_result_mutex);
 	if (m_had_error)
 	{
-		return std::unexpected(m_error);
+		return std::unexpected(WorkerError{ m_error_code, m_error });
 	}
 	if (!m_result.has_value())
 	{
-		return std::unexpected(std::string("Worker completed without a result."));
+		return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, std::string("Worker completed without a result.") });
 	}
 	return m_result.value();
 }
@@ -267,7 +277,7 @@ int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executab
 	return worker_id;
 }
 
-std::expected<SerializedValue, std::string> WorkerRegistry::JoinWorkerValue(int worker_id)
+std::expected<SerializedValue, WorkerError> WorkerRegistry::JoinWorkerValue(int worker_id)
 {
 	std::unique_ptr<Worker> worker;
 	{
@@ -275,7 +285,7 @@ std::expected<SerializedValue, std::string> WorkerRegistry::JoinWorkerValue(int 
 		std::unordered_map<int, std::unique_ptr<Worker>>::iterator worker_it = m_workers.find(worker_id);
 		if (worker_it == m_workers.end())
 		{
-			return std::unexpected("Worker not found: " + std::to_string(worker_id));
+			return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, "Worker not found: " + std::to_string(worker_id) });
 		}
 
 		worker = std::move(worker_it->second);

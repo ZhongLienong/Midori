@@ -395,11 +395,11 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 	case OpCode::JOIN_WORKER:
 	{
 		const int worker_id = static_cast<int>(Pop().GetInteger());
-		std::expected<SerializedValue, std::string> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
+		std::expected<SerializedValue, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
 		if (!worker_result.has_value())
 		{
 			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, worker_result.error(), GetLine())));
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(worker_result.error().m_code, worker_result.error().m_message, GetLine())));
 			return false;
 		}
 

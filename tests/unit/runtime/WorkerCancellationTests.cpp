@@ -98,3 +98,38 @@ defun main(): Int => 0;
 	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
 }
+
+TEST_CASE("Joining a cancelled worker preserves the WorkerCancelled error code", "[runtime][worker][cancel]")
+{
+	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
+	const MidoriTest::TempDir temp_dir("midori-worker-cancel-code");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelCode.mdr";
+
+	const std::string source_code = std::format(
+		R"(module WorkerCancelCode
+import {{ "{}" }}
+defun Spin(_dummy: Int) : Int => {{
+    def i = 0;
+    loop
+    {{
+        i = i + 1;
+        if i < 0 then break () else ();
+    }};
+    i
+}};
+def w = spawn Spin(0);
+System::Sleep(50);
+def cancelled = cancel(w);
+def r = join w;
+defun main(): Int => 0;
+)",
+		MidoriPathLiteral(system_module_path));
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("error[WorkerCancelled]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("InternalTypeError") == std::string::npos);
+}
