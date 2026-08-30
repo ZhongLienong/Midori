@@ -3,6 +3,7 @@
 #include "support/CompileHelpers.h"
 #include "support/TempDir.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -132,4 +133,36 @@ defun main(): Int => 0;
 	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout.find("error[WorkerCancelled]") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("InternalTypeError") == std::string::npos);
+}
+
+TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime][worker][cancel]")
+{
+	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
+	const MidoriTest::TempDir temp_dir("midori-worker-cancel-sleep");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mdr";
+
+	const std::string source_code = std::format(
+		R"(module WorkerCancelSleep
+import {{ "{}" }}
+defun SleepLong(_dummy: Int) : Int => {{
+    System::Sleep(30000);
+    0
+}};
+def w = spawn SleepLong(0);
+System::Sleep(300);
+def cancelled = cancel(w);
+def r = join w;
+defun main(): Int => 0;
+)",
+		MidoriPathLiteral(system_module_path));
+
+	const std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start_time;
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
+	REQUIRE(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() < 10);
 }

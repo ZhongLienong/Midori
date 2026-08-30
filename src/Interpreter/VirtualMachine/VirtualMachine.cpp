@@ -2282,7 +2282,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
-			if (m_stop_possible && m_stop_token.stop_requested()) [[unlikely]]
+			if (IsCancellationRequested()) [[unlikely]]
 			{
 				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
@@ -2608,6 +2608,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				Push(sp, return_val);
 			}
 
+			if (IsCancellationRequested()) [[unlikely]]
+			{
+				SyncMachineState(ip, sp, bp, env);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
+			}
+
 			break;
 		}
 		case OpCode::CALL_FOREIGN_INDEXED:
@@ -2764,6 +2770,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			else
 			{
 				Push(sp, return_val);
+			}
+
+			if (IsCancellationRequested()) [[unlikely]]
+			{
+				SyncMachineState(ip, sp, bp, env);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
 
 			break;
@@ -2927,7 +2939,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// Jump to the start of the function without creating a new call frame
 			ip = GetProcEntry(closure.m_proc_index);
 
-			if (m_stop_possible && m_stop_token.stop_requested()) [[unlikely]]
+			if (IsCancellationRequested()) [[unlikely]]
 			{
 				SyncMachineState(ip, sp, bp, env);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));

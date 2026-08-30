@@ -1,3 +1,4 @@
+#include "Common/Cancellation/Cancellation.h"
 #include "Library/MidoriStdLibExports.h"
 
 #include <cerrno>
@@ -151,7 +152,7 @@ extern "C"
 	{
 		int64_t milliseconds = 0;
 		std::memcpy(&milliseconds, &args[0u], sizeof(int64_t));
-		std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+		ThreadCancellation::SleepInterruptible(std::chrono::milliseconds(milliseconds));
 		std::memset(ret, 0, sizeof(double));
 	}
 

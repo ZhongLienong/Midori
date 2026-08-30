@@ -152,6 +152,11 @@ private:
 		m_curr_environment = env;
 	}
 
+	MIDORI_FORCE_INLINE bool IsCancellationRequested() const noexcept
+	{
+		return m_stop_possible && m_stop_token.stop_requested();
+	}
+
 	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env) noexcept
 	{
 		if (m_gc.ShouldCollect())
