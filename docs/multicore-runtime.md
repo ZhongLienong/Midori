@@ -73,7 +73,7 @@ def val = <- ch;                      // receive: Int (blocks if empty)
 - `channel<T>(capacity)` creates a typed bounded channel
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
-Auxiliary operations: `try_receive(ch)`, `close(ch)`, `is_done(w)`, `cancel(w)`.
+Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
 
 ## Worker Lifecycle
 
@@ -83,24 +83,37 @@ Auxiliary operations: `try_receive(ch)`, `close(ch)`, `is_done(w)`, `cancel(w)`.
    - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
    - Validates FFI thread safety before execution
    - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
-   - Calls `VirtualMachine::Execute()` — the same unmodified dispatch loop
+   - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
 
 2. **Join**: `join w` blocks until the worker finishes and returns the typed
-   result via `SerializedValue` deserialization. If the worker panicked, the
-   error propagates as a runtime error in the joining VM.
+   result via `SerializedValue` deserialization. If the worker failed, the error
+   propagates as a runtime error in the joining VM, keeping the worker's own
+   error code.
 
 3. **Cancel**: `cancel(w)` requests cooperative cancellation via
-   `std::jthread::request_stop()`. The stop token is checked before execution
-   starts, not inside `ExecuteLoop()`.
+   `std::jthread::request_stop()`. The worker observes the request at
+   safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), and the
+   return of any foreign call. A worker blocked in `ch -> v` or `<- ch` is woken
+   immediately, because channel waits take the stop token, and the builtin
+   `Sleep` is interruptible for the same reason. On observing cancellation the
+   worker terminates with the `WorkerCancelled` runtime error.
+
+   Cancellation is cooperative, so it is bounded by whatever the worker is
+   currently doing. Blocking calls that do not consult the stop token — stdin
+   reads and third-party dynamic FFI — still run to completion first. See
+   `src/Common/Cancellation/Cancellation.h`.
 
 4. **Poll**: `is_done(w)` checks if the worker has completed without blocking.
 
 ## Failure Propagation
 
-- If a worker panics, the error message is captured in the `Worker`
-- On `join`, the error propagates as a runtime error in the joining VM with
-  the worker's error message and stack trace context
-- If a worker is never joined and panics, the destructor prints to stderr
+- If a worker fails, the `Worker` captures both the error message and the
+  originating `RuntimeErrorCode`
+- On `join`, the error propagates as a runtime error in the joining VM carrying
+  that same code, so a cancelled worker surfaces as `error[WorkerCancelled]`
+  rather than being flattened into a generic internal error
+- If a worker is never joined and failed, the destructor prints the message to
+  standard output
 
 ## FFI Under Multicore
 
@@ -127,14 +140,23 @@ Channels provide typed message passing between workers:
 - `channel<T>(capacity)` — creates a bounded `Channel<T>`
 - `ch -> value` — sends a value (blocks if full, returns `Bool`)
 - `<- ch` — receives a value (blocks if empty, runtime error if closed and empty)
-- `try_receive(ch)` — non-blocking receive returning `Union<Some: T, None: Unit>`
 - `close(ch)` — closes the channel, unblocks all waiters
 
-Internally: `std::mutex` + `std::condition_variable` + `std::deque<SerializedValue>`
+There is no bounded or non-blocking receive at the language level: a receive
+waits until a value arrives, the channel closes, or the worker is cancelled.
+`Channel::TryReceive` exists in the runtime but has no opcode or syntax, so it
+is currently unreachable from Midori code. See
+`docs/plan/concurrency-backlog.md`.
+
+Internally: `std::mutex` + `std::condition_variable_any` +
+`std::deque<SerializedValue>`. The waits are stop-token-aware, which is what
+makes a channel-blocked worker cancellable.
 
 Channel handles are raw `Int` values managed by `ChannelRegistry`, not
 VM-heap objects. `Channel<T>` is itself `Transferable`, so channels can be
-passed directly to spawned workers.
+passed directly to spawned workers. A channel is reclaimed from the registry
+once it is both closed and drained; operations on a reclaimed handle behave
+like operations on a closed channel.
 
 ## Relationship to OS Threads
 
@@ -142,15 +164,21 @@ passed directly to spawned workers.
 meant to be few and long-lived, not lightweight tasks. Spawning thousands of
 workers will exhaust OS thread limits.
 
-## Zero Single-Threaded Overhead Guarantee
+## Single-Threaded Overhead
 
-`VirtualMachine::ExecuteLoop()` is **never modified** by the concurrency
-system. The dispatch loop, GC trigger, allocator calls, stack operations, and
-FFI dispatch are identical for the main VM and for worker VMs.
+Nearly all of the concurrency system — `Worker`, `Channel`, the registries,
+`ValueTransfer`, FFI thread-safety validation — lives outside
+`VirtualMachine::ExecuteLoop()` and costs the main VM nothing.
 
-Worker-specific behavior (cancellation, failure capture) lives **outside** the
-dispatch loop, in wrapper code that calls `ExecuteLoop()` and inspects the
-result afterward.
+The exception is cancellation. Making a running worker stoppable requires
+safepoints *inside* the dispatch loop, so `ExecuteLoop()` now checks
+`IsCancellationRequested()` at loop back-edges, at tail calls, and after
+foreign calls return. The check is `m_stop_possible && m_stop_token.stop_requested()`,
+and `m_stop_possible` is false for the main VM because only `Worker` ever calls
+`SetStopToken`. The main VM therefore pays one never-taken, correctly predicted
+branch at those sites and never touches the atomic. GC triggers, allocator
+calls, stack operations, and FFI dispatch remain identical for main and worker
+VMs.
 
 The `DynamicFFIRegistry` refactor replaces a Meyer's singleton `GetInstance()`
 (hidden branch + pointer load on every call) with a direct member lookup on the
@@ -158,6 +186,10 @@ VM instance (equal or cheaper).
 
 ## Future Extensibility
 
+Tracked with triggers in `docs/plan/concurrency-backlog.md`; none of it is
+scheduled work.
+
+- Bounded and multi-channel waiting (`try_receive`, `select`, timeouts)
 - M:N scheduling (green threads mapped to a thread pool)
 - Work stealing for automatic load balancing
 - Shared-memory opt-in for performance-critical workloads

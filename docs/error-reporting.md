@@ -100,6 +100,7 @@ Current `RuntimeErrorCode` values:
 - `MemoryAccessViolation`
 - `DivisionByZero`
 - `InternalTypeError`
+- `WorkerCancelled`
 - `InternalFFITypeError`
 
 `RuntimeErrorCodeName(...)` provides the stable string form used in rendered and
