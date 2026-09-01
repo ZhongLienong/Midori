@@ -1,0 +1,243 @@
+# Expression-Oriented Midori — Design
+
+Written 2026-09-01. Supersedes the immutability sections of
+`docs/plan/language-improvements.md`; companion to
+`docs/plan/text-mutability-soundness.md`.
+
+**Status:** design settled, ready for an implementation plan.
+
+**Delivery:** breaking v2 on branch `v2-expression-oriented`, cut from
+`gc-overhaul` rather than `main` — the immutable design allocates far more than
+the current one, so the generational collector is the correct base for measuring
+it.
+
+## 1. Goal
+
+Midori should be **expression-oriented and piping-oriented in character**. That
+is the plan's own organizing insight, and it is the target — not immutability.
+Immutability is instrumental: it is what falls out once no construct exists
+purely for effect.
+
+The diagnostic symptom is the unit literal. `ArrayUtil::Slice` spends sixteen
+lines and eight `()` values on four clamps, because assignment produces nothing
+worth having.
+
+## 2. Constraints
+
+1. **Expression-orientation.** Every construct evaluates to something worth
+   having; no function returns `Unit` outside the IO edge.
+2. **Semantic uniqueness.** One concept, one form. Delete duplication that is
+   *mechanical* — same lowering, same reading. Keep distinctions that carry
+   different intent: `if` versus `match` survives, `defun` versus `def = fn`
+   does not.
+3. **Minimal built-ins.** Every operator desugars to exactly one typeclass
+   method. The compiler's knowledge of specific library entities is one declared
+   table, not scattered special cases.
+4. **C-family surface.** Midori was designed with JavaScript and TypeScript in
+   mind. A construct that is semantically right but reads wrong in a C-family
+   grammar is wrong. This settled the iteration question against an otherwise
+   defensible Clojure-style `loop`.
+
+## 3. Concepts and forms
+
+| Concept | Form |
+|---|---|
+| Value binding, functions included | `def x = e` |
+| Anonymous function | `fn<T>(x: T) -> R where C<T> => e` |
+| Introduce a distinct type | `type Point = { x: Int, y: Int }` |
+| Abbreviate a type expression | `alias IntMap<V> = Map<Int, V>` |
+| Record update | `{ s with f = v, g = w }` |
+| Consume an iterable | `for x in it { }` |
+| Transform a sequence | `Iter::*` through the pipe operator |
+| Materialize a sequence | `[e for x in it]` |
+| Stateful loop | a named recursive helper |
+| Failure propagation | `Result::AndThen` |
+| Size | `#x` resolving to `Countable` |
+| Index | `x[i]` resolving to `Indexable` |
+| Concatenation | `a ++ b` resolving to `Concatenable` |
+| Cast | `x as T` resolving to `Convertable` |
+
+### Separators — one job each
+
+| Separator | Its one job |
+|---|---|
+| `:` | ascribe a type to a **name** |
+| `->` | a function's **result** |
+| `=>` | a function's **body** |
+| `=` | bind a **name** to a value or type |
+
+A definition is therefore its own type with names and a body added:
+
+```
+def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
+```
+
+## 4. Grammar delta
+
+### Removed
+
+- `defun` — an immutable `def` can be committed to a proc index, which is
+  precisely what mutability prevented.
+- `return` — tail position duplicates `=> e`; early exit is covered by branch
+  structure, combinators, and `AndThen`.
+- Assignment and compound assignment — 11 tokens, 4 AST nodes.
+- `loop`, `break`, `continue` — a stateful loop is a named recursive helper,
+  which is the idiomatic JS/TS spelling and an expression naturally.
+- `struct`, `union` — folded into `type`.
+- `new` — constructors are ordinary functions.
+- `default` — a `_` wildcard pattern, which also nests.
+- `spawn`, `join`, `channel` — ordinary functions over library structs.
+- `true`, `false` — union constructors, subject to section 8.
+- The `#` name-suffix dispatch in `CodeGenerator.cpp:3330-3370`.
+- Six redundant prelude names: `MapSize`, `SetSize`, `ArrayUtil::Length`,
+  `TextUtil::Length`, and the `ArrayUtil::Append` / `Prepend` / `Extend`
+  forwarders.
+
+### Added
+
+- Type parameters and `where` clauses on `fn`.
+- `->` in every return position.
+- `{ s with f = v, g = w }` — simultaneous, so right-hand sides evaluate against
+  the original record; duplicate fields are an error; no nested paths.
+- `alias` for transparent type abbreviation.
+- Constrained instances, `instance C<T> where D<T>` — **not parsed today**;
+  `where` exists for functions, structs and unions only.
+- `Indexable`, and operator binding at the class declaration:
+  `infixl 5 (++) Concat : fn(T, T) -> T`.
+- Pattern guards — `case Ok(n) if n > 100 =>`. Not sugar for a nested `if`: a
+  failed guard falls through to the next case, which a nested `if` cannot do.
+- `Iterable::Next : fn(Iter) -> Option<(Item, Iter)>`.
+
+### Counts
+
+| | before | after |
+|---|---|---|
+| Expression nodes | 41 | 18 |
+| Statement nodes | 11 | 5 |
+| Built-in type kinds | 17 | 8 |
+| Reserved words | 37 | ~25 |
+| Callable concepts | 7 | 1 |
+
+Statements remaining: `ExpressionStatement`, `VariableDefinition`,
+`TypeDefinition`, `Class`, `Instance`. Only the first two appear inside a block.
+
+`def` is not itself an expression and should not be — a binding's value is the
+scope it opens, not the thing bound. The containing block is the expression.
+
+## 5. Types
+
+Immutable throughout. `Array<T>` stays flat for O(1) indexing and cheap FFI
+reads. `Map` and `Set` become HAMTs with their own node type rather than being
+rebuilt on `Array`.
+
+`Text` is immutable — a nominal newtype over `Array<Byte>`, not a transparent
+alias, so `Hashable<Text>` does not collapse into `Hashable<Array<Byte>>` and
+make every byte array a valid map key.
+
+There is **no mutable type**. Building is a runtime concern behind comprehensions
+and folds; FFI mutation lives outside the language behind opaque foreign handles,
+the same pattern `Channel<T>` and `Worker<T>` already use.
+
+`Cell<T>` is designed but **deliberately not shipped**. Build the language and
+rewrite the prelude without it. If the prelude never needs one, the language does
+not; if it needs three, those three define its shape.
+
+Reducible to library types: `Range`, `Never` as a zero-variant union, `Unit` as
+the 0-tuple, `Worker`, and `Channel`.
+
+## 6. Lang items
+
+The compiler's knowledge of the library is one declared table, not scattered
+special cases:
+
+| Item | Needed by |
+|---|---|
+| `Bool`, `True`, `False` | `if` |
+| `Int`, `Float`, `Byte`, `Word`, `Text`, `Array` | literal types |
+| `Iterable` | `for … in`, comprehensions |
+| `Equatable`, `Hashable`, `Transferable` | `deriving` |
+
+Operators need no lang items once symbols bind at class declarations.
+
+## 7. Irreducible semantics
+
+Four categories remain:
+
+1. **Binding** — `def` introduces a name; not a call.
+2. **Function** — everything now called constructor, operator, method, cast,
+   index, or concurrency primitive.
+3. **Pattern** — destructuring is not application. A constructor name spans
+   categories 2 and 3: a call in expression position, a destructure in pattern
+   position. One concept from both directions, as in ML, Haskell and Rust.
+4. **Lazy control flow** — `if`, with `&&` and `||` as desugarings over it
+   (`a && b` is `if a then b else False`). Function application evaluates its
+   arguments, so these cannot be library functions.
+
+## 8. Open calls — pin while writing, not blockers
+
+- **`Bool` as a library union.** Deletes four things for the price of one
+  hardcoded type reference in `if`. Recommended.
+- **Arithmetic and bitwise via typeclasses.** Safe only with hard literal
+  defaulting — integer literals always `Int`, float literals always `Float` —
+  since the type checker has no generalization.
+- **Annotation policy.** Recommended: required on module-level `def`s, optional
+  inside.
+- **Operator precedence.** Declared (`infixl 5`) versus requiring parentheses for
+  mixed operators. The second deletes a feature and a class of bugs.
+- **Named arguments.** Positional-only construction is awkward at five or six
+  fields. Either named arguments on calls generally, or lean on
+  `{ Config::Default with … }`.
+
+## 9. Declined
+
+- **Monads.** `Bind` abstracts over a type constructor applied to different
+  arguments — higher-kinded by definition. Per-type `AndThen` is what Rust ships.
+- **The `?` operator.** `Result::ResultBind` already exists in the prelude and
+  wins on every stated goal. Revisit only if writing a parser produces the
+  nesting pyramid in practice — the compiler is a parser, so this gets tested
+  early.
+- **ML-style functors.** A second abstraction mechanism beside typeclasses.
+- **Let-generalization.** Immutability makes it safe, but top-level annotations
+  are required anyway, so it buys little.
+- **Exceptions, higher-kinded types, a borrow checker, laziness.** Unchanged
+  anti-goals.
+
+## 10. Prerequisites that survive unchanged
+
+- **Plan item 1** — `join` returning `Result<T, E>` rather than killing the
+  joiner. Highest value-to-effort change available.
+- **Plan item 2** — module initializers re-running inside every spawned VM. A
+  correctness bug.
+
+Neither touches the grammar; both can land independently.
+
+## 11. Migration scope
+
+| | files | lines |
+|---|---|---|
+| Prelude | 24 | 1,218 |
+| Tests and benchmarks | 286 | 9,594 |
+
+- **Mechanical, about 2,075 sites:** 1,339 `defun`, 635 `new`, 97
+  `struct` / `union`, 4 `return`, and every `): T =>` becoming `) -> T =>`.
+- **Needs thought:** 498 assignment statements and 52 `loop` blocks. Most are a
+  counter, an accumulator, or an append-in-a-loop, each mapping to a
+  comprehension, a fold, or a recursive helper.
+- **Genuine redesign, about 6 files:** `Map.mdr`, `Set.mdr` and
+  `OpenAddressing.mdr` to HAMTs; the `Iterable.mdr` signature; `ArrayUtil.mdr`
+  and `List.mdr` to value-returning; and a new `Iter.mdr`.
+
+## 12. Verification
+
+The rewrite is done when:
+
+1. The prelude compiles with no `defun`, `return`, `loop`, `break`, `continue`,
+   `new`, `struct`, `union`, assignment, or compound assignment.
+2. `arr |> ArrayUtil::Append(4) |> ArrayUtil::Reverse` compiles.
+3. The audited defects are inexpressible: a mutated `Text` key and iterator
+   invalidation. `Map<Float, _>` NaN keys are addressed separately, since
+   immutability does not make NaN reflexive.
+4. `#` resolves only through `Countable`, and `HasNameSuffix` is gone from
+   `CodeGenerator.cpp`.
+5. `ParallelMap` is writable in-language.
+6. The existing test suite passes, migrated.
