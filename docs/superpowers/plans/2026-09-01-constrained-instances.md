@@ -152,7 +152,7 @@ with:
 MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::move(constraints), std::move(associated_types), std::move(methods))
 ```
 
-Leave the two derive-generated sites at `:5688` and `:5752` passing `{}` — derived instances carry no user-written constraints.
+Leave the derive-generated sites passing `{}` — derived instances carry no user-written constraints. There are **four**, not two: `Parser.cpp:5710`, `:5774`, `:5888`, `:6022` (line numbers after the Task 1 insertion). None of them should be touched.
 
 - [ ] **Step 4b: Make the constraints active while parsing method bodies**
 
