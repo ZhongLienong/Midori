@@ -753,20 +753,6 @@ namespace
 		return *pattern == *concrete;
 	}
 
-	bool HasNameSuffix(const std::string& name, std::string_view suffix)
-	{
-		if (name == suffix)
-		{
-			return true;
-		}
-		if (!name.ends_with(suffix))
-		{
-			return false;
-		}
-		size_t pos = name.size() - suffix.size();
-		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
-	}
-
 }
 
 class TypeChecker::ScopeSession
@@ -4666,32 +4652,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				{
 					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
 
-					const bool is_list_type = resolved_type->IsType<MidoriType::UnionType>() &&
-						HasNameSuffix(resolved_type->GetType<MidoriType::UnionType>().m_name, "List");
-					const bool is_map_type = resolved_type->IsType<MidoriType::StructType>() &&
-						(
-							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
-							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Map")
-						);
-					const bool is_set_type = resolved_type->IsType<MidoriType::StructType>() &&
-						(
-							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
-							HasNameSuffix(resolved_type->GetType<MidoriType::StructType>().m_name, "Set")
-						);
-
-					if (resolved_type->IsType<MidoriType::ArrayType>() || is_list_type || is_map_type || is_set_type)
+					if (resolved_type->IsType<MidoriType::ArrayType>())
 					{
 						unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 						return unary.m_type_data;
 					}
 
-					InstanceKey countable_key{
-						std::string(COUNTABLE_CLASS_NAME),
-						{resolved_type->ToString()}
-					};
-
-					std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it = m_instances.find(countable_key);
-					bool has_countable_instance = (instance_it != m_instances.end());
+					bool has_countable_instance = FindMatchingInstance(std::string(COUNTABLE_CLASS_NAME), { resolved_type }).has_value();
 					bool has_countable_constraint = false;
 					if (!has_countable_instance)
 					{

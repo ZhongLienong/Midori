@@ -14,20 +14,6 @@ using namespace std::string_literals;
 
 namespace
 {
-	bool HasNameSuffix(const std::string& name, std::string_view suffix)
-	{
-		if (name == suffix)
-		{
-			return true;
-		}
-		if (!name.ends_with(suffix))
-		{
-			return false;
-		}
-		size_t pos = name.size() - suffix.size();
-		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
-	}
-
 	bool ContainsFreeTypeParameter(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
 	{
 		if (!type)
@@ -3411,34 +3397,6 @@ void CodeGenerator::operator()(MidoriExpression::Tuple& tuple)
 	EmitThreeBytes(size, size >> 8, size >> 16, line);
 }
 
-bool CodeGenerator::EmitGenericLengthCall(const std::string& function_name, const std::shared_ptr<MidoriType>& operand_type, int line)
-{
-	std::vector<std::shared_ptr<MidoriType>> arg_types;
-	arg_types.emplace_back(operand_type);
-	int specialized_proc_index = SpecializeGenericFunction(function_name, arg_types, line);
-	if (specialized_proc_index == -1)
-	{
-		return false;
-	}
-
-	GenericFunctionInfo& generic_info = m_generic_functions[function_name];
-	if (generic_info.m_captured_count == 0)
-	{
-		EmitCallProc(specialized_proc_index, 1, line);
-	}
-	else
-	{
-		EmitByte(OpCode::MAKE_CLOSURE, line);
-		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-		NoteCaptureBinding(generic_info.m_captured_count);
-		EmitByte(OpCode::BIND_CAPTURES, line);
-		EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
-		EmitCall(1, line);
-	}
-
-	return true;
-}
-
 bool CodeGenerator::EmitCountableCall(const MidoriExpression::UnaryPrefix& unary, const std::shared_ptr<MidoriType>& count_type, int line)
 {
 	std::string qualified_method_name = std::string(COUNTABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(COUNT_METHOD_NAME);
@@ -3473,17 +3431,16 @@ bool CodeGenerator::EmitCountableCall(const MidoriExpression::UnaryPrefix& unary
 
 	if (!count_type->IsType<MidoriType::TypeVariable>())
 	{
-		std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COUNT_MANGLED_PREFIX) + count_type->ToString();
-		std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-		if (it != m_global_variables.end())
+		std::optional<std::string> resolved_instance_name = ResolveInstanceNameForTypeArgs(std::string(COUNTABLE_CLASS_NAME), std::string(COUNT_METHOD_NAME), { count_type });
+		if (resolved_instance_name.has_value() && EmitResolvedNameGetGlobal(resolved_instance_name.value(), line))
 		{
-			EmitVariable(it->second, OpCode::GET_GLOBAL, line);
 			EmitCall(1, line);
 			return true;
 		}
 
 		if (unary.m_uses_countable)
 		{
+			std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COUNT_MANGLED_PREFIX) + count_type->ToString();
 			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Countable instance method '"s + mangled_name + "' not found"s, unary.m_op, m_file_name, m_source_lines));
 		}
 	}
@@ -3536,38 +3493,6 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 		{
 			EmitByte(OpCode::GET_ARRAY_LENGTH, line);
 			break;
-		}
-
-		const bool is_list_type = operand_type->IsType<MidoriType::UnionType>() &&
-			HasNameSuffix(operand_type->GetType<MidoriType::UnionType>().m_name, "List");
-		const bool is_map_type = operand_type->IsType<MidoriType::StructType>() &&
-			(
-				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "MapData") ||
-				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "Map")
-			);
-		const bool is_set_type = operand_type->IsType<MidoriType::StructType>() &&
-			(
-				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "SetData") ||
-				HasNameSuffix(operand_type->GetType<MidoriType::StructType>().m_name, "Set")
-			);
-
-		if (!unary.m_uses_countable)
-		{
-			if (is_list_type)
-			{
-				EmitGenericLengthCall("ListLength", operand_type, line);
-				break;
-			}
-			if (is_map_type)
-			{
-				EmitGenericLengthCall("MapCount", operand_type, line);
-				break;
-			}
-			if (is_set_type)
-			{
-				EmitGenericLengthCall("SetCount", operand_type, line);
-				break;
-			}
 		}
 
 		if (EmitCountableCall(unary, operand_type, line))
