@@ -287,15 +287,47 @@ P4 shows the second error is a cascade. P3 shows `FindMatchingInstance`
 correctly, including a wrapper whose `Item` is itself a projection. **The
 associated-type path has no gap** — the program was under-constrained.
 
-`Iter::Map` and `Iter::Filter` are exactly this shape. Two ways out, and the
-choice must be made **before** the library is written:
+`Iter::Map` and `Iter::Filter` are exactly this shape. There are **three**
+options, not two, and the choice must be made **before** the library is written.
 
-- **Add equality constraints** (`where Stepper::Item<S> ~ Int`) — parser, AST,
-  `ClassConstraint`, and unification. A real language addition, and it grows the
-  surface the redesign is otherwise shrinking.
-- **Promote `Item` to a type parameter** of the wrapper struct, so it is fixed at
-  construction rather than projected. No language change, but it makes every
-  combinator type carry an extra parameter and may only relocate the problem.
+**A. Add equality constraints** — `where Stepper::Item<S> ~ Int`. A production in
+`ParseClassConstraints` (`Parser.cpp:5434`, currently `Identifier '<' Type,… '>'`
+only), a widened `ClassConstraint`, and seeding the equations so a projection
+resolves while `S` is still abstract. The *resolution* half already exists:
+`ResolveAssociatedType` (`TypeChecker.cpp:1221`) already reduces
+`Stepper::Item<S>` once `S` is known. Keeps `Item` a function of `S`, which is
+what lets inference work at use sites, and leaves dispatch untouched.
+**Recommended.**
+
+**B. Promote `Item` onto the wrapper struct** — `Map<S, A, B>` with
+`type Item = B`. **This does not work.** It fixes only the *output* side. The body
+still calls `Stepper::Step(state.inner)`, typed `Option<Stepper::Item<S>>` with
+`S` abstract, and feeds it to `f : fn(A) -> B` — which needs
+`Stepper::Item<S> ~ A`, the identical equality constraint under a different name.
+The failure is on the *input* side, and a wrapper's own parameters can never
+describe it, because the inner `Item` belongs to `S`, not to the wrapper.
+
+**C. Promote the element type onto the class** — `class Stepper<S, A>`, no
+associated type. Expressible today with zero language work: inside
+`instance Stepper<Map<S,A,B>, B> where Stepper<S, A>` the inner call resolves to
+`Option<A>` through the active constraint, no projection needed. Costs an extra
+parameter on every signature mentioning a stepper, and silently relies on a
+functional dependency `S -> A` that nothing enforces — dispatch only appears to
+honour it because it matches on the first type argument. Two instances differing
+only in `A` would become ambiguous with a confusing message. If this route is
+taken, that fundep must be documented before anyone writes a second instance.
+
+### The boundary, stated sharply
+
+Promotion suffices only for combinators that **produce** elements and never
+consume an inner stepper's: `Repeat`, `Empty`, `FromArray`. Every combinator the
+library actually needs — `Map`, `Filter`, `Take`, `Zip`, `Enumerate`, `Fold` —
+consumes them and hits the same wall.
+
+`test/typeclass/success/constrained_instance_assoc_type.mdr` sits exactly on that
+boundary: a pure pass-through, where the wrapper's `Item` is literally
+`Stepper::Item<S>` and nothing is consumed at a known type, compiles and runs
+today. Add `* 2` to the body and it does not.
 
 This does not affect the settled decisions in sections 1–10. It sits squarely on
 section 11's library rewrite and on the `Iterable` signature change in section 4.
