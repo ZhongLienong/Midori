@@ -70,41 +70,29 @@ Baseline 263/267. The four failures are pre-existing and unrelated: `concurrency
 
 ---
 
-## Task 1: Prove the miscompile exists
+## Task 1: Prove the miscompile exists — DONE 2026-09-01
 
-**Files:** Create `test/typeclass/failure/countable_name_collision.mdr` (temporary — deleted in Task 4)
-
-- [ ] **Step 1: Write a program that should not compile**
+Established, and it corrected this plan's premise. `SiteMap` errors cleanly today:
 
 ```
-module CountableNameCollision
+Type Checker Error at :8
+8 | IO::PrintLine(#s as Text);
+  |               ^ Type SiteMap does not satisfy constraint Countable<SiteMap> - no matching instance found
+```
 
-import { "../../../MidoriPrelude/IO.mdr", }
+The real trigger needs an exact name collision *and* the prelude count function in
+scope:
 
-struct SiteMap { url: Text };
-
-def s = new SiteMap("example.com");
+```
+module Probe
+import { "<prelude>/IO.mdr", "<prelude>/Collections/Map.mdr", }
+struct MapData { url: Text };
+def s = new MapData("example.com");
 IO::PrintLine(#s as Text);
 ```
 
-`SiteMap` has no `Countable` instance, so `#s` must be a compile error.
-
-- [ ] **Step 2: Run it and record what happens**
-
-```powershell
-./out/build/ninja/x64-development/out/Midori.exe check test/typeclass/failure/countable_name_collision.mdr
-```
-
-Record the exact output. The expectation is that `HasNameSuffix(name, "Map")` matches `SiteMap` and emits a call to `MapCount`, which then fails at a confusing place — or worse, compiles.
-
-**If it already errors cleanly**, stop and report. That would mean the dispatch is guarded somewhere this plan has not accounted for, and the plan needs revising before you continue.
-
-- [ ] **Step 3: Commit the finding**
-
-```bash
-git add test/typeclass/failure/countable_name_collision.mdr
-git commit -m "test: demonstrate # name-suffix dispatch matching a user type"
-```
+**Compiles and prints `0`, exit code 0** — an out-of-bounds field read, silent.
+Task 4 turns this into the permanent regression test.
 
 ---
 
