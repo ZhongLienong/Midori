@@ -654,3 +654,93 @@ git commit -m "test: cover constrained instances on a generic wrapper type"
 3. An unsatisfied constraint is a compile error naming the constraint that failed.
 4. Every existing suite passes, including the five typeclass failure tests.
 5. `test/typeclass/success/constrained_instance_combinator.mdr` prints `6`.
+
+---
+
+## Trace findings — 2026-09-01, after Tasks 1 and 2
+
+Three of this plan's premises were wrong. Recorded here so Task 3 is not written
+against them again.
+
+**Task 2 was already implemented.** `TypeChecker.cpp:3380` has passed
+`std::vector<MidoriType::ClassConstraint>(instance_stmt.m_constraints)` since
+commit `63d76d7` ("Implement associated type"), and `InstanceInfo` has always
+stored it (`TypeChecker.h:77`, constructor at `TypeChecker.cpp:2575`). The vector
+was empty only because the *parser* never populated
+`instance_stmt.m_constraints`. Task 1 made the existing storage live on its own,
+so Task 2 required no C++ at all — only its regression test, committed as
+`682d078`.
+
+**`TypeChecker.cpp:2669` is not the `deriving` path.** It is the
+*imported-instance* path (`imported_instance_associated_type_bindings`), and it
+still passes an empty constraint vector. **Constraints on instances imported
+across module boundaries are therefore dropped.** Not exercised by the current
+tests, which declare instances in the same module. This needs its own task before
+the library rewrite, where `Iter` combinators will be imported everywhere.
+
+**`FindMatchingInstance` is not on the dispatch path for a class-method call.**
+Its only callers are `Transferable` (`:896`), `ValidateFunctionConstraints`
+(`:1165`), associated types (`:1191`), `Iterable` (`:3780`, `:3981`) and
+`Concatenable` (`:4370`). A call like `Show::show(x)` instead goes through a
+separate inline candidate loop at `TypeChecker.cpp:4946-5004` that iterates
+`m_instances` directly and matches on *method parameter types* rather than
+instance type arguments. **Adding a constraint check inside `FindMatchingInstance`
+— which is what Task 3 above specifies — would not affect the failing test.**
+
+### What actually blocks the test
+
+Instance-head matching already works. `MatchInstanceTypeArg` (`:636-657`) compares
+`m_name` then recurses pairwise over `m_member_types`, so `Boxed<T>` against
+`Boxed<Int>` matches and binds `T = Int`. Verified empirically: an
+`instance Show<Boxed<T>>` whose body makes no constrained call compiles and runs.
+
+The line-20 error is a pure cascade from line 16. The single blocker is the
+recursive `Show::show(value.item)` inside the method body, and it has two layers:
+
+1. **The type checker's `m_active_constraints` is never populated for instance
+   method bodies.** Writes occur only at `:3096-3102` (from `defun.m_constraints`)
+   and `:5537-5542`; the Instance visitor's method-body loop at `:3499` pushes
+   nothing. Task 1 pushed onto the *parser's* separately-named member, which is a
+   different thing and affects name resolution only.
+
+2. **Even once populated, constraint selection fails on a type mismatch.**
+   At `:4855-4880` the constraint's first type argument is substituted through
+   `env_substitutions` — keyed by *value-binding* names such as `value`, not
+   type-parameter names, so `T` passes through unchanged — and then compared with
+   strict equality:
+
+   ```cpp
+   if (*resolved_first == *first_arg_type)
+   ```
+
+   `resolved_first` is `GenericParam T`; `first_arg_type` is the fresh unification
+   variable `T0` created at `:1936` (`Type.cpp:181-183` confirms `TypeVariable`
+   prints as `"T" + id`). `GenericParam T != TypeVariable T0`, so no constraint is
+   ever selected.
+
+   Confirmed by experiment: pushing the constraints around the `:3499` loop moves
+   execution into the abstract branch and changes the error to
+   `no matching class constraint for 'Show::show' and argument type 'T0'`.
+
+### Task 3, rewritten scope
+
+1. Push the instance's `m_constraints` onto the **type checker's**
+   `m_active_constraints` around the method-body loop at `:3499`, under a guard.
+2. Bridge the `GenericParam` / `TypeVariable` gap at `:4866`. **Open design
+   choice** — see below.
+3. Probably mirror both in `CodeGenerator.cpp:5651` for monomorphisation.
+
+`FindMatchingInstance` does not need to change for this test, though it may still
+need the constraint check for the `Iterable` and `Concatenable` paths that do go
+through it.
+
+### The open design choice in step 2
+
+- **Freshen the instance's generic params** to the same type variables the method
+  signature uses, so `T` and `T0` are literally the same type before comparison.
+  Keeps the strict `==`. Narrower, but requires getting the freshening context
+  right at the instance-visit boundary.
+- **Relax the comparison** at `:4866` to a `MatchInstanceTypeArg`-style structural
+  match instead of `==`. Smaller diff and reuses a tested function, but loosens a
+  check that other constraint paths also rely on, so it needs a careful look at
+  what else reaches that line.
