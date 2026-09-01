@@ -87,8 +87,8 @@ namespace
 			{
 				std::vector<TypePtr> empty_member_types;
 				std::vector<std::string> member_names_copy = type_variant.m_member_names;
-				std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
-				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
+				std::vector<std::string> instantiated_generic_params;
+				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 				cache[current_type.get()] = new_struct;
 
 				std::vector<TypePtr> new_member_types;
@@ -112,8 +112,8 @@ namespace
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
 			{
-				std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
-				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, std::move(generic_params_copy));
+				std::vector<std::string> instantiated_generic_params;
+				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, std::move(instantiated_generic_params));
 				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
 				std::vector<MidoriType::ClassConstraint> new_constraints;
 				new_constraints.reserve(type_variant.m_constraints.size());
@@ -270,7 +270,7 @@ namespace
 				{
 					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
-				else if (type_variant.m_is_generic_instantiation)
+				else if (type_variant.m_is_generic_instantiation && !type_variant.m_member_types.empty())
 				{
 					std::vector<std::string> member_type_strings;
 					std::ranges::transform

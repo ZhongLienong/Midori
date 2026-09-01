@@ -2032,9 +2032,9 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		// Create fresh struct and add to cache BEFORE recursing to handle cycles
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::vector<std::string> generic_params_copy = struct_type.m_generic_params;
-		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
-		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation;
+		std::vector<std::string> instantiated_generic_params;
+		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
 		context.m_type_cache[type.get()] = fresh_struct;
 
 		// Now freshen members
@@ -2071,11 +2071,11 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 
 		// Create fresh union and add to cache BEFORE recursing to handle cycles
-		std::vector<std::string> generic_params_copy = union_type.m_generic_params;
-		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, std::move(generic_params_copy));
+		std::vector<std::string> instantiated_generic_params;
+		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, std::move(instantiated_generic_params));
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
-		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation;
+		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation || !union_type.m_generic_params.empty();
 		std::vector<MidoriType::ClassConstraint> fresh_constraints;
 		fresh_constraints.reserve(union_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
@@ -2324,8 +2324,8 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		// Create new struct and add to cache BEFORE recursing to handle cycles
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::vector<std::string> generic_params_copy = struct_type.m_generic_params;
-		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
+		std::vector<std::string> instantiated_generic_params;
+		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 		cache[type.get()] = new_struct;
 
 		bool changed = false;
@@ -2378,8 +2378,8 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 
 		// Create new union and add to cache BEFORE recursing to handle cycles
-		std::vector<std::string> generic_params_copy = union_type.m_generic_params;
-		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, std::move(generic_params_copy));
+		std::vector<std::string> instantiated_generic_params;
+		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, std::move(instantiated_generic_params));
 		cache[type.get()] = new_union;
 		MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 
@@ -3496,6 +3496,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		}
 	}
 
+	// AppendUniqueConstraint does NOT make this append idempotent: on a second visit the stored
+	// constraint has been freshened in place by the defun path while the incoming one has not,
+	// so they compare unequal and a duplicate would accumulate. Safety comes instead from this
+	// statement being visited at most once - TypeCheck traverses m_program_tree in a single pass,
+	// the duplicate-instance guard above rejects a repeated instance key before reaching here,
+	// and each module gets its own TypeChecker owning its own tree (imports carry instance
+	// metadata, not Instance AST nodes). Preserve that property before reusing this loop.
 	for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
 		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();

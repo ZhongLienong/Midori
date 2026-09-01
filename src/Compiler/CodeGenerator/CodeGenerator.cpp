@@ -6201,8 +6201,8 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 		{
 			std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 			std::vector<std::string> member_names_copy = type_variant.m_member_names;
-			std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
-			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(generic_params_copy));
+			std::vector<std::string> instantiated_generic_params;
+			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_struct;
 
 			std::vector<std::shared_ptr<MidoriType>> substituted_members;
@@ -6227,8 +6227,8 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UnionType& type_variant) const
 		{
-			std::vector<std::string> generic_params_copy = type_variant.m_generic_params;
-			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, std::move(generic_params_copy));
+			std::vector<std::string> instantiated_generic_params;
+			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_union;
 			MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 			std::vector<MidoriType::ClassConstraint> substituted_constraints;
