@@ -568,6 +568,8 @@ namespace
 			[](const std::shared_ptr<MidoriType>& type_argument) { return type_argument; }
 		);
 
+		// Derive no bindings rather than rejecting the match, so a concrete type that
+		// predates its arguments still resolves through its members.
 		if (resolved_pattern_type_arguments.size() != concrete_type_arguments.size())
 		{
 			return true;
@@ -1393,6 +1395,9 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 MidoriResult::TypeResult TypeChecker::UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MidoriType>>& left, std::vector<std::shared_ptr<MidoriType>>& right, UnifyDiagnosticMode diagnostic_mode)
 {
+	// Arity is equal for every same-named instantiation the parser admits, so this
+	// only guards against a substitution site that failed to record its arguments.
+	// Such a lapse is caught by the phantom type parameter tests rather than here.
 	const size_t shared_count = std::min(left.size(), right.size());
 
 	for (size_t idx : std::views::iota(0u, shared_count))
