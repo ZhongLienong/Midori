@@ -368,6 +368,8 @@ private:
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
 
+	std::optional<std::string> FindGenericFunctionKey(const std::string& resolved_name) const;
+
 	std::optional<std::string> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const;
 
 	bool AreTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) const;

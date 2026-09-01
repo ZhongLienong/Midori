@@ -1,0 +1,12 @@
+module CrossModuleConstrained
+
+import { "../../../MidoriPrelude/IO.mdr", "cross_module_constrained_lib.mdr" }
+
+def boxed_int = CrossModuleConstrainedLib::MakeBoxedInt(7);
+def boxed_text = CrossModuleConstrainedLib::MakeBoxedText("hi");
+def twice = CrossModuleConstrainedLib::MakeNested(3);
+
+IO::PrintLine(Show::show(boxed_int));
+IO::PrintLine(Show::show(boxed_text));
+IO::PrintLine(Show::show(twice));
+IO::PrintLine(Show::show(42));

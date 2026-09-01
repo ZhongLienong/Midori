@@ -1,0 +1,26 @@
+module CrossModuleConstrainedLib
+public export { Show, Boxed, MakeBoxedInt, MakeBoxedText, MakeNested }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Boxed<T> { item: T };
+
+instance Show<Int> {
+    defun show(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+instance Show<Text> {
+    defun show(value: Text) : Text => "Text(" ++ value ++ ")";
+};
+
+instance Show<Boxed<T>> where Show<T> {
+    defun show(value: Boxed<T>) : Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+defun MakeBoxedInt(n: Int) : Boxed<Int> => new Boxed<Int>(n);
+
+defun MakeBoxedText(t: Text) : Boxed<Text> => new Boxed<Text>(t);
+
+defun MakeNested(n: Int) : Boxed<Boxed<Int>> => new Boxed<Boxed<Int>>(new Boxed<Int>(n));

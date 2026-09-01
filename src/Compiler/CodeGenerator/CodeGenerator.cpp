@@ -1280,6 +1280,36 @@ std::optional<std::string> CodeGenerator::ResolveInstanceName(const std::string&
 	return std::nullopt;
 }
 
+std::optional<std::string> CodeGenerator::FindGenericFunctionKey(const std::string& resolved_name) const
+{
+	if (m_generic_functions.contains(resolved_name))
+	{
+		return resolved_name;
+	}
+
+	const size_t at_pos = resolved_name.find(ModuleSeparator);
+	if (at_pos == std::string::npos)
+	{
+		return std::nullopt;
+	}
+
+	const std::string symbol_name = resolved_name.substr(0u, at_pos);
+	const std::string module_name = resolved_name.substr(at_pos + 1u);
+
+	const std::string qualified_name = module_name + std::string(NameSeparator) + symbol_name;
+	if (m_generic_functions.contains(qualified_name))
+	{
+		return qualified_name;
+	}
+
+	if (m_generic_functions.contains(symbol_name))
+	{
+		return symbol_name;
+	}
+
+	return std::nullopt;
+}
+
 int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
 {
 	int import_slot = -1;
@@ -3687,15 +3717,16 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			}
 		}
 
-		std::unordered_map<std::string, GenericFunctionInfo>::iterator generic_it = m_generic_functions.find(function_name);
-		if (generic_it != m_generic_functions.end())
+		std::optional<std::string> generic_key = FindGenericFunctionKey(function_name);
+		if (generic_key.has_value())
 		{
 			is_generic_call = true;
+			function_name = std::move(generic_key.value());
 		}
-		else if (function_name.find("::") != std::string::npos)
+		else if (function_name.find(NameSeparator) != std::string::npos)
 		{
 			// Try suffix lookup for qualified names
-			std::string suffix = function_name.substr(function_name.rfind("::") + 2);
+			std::string suffix = function_name.substr(function_name.rfind(NameSeparator.data()) + NameSeparator.length());
 			if (m_generic_functions.contains(suffix))
 			{
 				is_generic_call = true;
@@ -6007,6 +6038,12 @@ std::optional<int> CodeGenerator::ResolveResolvedNameGlobalIndex(const std::stri
 	{
 		std::string symbol_name = resolved_name.substr(0u, at_pos);
 		std::string module_name = resolved_name.substr(at_pos + 1u);
+
+		if (FindGenericFunctionKey(resolved_name).has_value())
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", symbol_name, module_name), line, m_file_name, m_source_lines));
+			return std::nullopt;
+		}
 
 		int import_placeholder = GetImportPlaceholder(module_name, symbol_name, line, MakeSourceProvenance(line));
 		if (import_placeholder < 0)

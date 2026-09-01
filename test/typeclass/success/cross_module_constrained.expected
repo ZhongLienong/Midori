@@ -1,0 +1,4 @@
+Boxed(Int(7))
+Boxed(Text(hi))
+Boxed(Boxed(Int(3)))
+Int(42)
