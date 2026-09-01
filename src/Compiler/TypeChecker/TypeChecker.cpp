@@ -3496,8 +3496,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		}
 	}
 
-	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 	{
+		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
+		for (const MidoriType::ClassConstraint& constraint : instance_stmt.m_constraints)
+		{
+			AppendUniqueConstraint(defun.m_constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+		}
+
 		MidoriResult::TypeResult result = Evaluate(method);
 		if (!result.has_value())
 		{
