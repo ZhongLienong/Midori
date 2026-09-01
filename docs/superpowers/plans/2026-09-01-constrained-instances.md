@@ -54,7 +54,25 @@ wrong results:
 ./out/build/ninja/x64-development/out/Midori.exe test typeclass
 ```
 
-Baseline before any change: `Total: 23/23 passed`.
+Baseline on this branch, measured 2026-09-01:
+
+- `test typeclass` → `Total: 23/23 passed`
+- full `test` → `253/258`
+
+**The typeclass denominator grows as you add test files.** Discovery is a
+`recursive_directory_iterator` over the suite directory
+(`src/Utility/TestRunner/TestRunner.cpp:610`), so adding a file makes the target
+24, then 25, and so on. The bar is *no regression in the 23 pre-existing tests*,
+not a literal count. (The 23rd is `prelude/success/builtin_type_operations_typeclasses.mdr`,
+matched by filename rather than living under `test/typeclass/`.)
+
+**Four failures are pre-existing on this branch and unrelated to this plan.** Do
+not chase them:
+
+- `concurrency/worker_cancel_blocked_receive`
+- `concurrency/worker_cancel_spin`
+- `static_analyzer/warning_then_codegen_failure`
+- `static_analyzer/unused_local_warning`
 
 ---
 
@@ -135,6 +153,16 @@ MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::
 ```
 
 Leave the two derive-generated sites at `:5688` and `:5752` passing `{}` — derived instances carry no user-written constraints.
+
+- [ ] **Step 4b: Make the constraints active while parsing method bodies**
+
+Parsing alone is not enough. Inside a method of `instance Show<Boxed<T>> where Show<T>`, the body calls `Show::show(value.item)` on an abstract `T` — that only resolves if `Show<T>` is an *assumed* constraint for the duration of the body.
+
+The function parser already does this: it pushes parsed constraints onto `m_state.m_active_constraints` under an `ActiveConstraintGuard` at `Parser.cpp:2832-2840`. Mirror that here. The two cases are exactly analogous — in `defun f<T>(...) where Equatable<T>` the parameter is abstract and the constraint assumed, and the same holds inside a constrained instance's methods.
+
+The guard's lifetime must cover method-body parsing and end before `ParseInstanceDeclaration` returns, so constraints do not leak into declarations that follow. An instance with no `where` clause must push nothing, leaving the guard a no-op.
+
+Without this, the test fails twice: once inside the method body (this step fixes it) and once at the call site (Task 3 fixes that).
 
 - [ ] **Step 5: Build and re-run**
 
