@@ -3587,6 +3587,16 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		constraints = std::move(constraints_result.value());
 	}
 
+	size_t prev_constraints_size = m_state.m_active_constraints.size();
+	for (const MidoriType::ClassConstraint& constraint : constraints)
+	{
+		if (!ContainsConstraint(m_state.m_active_constraints, constraint))
+		{
+			m_state.m_active_constraints.push_back(constraint);
+		}
+	}
+	ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
+
 	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
 	{
