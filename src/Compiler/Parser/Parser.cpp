@@ -3575,6 +3575,18 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
 	}
 
+	std::vector<MidoriType::ClassConstraint> constraints;
+	if (Match(Token::Name::WHERE))
+	{
+		std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(typeclass_name);
+		if (!constraints_result.has_value())
+		{
+			return std::unexpected(constraints_result.error());
+		}
+
+		constraints = std::move(constraints_result.value());
+	}
+
 	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
 	{
@@ -3846,7 +3858,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 
 	return std::make_unique<MidoriStatement>
 	(
-		MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::vector<MidoriType::ClassConstraint>(), std::move(associated_types), std::move(methods))
+		MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::move(constraints), std::move(associated_types), std::move(methods))
 	);
 }
 

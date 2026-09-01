@@ -1,0 +1,20 @@
+module ConstrainedInstance
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Boxed<T> { item: T };
+
+instance Show<Int> {
+    defun show(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+instance Show<Boxed<T>> where Show<T> {
+    defun show(value: Boxed<T>) : Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def inner = new Boxed<Int>(7);
+IO::PrintLine(Show::show(inner));
