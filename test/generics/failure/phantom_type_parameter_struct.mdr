@@ -1,0 +1,18 @@
+module PhantomTypeParameterStruct
+
+// Test: A generic struct whose type parameter appears in no member
+// Expected: SHOULD FAIL - Marker<Int> and Marker<Text> are distinct types
+
+struct Marker<T> 
+{
+};
+
+defun make_int_marker() : Marker<Int> => new Marker<Int>();
+
+defun wants_text_marker(m: Marker<Text>) : Int => 1;
+
+defun main() : Int => 
+{
+	def m = make_int_marker();
+	return wants_text_marker(m);
+};

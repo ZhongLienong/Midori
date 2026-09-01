@@ -107,6 +107,7 @@ namespace
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+					new_struct->GetType<MidoriType::StructType>().m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
 				}
 				return new_struct;
 			}
@@ -128,6 +129,7 @@ namespace
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_union_ref.m_is_generic_instantiation = true;
+					new_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
 				}
 				cache[current_type.get()] = new_union_type;
 
@@ -166,6 +168,19 @@ namespace
 	{
 		const JoinWithCommaFn& join_with_comma;
 		const ToStringCallback& stringify;
+
+		std::string StringifyTypeArguments(const std::string& name, const std::vector<TypePtr>& type_arguments) const
+		{
+			std::vector<std::string> type_argument_strings;
+			std::ranges::transform
+			(
+				type_arguments,
+				std::back_inserter(type_argument_strings),
+				[this](const TypePtr& type_argument) { return stringify(*type_argument); }
+			);
+
+			return name + "<"s + std::accumulate(std::next(type_argument_strings.begin()), type_argument_strings.end(), type_argument_strings.front(), join_with_comma) + ">"s;
+		}
 
 		template<typename Type>
 		std::string operator()(const Type& type_variant) const
@@ -270,6 +285,10 @@ namespace
 				{
 					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
+				else if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
+				{
+					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+				}
 				else if (type_variant.m_is_generic_instantiation && !type_variant.m_member_types.empty())
 				{
 					std::vector<std::string> member_type_strings;
@@ -292,6 +311,10 @@ namespace
 				if (!type_variant.m_generic_params.empty())
 				{
 					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+				}
+				else if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
+				{
+					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
 				}
 				else if (type_variant.m_is_generic_instantiation)
 				{
@@ -623,6 +646,28 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 	return substitute(type);
 }
 
+std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute)
+{
+	std::vector<std::shared_ptr<MidoriType>> instantiated;
+
+	if (!type_arguments.empty())
+	{
+		instantiated.reserve(type_arguments.size());
+		std::ranges::transform(type_arguments, std::back_inserter(instantiated), substitute);
+		return instantiated;
+	}
+
+	instantiated.reserve(generic_params.size());
+	std::ranges::transform
+	(
+		generic_params,
+		std::back_inserter(instantiated),
+		[&substitute](const std::string& param_name) { return substitute(MakeGenericType(param_name)); }
+	);
+
+	return instantiated;
+}
+
 std::string MidoriType::ToString() const
 {
 	JoinWithCommaFn join_with_comma = [](const std::string& acc, const std::string& elem)
@@ -700,6 +745,19 @@ bool MidoriType::IsNumericType() const
 	return IsType<FloatType>() || IsType<IntegerType>() || IsType<ByteType>() || IsType<WordType>();
 }
 
+bool MidoriType::CompareTypeArguments(const std::vector<std::shared_ptr<MidoriType>>& a, const std::vector<std::shared_ptr<MidoriType>>& b)
+{
+	return std::ranges::equal
+	(
+		a,
+		b,
+		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		{
+			return *left == *right;
+		}
+	);
+}
+
 bool MidoriType::CompareGenericStructs(const StructType& a, const StructType& b)
 {
 	if (a.m_member_types.size() != b.m_member_types.size())
@@ -721,6 +779,11 @@ bool MidoriType::CompareGenericStructs(const StructType& a, const StructType& b)
 bool MidoriType::CompareInstantiatedStructs(const StructType& a, const StructType& b)
 {
 	if (a.m_member_types.size() != b.m_member_types.size() || !std::ranges::equal(a.m_member_names, b.m_member_names))
+	{
+		return false;
+	}
+
+	if (!CompareTypeArguments(a.m_type_arguments, b.m_type_arguments))
 	{
 		return false;
 	}
@@ -795,6 +858,11 @@ bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& 
 	using VariantPairCheckFn = std::function<bool(const std::pair<const std::string, UnionType::UnionMemberContext>&)>;
 
 	if (a.m_member_info.size() != b.m_member_info.size())
+	{
+		return false;
+	}
+
+	if (!CompareTypeArguments(a.m_type_arguments, b.m_type_arguments))
 	{
 		return false;
 	}

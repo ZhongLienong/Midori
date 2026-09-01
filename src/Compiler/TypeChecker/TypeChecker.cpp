@@ -115,6 +115,13 @@ namespace
 			{
 				if (HasTypeVariables(member, visited)) return true;
 			}
+			for (const std::shared_ptr<MidoriType>& type_argument : type->GetType<MidoriType::StructType>().m_type_arguments)
+			{
+				if (HasTypeVariables(type_argument, visited))
+				{
+					return true;
+				}
+			}
 			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::StructType>().m_constraints)
 			{
 				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
@@ -133,6 +140,13 @@ namespace
 				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
 				{
 					if (HasTypeVariables(member, visited)) return true;
+				}
+			}
+			for (const std::shared_ptr<MidoriType>& type_argument : type->GetType<MidoriType::UnionType>().m_type_arguments)
+			{
+				if (HasTypeVariables(type_argument, visited))
+				{
+					return true;
 				}
 			}
 			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::UnionType>().m_constraints)
@@ -543,6 +557,33 @@ namespace
 		return joined;
 	}
 
+	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited);
+
+	bool MatchInstanceTypeArguments(const std::vector<std::string>& pattern_generic_params, const std::vector<std::shared_ptr<MidoriType>>& pattern_type_arguments, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_arguments, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
+	{
+		const std::vector<std::shared_ptr<MidoriType>> resolved_pattern_type_arguments = MidoriType::InstantiateTypeArguments
+		(
+			pattern_generic_params,
+			pattern_type_arguments,
+			[](const std::shared_ptr<MidoriType>& type_argument) { return type_argument; }
+		);
+
+		if (resolved_pattern_type_arguments.size() != concrete_type_arguments.size())
+		{
+			return true;
+		}
+
+		for (size_t i = 0u; i < resolved_pattern_type_arguments.size(); i += 1u)
+		{
+			if (!MatchInstanceTypeArg(resolved_pattern_type_arguments[i], concrete_type_arguments[i], substitutions, visited))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
 	{
 		if (!pattern || !concrete)
@@ -648,6 +689,11 @@ namespace
 				return false;
 			}
 
+			if (!MatchInstanceTypeArguments(pattern_struct.m_generic_params, pattern_struct.m_type_arguments, concrete_struct.m_type_arguments, substitutions, visited))
+			{
+				return false;
+			}
+
 			for (size_t i = 0u; i < pattern_struct.m_member_types.size(); i += 1u)
 			{
 				if (!MatchInstanceTypeArg(pattern_struct.m_member_types[i], concrete_struct.m_member_types[i], substitutions, visited))
@@ -669,6 +715,11 @@ namespace
 			const MidoriType::UnionType& concrete_union = concrete->GetType<MidoriType::UnionType>();
 			if (pattern_union.m_name != concrete_union.m_name ||
 				pattern_union.m_member_info.size() != concrete_union.m_member_info.size())
+			{
+				return false;
+			}
+
+			if (!MatchInstanceTypeArguments(pattern_union.m_generic_params, pattern_union.m_type_arguments, concrete_union.m_type_arguments, substitutions, visited))
 			{
 				return false;
 			}
@@ -1340,6 +1391,22 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 	);
 }
 
+MidoriResult::TypeResult TypeChecker::UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MidoriType>>& left, std::vector<std::shared_ptr<MidoriType>>& right, UnifyDiagnosticMode diagnostic_mode)
+{
+	const size_t shared_count = std::min(left.size(), right.size());
+
+	for (size_t idx : std::views::iota(0u, shared_count))
+	{
+		MidoriResult::TypeResult result = Unify(token, left[idx], right[idx], diagnostic_mode);
+		if (!result.has_value())
+		{
+			return result;
+		}
+	}
+
+	return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+}
+
 MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode)
 {
 	// Apply current substitutions first
@@ -1520,6 +1587,12 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(std::move(*generic_mismatch));
 		}
 
+		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_struct.m_type_arguments, right_struct.m_type_arguments, diagnostic_mode);
+		if (!type_argument_result.has_value())
+		{
+			return type_argument_result;
+		}
+
 		// Unify each member type
 		for (size_t idx : std::views::iota(0u, left_struct.m_member_types.size()))
 		{
@@ -1546,6 +1619,12 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		if (std::optional<CompilerError> generic_mismatch = TryMakeGenericParameterMismatchError(token, left_subst, right_subst))
 		{
 			return std::unexpected(std::move(*generic_mismatch));
+		}
+
+		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_union.m_type_arguments, right_union.m_type_arguments, diagnostic_mode);
+		if (!type_argument_result.has_value())
+		{
+			return type_argument_result;
 		}
 
 		for (auto& [member_name, left_ctx] : left_union.m_member_info)
@@ -2037,6 +2116,16 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
 		context.m_type_cache[type.get()] = fresh_struct;
 
+		if (fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation)
+		{
+			fresh_struct->GetType<MidoriType::StructType>().m_type_arguments = MidoriType::InstantiateTypeArguments
+			(
+				struct_type.m_generic_params,
+				struct_type.m_type_arguments,
+				[&context, this](const std::shared_ptr<MidoriType>& type_argument) { return Freshen(type_argument, context); }
+			);
+		}
+
 		// Now freshen members
 		std::vector<std::shared_ptr<MidoriType>> fresh_member_types;
 		std::ranges::for_each
@@ -2076,6 +2165,17 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
 		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation || !union_type.m_generic_params.empty();
+
+		if (fresh_union_ref.m_is_generic_instantiation)
+		{
+			fresh_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments
+			(
+				union_type.m_generic_params,
+				union_type.m_type_arguments,
+				[&context, this](const std::shared_ptr<MidoriType>& type_argument) { return Freshen(type_argument, context); }
+			);
+		}
+
 		std::vector<MidoriType::ClassConstraint> fresh_constraints;
 		fresh_constraints.reserve(union_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
@@ -2359,10 +2459,23 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			new_constraints.push_back(std::move(substituted_constraint));
 		}
 
+		std::vector<std::shared_ptr<MidoriType>> new_type_arguments;
+		new_type_arguments.reserve(struct_type.m_type_arguments.size());
+		for (const std::shared_ptr<MidoriType>& type_argument : struct_type.m_type_arguments)
+		{
+			std::shared_ptr<MidoriType> substituted_type_argument = ApplySubstitution(type_argument, cache);
+			new_type_arguments.emplace_back(substituted_type_argument);
+			if (substituted_type_argument != type_argument)
+			{
+				changed = true;
+			}
+		}
+
 		if (changed)
 		{
 			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
 			new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(new_constraints);
+			new_struct->GetType<MidoriType::StructType>().m_type_arguments = std::move(new_type_arguments);
 			// Mark this as a generic instantiation if the original had generic params
 			if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
 			{
@@ -2402,6 +2515,19 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 			new_constraints.push_back(std::move(substituted_constraint));
 		}
 		new_union_ref.m_constraints = std::move(new_constraints);
+
+		std::vector<std::shared_ptr<MidoriType>> new_type_arguments;
+		new_type_arguments.reserve(union_type.m_type_arguments.size());
+		for (const std::shared_ptr<MidoriType>& type_argument : union_type.m_type_arguments)
+		{
+			std::shared_ptr<MidoriType> substituted_type_argument = ApplySubstitution(type_argument, cache);
+			new_type_arguments.emplace_back(substituted_type_argument);
+			if (substituted_type_argument != type_argument)
+			{
+				changed = true;
+			}
+		}
+		new_union_ref.m_type_arguments = std::move(new_type_arguments);
 
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
@@ -2514,6 +2640,13 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 				return true;
 			}
 		}
+		for (const std::shared_ptr<MidoriType>& type_argument : struct_type.m_type_arguments)
+		{
+			if (OccursCheck(var_id, type_argument, visited))
+			{
+				return true;
+			}
+		}
 		return false;
 	}
 	else if (subst_type->IsType<MidoriType::UnionType>())
@@ -2527,6 +2660,13 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 				{
 					return true;
 				}
+			}
+		}
+		for (const std::shared_ptr<MidoriType>& type_argument : union_type.m_type_arguments)
+		{
+			if (OccursCheck(var_id, type_argument, visited))
+			{
+				return true;
 			}
 		}
 		return false;

@@ -182,6 +182,8 @@ private:
 
 	MidoriResult::TypeResult Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
 
+	MidoriResult::TypeResult UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MidoriType>>& left, std::vector<std::shared_ptr<MidoriType>>& right, UnifyDiagnosticMode diagnostic_mode);
+
 	MidoriResult::TypeResult operator()(MidoriStatement::ExpressionStatement& simple);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::VariableDefinition& def);

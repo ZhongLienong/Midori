@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -98,6 +99,7 @@ public:
 		std::vector<std::string> m_member_names;
 		std::string m_name;
 		std::vector<std::string> m_generic_params;
+		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 	};
@@ -113,6 +115,7 @@ public:
 		std::unordered_map<std::string, UnionMemberContext> m_member_info;
 		std::string m_name;
 		std::vector<std::string> m_generic_params;
+		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 
@@ -197,6 +200,10 @@ public:
 
 	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
 
+	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
+
+	static std::vector<std::shared_ptr<MidoriType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);
+
 	std::string ToString() const;
 
 	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
@@ -215,6 +222,7 @@ private:
 	static bool CompareGenericUnions(const UnionType& a, const UnionType& b);
 	static bool CompareInstantiatedStructs(const StructType& a, const StructType& b);
 	static bool CompareInstantiatedUnions(const UnionType& a, const UnionType& b);
+	static bool CompareTypeArguments(const std::vector<std::shared_ptr<MidoriType>>& a, const std::vector<std::shared_ptr<MidoriType>>& b);
 };
 
 bool operator==(const MidoriType& lhs, const MidoriType& rhs);

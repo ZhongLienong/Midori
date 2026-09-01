@@ -6258,6 +6258,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+				new_struct->GetType<MidoriType::StructType>().m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, m_substitute);
 			}
 			return new_struct;
 		}
@@ -6281,6 +6282,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_union_ref.m_is_generic_instantiation = true;
+				new_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, m_substitute);
 			}
 
 			for (const auto& [member_name, member_ctx] : type_variant.m_member_info)
