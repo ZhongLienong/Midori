@@ -27,6 +27,125 @@ namespace
 		size_t pos = name.size() - suffix.size();
 		return pos >= 2u && name[pos - 1u] == ':' && name[pos - 2u] == ':';
 	}
+
+	bool ContainsFreeTypeParameter(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+	{
+		if (!type)
+		{
+			return false;
+		}
+		if (!visited.insert(type.get()).second)
+		{
+			return false;
+		}
+
+		if (type->IsType<MidoriType::GenericParam>() || type->IsType<MidoriType::TypeVariable>())
+		{
+			return true;
+		}
+		if (type->IsType<MidoriType::ArrayType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+		}
+		if (type->IsType<MidoriType::RangeType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::RangeType>().m_element_type, visited);
+		}
+		if (type->IsType<MidoriType::WorkerType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::WorkerType>().m_result_type, visited);
+		}
+		if (type->IsType<MidoriType::ChannelType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+		}
+		if (type->IsType<MidoriType::TupleType>())
+		{
+			const MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
+			return std::ranges::any_of
+			(
+				tuple_type.m_element_types,
+				[&visited](const std::shared_ptr<MidoriType>& element_type) -> bool
+				{
+					return ContainsFreeTypeParameter(element_type, visited);
+				}
+			);
+		}
+		if (type->IsType<MidoriType::FunctionType>())
+		{
+			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
+			if (ContainsFreeTypeParameter(function_type.m_return_type, visited))
+			{
+				return true;
+			}
+			return std::ranges::any_of
+			(
+				function_type.m_param_types,
+				[&visited](const std::shared_ptr<MidoriType>& param_type) -> bool
+				{
+					return ContainsFreeTypeParameter(param_type, visited);
+				}
+			);
+		}
+		if (type->IsType<MidoriType::StructType>())
+		{
+			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+			return std::ranges::any_of
+			(
+				struct_type.m_member_types,
+				[&visited](const std::shared_ptr<MidoriType>& member_type) -> bool
+				{
+					return ContainsFreeTypeParameter(member_type, visited);
+				}
+			);
+		}
+		if (type->IsType<MidoriType::UnionType>())
+		{
+			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+			return std::ranges::any_of
+			(
+				union_type.m_member_info,
+				[&visited](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member) -> bool
+				{
+					return std::ranges::any_of
+					(
+						member.second.m_member_types,
+						[&visited](const std::shared_ptr<MidoriType>& member_type) -> bool
+						{
+							return ContainsFreeTypeParameter(member_type, visited);
+						}
+					);
+				}
+			);
+		}
+		if (type->IsType<MidoriType::AssociatedType>())
+		{
+			const MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
+			return std::ranges::any_of
+			(
+				associated_type.m_type_args,
+				[&visited](const std::shared_ptr<MidoriType>& type_arg) -> bool
+				{
+					return ContainsFreeTypeParameter(type_arg, visited);
+				}
+			);
+		}
+
+		return false;
+	}
+
+	bool IsGenericInstanceHead(const std::vector<std::shared_ptr<MidoriType>>& type_args)
+	{
+		std::unordered_set<const MidoriType*> visited;
+		return std::ranges::any_of
+		(
+			type_args,
+			[&visited](const std::shared_ptr<MidoriType>& type_arg) -> bool
+			{
+				return ContainsFreeTypeParameter(type_arg, visited);
+			}
+		);
+	}
 }
 
 CodeGenerator::BytecodeBuilder CodeGenerator::BytecodeBuilder::EmitByte(OpCode byte, int line) &&
@@ -1086,6 +1205,56 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 	return false;
 }
 
+std::optional<std::string> CodeGenerator::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const
+{
+	std::string exact_prefix = MidoriType::MangleInstanceMethodName(method_name, class_name, concrete_type_args);
+	std::optional<std::string> exact_name = ResolveInstanceName(class_name, exact_prefix);
+	if (exact_name.has_value())
+	{
+		return exact_name;
+	}
+
+	TypeclassInstanceTypeMap::const_iterator instance_args_it = m_class_instance_type_args.find(class_name);
+	if (instance_args_it == m_class_instance_type_args.cend())
+	{
+		return std::nullopt;
+	}
+
+	for (const std::vector<std::shared_ptr<MidoriType>>& candidate_args : instance_args_it->second)
+	{
+		if (candidate_args.size() != concrete_type_args.size())
+		{
+			continue;
+		}
+
+		TypeEnvironment substitutions;
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		bool matched = true;
+		for (size_t i = 0u; i < candidate_args.size(); i += 1u)
+		{
+			if (!MatchInstanceTypeArg(candidate_args[i], concrete_type_args[i], substitutions, visited))
+			{
+				matched = false;
+				break;
+			}
+		}
+
+		if (!matched)
+		{
+			continue;
+		}
+
+		std::string candidate_prefix = MidoriType::MangleInstanceMethodName(method_name, class_name, candidate_args);
+		std::optional<std::string> candidate_name = ResolveInstanceName(class_name, candidate_prefix);
+		if (candidate_name.has_value())
+		{
+			return candidate_name;
+		}
+	}
+
+	return std::nullopt;
+}
+
 std::optional<std::string> CodeGenerator::ResolveInstanceName(const std::string& class_name, const std::string& base_name) const
 {
 	if (m_global_variables.contains(base_name))
@@ -1356,6 +1525,8 @@ void CodeGenerator::EmitInstanceMethodDefinitions()
 		MidoriStatement::Instance& instance_stmt = statement->GetStatement<MidoriStatement::Instance>();
 		AddInstanceTypeArgs(instance_stmt.m_class_name.m_lexeme, instance_stmt.m_type_args);
 
+		const bool is_constrained_generic_instance = !instance_stmt.m_constraints.empty() && IsGenericInstanceHead(instance_stmt.m_type_args);
+
 		for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
 		{
 			if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
@@ -1364,6 +1535,11 @@ void CodeGenerator::EmitInstanceMethodDefinitions()
 			}
 
 			MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
+			if (is_constrained_generic_instance)
+			{
+				m_generic_instance_methods.insert(defun.m_name.m_lexeme);
+			}
+
 			std::vector<std::string>& instance_methods = m_class_instances[instance_stmt.m_class_name.m_lexeme];
 			if (std::ranges::find(instance_methods, defun.m_name.m_lexeme) == instance_methods.cend())
 			{
@@ -2114,7 +2290,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 	// Instance methods should always be global, regardless of local_index
 	bool is_global = !defun.m_local_index.has_value() || is_instance_method;
 	std::optional<int> index = std::nullopt;
-	bool is_generic = !defun.m_generic_params.empty();
+	bool is_generic = !defun.m_generic_params.empty() || m_generic_instance_methods.contains(defun.m_name.m_lexeme);
 
 	if (is_generic && is_global)
 	{
@@ -5545,19 +5721,11 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 				std::string resolved_method_name = mangled_name_prefix;
 				bool instance_found = false;
 
-				TypeclassInstanceMap::iterator instances_it = m_class_instances.find(constraint.m_class_name);
-				if (instances_it != m_class_instances.end())
+				std::optional<std::string> matched_instance_name = ResolveInstanceNameForTypeArgs(constraint.m_class_name, method_name, concrete_type_args);
+				if (matched_instance_name.has_value())
 				{
-					std::string pattern_with_at = mangled_name_prefix + ModuleSeparator;
-					for (const std::string& instance_method : instances_it->second)
-					{
-						if (instance_method == mangled_name_prefix || instance_method.starts_with(pattern_with_at))
-						{
-							resolved_method_name = instance_method;
-							instance_found = true;
-							break;
-						}
-					}
+					resolved_method_name = matched_instance_name.value();
+					instance_found = true;
 				}
 
 				ResolvedMethodCandidate candidate;

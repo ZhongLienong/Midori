@@ -89,6 +89,7 @@ private:
 	std::unordered_map<int, int> m_direct_proc_global_indices;
 	std::unordered_map<std::string, int> m_local_variables;
 	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
+	std::unordered_set<std::string> m_generic_instance_methods;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	TypeEnvironment m_param_type_map;
 	TypeEnvironment m_generic_type_substitution;
@@ -366,6 +367,8 @@ private:
 	std::optional<int> ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line);
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
+
+	std::optional<std::string> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const;
 
 	bool AreTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) const;
 
