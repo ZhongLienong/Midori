@@ -2829,15 +2829,9 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 																	AppendUniqueConstraint(constraints, std::move(propagated_constraint));
 																}
 
-																for (const MidoriType::ClassConstraint& constraint : constraints)
-																{
-																	if (!ContainsConstraint(m_state.m_active_constraints, constraint))
-																	{
-																		m_state.m_active_constraints.push_back(constraint);
-																	}
-																}
+																PushActiveConstraints(constraints);
 
-																ActiveConstraintGuard constraint_guard{ this, prev_constraints_size };
+																ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
 																return Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.")
 																	.and_then
@@ -3588,13 +3582,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	}
 
 	size_t prev_constraints_size = m_state.m_active_constraints.size();
-	for (const MidoriType::ClassConstraint& constraint : constraints)
-	{
-		if (!ContainsConstraint(m_state.m_active_constraints, constraint))
-		{
-			m_state.m_active_constraints.push_back(constraint);
-		}
-	}
+	PushActiveConstraints(constraints);
 	ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
 	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
@@ -4234,14 +4222,8 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 							{
 								size_t prev_constraints_size = m_state.m_active_constraints.size();
 								std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
-								for (const MidoriType::ClassConstraint& constraint : propagated_constraints)
-								{
-									if (!ContainsConstraint(m_state.m_active_constraints, constraint))
-									{
-										m_state.m_active_constraints.push_back(constraint);
-									}
-								}
-								ActiveConstraintGuard constraint_guard{ this, prev_constraints_size };
+								PushActiveConstraints(propagated_constraints);
+								ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
 								auto finish_lambda = [&params, &param_types, &return_type, &keyword, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& return_value) -> MidoriResult::ExpressionResult
 								{
@@ -5429,6 +5411,17 @@ MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' between generic parameters."); },
 			[this]() { return ConsumeTypeRightAngle("Expected '>' after generic parameters."); }
 		);
+}
+
+void Parser::PushActiveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints)
+{
+	for (const MidoriType::ClassConstraint& constraint : constraints)
+	{
+		if (!ContainsConstraint(m_state.m_active_constraints, constraint))
+		{
+			m_state.m_active_constraints.push_back(constraint);
+		}
+	}
 }
 
 std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)

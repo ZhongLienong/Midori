@@ -617,6 +617,8 @@ private:
 
 	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
 
+	void PushActiveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints);
+
 	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
 
 	Token MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const;
