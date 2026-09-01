@@ -744,3 +744,73 @@ through it.
   match instead of `==`. Smaller diff and reuses a tested function, but loosens a
   check that other constraint paths also rely on, so it needs a careful look at
   what else reaches that line.
+
+---
+
+## Task 3 (rewritten): make constrained instance methods dispatch
+
+**Decision taken:** bridge the `GenericParam` / `TypeVariable` gap by **freshening**,
+not by relaxing the comparison at `:4866`. Loosening `==` would change behaviour
+for `Transferable` (`:896`), `ValidateFunctionConstraints` (`:1165`), associated
+types (`:1191`), `Iterable` (`:3780`, `:3981`) and `Concatenable` (`:4370`), all
+of which reach constraint comparison. A blast radius across five paths is the
+wrong trade for a smaller diff in a type checker.
+
+**Files:** `src/Compiler/TypeChecker/TypeChecker.cpp`, possibly
+`src/Compiler/CodeGenerator/CodeGenerator.cpp:5651`.
+
+**Target:** `test/typeclass/success/constrained_instance.mdr` prints
+`Boxed(Int(7))` and `constrained_instance_nested.mdr` prints
+`Boxed(Boxed(Int(3)))`.
+
+### Step 1: Trace before writing code — checkpoint
+
+Three of this plan's earlier premises were wrong because they were reasoned from
+structure rather than traced. Do not repeat that. Establish and report, with file
+and line for each:
+
+1. Where an instance method's parameter types are freshened during
+   `Evaluate(method)` from the loop at `:3499`. Which `FresheningContext` is used,
+   and is it reachable from the instance visitor?
+2. Whether the instance's `GenericParam T` can be freshened through that *same*
+   context, so `Show<T>` becomes `Show<T0>` and matches `first_arg_type` at `:4866`.
+3. Whether the sharing is better done by the instance visitor stashing a context
+   for the method visitor, or by the method visitor freshening the enclosing
+   instance's constraints with the context it already has.
+
+Report the mechanism and your recommended approach **before implementing**. Stop
+and wait for confirmation.
+
+### Step 2: Push instance constraints onto the type checker's active set
+
+Mirror the defun path at `:3096-3104` — the same `prev_constraints_size` capture,
+the same `ContainsConstraint` dedup — around the method-body loop at `:3499`.
+Restore on every exit path, including the `return result` inside the loop.
+
+Note this is the *type checker's* `m_active_constraints`, a different member from
+the parser's identically-named one that Task 1 touched.
+
+### Step 3: Freshen so the comparison can succeed
+
+Per the traced mechanism from Step 1.
+
+### Step 4: Verify both tests, then the suites
+
+`constrained_instance.mdr` → `Boxed(Int(7))`;
+`constrained_instance_nested.mdr` → `Boxed(Boxed(Int(3)))`.
+
+Then full `test`. Four failures are pre-existing and unrelated:
+`concurrency/worker_cancel_blocked_receive`, `concurrency/worker_cancel_spin`,
+`static_analyzer/warning_then_codegen_failure`,
+`static_analyzer/unused_local_warning`.
+
+If codegen fails after the type checker passes, `CodeGenerator.cpp:5651` needs the
+same treatment for monomorphisation.
+
+### Deferred, not in this task
+
+`TypeChecker.cpp:2669` — the imported-instance path — still drops constraints, so
+a constrained instance imported across a module boundary loses them. No test
+covers it because every current test declares instances in the same module. This
+needs its own task before the library rewrite, where `Iter` combinators are
+imported everywhere.
