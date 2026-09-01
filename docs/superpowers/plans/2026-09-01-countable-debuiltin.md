@@ -8,7 +8,17 @@
 
 **Tech Stack:** C++23, CMake + Ninja presets, `.mdr` test suites run by the Midori CLI.
 
-**Why this is worth doing beyond tidiness:** a user struct named `SiteMap` or `TreeMap` currently has `#` silently compile to `MapCount`. That is a live miscompile, not a style problem.
+**Why this is worth doing beyond tidiness — corrected 2026-09-01.** My original claim, that a struct named `SiteMap` picks up `MapCount`, was **wrong**. `HasNameSuffix` is not a substring match: it requires the unqualified name to be *exactly* `Map`/`MapData`/`Set`/`SetData`/`List`, or a `::`-qualified name ending in one. `SiteMap` never matches and already errors cleanly.
+
+The miscompile is real but narrower, and worse in kind. A user struct named exactly `MapData`, in a module that also imports `Collections/Map.mdr`:
+
+```
+struct MapData { url: Text };
+def s = new MapData("example.com");
+IO::PrintLine(#s as Text);
+```
+
+**compiles and prints `0`, exit code 0.** `MapData` has one field; `MapCount` reads field slot 1 (`map.count`). That is a silent out-of-bounds field read with no diagnostic. Without the `Map` import it fails at codegen with `Generic function 'MapCount' not found` — still wrong, but loud.
 
 ---
 
@@ -30,8 +40,19 @@
 | `MidoriPrelude/Collections/Map.mdr` | add `instance Countable<Map<K,V>>` | Modify |
 | `MidoriPrelude/Collections/Set.mdr` | add `instance Countable<Set<T>>` | Modify |
 | `MidoriPrelude/Prelude/List.mdr` | add `instance Countable<List<T>>` | Modify |
-| `src/Compiler/CodeGenerator/CodeGenerator.cpp` | delete the name-suffix dispatch (`:3540-3556`) and `HasNameSuffix` (`:17`) if unused | Modify |
-| `test/typeclass/success/countable_user_type.mdr` | a user type named `SiteMap` must not pick up `MapCount` | Create |
+| `src/Compiler/TypeChecker/TypeChecker.cpp` | delete the name-suffix dispatch (`:4665-4686`) and `HasNameSuffix` (`:756`) | Modify |
+| `src/Compiler/CodeGenerator/CodeGenerator.cpp` | delete the name-suffix dispatch (`:3540-3556`) and `HasNameSuffix` (`:17`) | Modify |
+| `test/typeclass/failure/countable_no_instance.mdr` | a type named exactly `MapData` must not silently read a wrong field | Create |
+
+**Both copies must be deleted in the same commit.** `TypeChecker.cpp:4665-4686` holds an
+identical block that short-circuits *before* the `Countable` lookup:
+`if (resolved_type->IsType<ArrayType>() || is_list_type || is_map_type || is_set_type) { return Int; }`.
+It never sets `unary.m_uses_countable` on that path — which is exactly why codegen's
+`if (!unary.m_uses_countable)` branch is reachable at all. Removing only the codegen
+block would leave the type checker still typing `#` on a prelude `Map` without
+requiring an instance, while `m_uses_countable` stays false, so `EmitCountableCall`
+becomes the fallback for a node whose instance was never resolved. Grep confirms no
+other callers, so both `HasNameSuffix` definitions become dead.
 
 **Instances live with their types, not in `Countable.mdr`.** Putting `instance Countable<Map<K,V>>` in `Countable.mdr` would make it import `Map.mdr`, and anything in that import chain using `#` would need `Countable` back — a cycle. Defining each instance in the module that declares the type is both the conventional placement and the one that avoids this.
 
