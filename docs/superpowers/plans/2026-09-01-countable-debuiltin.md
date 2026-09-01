@@ -303,3 +303,53 @@ instances *or* the pre-existing `Text` one, which fails with
 spelling. If the operator and its class method have diverged, that contradicts the
 premise that `#` is sugar for `Countable::Count`, and it wants its own
 investigation.
+
+---
+
+## Plan complete — 2026-09-01
+
+**Suite 271/271, fully green.** The four long-standing failures were fixed by a
+concurrent session (`9b442e1`, `4efbbf5`), not by this work.
+
+| Task | Commit |
+|---|---|
+| 2 | `c3e5ac5` — `Countable` instances for `Array`, `Map`, `Set`, `List` |
+| 3 | `6ae6d52` — resolve `#` only through `Countable` |
+| 4 | `098b240` — tests covering every type |
+
+`#` now has exactly one resolution path: the `Array` opcode, then `Countable`. Both
+`HasNameSuffix` definitions are gone, as is `EmitGenericLengthCall`, which had no
+callers once the three name-matched branches were removed.
+
+The type-checker fix was **one line** — the exact-key `m_instances.find` became
+`FindMatchingInstance`, which already does the `MatchInstanceTypeArg` scan and is
+what the constraint-satisfaction and `Iterable` paths use. Codegen needed eight
+more, verified necessary rather than assumed: after the type-checker change alone,
+`length_operator_list.mdr` failed with
+`Countable instance method '$Count_Countable_List<Int>' not found`.
+
+### Two bugs fixed that were not in the plan
+
+**`#` on an imported `Text` had never worked.** `ResolveInstanceName` searches for
+`base_name + "@module"`, which the old raw `m_global_variables.find` never did, so
+the `Text` instance was unreachable whenever it came from an imported
+`Countable.mdr`. Confirmed pre-existing by reverting to HEAD, rebuilding, and
+reproducing before the change. Now pinned by `countable_all_types.mdr`.
+
+**`#` now resolves generic instances.** A user-defined `Bag<T>` with
+`instance Countable<Bag<T>>` works at `Bag<Int>` and `Bag<Text>`. Previously any
+generic instance was unreachable from `#`, which is why the name matching had to
+exist. Pinned by `countable_generic_user_type.mdr`.
+
+### Still open
+
+`Countable::Count(x)` as an explicit call fails on every instance, while `#x`
+works. Note this is **not** a general break in explicit class-method calls —
+`Equatable::Equals` and `Hashable::Hash` are called explicitly throughout
+`Collections/Map.mdr` and work fine. Something distinguishes `Countable::Count`.
+
+This matters more than it looks: the redesign rests on every operator desugaring
+to exactly one typeclass method (spec §2, §3, and the operator-binding syntax in
+§4). If `#` and `Countable::Count` do not resolve to the same thing, that premise
+is false in the implementation, and it will not hold for `++`/`Concatenable` or
+`[]`/`Indexable` either. Tracked separately.
