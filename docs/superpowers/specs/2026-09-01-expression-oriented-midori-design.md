@@ -241,3 +241,61 @@ The rewrite is done when:
    `CodeGenerator.cpp`.
 5. `ParallelMap` is writable in-language.
 6. The existing test suite passes, migrated.
+
+---
+
+## 13. Blocker discovered 2026-09-01: `Iter` needs associated-type equality constraints
+
+Building the constrained-instance machinery surfaced a gap that blocks the
+library rewrite in section 11, and it is a **language** gap, not a compiler bug.
+
+A combinator that *transforms* element types cannot be written. Given:
+
+```
+class Stepper<S> {
+    type Item;
+    Step: fn(state: S) -> Option<Item>;
+};
+
+instance Stepper<Doubled<S>> where Stepper<S> {
+    type Item = Int;
+    defun Step(state: Doubled<S>) : Option<Int> =>
+        match Stepper::Step(state.inner) with
+            case Option::Some(v) => new Option::Some<Int>(v * 2)
+            ...
+};
+```
+
+the inner call returns `Option<Stepper::Item<S>>` with `S` abstract. `type Item = Int`
+declares the *wrapper's* item type and says nothing about the inner one, so `v * 2`
+requires `Stepper::Item<S> ~ Int` — an equality constraint the grammar cannot
+express. `Parser::ParseClassConstraints` (`Parser.cpp:5434`) accepts only
+`Identifier '<' Type,… '>'`. Haskell rejects the identical program without
+`Item s ~ Int`.
+
+Established by four probes, so this is measured rather than inferred:
+
+| Probe | Shape | Result |
+|---|---|---|
+| P1 | constrained instance + associated type, wrapper body returns a constant | passes |
+| P2 | constrained instance + inner `Step` call, no associated type | passes |
+| P3 | full shape, `type Item = Stepper::Item<S>`, pass-through body | passes |
+| P4 | the failing test with the use site deleted | one error, not two |
+
+P4 shows the second error is a cascade. P3 shows `FindMatchingInstance`
+(`TypeChecker.cpp:1191`) handles constrained instances with associated types
+correctly, including a wrapper whose `Item` is itself a projection. **The
+associated-type path has no gap** — the program was under-constrained.
+
+`Iter::Map` and `Iter::Filter` are exactly this shape. Two ways out, and the
+choice must be made **before** the library is written:
+
+- **Add equality constraints** (`where Stepper::Item<S> ~ Int`) — parser, AST,
+  `ClassConstraint`, and unification. A real language addition, and it grows the
+  surface the redesign is otherwise shrinking.
+- **Promote `Item` to a type parameter** of the wrapper struct, so it is fixed at
+  construction rather than projected. No language change, but it makes every
+  combinator type carry an extra parameter and may only relocate the problem.
+
+This does not affect the settled decisions in sections 1–10. It sits squarely on
+section 11's library rewrite and on the `Iterable` signature change in section 4.
