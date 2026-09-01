@@ -51,22 +51,36 @@ namespace
 TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory", "[runtime][vm][filesystem]")
 {
 	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
+	const std::filesystem::path result_module_path = RepositoryRoot() / "MidoriPrelude" / "Prelude" / "Result.mdr";
 	const MidoriTest::TempDir temp_dir("midori-runtime-files");
 	const std::filesystem::path data_file_path = temp_dir.Path() / "state.txt";
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mdr";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeFileIO
-import {{ "{}" }}
-def wrote = IO::WriteFile("{}", "alpha");
+import {{ "{}", "{}" }}
+use IO.{{IOError}}
+use Result.{{Result}}
+defun DescribeWrite(result: Result<Unit, IOError>): Text => {{
+    match result with
+        case Result::Ok(_) => "wrote"
+        case Result::Err(_) => "failed"
+}};
+defun DescribeRead(result: Result<Text, IOError>): Text => {{
+    match result with
+        case Result::Ok(value) => value
+        case Result::Err(_) => "unreadable"
+}};
+def wrote = IO::TryWriteFile("{}", "alpha");
 def exists = IO::FileExists("{}");
-def contents = IO::ReadFile("{}");
-IO::PrintLine(if wrote then "wrote" else "failed");
+def contents = IO::TryReadFile("{}");
+IO::PrintLine(DescribeWrite(wrote));
 IO::PrintLine(if exists then "exists" else "missing");
-IO::PrintLine(contents);
+IO::PrintLine(DescribeRead(contents));
 defun main(): Int => 0;
 )",
 		MidoriPathLiteral(io_module_path),
+		MidoriPathLiteral(result_module_path),
 		MidoriPathLiteral(data_file_path),
 		MidoriPathLiteral(data_file_path),
 		MidoriPathLiteral(data_file_path));

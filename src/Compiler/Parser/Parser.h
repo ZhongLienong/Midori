@@ -437,6 +437,8 @@ private:
 
 	CompilerError GenerateParserError(std::string&& message, const Token& token);
 
+	CompilerError GenerateParserError(CompilerErrorCode code, std::string&& message, const Token& token);
+
 	bool IsAtEnd(ParseState& state);
 
 	bool Check(ParseState& state, Token::Name type, int offset);

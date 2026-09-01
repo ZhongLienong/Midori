@@ -11,6 +11,7 @@
 #include "support/TempProject.h"
 
 #include <expected>
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <string>
@@ -616,7 +617,7 @@ defun main(): Int => 0;
 	REQUIRE(compile_result.has_value());
 
 	const MidoriExecutable& executable = compile_result.value();
-	CHECK(executable.GetFileName() == "App.Main");
+	CHECK(std::filesystem::path(executable.GetFileName()).filename() == "EntryPoint.mdr");
 	REQUIRE_FALSE(executable.m_procedure_names.empty());
 	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
 }

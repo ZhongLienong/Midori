@@ -1079,7 +1079,12 @@ CompilerError MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode code
 
 CompilerError MidoriError::GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
-	return GenerateRichError(CompilerStage::Parser, message, token, file_name, source_lines, suggestion);
+	return GenerateParserErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
+}
+
+CompilerError MidoriError::GenerateParserErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+{
+	return GenerateRichError(CompilerStage::Parser, message, token, file_name, source_lines, suggestion, code);
 }
 
 CompilerError MidoriError::GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)

@@ -588,7 +588,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 	}
 
-	return std::unexpected(GenerateParserError("Undefined name.", name_token));
+	return std::unexpected(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
 }
 
 bool Parser::CanAccessSymbol(const std::string& symbol_name) const
@@ -815,6 +815,11 @@ bool Parser::IsAtGlobalScope() const
 
 CompilerError Parser::GenerateParserError(std::string&& message, const Token& token)
 {
+	return GenerateParserError(CompilerErrorCode::None, std::move(message), token);
+}
+
+CompilerError Parser::GenerateParserError(CompilerErrorCode code, std::string&& message, const Token& token)
+{
 	// If the token is from a different file, read that file's source lines
 	if (token.m_file_name != m_context.m_file_name && !token.m_file_name.empty())
 	{
@@ -827,11 +832,11 @@ CompilerError Parser::GenerateParserError(std::string&& message, const Token& to
 			{
 				token_source_lines.emplace_back(std::move(line));
 			}
-			return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, token_source_lines);
+			return MidoriError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, token_source_lines);
 		}
 	}
-	
-	return MidoriError::GenerateParserErrorWithContext(std::move(message), token, token.m_file_name, *m_context.m_source_lines);
+
+	return MidoriError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, *m_context.m_source_lines);
 }
 
 bool Parser::IsNoMatchError(const CompilerError& error) const

@@ -194,7 +194,7 @@ def flag : Bool = 123;
 	RequireErrorMatches(typecheck_result.error().m_errors[1u], second_expectation);
 }
 
-TEST_CASE("TypeChecker tags undefined names with a stable diagnostic code", "[typechecker][diagnostics]")
+TEST_CASE("Compiler tags undefined names with a stable diagnostic code", "[typechecker][diagnostics]")
 {
 	const std::string source_code =
 		R"(module UndefinedName
@@ -205,11 +205,11 @@ def value = missing;
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::TypeChecker;
+	expectation.m_stage = CompilerStage::Parser;
 	expectation.m_code = CompilerErrorCode::TypeUndefinedName;
 	expectation.m_line = 2;
-	expectation.m_message_substrings = { "variable not found" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "UndefinedName.mdr:2" };
+	expectation.m_message_substrings = { "Undefined name" };
+	expectation.m_rendered_substrings = { "Parser Error", "UndefinedName.mdr:2" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
