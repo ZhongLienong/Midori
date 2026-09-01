@@ -896,3 +896,39 @@ specialize locally.
 Repro preserved: two modules, one exporting `instance Show<Boxed<T>> where Show<T>`
 plus a `MakeBoxed` helper, the other importing and calling `Show::show` on the
 result.
+
+---
+
+## Plan complete — 2026-09-01
+
+All five tasks done. Suite 263/267; the four remaining failures are pre-existing
+and unrelated. Constrained instances work end to end: parsed, type-checked,
+monomorphised, linked across module boundaries, with associated types, and with
+unsatisfiable uses rejected at the call site by the type checker.
+
+| Task | Commit | Note |
+|---|---|---|
+| 1 | `44bc0be`, `81c1a0d` | parse `where`; make constraints active in method bodies |
+| 2 | `682d078` | no code needed — storage already existed since `63d76d7` |
+| 3 | `736af40`, `8db4202`, `e730762` | dispatch, monomorphisation, type identity |
+| 4 | `d8cc060` | unsatisfied constraints are a type error at the call site |
+| 5 | `e292dba` | associated-type coverage (combinator shape blocked, see spec §13) |
+
+Three bugs were found and fixed along the way that were not in the original plan:
+the `ToString` identity collision (`e730762`), phantom type parameters
+(`17c8e76`), and cross-module specialization (`8ff02cc`).
+
+### Two invariants worth carrying forward
+
+**`SubstituteTypeParams` with an empty map is not the identity.** Since `e730762`
+it rebuilds a `StructType` with `m_generic_params` cleared (`Type.cpp:90-91`).
+Anything that assumes "substituting nothing changes nothing" is wrong. This is why
+Task 4 shares only the active-constraint predicate between the two constraint
+validators rather than a single resolve helper.
+
+**Active constraints lock dispatch.** At `TypeChecker.cpp:5063`, if any active
+constraint names the class, dispatch takes the active-constraint path and errors
+there rather than falling through to the concrete-candidate loop. So the new
+instance-constraint check is unreachable at depth 0 when an active constraint for
+that class exists; the skip earns its place only on the recursive step, where a
+where-clause can name a different class.
