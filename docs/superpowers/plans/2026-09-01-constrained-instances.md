@@ -37,10 +37,13 @@ The MSVC environment must be loaded first or `cl.exe` cannot find the standard
 library headers. A bare `cmake --build` fails with
 `fatal error C1083: Cannot open include file: 'cinttypes'`.
 
+**Run every build command in PowerShell, not Git Bash.** Git Bash mangles the
+quoting around the `vcvars64.bat` path and the command hangs rather than failing.
+
 Build:
 
-```bash
-cmd /c '"C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat" >nul && cmake --build --preset x64-development'
+```powershell
+cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul && cmake --build --preset x64-development'
 ```
 
 Test — note the binary lives under the preset's output directory. Do **not** use
@@ -135,8 +138,8 @@ Leave the two derive-generated sites at `:5688` and `:5752` passing `{}` — der
 
 - [ ] **Step 5: Build and re-run**
 
-```bash
-cmd /c '"C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat" >nul && cmake --build --preset x64-development'
+```powershell
+cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul && cmake --build --preset x64-development'
 ```
 
 ```bash
@@ -235,8 +238,8 @@ Copy rather than move from `instance_stmt.m_constraints` — the statement is st
 
 - [ ] **Step 5: Build and confirm the stored value**
 
-```bash
-cmd /c '"C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat" >nul && cmake --build --preset x64-development'
+```powershell
+cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul && cmake --build --preset x64-development'
 ```
 
 ```bash
@@ -415,8 +418,8 @@ const InstanceDepthGuard depth_guard(&m_instance_resolution_depth);
 
 - [ ] **Step 6: Build and run both success tests**
 
-```bash
-cmd /c '"C:\Program Files\Microsoft Visual Studio8\Community\VC\Auxiliary\Buildcvars64.bat" >nul && cmake --build --preset x64-development'
+```powershell
+cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul && cmake --build --preset x64-development'
 ```
 
 ```bash
