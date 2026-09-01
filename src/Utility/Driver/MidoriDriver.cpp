@@ -12,6 +12,7 @@
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
+#include "Interpreter/Worker/Worker.h"
 #include "Utility/Project/ProjectManifest.h"
 
 namespace
@@ -198,7 +199,9 @@ namespace MidoriDriver
 	RunResult RunExecutable(MidoriExecutable&& executable)
 	{
 		VirtualMachine vm(std::move(executable));
-		return vm.Execute();
+		RunResult run_result = vm.Execute();
+		WorkerRegistry::GetInstance().Shutdown();
+		return run_result;
 	}
 
 	DriverResult CompileAndRunFile(const std::filesystem::path& file_path)

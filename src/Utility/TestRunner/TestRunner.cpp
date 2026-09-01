@@ -424,7 +424,7 @@ namespace
 		return output.str();
 	}
 
-	[[nodiscard]] std::string NormalizeJsonSnapshot(std::string_view text)
+	[[nodiscard]] std::string NormalizeJsonSnapshot(std::string_view text, const std::filesystem::path& root)
 	{
 		std::string normalized;
 		normalized.reserve(text.size());
@@ -463,7 +463,7 @@ namespace
 			}
 		}
 
-		return normalized;
+		return NormalizePathText(std::move(normalized), root);
 	}
 
 	[[nodiscard]] std::filesystem::path WorkerFieldPath(const std::filesystem::path& result_directory, std::string_view name)
@@ -790,8 +790,8 @@ namespace
 
 		if (result.m_passed && !expected_warnings.empty())
 		{
-			const std::string normalized_expected = NormalizeJsonSnapshot(expected_warnings);
-			const std::string normalized_actual = NormalizeJsonSnapshot(result.m_report.Warnings().MachineReadableJson());
+			const std::string normalized_expected = NormalizeJsonSnapshot(expected_warnings, root);
+			const std::string normalized_actual = NormalizeJsonSnapshot(result.m_report.Warnings().MachineReadableJson(), root);
 			if (normalized_expected != normalized_actual)
 			{
 				result.m_passed = false;

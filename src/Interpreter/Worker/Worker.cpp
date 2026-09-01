@@ -316,3 +316,13 @@ bool WorkerRegistry::CancelWorker(int worker_id)
 	}
 	return worker_it->second->Cancel();
 }
+
+void WorkerRegistry::Shutdown()
+{
+	std::unordered_map<int, std::unique_ptr<Worker>> pending_workers;
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		pending_workers = std::move(m_workers);
+		m_workers.clear();
+	}
+}

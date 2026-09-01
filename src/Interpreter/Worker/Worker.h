@@ -70,6 +70,8 @@ public:
 
 	bool CancelWorker(int worker_id);
 
+	void Shutdown();
+
 private:
 	WorkerRegistry() = default;
 
