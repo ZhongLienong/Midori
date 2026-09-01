@@ -1,6 +1,6 @@
 module Set
 public export { Set, SetIter, SetIterNew, SetNew, SetInsert, SetContains, SetRemove, SetCount, SetSize, SetIsEmpty, SetClear, SetUnion, SetIntersection, SetDifference, SetToArray }
-import { "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
+import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
 use Option.{
     Option
 }
@@ -148,6 +148,9 @@ defun SetRemove < T >(set: Set < T >, elem: T): Bool where Hashable < T >, Equat
     }
 };
 defun SetCount < T >(set: Set < T >): Int => set.count;
+instance Countable < Set < T >> {
+    defun Count(value: Set < T >): Int => SetCount(value);
+};
 defun SetSize < T >(set: Set < T >): Int => SetCount(set);
 defun SetIsEmpty < T >(set: Set < T >): Bool => set.count == 0;
 defun SetClear < T >(set: Set < T >): Unit => {

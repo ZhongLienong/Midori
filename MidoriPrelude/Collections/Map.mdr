@@ -1,6 +1,6 @@
 module Map
 public export { Map, Entry, MapIter, MapIterNew, MapNew, MapInsert, MapGet, MapGetOr, MapUpdate, MapRemove, MapContains, MapCount, MapSize, MapIsEmpty, MapClear, MapKeys, MapValues, MapEntries }
-import { "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
+import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
 use Option.{
     Option
 }
@@ -190,6 +190,9 @@ defun MapContains < K, V >(map: Map < K, V >, key: K): Bool where Hashable < K >
     slot >= 0
 };
 defun MapCount < K, V >(map: Map < K, V >): Int => map.count;
+instance Countable < Map < K, V >> {
+    defun Count(value: Map < K, V >): Int => MapCount(value);
+};
 defun MapSize < K, V >(map: Map < K, V >): Int => MapCount(map);
 defun MapIsEmpty < K, V >(map: Map < K, V >): Bool => map.count == 0;
 defun MapClear < K, V >(map: Map < K, V >): Unit => {

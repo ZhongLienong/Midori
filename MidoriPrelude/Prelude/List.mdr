@@ -1,5 +1,5 @@
 module List
-import { "../ArrayUtil.mdr", "../Iterable.mdr", "Option.mdr" }
+import { "../ArrayUtil.mdr", "../Countable.mdr", "../Iterable.mdr", "Option.mdr" }
 public export { List, ListIter, ListIterNew, ListMap, ListLength, ListAppend, ListFilter, ListReverse, ListFold, ListFromArray, ListToArray }
 use Option.{
     Option
@@ -29,6 +29,9 @@ defun ListLength < T >(list: List < T >): Int => {
     match list with
         case List::Cons(_, tail) => 1 + ListLength(tail)
         case List::Nil => 0
+};
+instance Countable < List < T >> {
+    defun Count(value: List < T >): Int => ListLength(value);
 };
 defun ListAppend < T >(left: List < T >, right: List < T >): List < T > => {
     match left with
