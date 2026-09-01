@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/constrained_instance_unsatisfied_nested.mdr:18
+   |
+18 | IO::PrintLine(Show::show(bad));
+   |                             ^ Type Opaque does not satisfy constraint Show<Opaque> - no matching instance found
+   |

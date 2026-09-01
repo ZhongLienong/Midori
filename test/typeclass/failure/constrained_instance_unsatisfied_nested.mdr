@@ -1,0 +1,18 @@
+module ConstrainedInstanceUnsatisfiedNested
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Boxed<T> { item: T };
+
+struct Opaque { tag: Int };
+
+instance Show<Boxed<T>> where Show<T> {
+    defun show(value: Boxed<T>) : Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def bad = new Boxed<Boxed<Opaque>>(new Boxed<Opaque>(new Opaque(1)));
+IO::PrintLine(Show::show(bad));

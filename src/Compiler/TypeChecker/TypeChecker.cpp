@@ -1172,45 +1172,43 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 	return resolved_match;
 }
 
+bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint)
+{
+	return std::ranges::any_of
+	(
+		m_active_constraints,
+		[this, &resolved_constraint](const MidoriType::ClassConstraint& active_constraint) -> bool
+		{
+			if (active_constraint.m_class_name != resolved_constraint.m_class_name || active_constraint.m_type_args.size() != resolved_constraint.m_type_args.size())
+			{
+				return false;
+			}
+
+			return std::ranges::all_of
+			(
+				std::views::iota(0u, resolved_constraint.m_type_args.size()),
+				[this, &active_constraint, &resolved_constraint](size_t idx) -> bool
+				{
+					return *ApplySubstitution(active_constraint.m_type_args[idx]) == *resolved_constraint.m_type_args[idx];
+				}
+			);
+		}
+	);
+}
+
 MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type)
 {
 	for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
 	{
-		MidoriType::ClassConstraint resolved_constraint;
-		resolved_constraint.m_class_name = constraint.m_class_name;
-		resolved_constraint.m_type_args.reserve(constraint.m_type_args.size());
+		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
+		resolved_type_args.reserve(constraint.m_type_args.size());
 		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 		{
-			resolved_constraint.m_type_args.emplace_back(ApplySubstitution(type_arg));
+			resolved_type_args.emplace_back(ApplySubstitution(type_arg));
 		}
 
-		bool satisfied_by_active_constraint = false;
-		for (const MidoriType::ClassConstraint& active_constraint : m_active_constraints)
-		{
-			if (active_constraint.m_class_name != resolved_constraint.m_class_name || active_constraint.m_type_args.size() != resolved_constraint.m_type_args.size())
-			{
-				continue;
-			}
-
-			bool all_args_match = true;
-			for (size_t idx = 0u; idx < resolved_constraint.m_type_args.size(); idx += 1u)
-			{
-				std::shared_ptr<MidoriType> resolved_active_arg = ApplySubstitution(active_constraint.m_type_args[idx]);
-				if (*resolved_active_arg != *resolved_constraint.m_type_args[idx])
-				{
-					all_args_match = false;
-					break;
-				}
-			}
-
-			if (all_args_match)
-			{
-				satisfied_by_active_constraint = true;
-				break;
-			}
-		}
-
-		if (satisfied_by_active_constraint)
+		const MidoriType::ClassConstraint resolved_constraint(constraint.m_class_name, std::move(resolved_type_args));
+		if (IsSatisfiedByActiveConstraint(resolved_constraint))
 		{
 			continue;
 		}
@@ -1221,6 +1219,44 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 		}
 
 		return std::unexpected(MakeConstraintFailureError(token, resolved_constraint));
+	}
+
+	return MidoriType::MakeUndecidedType();
+}
+
+MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth)
+{
+	if (depth >= s_max_instance_constraint_depth)
+	{
+		return MidoriType::MakeUndecidedType();
+	}
+
+	for (const MidoriType::ClassConstraint& constraint : instance_info.m_constraints)
+	{
+		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
+		resolved_type_args.reserve(constraint.m_type_args.size());
+		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			resolved_type_args.emplace_back(ApplySubstitution(MidoriType::SubstituteTypeParams(type_arg, substitutions)));
+		}
+
+		const MidoriType::ClassConstraint resolved_constraint(constraint.m_class_name, std::move(resolved_type_args));
+		if (IsSatisfiedByActiveConstraint(resolved_constraint))
+		{
+			continue;
+		}
+
+		std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(resolved_constraint.m_class_name, resolved_constraint.m_type_args);
+		if (!resolved_match.has_value())
+		{
+			return std::unexpected(MakeConstraintFailureError(token, resolved_constraint));
+		}
+
+		MidoriResult::TypeResult nested_result = ValidateInstanceConstraints(token, *resolved_match->m_instance, resolved_match->m_substitutions, depth + 1u);
+		if (!nested_result.has_value())
+		{
+			return nested_result;
+		}
 	}
 
 	return MidoriType::MakeUndecidedType();
@@ -5098,6 +5134,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					struct ConcreteMethodCandidate
 					{
 						std::shared_ptr<MidoriType> m_method_type;
+						const InstanceInfo* m_instance;
+						TypeEnvironment m_substitutions;
+
+						ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions)
+							: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions))
+						{
+						}
 					};
 
 					std::vector<ConcreteMethodCandidate> candidates;
@@ -5154,7 +5197,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 							continue;
 						}
 
-						candidates.push_back(ConcreteMethodCandidate{ ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions)) });
+						std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
+						candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions));
 					}
 
 					if (candidates.empty())
@@ -5182,6 +5226,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					if (!constraint_result.has_value())
 					{
 						return constraint_result;
+					}
+
+					// function_type comes from the class declaration, so it never carries the
+					// selected instance's where-clause - that lives on InstanceInfo instead.
+					MidoriResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(call.m_paren, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
+					if (!instance_constraint_result.has_value())
+					{
+						return instance_constraint_result;
 					}
 
 					call.m_is_foreign = function_type.m_is_foreign;

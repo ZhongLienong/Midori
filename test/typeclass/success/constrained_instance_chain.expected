@@ -1,0 +1,3 @@
+Boxed(Boxed(Wrapped(tag:5)))
+Boxed(Int(1))
+Wrapped(tag:2)

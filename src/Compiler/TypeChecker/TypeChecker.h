@@ -114,6 +114,7 @@ private:
 	static const std::array<Token::Name, 2u> kBinaryEqualityOperators;
 	static const std::array<Token::Name, 2u> kBinaryLogicalOperators;
 	static const std::array<Token::Name, 5u> kBinaryBitwiseOperators;
+	static constexpr size_t s_max_instance_constraint_depth = 16u;
 
 public:
 
@@ -176,7 +177,11 @@ private:
 
 	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
 
+	bool IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint);
+
 	MidoriResult::TypeResult ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type);
+
+	MidoriResult::TypeResult ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth);
 
 	std::optional<CompilerError> TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const;
 
