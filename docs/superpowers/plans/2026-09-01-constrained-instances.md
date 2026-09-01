@@ -814,3 +814,60 @@ a constrained instance imported across a module boundary loses them. No test
 covers it because every current test declares instances in the same module. This
 needs its own task before the library rewrite, where `Iter` combinators are
 imported everywhere.
+
+---
+
+## Task 3 outcome — 2026-09-01
+
+Both targets pass. `constrained_instance.mdr` prints `Boxed(Int(7))`,
+`constrained_instance_nested.mdr` prints `Boxed(Boxed(Int(3)))`. Full suite
+255/259, verified in isolation with unrelated working-tree changes stashed. The
+four remaining failures are pre-existing and unrelated.
+
+| SHA | Change |
+|---|---|
+| `736af40` | typecheck: carry instance where-constraints onto their methods |
+| `8db4202` | codegen: monomorphise constrained instance methods |
+| `e730762` | types: drop generic params when instantiating a struct or union |
+
+The approach differed from what this plan specified, for a reason worth keeping.
+Rather than sharing a `FresheningContext` between the instance visitor and the
+method visitor, the implementation appends the instance's constraints onto each
+method's own `defun.m_constraints` before `Evaluate(method)`. The existing defun
+path then freshens them (`:3053-3060`) and pushes them (`:3096-3102`) with no new
+machinery. Six lines instead of roughly twenty-five, and semantically honest —
+`show` for `Boxed<T>` genuinely does carry the constraint `Show<T>`. The context
+this plan proposed sharing does not exist until after `Evaluate(method)` has
+dispatched, so there was nothing to stash.
+
+### Traps recorded
+
+**`AppendUniqueConstraint` does not dedup at the instance append site.**
+`ClassConstraint::operator==` compares type arguments structurally, and on any
+second visit the stored constraint would already be freshened to `Show<T0>` while
+the incoming one is still `Show<GenericParam T>` — unequal, so a duplicate would
+accumulate and surface as a spurious ambiguity error at `:4871`. Safety rests on
+the AST being visited exactly once, confirmed at three points: `TypeCheck()`
+traverses `m_program_tree` in a single `for_each`; the duplicate-instance guard at
+`:3352` returns before the method loop; and each module owns its own tree
+(`Compiler.cpp:532`), with imports carrying metadata rather than `Instance` nodes.
+Documented at `TypeChecker.cpp:3498`.
+
+**There were four substitution sites, not two.** `SubstituteTypeParams`
+(`Type.cpp:86-131`), `Freshen` and `ApplySubstitution` (`TypeChecker.cpp`), and
+`SubstituteGenericTypes` (`CodeGenerator.cpp`). Independently confirmed complete
+by enumerating every `MakeStructType`/`MakeUnionType` construction site outside
+the declaration path.
+
+### Follow-ups opened
+
+**Phantom type parameters have no identity.** `Marker<Int>` and `Marker<Text>`
+type-check as interchangeable when `T` appears in no member, because instantiation
+identity derives purely from resolved member types and names. Verified to
+reproduce at `8db4202`, so it predates `e730762` and is not a regression — but it
+sits on the same identity invariant.
+
+**Imported instances still drop their constraints** (`TypeChecker.cpp:2669`, the
+imported-instance path). No test covers it because every current test declares
+instances in the same module. This must be fixed before the library rewrite, where
+`Iter` combinators are imported everywhere.
