@@ -867,7 +867,32 @@ identity derives purely from resolved member types and names. Verified to
 reproduce at `8db4202`, so it predates `e730762` and is not a regression — but it
 sits on the same identity invariant.
 
-**Imported instances still drop their constraints** (`TypeChecker.cpp:2669`, the
-imported-instance path). No test covers it because every current test declares
-instances in the same module. This must be fixed before the library rewrite, where
-`Iter` combinators are imported everywhere.
+**Constrained instances do not cross module boundaries.** Measured 2026-09-01,
+and the diagnosis in the earlier note was wrong — it is not the constraint being
+dropped at `TypeChecker.cpp:2669`. It fails at link time:
+
+```
+Bytecode Linker Error
+ Unresolved import: $show_Show_Boxed_T_ from module Shapes.
+```
+
+Isolated by comparison. A module exporting an **unconstrained** generic instance
+`instance Show<Boxed<T>>` imports and dispatches correctly. The identical module
+with `where Show<T>` added fails as above. So the gap is specific to constrained
+instances, and it follows directly from Task 3's design: `8db4202` registers
+constrained instance methods into `m_generic_functions` so they are monomorphised
+per use site, rather than emitting them as linkable globals. In-module that is
+correct — the specialization happens where the concrete type is known. Across a
+module boundary the *using* module must specialize, but the generic body lives in
+the *defining* module and no linkable symbol was emitted for it.
+
+Not a regression: before Task 3 constrained instances did not work at all. It is
+an incomplete feature, and a hard blocker for the library rewrite, where `Iter`
+combinators are imported everywhere. Any fix has to decide where specialization
+happens for a cross-module generic instance — emit the generic body as a linkable
+symbol and specialize in the defining module, or export enough for the consumer to
+specialize locally.
+
+Repro preserved: two modules, one exporting `instance Show<Boxed<T>> where Show<T>`
+plus a `MakeBoxed` helper, the other importing and calling `Show::show` on the
+result.
