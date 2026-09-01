@@ -162,7 +162,9 @@ The function parser already does this: it pushes parsed constraints onto `m_stat
 
 The guard's lifetime must cover method-body parsing and end before `ParseInstanceDeclaration` returns, so constraints do not leak into declarations that follow. An instance with no `where` clause must push nothing, leaving the guard a no-op.
 
-Without this, the test fails twice: once inside the method body (this step fixes it) and once at the call site (Task 3 fixes that).
+**What this step does and does not fix.** It does *not* clear the type-checker error inside the method body. Traced 2026-09-01: the parser's only consumers of `m_active_constraints` are the name-resolution sites at `Parser.cpp:543` (unqualified) and `:1831` (qualified), and a qualified `Show::show` already resolves through the concrete-typeclass fallback just below `:1844`. Both the method-body error and the call-site error are emitted by the type checker and are cleared by Tasks 2 and 3 together.
+
+What it does fix is consistency: instance method bodies now treat where-clause constraints as assumed during name resolution, exactly as function bodies do. Demonstrable on an unqualified call inside a constrained instance method — `Undefined name.` before, `Unqualified class method 'show'. Use qualified syntax like 'Show::show'.` after.
 
 - [ ] **Step 5: Build and re-run**
 
