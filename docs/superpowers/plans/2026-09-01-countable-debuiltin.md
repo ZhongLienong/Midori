@@ -241,3 +241,65 @@ git commit -m "test: cover # resolving through Countable for every type"
 3. A user type whose name ends in `Map`, `Set` or `List` gets a clean error, not a wrong call.
 4. `#` works on `Array`, `Map`, `Set`, `List` and `Text`, covered by a snapshot-pinned test.
 5. No regressions against the 263/267 baseline.
+
+---
+
+## Why the name matching was load-bearing — found 2026-09-01
+
+The premise that the `HasNameSuffix` dispatch was pure redundancy is **wrong**, and
+this plan asserted it twice before anyone checked.
+
+`#` resolves its instance by exact string key (`TypeChecker.cpp:4688-4693`):
+
+```cpp
+InstanceKey countable_key{ std::string(COUNTABLE_CLASS_NAME), {resolved_type->ToString()} };
+std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it =
+    m_instances.find(countable_key);
+```
+
+That matches a concrete instance such as `Countable<Text>` but **cannot match a
+generic instance against a concrete instantiation**. Demonstrated with no compiler
+changes at all:
+
+```
+struct Bag < T > { items: Array < T > };
+instance Countable < Bag < T >> { defun Count(value: Bag < T >): Int => #value.items; };
+def b = new Bag < Int >([1, 2, 3]);
+IO::PrintLine(#b as Text);
+```
+
+```
+Type Checker Error
+  ^ Type Bag<Int> does not satisfy constraint Countable<Bag<Int>> - no matching instance found
+```
+
+`Map<K,V>`, `Set<T>` and `List<T>` are all generic, so removing the name matching
+without fixing this would break `#` on every one of them, exactly as it breaks on
+`Bag<Int>` today. The special cases were covering for the gap, not duplicating it.
+
+This is not an import-structure problem — the Task 2 instances register fine and
+the *constraint* path finds them. It is specific to the direct `#` lookup, which is
+why `#value` inside a `where Countable<T>` function works while `#b` at a concrete
+type does not.
+
+### Decision
+
+Fix the lookup: scan `m_instances` with `MatchInstanceTypeArg` (`:560`/`:589`),
+mirroring the class-method candidate loop at `:5147`, then delete both
+name-matching blocks and both `HasNameSuffix` definitions.
+
+This widens the task from "delete a special case" to "make `#` resolve generic
+instances", which is a language-behaviour change — `Bag<T>` starts working. Taken
+deliberately: an operator that resolves through one typeclass method with no
+special cases is the point of this plan, and a `#` that silently refuses generic
+instances is an arbitrary limitation that would surface the moment anyone writes a
+user container. Better lifted here, with tests, than mid-rewrite.
+
+### Open, tracked separately
+
+`Countable::Count(x)` as an explicit call does not type-check — on the new
+instances *or* the pre-existing `Text` one, which fails with
+`no matching concrete instance for 'Countable::Count'`. `#` is the only working
+spelling. If the operator and its class method have diverged, that contradicts the
+premise that `#` is sugar for `Countable::Count`, and it wants its own
+investigation.
