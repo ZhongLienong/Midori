@@ -1,0 +1,47 @@
+module ArrayLiteralExpectedType
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+struct Row
+{
+	cells : Array<Int>
+};
+
+struct Grid
+{
+	rows : Array<Row>
+};
+
+struct Box<T>
+{
+	items : Array<T>
+};
+
+union Maybe<T> = Nothing | Just(T);
+
+defun CountRows(rows : Array<Row>) : Int => #rows;
+
+defun BuildRows() : Array<Row> => [new Row([1, 2]), new Row([3, 4])];
+
+def grid = new Grid([new Row([1, 2]), new Row([3, 4])]);
+def annotated : Array<Row> = [new Row([5, 6])];
+def nested : Array<Array<Row>> = [[new Row([7, 8])]];
+def empty_nested : Array<Array<Int>> = [[]];
+def boxed = new Box([new Row([9, 10])]);
+def wrapped = new Maybe::Just([new Row([11, 12])]);
+def lambdas : Array<fn(Int) -> Int> = [fn(a : Int) : Int => a + 1];
+
+def wrapped_first = match wrapped with
+	case Maybe::Nothing => 0
+	case Maybe::Just(rows) => rows[0].cells[0]
+;
+
+IO::PrintLine(grid.rows[1].cells[0] as Text);
+IO::PrintLine(CountRows([new Row([1, 2]), new Row([3, 4])]) as Text);
+IO::PrintLine(#BuildRows() as Text);
+IO::PrintLine(annotated[0].cells[1] as Text);
+IO::PrintLine(nested[0][0].cells[0] as Text);
+IO::PrintLine(#(empty_nested[0]) as Text);
+IO::PrintLine(boxed.items[0].cells[1] as Text);
+IO::PrintLine(wrapped_first as Text);
+IO::PrintLine(lambdas[0](41) as Text);

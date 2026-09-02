@@ -5914,16 +5914,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 {
+	std::shared_ptr<MidoriType> expected_array_type;
+	std::shared_ptr<MidoriType> expected_element_type;
+	if (m_expected_expr_type != nullptr)
+	{
+		std::shared_ptr<MidoriType> resolved_expected_type = ApplySubstitution(m_expected_expr_type);
+		if (resolved_expected_type->IsType<MidoriType::ArrayType>())
+		{
+			expected_array_type = resolved_expected_type;
+			expected_element_type = resolved_expected_type->GetType<MidoriType::ArrayType>().m_element_type;
+		}
+	}
+
 	if (array.m_elems.empty())
 	{
-		if (m_expected_expr_type && m_expected_expr_type->IsType<MidoriType::ArrayType>())
-		{
-			array.m_type_data = m_expected_expr_type;
-			return array.m_type_data;
-		}
-		array.m_type_data = MidoriType::MakeArrayType(MidoriType::MakeUndecidedType());
+		array.m_type_data = expected_array_type != nullptr ? expected_array_type : MidoriType::MakeArrayType(MidoriType::MakeUndecidedType());
 		return array.m_type_data;
 	}
+
+	ExpectedTypeGuard element_guard(*this, expected_element_type);
 
 	std::vector<std::shared_ptr<MidoriType>> element_results;
 	element_results.reserve(array.m_elems.size());
