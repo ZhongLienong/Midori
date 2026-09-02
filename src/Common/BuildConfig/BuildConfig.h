@@ -90,7 +90,7 @@ namespace MidoriBuild
 {
     inline constexpr std::string_view VersionString = MIDORI_VERSION_STRING;
 
-    inline constexpr uint32_t MbcFormatVersion = 1u;
+    inline constexpr uint32_t MbcFormatVersion = 2u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

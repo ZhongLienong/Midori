@@ -148,33 +148,25 @@ namespace
 
 	std::unique_ptr<MidoriExpression> TryTakeIndexedElement(MidoriExpression::IndexAccess& array_get)
 	{
-		if (array_get.m_indices.empty())
+		std::unique_ptr<MidoriExpression>* current_owner = StripGroupOwners(array_get.m_arr_var);
+		if (*current_owner == nullptr || !(*current_owner)->IsExpression<MidoriExpression::Array>())
 		{
 			return nullptr;
 		}
 
-		std::unique_ptr<MidoriExpression>* current_owner = StripGroupOwners(array_get.m_arr_var);
-		for (const std::unique_ptr<MidoriExpression>& index_expr : array_get.m_indices)
+		MidoriExpression::Array& array_expr = (*current_owner)->GetExpression<MidoriExpression::Array>();
+		if (!HasOnlyPureElements(array_expr.m_elems))
 		{
-			if (*current_owner == nullptr || !(*current_owner)->IsExpression<MidoriExpression::Array>())
-			{
-				return nullptr;
-			}
-
-			MidoriExpression::Array& array_expr = (*current_owner)->GetExpression<MidoriExpression::Array>();
-			if (!HasOnlyPureElements(array_expr.m_elems))
-			{
-				return nullptr;
-			}
-
-			const std::optional<std::size_t> index = MidoriAnalysis::TryEvalConstantIndex(*index_expr);
-			if (!index.has_value() || index.value() >= array_expr.m_elems.size())
-			{
-				return nullptr;
-			}
-
-			current_owner = StripGroupOwners(array_expr.m_elems[index.value()]);
+			return nullptr;
 		}
+
+		const std::optional<std::size_t> index = MidoriAnalysis::TryEvalConstantIndex(*array_get.m_index);
+		if (!index.has_value() || index.value() >= array_expr.m_elems.size())
+		{
+			return nullptr;
+		}
+
+		current_owner = StripGroupOwners(array_expr.m_elems[index.value()]);
 
 		return *current_owner == nullptr ? nullptr : MidoriAnalysis::StripRedundantGroups(std::move(*current_owner));
 	}
@@ -376,11 +368,7 @@ void CanonicalizationCleanup::operator()(MidoriExpression::MemberAccess& get)
 void CanonicalizationCleanup::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitAndReplace(array_get.m_arr_var);
-
-	for (std::unique_ptr<MidoriExpression>& index : array_get.m_indices)
-	{
-		VisitAndReplace(index);
-	}
+	VisitAndReplace(array_get.m_index);
 
 	m_pending_replacement = TryTakeIndexedElement(array_get);
 	if (m_pending_replacement != nullptr)

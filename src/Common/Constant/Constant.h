@@ -32,8 +32,6 @@ inline constexpr int MAX_UNION_TAG{ UINT8_MAX };
 
 inline constexpr int MAX_ARRAY_SIZE{ ((UINT16_MAX << 8) | 0xffff) };
 
-inline constexpr int MAX_NESTED_ARRAY_INDEX{ UINT8_MAX };
-
 constexpr std::string_view NameSeparator = "::";
 
 constexpr char ModuleSeparator = '@';

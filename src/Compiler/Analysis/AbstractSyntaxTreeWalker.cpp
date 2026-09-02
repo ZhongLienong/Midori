@@ -275,10 +275,7 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Array& array)
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitExpression(array_get.m_arr_var);
-	for (std::unique_ptr<MidoriExpression>& index : array_get.m_indices)
-	{
-		VisitExpression(index);
-	}
+	VisitExpression(array_get.m_index);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::IndexAssignment& array_set)

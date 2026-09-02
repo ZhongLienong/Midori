@@ -905,9 +905,6 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::POP_BLOCK_SCOPE:
 		case OpCode::POP_MATCH_SCOPE:
 		case OpCode::TAIL_CALL:
-		case OpCode::GET_ARRAY:
-		case OpCode::GET_TUPLE:
-		case OpCode::SET_ARRAY:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:
 		case OpCode::SET_TAG:
@@ -924,6 +921,9 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::SET_LOCAL_1:
 		case OpCode::SET_LOCAL_2:
 		case OpCode::SET_LOCAL_3:
+		case OpCode::GET_ARRAY:
+		case OpCode::GET_TUPLE:
+		case OpCode::SET_ARRAY:
 			return 1;
 		default:
 			return 1;

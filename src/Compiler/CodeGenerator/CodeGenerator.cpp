@@ -638,6 +638,9 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::SET_LOCAL_1:
 		case OpCode::SET_LOCAL_2:
 		case OpCode::SET_LOCAL_3:
+		case OpCode::GET_ARRAY:
+		case OpCode::GET_TUPLE:
+		case OpCode::SET_ARRAY:
 			advance = 1;
 			break;
 		case OpCode::DEFINE_GLOBAL:
@@ -657,9 +660,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::POP_BLOCK_SCOPE:
 		case OpCode::POP_MATCH_SCOPE:
 		case OpCode::TAIL_CALL:
-		case OpCode::GET_ARRAY:
-		case OpCode::GET_TUPLE:
-		case OpCode::SET_ARRAY:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:
 		case OpCode::SET_TAG:
@@ -1761,7 +1761,6 @@ void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<i
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
 				m_self->EmitByte(OpCode::GET_TUPLE, line);
-				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
 			}
 			m_self->EmitByte(OpCode::POP, line);
@@ -1782,7 +1781,6 @@ void CodeGenerator::EmitPatternCheck(const MidoriPattern& pattern, std::vector<i
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
 				m_self->EmitByte(OpCode::GET_ARRAY, line);
-				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternCheck(*node.m_elements[static_cast<size_t>(i)], *m_failure_jumps, m_extra_pops + 1);
 			}
 			m_self->EmitByte(OpCode::POP, line);
@@ -1877,7 +1875,6 @@ void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
 				m_self->EmitByte(OpCode::GET_TUPLE, line);
-				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
 			}
 			m_self->EmitByte(OpCode::POP, line);
@@ -1891,7 +1888,6 @@ void CodeGenerator::EmitPatternBind(const MidoriPattern& pattern)
 				m_self->EmitByte(OpCode::DUP, line);
 				m_self->EmitIntegerConstant(static_cast<MidoriInteger>(i), line);
 				m_self->EmitByte(OpCode::GET_ARRAY, line);
-				m_self->EmitByte(static_cast<OpCode>(1), line);
 				m_self->EmitPatternBind(*node.m_elements[static_cast<size_t>(i)]);
 			}
 			m_self->EmitByte(OpCode::POP, line);
@@ -4417,18 +4413,12 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 
 bool CodeGenerator::EmitIndexableCall(MidoriExpression::IndexAccess& array_get, int line)
 {
-	if (array_get.m_indices.size() != 1u)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Indexable instance call requires exactly one index", array_get.m_op, m_file_name, m_source_lines));
-		return false;
-	}
-
 	std::shared_ptr<MidoriType> container_type = GetConcreteTypeForExpression(array_get.m_arr_var);
-	std::shared_ptr<MidoriType> index_type = GetConcreteTypeForExpression(array_get.m_indices[0u]);
+	std::shared_ptr<MidoriType> index_type = GetConcreteTypeForExpression(array_get.m_index);
 
 	Visit(array_get.m_arr_var);
 	m_operand_depth += 1;
-	Visit(array_get.m_indices[0u]);
+	Visit(array_get.m_index);
 	m_operand_depth += 1;
 	m_operand_depth -= 2;
 
@@ -4478,12 +4468,6 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	int line = array_get.m_op.m_line;
 
-	if (array_get.m_indices.size() > MAX_NESTED_ARRAY_INDEX)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array indices (max {})", MAX_NESTED_ARRAY_INDEX + 1), array_get.m_op, m_file_name, m_source_lines));
-		return;
-	}
-
 	// The ArrayType fast path is load-bearing, not merely an optimization: the
 	// prelude's Indexable<Array<T>, Int> instance body indexes an array, so
 	// routing arrays through the instance would make that body call itself.
@@ -4496,49 +4480,36 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 	Visit(array_get.m_arr_var);
 	m_operand_depth += 1;
 
-	std::ranges::for_each
-	(
-		array_get.m_indices,
-		[this](std::unique_ptr<MidoriExpression>& index)
-		{
-			Visit(index);
-			m_operand_depth += 1;
-		}
-	);
-	m_operand_depth -= 1 + static_cast<int>(array_get.m_indices.size());
+	Visit(array_get.m_index);
+	m_operand_depth += 1;
+
+	m_operand_depth -= 2;
 
 	EmitByte(OpCode::GET_ARRAY, line);
-	EmitByte(static_cast<OpCode>(array_get.m_indices.size()), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
 {
 	int line = array_set.m_op.m_line;
 
-	if (array_set.m_indices.size() > MAX_NESTED_ARRAY_INDEX)
+	// SET_ARRAY no longer carries an index count, so the parser's single-index
+	// invariant is now load-bearing for the encoding.
+	if (array_set.m_indices.size() != 1u)
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array indices (max {})", MAX_NESTED_ARRAY_INDEX + 1), array_set.m_op, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Array set expression requires exactly one index", array_set.m_op, m_file_name, m_source_lines));
 		return;
 	}
 
 	Visit(array_set.m_arr_var);
 	m_operand_depth += 1;
 
-	std::ranges::for_each
-	(
-		array_set.m_indices,
-		[this](std::unique_ptr<MidoriExpression>& index)
-		{
-			Visit(index);
-			m_operand_depth += 1;
-		}
-	);
+	Visit(array_set.m_indices[0u]);
+	m_operand_depth += 1;
 
 	Visit(array_set.m_value);
-	m_operand_depth -= 1 + static_cast<int>(array_set.m_indices.size());
+	m_operand_depth -= 2;
 
 	EmitByte(OpCode::SET_ARRAY, line);
-	EmitByte(static_cast<OpCode>(array_set.m_indices.size()), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)
@@ -4942,7 +4913,6 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 		EmitVariable(for_expr.m_hidden_array_index, OpCode::GET_LOCAL, line);
 		EmitVariable(for_expr.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::GET_ARRAY, line);
-		EmitByte(static_cast<OpCode>(1), line);  // 1 index dimension
 		EmitVariable(for_expr.m_loop_variable_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 
@@ -5178,7 +5148,6 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		EmitVariable(comp.m_hidden_array_index, OpCode::GET_LOCAL, line);
 		EmitVariable(comp.m_hidden_step_index, OpCode::GET_LOCAL, line);
 		EmitByte(OpCode::GET_ARRAY, line);
-		EmitByte(static_cast<OpCode>(1), line);  // 1 index dimension
 		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 

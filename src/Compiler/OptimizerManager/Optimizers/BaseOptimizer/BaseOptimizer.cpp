@@ -241,10 +241,7 @@ void MidoriOptimizer::operator()(MidoriExpression::Array& array)
 void MidoriOptimizer::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitAndReplace(array_get.m_arr_var);
-	for (std::unique_ptr<MidoriExpression>& index : array_get.m_indices)
-	{
-		VisitAndReplace(index);
-	}
+	VisitAndReplace(array_get.m_index);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::IndexAssignment& array_set)

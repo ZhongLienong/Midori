@@ -266,9 +266,9 @@ MidoriExpression::Array::Array(const Token& op, std::vector<std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::IndexAccess::IndexAccess(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var)
+MidoriExpression::IndexAccess::IndexAccess(const Token& op, std::unique_ptr<MidoriExpression>&& index, std::unique_ptr<MidoriExpression>&& arr_var)
 	: m_op(op),
-	m_indices(std::move(indices)),
+	m_index(std::move(index)),
 	m_arr_var(std::move(arr_var))
 {
 }

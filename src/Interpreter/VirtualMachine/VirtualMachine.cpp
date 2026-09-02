@@ -1180,91 +1180,45 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::GET_ARRAY:
 		{
-			int num_indices = static_cast<int>(ReadByte(ip));
-			if (num_indices <= 0)
-			{
-				(void)Pop(sp);
-				break;
-			}
-
-			MidoriValue* indices_begin = sp - num_indices;
-			MidoriValue* arr_slot = indices_begin - 1;
+			MidoriValue& index = *(sp - 1);
+			MidoriValue* arr_slot = sp - 2;
 			MidoriValue arr = *arr_slot;
-			MidoriArray* arr_ref = &arr.GetPointer()->GetTraceable<MidoriArray>();
-			MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
-			const int last_index = num_indices - 1;
+			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			m_instruction_pointer = inst_ip;
 
-			for (int i = 0; i < num_indices; i += 1)
+			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
+			if (return_code != 0)
 			{
-				MidoriValue& index = indices_begin[i];
-				int return_code = CheckIndexBounds(index, arr_size);
-				if (return_code != 0)
-				{
-					m_value_stack_pointer = arr_slot;
-					m_value_stack_base_pointer = bp;
-					m_curr_environment = env;
-					return return_code;
-				}
-
-				MidoriValue& next_val = (*arr_ref)[static_cast<int>(index.GetInteger())];
-
-				if (i != last_index)
-				{
-					arr_ref = &next_val.GetPointer()->GetTraceable<MidoriArray>();
-					arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
-				}
-				else
-				{
-					*arr_slot = next_val;
-					sp = arr_slot + 1;
-				}
+				m_value_stack_pointer = arr_slot;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return return_code;
 			}
+
+			*arr_slot = arr_ref[static_cast<int>(index.GetInteger())];
+			sp = arr_slot + 1;
 
 			break;
 		}
 		case OpCode::GET_TUPLE:
 		{
-			int num_indices = static_cast<int>(ReadByte(ip));
-			if (num_indices <= 0)
-			{
-				(void)Pop(sp);
-				break;
-			}
-
-			MidoriValue* indices_begin = sp - num_indices;
-			MidoriValue* tuple_slot = indices_begin - 1;
+			MidoriValue& index = *(sp - 1);
+			MidoriValue* tuple_slot = sp - 2;
 			MidoriValue tuple_value = *tuple_slot;
-			MidoriTuple* tuple_ref = &tuple_value.GetPointer()->GetTraceable<MidoriTuple>();
-			MidoriInteger tuple_size = static_cast<MidoriInteger>(tuple_ref->GetLength());
-			const int last_index = num_indices - 1;
+			MidoriTuple& tuple_ref = tuple_value.GetPointer()->GetTraceable<MidoriTuple>();
 			m_instruction_pointer = inst_ip;
 
-			for (int i = 0; i < num_indices; i += 1)
+			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(tuple_ref.GetLength()));
+			if (return_code != 0)
 			{
-				MidoriValue& index = indices_begin[i];
-				int return_code = CheckIndexBounds(index, tuple_size);
-				if (return_code != 0)
-				{
-					m_value_stack_pointer = tuple_slot;
-					m_value_stack_base_pointer = bp;
-					m_curr_environment = env;
-					return return_code;
-				}
-
-				MidoriValue& next_val = (*tuple_ref)[static_cast<int>(index.GetInteger())];
-
-				if (i != last_index)
-				{
-					tuple_ref = &next_val.GetPointer()->GetTraceable<MidoriTuple>();
-					tuple_size = static_cast<MidoriInteger>(tuple_ref->GetLength());
-				}
-				else
-				{
-					*tuple_slot = next_val;
-					sp = tuple_slot + 1;
-				}
+				m_value_stack_pointer = tuple_slot;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return return_code;
 			}
+
+			*tuple_slot = tuple_ref[static_cast<int>(index.GetInteger())];
+			sp = tuple_slot + 1;
 
 			break;
 		}
@@ -1280,48 +1234,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::SET_ARRAY:
 		{
-			int num_indices = static_cast<int>(ReadByte(ip));
 			MidoriValue value_to_set = Pop(sp);
-			if (num_indices <= 0)
-			{
-				(void)Pop(sp);
-				Push(sp, value_to_set);
-				break;
-			}
-
-			MidoriValue* indices_begin = sp - num_indices;
-			MidoriValue* arr_slot = indices_begin - 1;
+			MidoriValue& index = *(sp - 1);
+			MidoriValue* arr_slot = sp - 2;
 			MidoriValue arr = *arr_slot;
 			MidoriTraceable* arr_owner = arr.GetPointer();
-			MidoriArray* arr_ref = &arr_owner->GetTraceable<MidoriArray>();
-			MidoriInteger arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
-			const int last_index = num_indices - 1;
+			MidoriArray& arr_ref = arr_owner->GetTraceable<MidoriArray>();
 			m_instruction_pointer = inst_ip;
 
-			for (int i = 0; i < num_indices; i += 1)
+			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
+			if (return_code != 0)
 			{
-				MidoriValue& index = indices_begin[i];
-				int return_code = CheckIndexBounds(index, arr_size);
-				if (return_code != 0)
-				{
-					m_value_stack_pointer = arr_slot;
-					m_value_stack_base_pointer = bp;
-					m_curr_environment = env;
-					return return_code;
-				}
-				MidoriValue& next_val = (*arr_ref)[static_cast<int>(index.GetInteger())];
-				if (i != last_index)
-				{
-					arr_owner = next_val.GetPointer();
-					arr_ref = &arr_owner->GetTraceable<MidoriArray>();
-					arr_size = static_cast<MidoriInteger>(arr_ref->GetLength());
-				}
-				else
-				{
-					m_gc.WriteBarrier(arr_owner);
-					next_val = value_to_set;
-				}
+				m_value_stack_pointer = arr_slot;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return return_code;
 			}
+
+			m_gc.WriteBarrier(arr_owner);
+			arr_ref[static_cast<int>(index.GetInteger())] = value_to_set;
 
 			*arr_slot = value_to_set;
 			sp = arr_slot + 1;

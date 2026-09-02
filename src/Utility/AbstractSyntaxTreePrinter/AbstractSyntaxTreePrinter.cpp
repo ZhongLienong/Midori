@@ -440,14 +440,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAccess& ar
 	PrintWithIndentation(depth + 1, "Array: ");
 	Visit(array_get.m_arr_var, depth + 2);
 	PrintWithIndentation(depth + 1, "Index: ");
-	std::ranges::for_each
-	(
-		array_get.m_indices,
-		[depth, this](const std::unique_ptr<MidoriExpression>& index)
-		{
-			Visit(index, depth + 2);
-		}
-	);
+	Visit(array_get.m_index, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

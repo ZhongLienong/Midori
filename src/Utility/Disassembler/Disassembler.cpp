@@ -200,19 +200,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void IndexedAccessInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of indices: " + std::to_string(operand));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
 	void AggregateCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
@@ -575,16 +562,16 @@ namespace Disassembler
 			AggregateCreateInstruction("CREATE_TUPLE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_ARRAY:
-			IndexedAccessInstruction("GET_ARRAY", executable, proc_index, offset);
+			SimpleInstruction("GET_ARRAY", offset);
 			break;
 		case OpCode::GET_TUPLE:
-			IndexedAccessInstruction("GET_TUPLE", executable, proc_index, offset);
+			SimpleInstruction("GET_TUPLE", offset);
 			break;
 		case OpCode::UNPACK_TUPLE:
 			SimpleInstruction("UNPACK_TUPLE", offset);
 			break;
 		case OpCode::SET_ARRAY:
-			IndexedAccessInstruction("SET_ARRAY", executable, proc_index, offset);
+			SimpleInstruction("SET_ARRAY", offset);
 			break;
 		case OpCode::ADD_BACK_ARRAY:
 			SimpleInstruction("ADD_BACK_ARRAY", offset);

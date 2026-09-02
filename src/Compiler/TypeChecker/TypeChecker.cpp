@@ -5994,48 +5994,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 		(
 			[&array_get, this](std::shared_ptr<MidoriType>&& container_type) ->MidoriResult::TypeResult
 			{
-				std::vector<std::shared_ptr<MidoriType>> index_types;
-				index_types.reserve(array_get.m_indices.size());
-
-				for (std::unique_ptr<MidoriExpression>& index_expr : array_get.m_indices)
-				{
-					MidoriResult::TypeResult index_result = Evaluate(index_expr);
-					if (!index_result.has_value())
-					{
-						return index_result;
-					}
-
-					index_types.emplace_back(ApplySubstitution(index_result.value()));
-				}
-
-				for (const std::shared_ptr<MidoriType>& index_type : index_types)
-				{
-					container_type = ApplySubstitution(container_type);
-
-					if (container_type->IsType<MidoriType::ArrayType>())
-					{
-						if (!index_type->IsType<MidoriType::IntegerType>())
+				return Evaluate(array_get.m_index)
+					.and_then
+					(
+						[&array_get, &container_type, this](std::shared_ptr<MidoriType>&& raw_index_type) ->MidoriResult::TypeResult
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, index_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+							std::shared_ptr<MidoriType> index_type = ApplySubstitution(raw_index_type);
+							container_type = ApplySubstitution(container_type);
+
+							if (container_type->IsType<MidoriType::ArrayType>())
+							{
+								if (!index_type->IsType<MidoriType::IntegerType>())
+								{
+									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, index_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+								}
+
+								array_get.m_type_data = ApplySubstitution(container_type->GetType<MidoriType::ArrayType>().m_element_type);
+								return array_get.m_type_data;
+							}
+
+							return ResolveIndexableElementType(array_get.m_op, container_type, index_type)
+								.and_then
+								(
+									[&array_get, this](std::shared_ptr<MidoriType>&& element_type) ->MidoriResult::TypeResult
+									{
+										array_get.m_uses_indexable = true;
+										array_get.m_type_data = ApplySubstitution(element_type);
+										return array_get.m_type_data;
+									}
+								);
 						}
-
-						container_type = container_type->GetType<MidoriType::ArrayType>().m_element_type;
-						continue;
-					}
-
-					MidoriResult::TypeResult element_result = ResolveIndexableElementType(array_get.m_op, container_type, index_type);
-					if (!element_result.has_value())
-					{
-						return element_result;
-					}
-
-					array_get.m_uses_indexable = true;
-					container_type = element_result.value();
-				}
-
-				// Apply final substitution to resolve the element type
-				array_get.m_type_data = ApplySubstitution(container_type);
-				return array_get.m_type_data;
+					);
 			}
 		);
 }

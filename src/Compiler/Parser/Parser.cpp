@@ -1240,7 +1240,11 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 								else if (left_expr->IsExpression<MidoriExpression::IndexAccess>())
 								{
 									MidoriExpression::IndexAccess& access_expr = left_expr->GetExpression<MidoriExpression::IndexAccess>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::IndexAssignment(access_expr.m_op, std::move(access_expr.m_indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
+									// IndexAssignment still stores a vector because the whole node is removed by the
+									// expression-oriented grammar work; only IndexAccess is collapsed here.
+									std::vector<std::unique_ptr<MidoriExpression>> indices;
+									indices.emplace_back(std::move(access_expr.m_index));
+									return std::make_unique<MidoriExpression>(MidoriExpression::IndexAssignment(access_expr.m_op, std::move(indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
 								}
 								return std::unexpected(GenerateParserError("Invalid binding target.", equal));
 							}
@@ -1394,9 +1398,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 								(
 									[&op, &arr_var, index = std::move(index)](Token&&) mutable ->MidoriResult::ExpressionResult
 									{
-										std::vector<std::unique_ptr<MidoriExpression>> indices;
-										indices.emplace_back(std::move(index));
-										return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(indices), std::move(arr_var)));
+										return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(index), std::move(arr_var)));
 									}
 								);
 						}

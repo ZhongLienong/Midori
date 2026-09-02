@@ -1302,10 +1302,7 @@ namespace
 		void Visit(const MidoriExpression::IndexAccess& node)
 		{
 			VisitExpression(*node.m_arr_var);
-			for (const std::unique_ptr<MidoriExpression>& index : node.m_indices)
-			{
-				VisitExpression(*index);
-			}
+			VisitExpression(*node.m_index);
 		}
 
 		void Visit(const MidoriExpression::IndexAssignment& node)

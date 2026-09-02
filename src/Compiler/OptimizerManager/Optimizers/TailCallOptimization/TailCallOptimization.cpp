@@ -203,18 +203,8 @@ namespace
 
 			bool operator()(const MidoriExpression::IndexAccess& node) const
 			{
-				if (ContainsRecursiveCallImpl(*node.m_arr_var, m_function_name))
-				{
-					return true;
-				}
-				for (const std::unique_ptr<MidoriExpression>& index : node.m_indices)
-				{
-					if (ContainsRecursiveCallImpl(*index, m_function_name))
-					{
-						return true;
-					}
-				}
-				return false;
+				return ContainsRecursiveCallImpl(*node.m_arr_var, m_function_name)
+					|| ContainsRecursiveCallImpl(*node.m_index, m_function_name);
 			}
 
 			bool operator()(const MidoriExpression::IndexAssignment& node) const
