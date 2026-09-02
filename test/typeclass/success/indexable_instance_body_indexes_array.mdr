@@ -1,0 +1,39 @@
+module IndexableInstanceBodyIndexesArray
+
+// Guards the ArrayType fast path, which is load-bearing rather than an
+// optimization. Every Indexable instance here reaches its element by
+// indexing an array, so if either fast path is removed - TypeChecker's
+// ArrayType branch or CodeGenerator's - those bodies resolve back into
+// themselves and recurse forever. The prelude's own Array instance has
+// exactly this shape, so deleting a fast path breaks the prelude too.
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Indexable.mdr", }
+
+use Indexable.{ Indexable }
+
+struct Row {
+    cells: Array < Int >
+};
+
+struct Grid {
+    rows: Array < Row >
+};
+
+instance Indexable < Row, Int > {
+    type Element = Int;
+    defun Get(container: Row, index: Int): Int => container.cells[index];
+};
+
+instance Indexable < Grid, Int > {
+    type Element = Row;
+    defun Get(container: Grid, index: Int): Row => container.rows[index];
+};
+
+def first: Row = new Row([1, 2, 3]);
+def second: Row = new Row([4, 5, 6]);
+def rows: Array < Row > = [first, second];
+def grid: Grid = new Grid(rows);
+
+IO::PrintLine(grid[0][2] as Text);
+IO::PrintLine(grid[1][0] as Text);
+IO::PrintLine(Indexable::Get(Indexable::Get(grid, 1), 2) as Text);

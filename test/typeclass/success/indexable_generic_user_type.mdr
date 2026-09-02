@@ -1,0 +1,27 @@
+module IndexableGenericUserType
+
+// A user-defined generic container indexed with `[]`. This is the case an
+// exact-key instance lookup cannot serve: Indexable<Bag<T>, Int> has to
+// match a request for Bag<Int> and again for Bag<Text>, which needs
+// FindMatchingInstance rather than a string key.
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Indexable.mdr", }
+
+use Indexable.{ Indexable }
+
+struct Bag < T > {
+    items: Array < T >
+};
+
+instance Indexable < Bag < T >, Int > {
+    type Element = T;
+    defun Get(container: Bag < T >, index: Int): T => container.items[index];
+};
+
+def ints: Bag < Int > = new Bag < Int >([10, 20, 30]);
+def texts: Bag < Text > = new Bag < Text >(["a", "b"]);
+
+IO::PrintLine(ints[1] as Text);
+IO::PrintLine(Indexable::Get(ints, 1) as Text);
+IO::PrintLine(texts[0]);
+IO::PrintLine(Indexable::Get(texts, 0));

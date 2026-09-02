@@ -14,7 +14,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Collections/Map.mdr` and `Collections/Set.mdr` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
 - `IO.mdr`, `System.mdr`, and `DateTime.mdr` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
-- `Appendable.mdr`, `Prependable.mdr`, `Extendable.mdr`, `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
+- `Appendable.mdr`, `Prependable.mdr`, `Extendable.mdr`, `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
 
 ## Helper and Typeclass Modules
@@ -26,6 +26,7 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
+- `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
 - `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
 - `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, and `Channel<T>`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `spawn`, `join`, `channel`, `->`, and `<-`.
