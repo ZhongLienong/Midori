@@ -4408,6 +4408,65 @@ void CodeGenerator::operator()(MidoriExpression::Array& array)
 	EmitThreeBytes(length, length >> 8, length >> 16, line);
 }
 
+bool CodeGenerator::EmitIndexableCall(MidoriExpression::IndexAccess& array_get, int line)
+{
+	if (array_get.m_indices.size() != 1u)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Indexable instance call requires exactly one index", array_get.m_op, m_file_name, m_source_lines));
+		return false;
+	}
+
+	std::shared_ptr<MidoriType> container_type = GetConcreteTypeForExpression(array_get.m_arr_var);
+	std::shared_ptr<MidoriType> index_type = GetConcreteTypeForExpression(array_get.m_indices[0u]);
+
+	Visit(array_get.m_arr_var);
+	m_operand_depth += 1;
+	Visit(array_get.m_indices[0u]);
+	m_operand_depth += 1;
+	m_operand_depth -= 2;
+
+	std::string qualified_method_name = std::string(INDEXABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(GET_METHOD_NAME);
+	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
+
+	if (resolution_it != m_method_resolution_map.end())
+	{
+		std::string container_type_name = container_type->ToString();
+		std::string index_type_name = index_type->ToString();
+
+		std::vector<ResolvedMethodCandidate>::const_iterator candidate_it = std::ranges::find_if
+		(
+			resolution_it->second,
+			[&container_type_name, &index_type_name](const ResolvedMethodCandidate& candidate) -> bool
+			{
+				return candidate.m_first_type_name == container_type_name && candidate.m_second_type_name == index_type_name && candidate.m_has_instance;
+			}
+		);
+
+		if (candidate_it != resolution_it->second.cend() && EmitResolvedNameGetGlobal(candidate_it->m_resolved_name, line))
+		{
+			EmitCall(2, line);
+			return true;
+		}
+	}
+
+	if (container_type->IsType<MidoriType::TypeVariable>())
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Cannot resolve Indexable instance for type variables outside of specialization context"s, array_get.m_op, m_file_name, m_source_lines));
+		return false;
+	}
+
+	std::optional<std::string> resolved_instance_name = ResolveInstanceNameForTypeArgs(std::string(INDEXABLE_CLASS_NAME), std::string(GET_METHOD_NAME), { container_type, index_type });
+	if (resolved_instance_name.has_value() && EmitResolvedNameGetGlobal(resolved_instance_name.value(), line))
+	{
+		EmitCall(2, line);
+		return true;
+	}
+
+	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(GET_MANGLED_PREFIX) + container_type->ToString();
+	AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Indexable instance method '"s + mangled_name + "' not found"s, array_get.m_op, m_file_name, m_source_lines));
+	return false;
+}
+
 void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	int line = array_get.m_op.m_line;
@@ -4415,6 +4474,15 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 	if (array_get.m_indices.size() > MAX_NESTED_ARRAY_INDEX)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many array indices (max {})", MAX_NESTED_ARRAY_INDEX + 1), array_get.m_op, m_file_name, m_source_lines));
+		return;
+	}
+
+	// The ArrayType fast path is load-bearing, not merely an optimization: the
+	// prelude's Indexable<Array<T>, Int> instance body indexes an array, so
+	// routing arrays through the instance would make that body call itself.
+	if (array_get.m_uses_indexable)
+	{
+		EmitIndexableCall(array_get, line);
 		return;
 	}
 
@@ -5914,6 +5982,11 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 		return_type_name != "Undecided"s &&
 		!(return_type_name.size() > 1u && return_type_name[0u] == 'T' && std::isdigit(static_cast<char>(return_type_name[1u])) != 0);
 
+	// This tiebreaker assumes a class's second type parameter is its return type,
+	// which holds for Convertable<From, To> and not in general. Indexable<C, I>
+	// violates it: the second parameter is the index type. Dormant for Indexable
+	// today because the type checker rejects two constraints on one class that
+	// differ only in the second parameter before codegen ever sees them.
 	if (matching.size() > 1u && return_type_is_concrete)
 	{
 		std::vector<const ResolvedMethodCandidate*> matching_by_return;

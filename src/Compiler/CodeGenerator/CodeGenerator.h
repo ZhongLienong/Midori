@@ -377,4 +377,6 @@ private:
 	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
 
 	bool EmitCountableCall(const MidoriExpression::UnaryPrefix& unary, const std::shared_ptr<MidoriType>& count_type, int line);
+
+	bool EmitIndexableCall(MidoriExpression::IndexAccess& array_get, int line);
 };

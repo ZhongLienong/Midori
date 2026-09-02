@@ -177,6 +177,8 @@ private:
 
 	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
 
+	MidoriResult::TypeResult ResolveIndexableElementType(const Token& op, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type);
+
 	bool IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint);
 
 	MidoriResult::TypeResult ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type);

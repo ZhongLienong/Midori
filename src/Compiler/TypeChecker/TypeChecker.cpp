@@ -5951,44 +5951,78 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 	return array.m_type_data;
 }
 
+MidoriResult::TypeResult TypeChecker::ResolveIndexableElementType(const Token& op, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type)
+{
+	const MidoriType::ClassConstraint constraint(std::string(INDEXABLE_CLASS_NAME), { container_type, index_type });
+
+	std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(INDEXABLE_CLASS_NAME), constraint.m_type_args);
+	if (resolved_match.has_value())
+	{
+		AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(std::string(ELEMENT_ASSOCIATED_TYPE_NAME));
+		if (binding_it == resolved_match->m_instance->m_associated_type_bindings.cend())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Index expression type error: the matching Indexable instance does not bind Element", op, m_file_name, m_source_lines, container_type));
+		}
+
+		return ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+	}
+
+	if (IsSatisfiedByActiveConstraint(constraint))
+	{
+		return ApplySubstitution(MidoriType::MakeAssociatedType(std::string(INDEXABLE_CLASS_NAME), std::string(ELEMENT_ASSOCIATED_TYPE_NAME), { container_type, index_type }));
+	}
+
+	return std::unexpected(MakeConstraintFailureError(op, constraint));
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	return Evaluate(array_get.m_arr_var)
 		.and_then
 		(
-			[&array_get, this](std::shared_ptr<MidoriType>&& array_var_type) ->MidoriResult::TypeResult
+			[&array_get, this](std::shared_ptr<MidoriType>&& container_type) ->MidoriResult::TypeResult
 			{
-				size_t indices_size = array_get.m_indices.size();
-				for (size_t idx : std::views::iota(0u, indices_size))
+				std::vector<std::shared_ptr<MidoriType>> index_types;
+				index_types.reserve(array_get.m_indices.size());
+
+				for (std::unique_ptr<MidoriExpression>& index_expr : array_get.m_indices)
 				{
-					std::unique_ptr<MidoriExpression>& index_expr = array_get.m_indices[idx];
 					MidoriResult::TypeResult index_result = Evaluate(index_expr);
 					if (!index_result.has_value())
 					{
 						return index_result;
 					}
-					const std::shared_ptr<MidoriType>& actual_type = index_result.value();
 
-					if (!index_result.value()->IsType<MidoriType::IntegerType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
-					}
+					index_types.emplace_back(ApplySubstitution(index_result.value()));
 				}
 
-				for (int i = 0; i < indices_size; i += 1)
+				for (const std::shared_ptr<MidoriType>& index_type : index_types)
 				{
-					array_var_type = ApplySubstitution(array_var_type);
+					container_type = ApplySubstitution(container_type);
 
-					if (!array_var_type->IsType<MidoriType::ArrayType>())
+					if (container_type->IsType<MidoriType::ArrayType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: expected array type", array_get.m_op, m_file_name, m_source_lines, array_var_type));
+						if (!index_type->IsType<MidoriType::IntegerType>())
+						{
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, index_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+						}
+
+						container_type = container_type->GetType<MidoriType::ArrayType>().m_element_type;
+						continue;
 					}
 
-					array_var_type = array_var_type->GetType<MidoriType::ArrayType>().m_element_type;
+					MidoriResult::TypeResult element_result = ResolveIndexableElementType(array_get.m_op, container_type, index_type);
+					if (!element_result.has_value())
+					{
+						return element_result;
+					}
+
+					array_get.m_uses_indexable = true;
+					container_type = element_result.value();
 				}
 
 				// Apply final substitution to resolve the element type
-				array_get.m_type_data = ApplySubstitution(array_var_type);
+				array_get.m_type_data = ApplySubstitution(container_type);
 				return array_get.m_type_data;
 			}
 		);

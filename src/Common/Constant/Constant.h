@@ -100,6 +100,11 @@ constexpr std::string_view ITERABLE_CLASS_NAME = "Iterable";
 constexpr std::string_view NEXT_METHOD_NAME = "Next";
 constexpr std::string_view NEXT_MANGLED_PREFIX = "Next_Iterable_";
 
+constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
+constexpr std::string_view GET_METHOD_NAME = "Get";
+constexpr std::string_view GET_MANGLED_PREFIX = "Get_Indexable_";
+constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";
+
 // Standard library paths
 constexpr std::string_view STDLIB_DLL_NAME = "MidoriStdLib.dll";
 constexpr std::string_view STDLIB_SO_NAME = "libMidoriStdLib.so";

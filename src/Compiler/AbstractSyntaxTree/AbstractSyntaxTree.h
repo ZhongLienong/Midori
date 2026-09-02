@@ -586,6 +586,7 @@ public:
 		Token m_op;
 		std::vector<std::unique_ptr<MidoriExpression>> m_indices;
 		std::unique_ptr<MidoriExpression> m_arr_var;
+		bool m_uses_indexable = false;
 
 		IndexAccess(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var);
 	};
