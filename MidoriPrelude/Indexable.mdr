@@ -1,0 +1,10 @@
+module Indexable
+public export { Indexable }
+class Indexable < C, I > {
+    type Element;
+    Get: fn(container: C, index: I) -> Element;
+};
+instance Indexable < Array < T >, Int > {
+    type Element = T;
+    defun Get(container: Array < T >, index: Int): T => container[index];
+};
