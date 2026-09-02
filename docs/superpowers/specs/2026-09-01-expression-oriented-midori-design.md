@@ -244,6 +244,54 @@ The rewrite is done when:
 
 ---
 
+---
+
+## 12b. Constraint discovered 2026-09-02: one-parameter classes need homogeneous methods
+
+`CodeGenerator::ResolveConcreteTypeclassMethodName` (`CodeGenerator.cpp:5778-5788`)
+special-cases a class with exactly one type argument by matching that argument
+against **every** actual argument:
+
+```cpp
+if (candidate_args.size() == 1u)
+{
+    for (const std::shared_ptr<MidoriType>& actual_arg_type : actual_arg_types)
+    {
+        if (!MatchInstanceTypeArg(candidate_args[0u], actual_arg_type, substitutions, visited))
+```
+
+So a one-parameter class whose method takes arguments of *different* types cannot
+dispatch. `Get(container: C, index: Int)` offers `[Bag<Int>, Int]`; `Bag<T>` matches
+the first position and fails the second, and no candidate survives.
+
+Every existing one-parameter class dodges this because its methods are homogeneous:
+`Countable::Count : fn(T) -> Int` takes one argument, and `Concatenable::Concat`,
+`Equatable::Equals` and `Orderable` all take arguments of the same type. Isolated by
+probe: a one-parameter class with a heterogeneous method fails, and the identical
+class with a homogeneous method works — so it is the arity mismatch, not the
+associated type.
+
+**Consequence for the operator work.** `Indexable` must be `class Indexable<C, I>`
+rather than `class Indexable<C>`. That is independently the better design — it keeps
+`Map<K,V>` open to `m[key]`, and `Array` open to a future `Range` index — but it is
+worth knowing the one-parameter form is not merely worse, it does not compile.
+Two-parameter classes with an associated type are supported on every path:
+`FindMatchingInstance` and `ResolveInstanceNameForTypeArgs` are both N-ary, and
+`Convertable<From, To>` has fifteen instances dispatching daily.
+
+This is **not** section 13's functional-dependency hazard. There, the second
+parameter is supposed to be determined by the first and nothing enforces it.
+`Indexable<C, I>` is genuinely two-dimensional, so there is no dependency to
+violate.
+
+**Latent, dormant:** the tiebreaker at `CodeGenerator.cpp:5917-5931` treats
+`m_second_type_name` as the *return* type. Correct for `Convertable<From, To>`,
+meaningless for `Indexable<C, I>` where the second parameter is the index. It only
+fires when more than one candidate matches, which the type checker rejects first
+with a clean ambiguity error — so it is unreachable today, but it is a wrong
+assumption sitting under new code.
+
+
 ## 13. Blocker discovered 2026-09-01: `Iter` needs associated-type equality constraints
 
 Building the constrained-instance machinery surfaced a gap that blocks the
