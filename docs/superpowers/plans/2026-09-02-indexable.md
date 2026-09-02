@@ -56,7 +56,7 @@ This checkout is shared with other sessions. Run `git status` first; stage by ex
 
 ## Task 1: Establish the current behaviour
 
-- [ ] **Step 1: Confirm what `[]` rejects today**
+- [x] **Step 1: Confirm what `[]` rejects today**
 
 ```
 def t : Text = "abc";
@@ -65,11 +65,11 @@ IO::PrintLine(t[0] as Text);
 
 gives `Array get expression type error: expected array type` at `TypeChecker.cpp:5982`. Confirm, and record the exact text.
 
-- [ ] **Step 2: Confirm arrays still work**
+- [x] **Step 2: Confirm arrays still work**
 
 Run any existing test using `arr[i]` and confirm it passes. `test/array_comprehension/` and `test/expression/` have several.
 
-- [ ] **Step 3: Decide the class shape and report before implementing**
+- [x] **Step 3: Decide the class shape and report before implementing**
 
 The obvious shape is:
 
@@ -97,19 +97,19 @@ Do not guess. Report which shape you recommend and why, and **stop for confirmat
 
 Only after Task 1 Step 3 is confirmed.
 
-- [ ] **Step 1: Create `MidoriPrelude/Indexable.mdr`**
+- [x] **Step 1: Create `MidoriPrelude/Indexable.mdr`**
 
 Match the prelude's machine-formatted spacing — spaces inside angle brackets, as in `Countable.mdr`.
 
-- [ ] **Step 2: Add the `Array` instance backed by the existing opcode**
+- [x] **Step 2: Add the `Array` instance backed by the existing opcode**
 
 Check `MidoriFFIRegistry.h` for an array-get FFI. If none exists, the instance may need a new entry, or codegen may keep the opcode fast path for `Array` and use the instance only for other types — `Countable` kept an `Array` opcode branch for exactly this reason. Report which you found.
 
-- [ ] **Step 3: Build and run the suite**
+- [x] **Step 3: Build and run the suite**
 
 Nothing should change yet — the type checker still rejects non-arrays. This proves the class and instance type-check.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add MidoriPrelude/Indexable.mdr
@@ -120,19 +120,19 @@ git commit -m "feat(prelude): add the Indexable class with an Array instance"
 
 ## Task 3: Resolve `[]` through the instance
 
-- [ ] **Step 1: Type checker**
+- [x] **Step 1: Type checker**
 
 At `TypeChecker.cpp:5982`, instead of rejecting non-array operands outright, fall through to `FindMatchingInstance` for `Indexable`. Keep the `ArrayType` fast path. Follow `Countable`'s post-`6ae6d52` shape.
 
-- [ ] **Step 2: Codegen**
+- [x] **Step 2: Codegen**
 
 Emit the instance call for non-array operands, using `ResolveInstanceNameForTypeArgs` plus `EmitResolvedNameGetGlobal` — **not** a raw `m_global_variables.find`, which would miss imported instances.
 
-- [ ] **Step 3: Build and run the suite**
+- [x] **Step 3: Build and run the suite**
 
 Array indexing must be unchanged. If anything regresses, the fast path is being bypassed; report rather than working around it.
 
-- [ ] **Step 4: Prove extensibility**
+- [x] **Step 4: Prove extensibility**
 
 A user type with an `Indexable` instance must work, generically:
 
@@ -146,7 +146,7 @@ instance Indexable < Bag < T >> {
 
 `b[1]` on a `Bag<Int>` must return the right element. This is the case that would fail with an exact-key lookup, so it is the real test of the change.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/Compiler/TypeChecker/TypeChecker.cpp src/Compiler/CodeGenerator/CodeGenerator.cpp
@@ -157,21 +157,21 @@ git commit -m "refactor(typechecker,codegen): resolve [] through Indexable"
 
 ## Task 4: Tests
 
-- [ ] **Step 1: Add coverage with `.expected` snapshots**
+- [x] **Step 1: Add coverage with `.expected` snapshots**
 
 - `indexable_array.mdr` — arrays still work
 - `indexable_generic_user_type.mdr` — `Bag<Int>` and `Bag<Text>`
 - `failure/indexable_no_instance.mdr` — a type with no instance gives a clean error naming `Indexable`
 
-- [ ] **Step 2: Verify every snapshot bites**
+- [x] **Step 2: Verify every snapshot bites**
 
 Corrupt each one, confirm `[FAIL]`, restore, confirm `[OK]`. A snapshot that does not bite is worse than none, because it looks like coverage.
 
-- [ ] **Step 3: Check both spellings agree**
+- [x] **Step 3: Check both spellings agree**
 
 `b[1]` and `Indexable::Get(b, 1)` must give the same answer. The equivalent divergence for `Countable` was a real bug, fixed in `b4703d1` — confirm it has not recurred here.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add test/typeclass/
@@ -187,3 +187,74 @@ git commit -m "test: cover [] resolving through Indexable"
 3. A type with no instance gives a clean error naming `Indexable`.
 4. `b[1]` and `Indexable::Get(b, 1)` agree.
 5. Suite still 273/273 plus the new tests.
+
+---
+
+## Outcome — complete 2026-09-02
+
+All five conditions met. Suite **277/277** (273 plus four new), unit tests
+759 assertions across 145 cases.
+
+### The class takes two type parameters, not one
+
+Task 1 Step 3 was decided by measurement rather than taste. The
+one-parameter shape **does not compile**:
+`CodeGenerator::ResolveConcreteTypeclassMethodName` (`CodeGenerator.cpp:5778`)
+matches a single class type argument against *every* actual argument, so
+`Get(container, index)` finds no candidate when the index is not itself a
+`C`. Isolated with four probes — a one-parameter class with `fn(C, Int)`
+fails while one with `fn(C, C)` succeeds, so it is the heterogeneous method
+and not the associated type. Every pre-existing one-parameter class dodges
+this because its methods are homogeneous: `Countable::Count : fn(T) -> Int`,
+`Concatenable::Concat : fn(T, T) -> T`.
+
+The two-parameter shape works on every exercised path — direct qualified
+call, generic-constraint specialization, and the associated `Element`
+projection `Indexable::Element<C, Int>` in a return position.
+
+This is **not** spec §13's unenforced functional dependency. There the
+second parameter is *meant* to be determined by the first and nothing
+enforces it. `Indexable<C, I>` is genuinely two-dimensional, like
+`Convertable<From, To>`: multiple index types for one container is the
+point. Verified — with `Indexable<Bag<T>, Int>` and `Indexable<Bag<T>, Text>`
+both in scope, each call selects correctly. The only ambiguity is a generic
+function carrying two constraints on `Indexable` that differ only in `I`,
+which the type checker rejects with a clean message before codegen sees it.
+
+### The `Array` instance needs no FFI
+
+There is no array-get FFI and none was added. The instance body is
+`container[index]`, which keeps lowering to `GET_ARRAY` through the
+`ArrayType` fast path.
+
+### Both fast paths are load-bearing
+
+The `ArrayType` branches in `TypeChecker.cpp` and `CodeGenerator.cpp` are
+not optimizations. Removing either routes arrays through the prelude
+instance whose body indexes an array, so it calls itself. Confirmed by
+disabling the type-checker branch and rebuilding:
+`Get_Indexable_Array_T__Int` recursed 4997 deep and panicked with
+`StackOverflow`. `indexable_instance_body_indexes_array.mdr` exists to
+catch exactly that.
+
+### Known wrong assumption left in place
+
+`CodeGenerator.cpp`'s method-resolution tiebreaker treats a class's second
+type parameter as its return type — true for `Convertable<From, To>`, false
+for `Indexable<C, I>`. Dormant, since the type checker rejects the only
+shape that reaches it. Commented in the source rather than changed.
+
+### Deliberately not done
+
+`Text` has no instance. Its element type follows from the planned newtype
+over `Array<Byte>` (spec §5), where `Element = Byte` falls out; picking
+`Element = Text` now would mean letting `MIDORI_FFI_TextSubstring` — the
+only available text primitive — decide the semantics.
+
+### Follow-up found, not touched
+
+`IndexAccess::m_indices` is always size 1. `Parser::ParseArrayAccessHelper`
+builds one index per node and `a[i][j]` nests two nodes. Nothing appends a
+second index anywhere, yet the type checker, codegen and VM all carry loops
+over it, and `MAX_NESTED_ARRAY_INDEX` guards a case that cannot arise. Dead
+machinery across three layers.
