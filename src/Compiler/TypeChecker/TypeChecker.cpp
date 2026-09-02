@@ -5103,9 +5103,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						std::shared_ptr<MidoriType> m_method_type;
 						const InstanceInfo* m_instance;
 						TypeEnvironment m_substitutions;
+						bool m_matches_expected_type;
 
-						ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions)
-							: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions))
+						ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions, bool matches_expected_type)
+							: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions)), m_matches_expected_type(matches_expected_type)
 						{
 						}
 					};
@@ -5150,22 +5151,32 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 							}
 						}
 
-						if (matched && m_expected_expr_type != nullptr)
-						{
-							std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
-							if (!MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, substitutions, visited))
-							{
-								matched = false;
-							}
-						}
-
 						if (!matched)
 						{
 							continue;
 						}
 
+						// Selection is argument-directed, exactly as the operator spellings are.
+						// The expected type only breaks ties between instances the arguments
+						// already accept, which is what return-type-directed classes such as
+						// Convertable need. Applying it as a filter rejected every instance of
+						// a class whose method returns a fixed type.
+						bool matches_expected_type = false;
+						if (m_expected_expr_type != nullptr)
+						{
+							std::unordered_map<std::string, std::shared_ptr<MidoriType>> expected_substitutions = substitutions;
+							std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> expected_visited = visited;
+							std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
+							if (MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, expected_substitutions, expected_visited))
+							{
+								matches_expected_type = true;
+								substitutions = std::move(expected_substitutions);
+								visited = std::move(expected_visited);
+							}
+						}
+
 						std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
-						candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions));
+						candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
 					}
 
 					if (candidates.empty())
@@ -5174,7 +5185,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					}
 					if (candidates.size() != 1u)
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+						if (std::ranges::count_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type) != 1)
+						{
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+						}
+
+						std::erase_if(candidates, [](const ConcreteMethodCandidate& candidate) -> bool { return !candidate.m_matches_expected_type; });
 					}
 
 					MidoriType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MidoriType::FunctionType>();
