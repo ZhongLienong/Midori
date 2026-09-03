@@ -1,0 +1,10 @@
+int=1
+float=0.500000
+text=hello
+bool=true
+byte=7
+word=9
+array_int_length=3
+array_struct_length=2
+array_struct_head=11
+struct=42

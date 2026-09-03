@@ -4372,8 +4372,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 					is_builtin_conversion = true;
 				}
 
+				// `x as T` where x already has type T is a no-op, so it needs no Convertable instance.
+				const bool is_identity_conversion = *ApplySubstitution(expr_type) == *ApplySubstitution(as.m_to_type);
+
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
-				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion)
+				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
 					MidoriType::ClassConstraint constraint("Convertable", { expr_type, as.m_to_type });
 					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString());

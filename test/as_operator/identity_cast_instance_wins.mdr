@@ -1,0 +1,23 @@
+module IdentityCastInstanceWins
+
+// A user-defined Convertable<T, T> instance still takes priority over the
+// identity no-op, so `x as T` dispatches to Convert instead of being erased.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr"
+}
+
+class Convertable<From, To>
+{
+	Convert: fn(value: From) -> To;
+};
+
+instance Convertable<Text, Text>
+{
+	defun Convert(value: Text) : Text => value ++ "!";
+};
+
+def shouted = "hello" as Text;
+
+IO::PrintLine(shouted);

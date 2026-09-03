@@ -2582,6 +2582,13 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 	}
 
+	// Identity casts are no-ops: the operand is already the target type and sits on the stack.
+	// CanonicalizationCleanup normally erases these nodes, but lowering must not depend on it.
+	if (*from_type == *target_type)
+	{
+		return;
+	}
+
 	// If we reach here with type variables, fall through to check for built-in conversions
 	if (target_type->IsType<MidoriType::BoolType>())
 	{
