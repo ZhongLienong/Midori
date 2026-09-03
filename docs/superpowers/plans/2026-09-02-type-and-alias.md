@@ -128,3 +128,67 @@ Written after Task 1 reports.
 5. Generic parameters work in all three `type` shapes.
 6. `struct`, `union` and the existing `type X = Y` are unchanged and every existing test passes.
 7. Tests carry `.expected` snapshots, each verified to bite by corrupting it before restoring.
+
+---
+
+## Complete — 2026-09-02
+
+**309/309** integration and **863 assertions / 151 cases**, both green.
+
+| Commit | Change |
+|---|---|
+| `bcffc33` | rename the `alias` identifier ahead of reserving the keyword |
+| `d53fed1` | `type` record and sum forms, `alias`, keyword reservation, 14 site migration |
+| `8f0d754` | parser unit tests asserting the AST mapping on the tree directly |
+
+`ParseTypeDeclarationHeader(noun, capitalized_noun)` now holds the prologue — name,
+generics, `where` — that `struct`, `union` and `type` all share. The sum path
+reuses the union body verbatim, since `union X = A | B` already consumed an `=`
+and is token-identical after the keyword.
+
+### Correction to this plan's own scope note
+
+The plan said *"`struct`, `union` and the existing `type X = Y` are unchanged"*.
+**Under option (b) that is not true for one shape**, and it is worth being precise
+about the failure mode.
+
+`type Position = Point;` used to declare a transparent alias. It now declares a
+**nominal sum with one nullary variant**, `Position::Point`. The declaration
+compiles clean — no error, no warning.
+
+Measured, the practical exposure is narrower than that sounds:
+
+```
+type Position = Point;
+TakesPoint(new Position::Point())
+   -> Expected type 'Point' but got 'Position'
+```
+
+So it is **silent at the declaration and loud at every use.** Code that relied on
+the transparency breaks with a clear type error rather than miscompiling. Of the 14
+migrated sites, 12 had a keyword type or a `<` after the name and would have
+errored at the declaration; only 2 were this shape.
+
+That is an acceptable trade for dropping the disambiguation scan, but it belongs in
+any migration note, because it is the one case where a user's declaration changes
+meaning without telling them.
+
+### Verified rather than assumed
+
+Both silent-failure hazards from the trace were checked, not trusted:
+
+- `midori fmt` emits `alias Meters = Int;` correctly spaced, expands a `type`
+  record multi-line like a struct, and keeps a `type` sum inline like a union — so
+  `IsWordLike` at `Formatter.cpp:246` is wired.
+- `module alias` is rejected with *"'alias' is a reserved keyword and cannot be
+  used as a module name"* — so the `Token.h` enum placement inside the reserved
+  block holds against `ModuleManager::IsKeyword`'s `>= ELSE` test.
+
+Mutation-tested: disabling the record dispatch in `ParseTypeDeclaration` failed 1
+unit case and 3 integration tests, so the new coverage bites on the thing it exists
+to pin. All five snapshots corrupted individually and restored.
+
+### For the eventual delete plan
+
+**143** `struct`/`union` declaration sites, not the 131 this plan quoted — and **9
+of them are in `misc/`**, which the scope note omitted.
