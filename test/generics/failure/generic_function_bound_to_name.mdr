@@ -1,0 +1,16 @@
+module GenericFunctionBoundToName
+
+// Test: a generic defun rebound to a plain name with 'def'.
+// Expected: rejected. The binding would have to hold one specialization,
+// which pins the type parameter to whichever use came first.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr"
+}
+
+defun identity<T>(x: T) : T => x;
+
+def alias = identity;
+
+IO::PrintLine(alias(42) as Text);

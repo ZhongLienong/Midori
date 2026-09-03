@@ -1,0 +1,15 @@
+module GenericLambdaAsValue
+
+// Test: a generic lambda bound to a top-level name, then passed as a value.
+// Expected: rejected. Binding it by name makes it callable, not passable -
+// it is still specialized per call site and has no runtime representation.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr"
+}
+
+def Id = fn<T>(x: T) : T => x;
+defun apply(f: fn(Int) -> Int, v: Int) : Int => f(v);
+
+IO::PrintLine(apply(Id, 5) as Text);

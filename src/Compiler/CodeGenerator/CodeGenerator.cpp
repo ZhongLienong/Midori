@@ -1266,6 +1266,17 @@ std::optional<std::string> CodeGenerator::ResolveInstanceName(const std::string&
 	return std::nullopt;
 }
 
+bool CodeGenerator::RejectGenericFunctionValueUse(const Token& name)
+{
+	if (m_global_variables.contains(name.m_lexeme) || !FindGenericFunctionKey(name.m_lexeme).has_value())
+	{
+		return false;
+	}
+
+	AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution, std::format("Generic function '{}' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.", name.m_lexeme), name, m_file_name, m_source_lines));
+	return true;
+}
+
 std::optional<std::string> CodeGenerator::FindGenericFunctionKey(const std::string& resolved_name) const
 {
 	if (m_generic_functions.contains(resolved_name))
@@ -3962,6 +3973,11 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 					return;
 				}
 				m_self->EmitResolvedNameGetGlobal(candidates[0u].m_resolved_name, line);
+				return;
+			}
+
+			if (m_self->RejectGenericFunctionValueUse(m_variable->m_name))
+			{
 				return;
 			}
 
