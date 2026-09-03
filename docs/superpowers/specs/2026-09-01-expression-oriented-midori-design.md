@@ -181,7 +181,12 @@ Four categories remain:
   defaulting — integer literals always `Int`, float literals always `Float` —
   since the type checker has no generalization.
 - **Annotation policy.** Recommended: required on module-level `def`s, optional
-  inside.
+  inside. **Evidence from the implementation, 2026-09-02:** an exported
+  `def N : Int = 42` imports correctly while `def N = 42` fails with
+  `variable not found`. The compiler already effectively requires the annotation
+  for exports; making it a stated rule turns a confusing lookup failure into a
+  clear diagnostic. Not a blocker for the prelude migration — the prelude exports
+  only functions.
 - **Operator precedence.** Declared (`infixl 5`) versus requiring parentheses for
   mixed operators. The second deletes a feature and a class of bugs.
 - **Named arguments.** Positional-only construction is awkward at five or six
