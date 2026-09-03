@@ -96,3 +96,85 @@ Expected shape, subject to what the trace finds: parse type parameters and `wher
 4. A generic lambda can be recursive.
 5. `defun` is unchanged and every existing test still passes.
 6. Tests carry `.expected` snapshots, each verified to bite by corrupting it before restoring.
+
+---
+
+## Trace findings — 2026-09-02
+
+Measured, not reasoned. Three of these are about `defun` as it stands today, not
+about the new work.
+
+**The AST slot already exists, and there is a live rejection waiting.**
+`MidoriExpression::Function` has `m_generic_params` (`AbstractSyntaxTree.h:510`);
+the parser passes an empty vector at `Parser.cpp:4241`. `TypeChecker.cpp:5659-5663`
+explicitly errors with *"lambda expressions cannot have generic parameters. Use
+'defun' instead."* — unreachable today, live the moment the parser populates the
+field. The lambda path also **already has the constraint half**:
+`Parser.cpp:4230-4233` does `CollectSignatureConstraints` + `PushActiveConstraints`
++ `ActiveConstraintGuard`. What is missing is the `<T>` slot and the `where`
+keyword.
+
+**Binding a generic `defun` to a name loses its genericity — today.**
+
+```
+defun identity<T>(x: T) : T => x;
+def alias = identity;
+alias(42);      // ok
+alias("hi");    // Type Checker Error: Expected type 'Int' but got 'Text'
+```
+
+Direct calls to `identity` at both types work. `TypeChecker.cpp:5462-5473` picks
+`Freshen` over `ApplySubstitution` based on `m_generic_functions.contains(name)`,
+and that map is populated only from the `defun` path at `:3235`.
+
+**Passing a generic function as a value crashes.** `apply(identity, 5)` compiles,
+generates code, and dies with `panic[MemoryAccessViolation]`. Pre-existing;
+tracked separately. Specialization is reachable only through a name-keyed call
+path (`CodeGenerator.cpp:3596` requires a `NameAccess` callee), so an argument
+position never creates one and the VM jumps into a slot that was never filled.
+
+**Monomorphisation is required for constrained generics, not optional.** A
+top-level `defun show<T>(x: T) : Text where Convertable<T, Text>` works; the same
+`defun` nested inside a function body fails at codegen with *"Cannot resolve
+Convertable instance for type variables outside of specialization context"* — the
+`is_global` gate at `CodeGenerator.cpp:2303-2311`. An *unconstrained* local
+generic runs fine, because the bytecode is untyped and erasure happens to work.
+
+### Scope decided: parity with `defun`, nothing more
+
+The purpose of this work is to let `defun` be deleted, so a generic lambda needs
+to do exactly what `defun` does. Every open fork resolved the same way:
+
+- **Anonymous** generic lambdas: rejected with a clear error. They are the
+  unsolved value-form, not an increment on the named case.
+- **Capturing** generic lambdas: rejected. `defun` is always capture-free, so
+  parity does not require it, and rejecting keeps the work on the `ClosureLifting`
+  path instead of needing a second codegen registration route.
+- **Local** generic lambdas: rejected, top-level `def` only. A nested constrained
+  `defun` already fails, so top-level-only *is* parity; lifting the `is_global`
+  gate would be fixing a `defun` bug under cover of this plan.
+- **Explicit `m_constraints`** on `MidoriExpression::Function`: added. A `where`
+  clause can name constraints the signature never mentions, so signature
+  propagation alone loses them.
+
+### Highest-risk item
+
+`ClosureLifting.cpp:172-185` constructs `FunctionDefinition` with the defaulted
+empty `constraints` argument, so a `where` clause on a lambda would be **silently
+dropped** — miscompiled dispatch, not an error. It already forwards
+`m_generic_params` at `:177`, which is why the rest of codegen may need very
+little.
+
+### Two type-checker paths, not one
+
+Beyond the `Function` visitor, `def X = fn(...)` has its own branch at
+`TypeChecker.cpp:2968-3078` that binds the name at `:3028` *before* evaluating the
+lambda — which is how recursion works today. It needs the same generic handling,
+and `:3055-3067` hard-errors on `HasTypeVariables`, which a generic lambda's type
+always satisfies.
+
+### Inherited, not introduced
+
+Per-use `Freshen` on a recursive generic permits polymorphic recursion, which
+monomorphisation cannot always terminate on. `defun` has this hazard today; v1
+inherits it rather than creating it.
