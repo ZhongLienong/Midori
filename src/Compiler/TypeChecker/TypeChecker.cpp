@@ -2965,12 +2965,170 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStat
 		);
 }
 
+MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function)
+{
+	// v1 targets parity with defun. A generic lambda is specialized by name at each
+	// call site, so it must be a named binding at the top level.
+	if (def.m_local_index.has_value())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda must be bound at the top level, because it is specialized by name at each call site", function.m_function_keyword, m_file_name, m_source_lines));
+	}
+
+	if (def.m_annotated_type.has_value())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
+	}
+
+	// Validate that generic parameter names are unique
+	std::unordered_set<std::string> generic_param_names;
+	for (const Token& generic_param : function.m_generic_params)
+	{
+		if (!generic_param_names.insert(generic_param.m_lexeme).second)
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+		}
+	}
+
+	// Validate that generic parameters don't conflict with function parameters
+	for (const Token& param : function.m_params)
+	{
+		if (generic_param_names.contains(param.m_lexeme))
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
+		}
+	}
+
+	std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+	for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+	{
+		AppendUniqueConstraint(function.m_constraints, std::move(propagated_constraint));
+	}
+
+	for (const MidoriType::ClassConstraint& constraint : function.m_constraints)
+	{
+		if (!m_classes.contains(constraint.m_class_name))
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: undefined class '" + constraint.m_class_name + "' in constraint", function.m_function_keyword, m_file_name, m_source_lines));
+		}
+
+		const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
+
+		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), function.m_function_keyword, m_file_name, m_source_lines));
+		}
+	}
+
+	FresheningContext freshening_context;
+	for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
+	{
+		param_type = Freshen(param_type, freshening_context);
+	}
+	function.m_return_type = Freshen(function.m_return_type, freshening_context);
+	for (MidoriType::ClassConstraint& constraint : function.m_constraints)
+	{
+		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			type_arg = Freshen(type_arg, freshening_context);
+		}
+	}
+
+	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
+	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
+	function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+	function.m_type_data = function_type;
+	def.m_value->GetType() = function_type;
+
+	// Bind the name before evaluating the body so the lambda can recurse, and record
+	// it as generic so each use site is freshened instead of pinned to one instantiation.
+	m_name_type_table.back()[def.m_name.m_lexeme] = function_type;
+	m_generic_functions.insert(def.m_name.m_lexeme);
+
+	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	{
+		for (const Token& generic_param : function.m_generic_params)
+		{
+			const std::string& param_name = generic_param.m_lexeme;
+			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
+			if (it == freshening_context.m_generic_params.end())
+			{
+				std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
+			}
+			m_name_type_table.back().emplace(param_name, it->second);
+		}
+
+		std::ranges::for_each
+		(
+			std::views::iota(0u, function.m_params.size()),
+			[&function, this](size_t idx)
+			{
+				m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]);
+			}
+		);
+
+		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		m_expected_return_type = function.m_return_type;
+
+		size_t prev_constraints_size = m_active_constraints.size();
+		for (const MidoriType::ClassConstraint& constraint : function.m_constraints)
+		{
+			if (!ContainsConstraint(m_active_constraints, constraint))
+			{
+				m_active_constraints.push_back(constraint);
+			}
+		}
+
+		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
+		return Evaluate(function.m_body)
+			.and_then
+			(
+				[&function, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
+				{
+					m_expected_return_type = saved_expected_return_type;
+					m_active_constraints.resize(prev_constraints_size);
+
+					// A body containing a return statement is validated by the return itself.
+					if (function.m_body->Contains<MidoriExpression::Return>())
+					{
+						return MidoriType::MakeUndecidedType();
+					}
+
+					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
+						.and_then
+						(
+							[](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							{
+								return MidoriType::MakeUndecidedType();
+							}
+						);
+				}
+			).or_else
+			(
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				{
+					m_expected_return_type = saved_expected_return_type;
+					m_active_constraints.resize(prev_constraints_size);
+					return std::unexpected(std::move(error));
+				}
+			);
+	});
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefinition& def)
 {
 	// Special handling for functions (scope management required)
 	if (def.m_value->IsExpression<MidoriExpression::Function>())
 	{
 		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+
+		// A generic lambda is a definition, not an ordinary initializer: it must be
+		// registered by name so each use site is instantiated separately.
+		if (!function.m_generic_params.empty())
+		{
+			return TypeCheckGenericLambdaDefinition(def, function);
+		}
+
 		bool has_inferred_param_types = std::ranges::any_of
 		(
 			function.m_param_types,
@@ -5656,10 +5814,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnitLiteral& 
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& function)
 {
-	// Lambda expressions (fn) cannot have generic parameters
+	// A generic lambda is specialized by name at each call site, so it is only
+	// reachable as the value of a top-level 'def'. That case is handled by
+	// TypeCheckGenericLambdaDefinition and never reaches this visitor; anything
+	// arriving here is anonymous (for example passed directly as an argument).
 	if (!function.m_generic_params.empty())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: lambda expressions cannot have generic parameters. Use 'defun' instead.", function.m_function_keyword, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: an anonymous lambda cannot have generic parameters; bind it to a top-level name with 'def' so it can be specialized at each call site", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
 	// Preserve visible generic type variables when a lambda annotation refers to them.

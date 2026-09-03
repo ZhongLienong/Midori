@@ -153,6 +153,8 @@ private:
 
 	FresheningContext MakeLambdaFresheningContext();
 
+	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
+
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);

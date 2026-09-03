@@ -161,6 +161,15 @@ void ClosureLifting::operator()(MidoriExpression::Function& function)
 {
 	VisitAndReplace(function.m_body);
 
+	// A generic lambda is registered for specialization under the name it is bound
+	// to, so it must reach the code generator still attached to that binding.
+	// Lifting it here would replace the initializer with a reference to the lifted
+	// name and strand every call site on a name that is not registered as generic.
+	if (!function.m_generic_params.empty())
+	{
+		return;
+	}
+
 	const MidoriAnalysis::LiftSafetySummary lift_safety = MidoriAnalysis::AnalyzeLiftSafety(*function.m_body, m_visible_globals);
 	if (!lift_safety.m_is_safe)
 	{
@@ -180,7 +189,8 @@ void ClosureLifting::operator()(MidoriExpression::Function& function)
 			std::move(function.m_return_type),
 			std::move(function.m_body),
 			std::nullopt,
-			0
+			0,
+			std::move(function.m_constraints)
 		)
 	);
 	m_pending_globals.emplace_back(std::move(global_def));

@@ -2212,6 +2212,19 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		return;
 	}
 
+	// A generic lambda bound to a name is a template, not a value: register it for
+	// specialization keyed on the bound name and emit nothing here, exactly as a
+	// generic defun does. Each call site drives SpecializeGenericFunction instead.
+	if (def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
+	{
+		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+		if (!function.m_generic_params.empty() && is_global)
+		{
+			m_generic_functions.emplace(def.m_name.m_lexeme, GenericFunctionInfo(def.m_name.m_lexeme, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, std::shared_ptr<MidoriExpression>(std::move(function.m_body)), function.m_captured_count));
+			return;
+		}
+	}
+
 	if (is_global)
 	{
 		std::string variable_name(def.m_name.m_lexeme);
