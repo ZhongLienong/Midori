@@ -213,11 +213,12 @@ MidoriExpression::Call::Call(const Token& paren, std::unique_ptr<MidoriExpressio
 {
 }
 
-MidoriExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count)
+MidoriExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count, std::vector<MidoriType::ClassConstraint>&& constraints)
 	: m_function_keyword(function_keyword),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
 	m_param_types(std::move(param_types)),
+	m_constraints(std::move(constraints)),
 	m_return_type(std::move(return_type)),
 	m_body(std::move(body)),
 	m_captured_count(captured_count)

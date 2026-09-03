@@ -507,14 +507,15 @@ public:
 	struct Function : BaseExpression
 	{
 		Token m_function_keyword;
-		std::vector<Token> m_generic_params; 
+		std::vector<Token> m_generic_params;
 		std::vector<Token> m_params;
 		std::vector<std::shared_ptr<MidoriType>> m_param_types;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
 		std::shared_ptr<MidoriType> m_return_type;
 		std::unique_ptr<MidoriExpression> m_body;
 		int m_captured_count;
 
-		Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count = 0);
+		Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};
 
 	struct Construct : BaseExpression
