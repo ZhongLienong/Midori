@@ -11,6 +11,6 @@ import
 
 defun identity<T>(x: T) : T => x;
 
-def alias = identity;
+def bound = identity;
 
-IO::PrintLine(alias(42) as Text);
+IO::PrintLine(bound(42) as Text);

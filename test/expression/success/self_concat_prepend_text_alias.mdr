@@ -6,9 +6,9 @@ import
 }
 
 def text = "ori";
-def alias = text;
+def original = text;
 def result = text = "mid" ++ text;
 
-if alias == "ori" then () else Panic::Panic("text alias should keep the original value for x = prefix ++ x");
+if original == "ori" then () else Panic::Panic("text alias should keep the original value for x = prefix ++ x");
 if text == "midori" then () else Panic::Panic("prepend self-concat should rebind the local text");
 if result == "midori" then () else Panic::Panic("assignment should return the updated prepended text");

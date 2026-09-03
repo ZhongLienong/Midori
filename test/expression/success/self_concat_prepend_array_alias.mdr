@@ -6,11 +6,11 @@ import
 }
 
 def items = [2];
-def alias = items;
+def original = items;
 def result = items = [1] ++ items;
 
-if #alias == 1 then () else Panic::Panic("array alias should keep the original array for x = prefix ++ x");
-if alias[0] == 2 then () else Panic::Panic("array alias should keep the original element");
+if #original == 1 then () else Panic::Panic("array alias should keep the original array for x = prefix ++ x");
+if original[0] == 2 then () else Panic::Panic("array alias should keep the original element");
 if #items == 2 then () else Panic::Panic("prepend self-concat should rebind the local array");
 if items[0] == 1 then () else Panic::Panic("prepend self-concat should prepend the new element");
 if items[1] == 2 then () else Panic::Panic("prepend self-concat should keep the old suffix");
