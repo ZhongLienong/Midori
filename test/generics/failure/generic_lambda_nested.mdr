@@ -1,0 +1,18 @@
+module GenericLambdaNested
+
+// Test: a generic lambda bound inside a function body.
+// Expected: rejected. Specialization keys on a global name, and a nested
+// generic defun already fails the same way at code generation.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr"
+}
+
+defun outer() : Unit =>
+{
+	def Id = fn<T>(x: T) : T => x;
+	IO::PrintLine(Id(1) as Text);
+};
+
+outer();
