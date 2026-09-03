@@ -1,0 +1,14 @@
+module AliasGenericParams
+
+// Test: a parameterised alias is rejected, not silently accepted.
+// Expected: a diagnostic naming the limitation. `alias X<T> = Box<T>` would store
+// SubstituteTypeParams(Box, {T -> T}), which rebuilds the StructType with
+// m_generic_params cleared, so `X<Int>` would then report an argument-count
+// mismatch against a count nobody wrote. Failing here beats failing there.
+
+struct Box<T>
+{
+	item: T
+};
+
+alias BoxAlias<T> = Box<T>;

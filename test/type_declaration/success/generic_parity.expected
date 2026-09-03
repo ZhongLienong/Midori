@@ -1,0 +1,5 @@
+pair_first=10
+pair_second=ten
+unwrapped=12
+derived_eq=true
+derived_hash_same=true

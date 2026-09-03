@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_declaration/failure/alias_generic_params.mdr:14
+   |
+14 | alias BoxAlias<T> = Box<T>;
+   |       ^^^^^^^^ Alias declarations cannot take generic parameters. Alias an instantiated type instead, as in 'alias IntBox = Box<Int>;'.
+   |

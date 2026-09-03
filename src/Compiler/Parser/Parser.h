@@ -41,6 +41,25 @@ private:
 		DefinedNames m_defined_names;
 	};
 
+	// The prologue every nominal type declaration shares: name, optional generic
+	// parameters, optional 'where' constraints. `struct`, `union` and `type` differ
+	// only in what follows it, so they parse the prologue through one function and
+	// hand the result to a body parser.
+	struct TypeDeclarationHeader
+	{
+		Token m_name;
+		std::string m_name_before_mangle;
+		std::vector<Token> m_generic_params;
+		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
+		std::vector<MidoriType::ClassConstraint> m_constraints;
+		bool m_has_generic_params = false;
+
+		TypeDeclarationHeader(Token&& name, std::string&& name_before_mangle)
+			: m_name(std::move(name)), m_name_before_mangle(std::move(name_before_mangle))
+		{
+		}
+	};
+
 	using Scopes = std::vector<Scope>;
 
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
@@ -607,6 +626,12 @@ private:
 
 	MidoriResult::StatementResult ParseDefineFunctionStatement();
 
+	std::expected<TypeDeclarationHeader, CompilerError> ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun);
+
+	MidoriResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header);
+
+	MidoriResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header);
+
 	MidoriResult::StatementResult ParseStructDeclaration();
 
 	MidoriResult::StatementResult ParseUnionDeclaration();
@@ -615,7 +640,9 @@ private:
 
 	MidoriResult::StatementResult ParseInstanceDeclaration();
 
-	MidoriResult::StatementResult ParseTypeAliasDeclaration();
+	MidoriResult::StatementResult ParseTypeDeclaration();
+
+	MidoriResult::StatementResult ParseAliasDeclaration();
 
 	MidoriResult::StatementResult ParseContinueStatement();
 

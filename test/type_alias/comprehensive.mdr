@@ -9,9 +9,9 @@ import
 }
 
 // Simple type aliases for primitive types
-type UserId = Int;
-type Name = Text;
-type Score = Float;
+alias UserId = Int;
+alias Name = Text;
+alias Score = Float;
 
 // Test simple aliases
 def user_id: UserId = 123;
@@ -29,14 +29,14 @@ struct Point
 	y: Float
 };
 
-type Position = Point;
+alias Position = Point;
 
 def pos: Position = new Point(10.0, 20.0);
 IO::PrintLine(pos.x as Text);
 IO::PrintLine(pos.y as Text);
 
 // Type alias for array type
-type IntList = Array<Int>;
+alias IntList = Array<Int>;
 
 def numbers: IntList = [1, 2, 3, 4, 5];
 IO::PrintLine(numbers[2] as Text);

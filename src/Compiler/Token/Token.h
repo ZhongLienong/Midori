@@ -105,6 +105,10 @@ struct Token
 		INSTANCE,
 		WHERE,
 		TYPE,
+		// Must stay inside this reserved block: ModuleManager::IsKeyword tests
+		// `>= Token::Name::ELSE` ordinally, so a keyword placed outside it stops
+		// being rejected as a module name, silently and with no test to catch it.
+		ALIAS,
 		DERIVING,
 		SPAWN,
 		JOIN,

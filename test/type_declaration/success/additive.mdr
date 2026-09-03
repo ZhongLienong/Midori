@@ -1,0 +1,54 @@
+module TypeDeclarationAdditive
+
+// Test: the new forms are purely additive.
+// Expected: `struct`, `union`, `type` and `alias` all coexist in one file, and
+// values flow between a `struct`-declared type and a `type`-declared one freely,
+// because both produce the same AST node and the same MidoriType.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr"
+}
+
+struct OldPoint
+{
+	x: Int,
+	y: Int
+};
+
+type NewPoint = { x: Int, y: Int };
+
+union OldFlag = Off | On(Int);
+
+type NewFlag = Off | On(Int);
+
+// `alias` stays transparent: Meters and Int are the same type, so a raw Int is
+// accepted where Meters is declared.
+alias Meters = Int;
+
+defun OldSum(p: OldPoint) : Int => p.x + p.y;
+defun NewSum(p: NewPoint) : Int => p.x + p.y;
+
+defun DescribeOld(f: OldFlag) : Int =>
+	match f with
+		case OldFlag::Off => 0
+		case OldFlag::On(n) => n
+;
+
+defun Describe(f: NewFlag) : Int =>
+	match f with
+		case NewFlag::Off => 0
+		case NewFlag::On(n) => n
+;
+
+defun TakesMeters(m: Meters) : Int => m;
+
+def raw: Int = 12;
+def distance: Meters = 30;
+
+IO::PrintLine("old=" ++ (OldSum(new OldPoint(1, 2)) as Text));
+IO::PrintLine("new=" ++ (NewSum(new NewPoint(3, 4)) as Text));
+IO::PrintLine("old_flag=" ++ (DescribeOld(new OldFlag::On(5)) as Text));
+IO::PrintLine("new_flag=" ++ (Describe(new NewFlag::On(9)) as Text));
+IO::PrintLine("alias_transparent=" ++ (TakesMeters(raw) as Text));
+IO::PrintLine("alias_annotated=" ++ (TakesMeters(distance) as Text));

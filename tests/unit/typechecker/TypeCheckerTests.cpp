@@ -68,7 +68,7 @@ def result = doubler(21);
 	REQUIRE(result_definition->m_value->GetType()->IsType<MidoriType::IntegerType>());
 }
 
-TEST_CASE("TypeChecker resolves generic type aliases to their instantiated underlying types", "[typechecker]")
+TEST_CASE("TypeChecker resolves aliases of instantiated generic types to their underlying types", "[typechecker]")
 {
 	const std::string source_code =
 		R"(module AliasTypes
@@ -77,7 +77,7 @@ struct Pair<A, B>
 	first: A,
 	second: B
 };
-type IntPair = Pair<Int, Int>;
+alias IntPair = Pair<Int, Int>;
 def pair : IntPair = new Pair(1, 2);
 )";
 

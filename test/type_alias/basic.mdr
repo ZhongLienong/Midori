@@ -9,8 +9,8 @@ import
 }
 
 // Simple type alias
-type UserId = Int;
-type Name = Text;
+alias UserId = Int;
+alias Name = Text;
 
 // Use the type aliases
 def user_id: UserId = 42;

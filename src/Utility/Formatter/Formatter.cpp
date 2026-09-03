@@ -154,6 +154,7 @@ namespace
 		case TokenName::CLASS:
 		case TokenName::INSTANCE:
 		case TokenName::TYPE:
+		case TokenName::ALIAS:
 		case TokenName::FOREIGN:
 			return true;
 		default:
@@ -284,6 +285,7 @@ namespace
 		case TokenName::INSTANCE:
 		case TokenName::WHERE:
 		case TokenName::TYPE:
+		case TokenName::ALIAS:
 		case TokenName::DERIVING:
 		case TokenName::FLOAT:
 		case TokenName::INTEGER:
@@ -772,6 +774,7 @@ namespace
 			case TokenName::CLASS:
 			case TokenName::INSTANCE:
 			case TokenName::TYPE:
+			case TokenName::ALIAS:
 			case TokenName::FOREIGN:
 				WriteTokenText(token);
 				m_last_top_level_category = ClassifyTopLevel(token_name);

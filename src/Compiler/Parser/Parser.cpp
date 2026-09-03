@@ -3036,371 +3036,422 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 		);
 }
 
-MidoriResult::StatementResult Parser::ParseStructDeclaration()
+std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun)
 {
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct name.")
-		.and_then
-		(
-			[this](Token&& struct_name)->MidoriResult::StatementResult
+	MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected "s + std::string(noun) + " name."s);
+	if (!name_result.has_value())
+	{
+		return std::unexpected(name_result.error());
+	}
+
+	Token declaration_name = std::move(name_result.value());
+	std::string name_before_mangle = declaration_name.m_lexeme;
+	declaration_name.m_lexeme = Mangle(declaration_name.m_lexeme);
+
+	if (declaration_name.m_lexeme[0u] != std::toupper(declaration_name.m_lexeme[0u]))
+	{
+		return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " name must start with a capital letter."s, declaration_name));
+	}
+
+	constexpr bool is_variable = false;
+	MidoriResult::TokenResult defined_name_result = DefineName(declaration_name, is_variable);
+	if (!defined_name_result.has_value())
+	{
+		return std::unexpected(defined_name_result.error());
+	}
+
+	TypeDeclarationHeader header(std::move(defined_name_result.value()), std::move(name_before_mangle));
+
+	// Generic parameters open a scope before they are parsed, so that DefineName()
+	// inside ParseGenericParameters() adds them to it. The body parsers close it.
+	if (Match(Token::Name::LEFT_ANGLE))
+	{
+		header.m_has_generic_params = true;
+		BeginScope();
+
+		MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&header.m_generic_param_types);
+		if (!generic_parse_result.has_value())
+		{
+			EndScope();
+			return std::unexpected(generic_parse_result.error());
+		}
+
+		header.m_generic_params = std::move(generic_parse_result.value());
+	}
+
+	if (Match(Token::Name::WHERE))
+	{
+		if (!header.m_has_generic_params)
+		{
+			return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " constraints require at least one type parameter."s, header.m_name));
+		}
+
+		std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(header.m_name);
+		if (!constraints_result.has_value())
+		{
+			return std::unexpected(constraints_result.error());
+		}
+
+		header.m_constraints = std::move(constraints_result.value());
+	}
+
+	return header;
+}
+
+MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
+{
+	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.");
+	if (!brace_result.has_value())
+	{
+		return std::unexpected(brace_result.error());
+	}
+
+	std::expected<std::vector<StructMemberTuple>, CompilerError> members_result = ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
+	(
+		[this]() -> std::expected<StructMemberTuple, CompilerError>
+		{
+			MidoriResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
+			if (!member_name_result.has_value())
 			{
-				struct_name.m_lexeme = Mangle(struct_name.m_lexeme);
-				if (struct_name.m_lexeme[0u] != std::toupper(struct_name.m_lexeme[0u]))
+				return std::unexpected(member_name_result.error());
+			}
+
+			Token member_name = std::move(member_name_result.value());
+
+			MidoriResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
+			if (!colon_result.has_value())
+			{
+				return std::unexpected(colon_result.error());
+			}
+
+			MidoriResult::TypeResult member_type_result = ParseType();
+			if (!member_type_result.has_value())
+			{
+				return std::unexpected(member_type_result.error());
+			}
+
+			return std::make_tuple(std::move(member_type_result.value()), member_name.m_lexeme);
+		},
+		[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
+		[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
+	);
+	if (!members_result.has_value())
+	{
+		return std::unexpected(members_result.error());
+	}
+
+	std::vector<Token> deriving_targets;
+	if (Match(Token::Name::DERIVING))
+	{
+		std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(header.m_name);
+		if (!deriving_result.has_value())
+		{
+			return std::unexpected(std::move(deriving_result.error()));
+		}
+
+		deriving_targets = std::move(deriving_result.value());
+	}
+
+	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after struct body.");
+	if (!semicolon_result.has_value())
+	{
+		return std::unexpected(semicolon_result.error());
+	}
+
+	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.value()));
+
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
+
+	std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(header.m_name.m_lexeme, std::move(member_split.m_types), std::move(member_split.m_names), std::move(generic_param_names));
+	struct_type->GetType<MidoriType::StructType>().m_constraints = header.m_constraints;
+
+	// End the generic param scope if it was created
+	if (header.m_has_generic_params)
+	{
+		EndScope();
+	}
+
+	m_state.m_scopes.back().m_struct_constructors[header.m_name.m_lexeme] = struct_type;
+	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = struct_type;
+
+	MidoriStatement::Struct struct_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<MidoriType::ClassConstraint>(header.m_constraints), std::shared_ptr<MidoriType>(struct_type));
+	if (!deriving_targets.empty())
+	{
+		std::expected<void, CompilerError> derive_result = QueueDerivedStructStatements(struct_stmt, deriving_targets);
+		if (!derive_result.has_value())
+		{
+			return std::unexpected(std::move(derive_result.error()));
+		}
+	}
+
+	return std::make_unique<MidoriStatement>(MidoriStatement::Struct(std::move(header.m_name), std::move(header.m_generic_params), std::move(header.m_constraints), std::move(struct_type)));
+}
+
+MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
+{
+	// The caller has already consumed the '=': `union` spells it directly, and
+	// `type` consumes it before dispatching on the shape of the body.
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
+
+	std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(header.m_name.m_lexeme, std::move(generic_param_names));
+	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+	union_type_ref.m_constraints = header.m_constraints;
+
+	// Registered before the body is parsed so that a variant can name the union it
+	// belongs to, as `union List = Nil | Cons(Int, List)` does.
+	size_t type_scope_idx = header.m_has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
+	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = union_type;
+	m_state.m_namespaces.emplace_back(header.m_name_before_mangle);
+
+	struct ActiveUnionScope
+	{
+		std::vector<std::shared_ptr<MidoriType>>& m_stack;
+
+		ActiveUnionScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
+			: m_stack(stack)
+		{
+			m_stack.push_back(type);
+		}
+
+		~ActiveUnionScope()
+		{
+			m_stack.pop_back();
+		}
+
+		ActiveUnionScope(const ActiveUnionScope&) = delete;
+		ActiveUnionScope& operator=(const ActiveUnionScope&) = delete;
+	};
+
+	std::vector<Token> constructor_names;
+	int tag = 0;
+
+	std::expected<std::vector<UnionMemberTuple>, CompilerError> members_result = [&constructor_names, &tag, &union_type, this]()
+	{
+		ActiveUnionScope scope(m_state.m_active_union_types, union_type);
+
+		return ParseDelimitedZeroOrMoreUnlimited<UnionMemberTuple>
+		(
+			[&constructor_names, &tag, this]() -> std::expected<UnionMemberTuple, CompilerError>
+			{
+				MidoriResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.");
+				if (!member_name_result.has_value())
 				{
-					return std::unexpected(GenerateParserError("Struct name must start with a capital letter.", struct_name));
+					return std::unexpected(member_name_result.error());
 				}
 
+				Token member_name = std::move(member_name_result.value());
+				member_name.m_lexeme = Mangle(member_name.m_lexeme);
+
 				constexpr bool is_variable = false;
-				return DefineName(struct_name, is_variable)
-					.and_then
+				MidoriResult::TokenResult defined_member_result = DefineName(member_name, is_variable);
+				if (!defined_member_result.has_value())
+				{
+					return std::unexpected(defined_member_result.error());
+				}
+
+				member_name = std::move(defined_member_result.value());
+				constructor_names.push_back(member_name);
+
+				std::vector<std::shared_ptr<MidoriType>> member_types;
+				if (Match(Token::Name::LEFT_PAREN))
+				{
+					MidoriResult::TypeListResult member_types_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
 					(
-						[this](Token&& struct_name)->MidoriResult::StatementResult
-						{
-							// Parse optional generic parameters <T, U, ...>
-							// Create scope BEFORE parsing so DefineName() in ParseGenericParameters adds them to this scope
-							std::vector<Token> generic_params;
-							std::vector<std::shared_ptr<MidoriType>> generic_param_types;
-							std::vector<MidoriType::ClassConstraint> constraints;
-							bool has_generic_params = false;
-
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_generic_params = true;
-								BeginScope();  // Create scope for generic parameters
-
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();  // Clean up scope on error
-									return std::unexpected(generic_parse_result.error());
-								}
-
-								generic_params = std::move(generic_parse_result.value());
-							}
-
-							if (Match(Token::Name::WHERE))
-							{
-								if (!has_generic_params)
-								{
-									return std::unexpected(GenerateParserError("Struct constraints require at least one type parameter.", struct_name));
-								}
-
-								std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(struct_name);
-								if (!constraints_result.has_value())
-								{
-									return std::unexpected(constraints_result.error());
-								}
-
-								constraints = std::move(constraints_result.value());
-							}
-
-							return Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.")
-								.and_then
-								(
-									[&struct_name, &generic_params, &constraints, &generic_param_types, has_generic_params, this](Token&&) ->MidoriResult::StatementResult
-									{
-										return ParseDelimitedZeroOrMoreLimited<std::tuple<std::shared_ptr<MidoriType>, std::string>>
-											(
-												[&struct_name, this]()
-												{
-													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.")
-														.and_then
-														(
-															[&struct_name, this](Token&& identifier)
-															{
-																return Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.")
-																	.and_then
-																	(
-																		[&struct_name, &identifier, this](Token&&)
-																		{
-																			return ParseType()
-																				.and_then
-																				(
-																					[&struct_name, &identifier, this](std::shared_ptr<MidoriType>&& type) -> std::expected<std::tuple<std::shared_ptr<MidoriType>, std::string>, CompilerError>
-																					{
-																						return std::make_tuple(std::move(type), identifier.m_lexeme);
-																					}
-																				);
-																		}
-																	);
-															}
-														);
-												},
-												[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
-												[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
-											)
-											.and_then
-											(
-												[&struct_name, &generic_params, &constraints, has_generic_params, this](std::vector<std::tuple<std::shared_ptr<MidoriType>, std::string>>&& tuples) ->MidoriResult::StatementResult
-												{
-													std::vector<Token> deriving_targets;
-													if (Match(Token::Name::DERIVING))
-													{
-														std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(struct_name);
-														if (!deriving_result.has_value())
-														{
-															return std::unexpected(std::move(deriving_result.error()));
-														}
-
-														deriving_targets = std::move(deriving_result.value());
-													}
-
-													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after struct body.")
-														.and_then
-														(
-															[&tuples, &struct_name, &generic_params, &constraints, &deriving_targets, has_generic_params, this](Token&&) ->MidoriResult::StatementResult
-															{
-																StructMemberSplit member_split = SplitStructMemberTuples(std::move(tuples));
-																std::vector<std::shared_ptr<MidoriType>> member_types = std::move(member_split.m_types);
-																std::vector<std::string> member_names = std::move(member_split.m_names);
-
-																// Extract generic param names
-																std::vector<std::string> generic_param_names;
-																std::ranges::transform(generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
-
-																std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(struct_name.m_lexeme, std::move(member_types), std::move(member_names), std::move(generic_param_names));
-																struct_type->GetType<MidoriType::StructType>().m_constraints = constraints;
-
-																// End the generic param scope if it was created
-																if (has_generic_params)
-																{
-																	EndScope();
-																}
-
-																m_state.m_scopes.back().m_struct_constructors[struct_name.m_lexeme] = struct_type;
-																m_state.m_scopes.back().m_defined_types[struct_name.m_lexeme] = struct_type;
-
-																MidoriStatement::Struct struct_stmt(struct_name, std::vector<Token>(generic_params), std::vector<MidoriType::ClassConstraint>(constraints), std::shared_ptr<MidoriType>(struct_type));
-																if (!deriving_targets.empty())
-																{
-																	std::expected<void, CompilerError> derive_result = QueueDerivedStructStatements(struct_stmt, deriving_targets);
-																	if (!derive_result.has_value())
-																	{
-																		return std::unexpected(std::move(derive_result.error()));
-																	}
-																}
-
-																return std::make_unique<MidoriStatement>(MidoriStatement::Struct(std::move(struct_name), std::move(generic_params), std::move(constraints), std::move(struct_type)));
-															}
-														);
-												}
-											);
-									}
-								);
-						}
+						[this]() { return ParseType(); },
+						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type."); },
+						[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after union constructor."); }
 					);
-			}
+					if (!member_types_result.has_value())
+					{
+						return std::unexpected(member_types_result.error());
+					}
+
+					member_types = std::move(member_types_result.value());
+				}
+
+				UnionMemberTuple member = std::make_tuple(member_name.m_lexeme, std::move(member_types), tag);
+				tag += 1;
+				return member;
+			},
+			[this]() { return Consume(Token::Name::SINGLE_BAR, "Expected '|' after a union member."); }
 		);
+	}();
+
+	if (!members_result.has_value())
+	{
+		return std::unexpected(members_result.error());
+	}
+
+	union_type_ref.m_member_info = BuildUnionMemberInfo(std::move(members_result.value()));
+
+	// Store constructors in the parent scope (where the union is declared)
+	// If we have generic params, we're one scope level deeper, so go back one
+	Scope& constructor_scope = header.m_has_generic_params
+		? m_state.m_scopes[m_state.m_scopes.size() - 2]
+		: m_state.m_scopes.back();
+
+	for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member_info_entry : union_type_ref.m_member_info)
+	{
+		constructor_scope.m_union_constructors[member_info_entry.first] = union_type;
+	}
+
+	std::vector<Token> deriving_targets;
+	if (Match(Token::Name::DERIVING))
+	{
+		std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(header.m_name);
+		if (!deriving_result.has_value())
+		{
+			return std::unexpected(std::move(deriving_result.error()));
+		}
+
+		deriving_targets = std::move(deriving_result.value());
+	}
+
+	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.");
+	if (!semicolon_result.has_value())
+	{
+		return std::unexpected(semicolon_result.error());
+	}
+
+	m_state.m_namespaces.pop_back();
+
+	if (header.m_has_generic_params)
+	{
+		EndScope();
+	}
+
+	MidoriStatement::Union union_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<Token>(constructor_names), std::vector<MidoriType::ClassConstraint>(header.m_constraints), std::shared_ptr<MidoriType>(union_type));
+	if (!deriving_targets.empty())
+	{
+		std::expected<void, CompilerError> derive_result = QueueDerivedUnionStatements(union_stmt, deriving_targets);
+		if (!derive_result.has_value())
+		{
+			return std::unexpected(std::move(derive_result.error()));
+		}
+	}
+
+	return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(header.m_name), std::move(header.m_generic_params), std::move(constructor_names), std::move(header.m_constraints), std::move(union_type)));
+}
+
+MidoriResult::StatementResult Parser::ParseStructDeclaration()
+{
+	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("struct", "Struct");
+	if (!header_result.has_value())
+	{
+		return std::unexpected(header_result.error());
+	}
+
+	return ParseStructBody(std::move(header_result.value()));
 }
 
 MidoriResult::StatementResult Parser::ParseUnionDeclaration()
 {
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union name.")
-		.and_then
-		(
-			[this](Token&& union_name) -> MidoriResult::StatementResult
-			{
-				std::string union_name_before_mangle = union_name.m_lexeme;
-				union_name.m_lexeme = Mangle(union_name.m_lexeme);
+	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("union", "Union");
+	if (!header_result.has_value())
+	{
+		return std::unexpected(header_result.error());
+	}
 
-				if (union_name.m_lexeme[0u] != std::toupper(union_name.m_lexeme[0u]))
-				{
-					return std::unexpected(GenerateParserError("Union name must start with a capital letter.", union_name));
-				}
+	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.");
+	if (!equal_result.has_value())
+	{
+		return std::unexpected(equal_result.error());
+	}
 
-				constexpr bool is_variable = false;
-				return DefineName(union_name, is_variable)
-					.and_then
-					(
-						[&union_name_before_mangle, this](Token&& union_name) -> MidoriResult::StatementResult
-						{
-							// Parse optional generic parameters <T, U, ...>
-							std::vector<Token> generic_params;
-							std::vector<std::shared_ptr<MidoriType>> generic_param_types;
-							std::vector<MidoriType::ClassConstraint> constraints;
-							bool has_generic_params = false;
+	return ParseUnionBody(std::move(header_result.value()));
+}
 
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_generic_params = true;
-								BeginScope();
+MidoriResult::StatementResult Parser::ParseTypeDeclaration()
+{
+	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("type", "Type");
+	if (!header_result.has_value())
+	{
+		return std::unexpected(header_result.error());
+	}
 
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();
-									return std::unexpected(generic_parse_result.error());
-								}
+	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type name.");
+	if (!equal_result.has_value())
+	{
+		return std::unexpected(equal_result.error());
+	}
 
-								generic_params = std::move(generic_parse_result.value());
-							}
+	// One token after '=' decides the kind, with no scan needed. '{' opens a
+	// record body and ParseType has no LEFT_BRACE branch, so the two shapes
+	// cannot be confused. A sum body is anything else.
+	//
+	// This '{' is not the record-update probe's '{'. ProbeRecordUpdate runs at
+	// exactly two sites, ParsePrimary and the function-body fast path, both in
+	// expression position; a type declaration never reaches expression parsing.
+	// Were it somehow fed a record body, it would scan to the depth-0 '}' before
+	// finding any 'with' and answer "block", so it fails safe either way.
+	if (Check(Token::Name::LEFT_BRACE, 0))
+	{
+		return ParseStructBody(std::move(header_result.value()));
+	}
 
-							if (Match(Token::Name::WHERE))
-							{
-								if (!has_generic_params)
-								{
-									return std::unexpected(GenerateParserError("Union constraints require at least one type parameter.", union_name));
-								}
+	return ParseUnionBody(std::move(header_result.value()));
+}
 
-								std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(union_name);
-								if (!constraints_result.has_value())
-								{
-									return std::unexpected(constraints_result.error());
-								}
+MidoriResult::StatementResult Parser::ParseAliasDeclaration()
+{
+	MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected alias name.");
+	if (!name_result.has_value())
+	{
+		return std::unexpected(name_result.error());
+	}
 
-								constraints = std::move(constraints_result.value());
-							}
+	Token alias_name = std::move(name_result.value());
+	alias_name.m_lexeme = Mangle(alias_name.m_lexeme);
+	if (alias_name.m_lexeme[0u] != std::toupper(alias_name.m_lexeme[0u]))
+	{
+		return std::unexpected(GenerateParserError("Alias name must start with a capital letter.", alias_name));
+	}
 
-							// Extract generic param names
-							std::vector<std::string> generic_param_names;
-							std::ranges::transform(generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
+	constexpr bool is_variable = false;
+	MidoriResult::TokenResult defined_name_result = DefineName(alias_name, is_variable);
+	if (!defined_name_result.has_value())
+	{
+		return std::unexpected(defined_name_result.error());
+	}
 
-							int tag = 0;
-							std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(union_name.m_lexeme, std::move(generic_param_names));
-							MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
-							union_type_ref.m_constraints = constraints;
-							std::vector<Token> constructor_names;
+	alias_name = std::move(defined_name_result.value());
 
-							size_t type_scope_idx = has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
-							m_state.m_scopes[type_scope_idx].m_defined_types[union_name.m_lexeme] = union_type;
-							m_state.m_namespaces.emplace_back(union_name_before_mangle);
+	// Parameterised aliases are rejected rather than accepted and silently broken.
+	// `alias X<T> = Box<T>` would store SubstituteTypeParams(Box, {T -> T}), which
+	// rebuilds the StructType with m_generic_params cleared, so the alias would
+	// reach its use site advertising zero parameters and `X<Int>` would report an
+	// argument-count mismatch against a count the user never wrote. Failing loudly
+	// here beats failing invisibly there. The restriction lifts when that is fixed.
+	if (Check(Token::Name::LEFT_ANGLE, 0))
+	{
+		return std::unexpected(GenerateParserError("Alias declarations cannot take generic parameters. Alias an instantiated type instead, as in 'alias IntBox = Box<Int>;'.", alias_name));
+	}
 
-									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.")
-										.and_then
-										(
-											[&union_type_ref, &union_type, &union_name, &constructor_names, &constraints, &tag, &generic_params, &generic_param_types, has_generic_params, this](Token&&) mutable -> MidoriResult::StatementResult
-											{
-												struct ActiveUnionScope
-												{
-													std::vector<std::shared_ptr<MidoriType>>& m_stack;
+	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after alias name.");
+	if (!equal_result.has_value())
+	{
+		return std::unexpected(equal_result.error());
+	}
 
-													ActiveUnionScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
-														: m_stack(stack)
-													{
-														m_stack.push_back(type);
-													}
+	MidoriResult::TypeResult aliased_type_result = ParseType();
+	if (!aliased_type_result.has_value())
+	{
+		return std::unexpected(aliased_type_result.error());
+	}
 
-													~ActiveUnionScope()
-													{
-														m_stack.pop_back();
-													}
+	std::shared_ptr<MidoriType> aliased_type = std::move(aliased_type_result.value());
 
-													ActiveUnionScope(const ActiveUnionScope&) = delete;
-													ActiveUnionScope& operator=(const ActiveUnionScope&) = delete;
-												};
+	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after alias definition.");
+	if (!semicolon_result.has_value())
+	{
+		return std::unexpected(semicolon_result.error());
+	}
 
-												ActiveUnionScope scope(m_state.m_active_union_types, union_type);
+	m_state.m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
 
-												return ParseDelimitedZeroOrMoreUnlimited<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>
-													(
-												[&tag, &constructor_names, this]() -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
-												{
-													return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.")
-														.and_then
-														(
-															[&tag, &constructor_names, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
-															{
-																member_name.m_lexeme = Mangle(member_name.m_lexeme);
-																return DefineName(member_name, is_variable)
-																	.and_then
-																	(
-																		[&tag, &constructor_names, this](Token&& member_name) mutable -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
-																		{
-																			constructor_names.push_back(member_name);
-
-																			if (Match(Token::Name::LEFT_PAREN))
-																			{
-																				return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-																					(
-																						[this]() { return ParseType(); },
-																						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type."); },
-																						[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after union constructor."); }
-																					)
-																					.and_then
-																					(
-																						[&tag, &member_name](std::vector<std::shared_ptr<MidoriType>>&& types) -> std::expected<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>, CompilerError>
-																						{
-																							std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int> return_val = std::make_tuple(member_name.m_lexeme, std::move(types), tag);
-																							tag += 1;
-																							return return_val;
-																						}
-																					);
-																			}
-																			else
-																			{
-																				std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int> return_val = std::make_tuple(member_name.m_lexeme, std::vector<std::shared_ptr<MidoriType>>(), tag);
-																				tag += 1;
-																				return return_val;
-																			}
-																		}
-																	);
-															}
-														);
-												},
-												[this]() { return Consume(Token::Name::SINGLE_BAR, "Expected '|' after a union member."); }
-											)
-											.and_then
-											(
-											[&union_type_ref, &union_type, &union_name, &constructor_names, &constraints, &generic_params, has_generic_params, this](std::vector<std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>>&& result) -> MidoriResult::StatementResult
-												{
-													UnionMemberInfo member_info = BuildUnionMemberInfo(std::move(result));
-													union_type_ref.m_member_info = std::move(member_info);
-
-													// Store constructors in the parent scope (where the union is declared)
-													// If we have generic params, we're one scope level deeper, so go back one
-													Scope& constructor_scope = has_generic_params
-														? m_state.m_scopes[m_state.m_scopes.size() - 2]
-														: m_state.m_scopes.back();
-
-													for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member_info_entry : union_type_ref.m_member_info)
-													{
-														constructor_scope.m_union_constructors[member_info_entry.first] = union_type;
-													}
-
-													std::vector<Token> deriving_targets;
-													if (Match(Token::Name::DERIVING))
-													{
-														std::expected<std::vector<Token>, CompilerError> deriving_result = ParseDerivingTargets(union_name);
-														if (!deriving_result.has_value())
-														{
-															return std::unexpected(std::move(deriving_result.error()));
-														}
-
-														deriving_targets = std::move(deriving_result.value());
-													}
-
-													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.")
-														.and_then
-														(
-															[&union_name, &union_type, &constructor_names, &constraints, &generic_params, &deriving_targets, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
-															{
-																m_state.m_namespaces.pop_back();
-
-																if (has_generic_params)
-																{
-																	EndScope();
-																}
-
-																MidoriStatement::Union union_stmt(union_name, std::vector<Token>(generic_params), std::vector<Token>(constructor_names), std::vector<MidoriType::ClassConstraint>(constraints), std::shared_ptr<MidoriType>(union_type));
-																if (!deriving_targets.empty())
-																{
-																	std::expected<void, CompilerError> derive_result = QueueDerivedUnionStatements(union_stmt, deriving_targets);
-																	if (!derive_result.has_value())
-																	{
-																		return std::unexpected(std::move(derive_result.error()));
-																	}
-																}
-
-																return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(union_name), std::move(generic_params), std::move(constructor_names), std::move(constraints), std::move(union_type)));
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
-			}
-		);
+	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(alias_name), std::vector<Token>(), std::move(aliased_type)));
 }
 
 MidoriResult::StatementResult Parser::ParseClassDeclaration()
@@ -4010,79 +4061,6 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	(
 		MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::move(constraints), std::move(associated_types), std::move(methods))
 	);
-}
-
-MidoriResult::StatementResult Parser::ParseTypeAliasDeclaration()
-{
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected type alias name.")
-		.and_then
-		(
-			[this](Token&& alias_name) -> MidoriResult::StatementResult
-			{
-				alias_name.m_lexeme = Mangle(alias_name.m_lexeme);
-				if (alias_name.m_lexeme[0u] != std::toupper(alias_name.m_lexeme[0u]))
-				{
-					return std::unexpected(GenerateParserError("Type alias name must start with a capital letter.", alias_name));
-				}
-
-				constexpr bool is_variable = false;
-				return DefineName(alias_name, is_variable)
-					.and_then
-					(
-						[this](Token&& alias_name) -> MidoriResult::StatementResult
-						{
-							std::vector<Token> generic_params;
-							std::vector<std::shared_ptr<MidoriType>> generic_param_types;
-							bool has_generic_params = false;
-
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_generic_params = true;
-								BeginScope();
-
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();
-									return std::unexpected(generic_parse_result.error());
-								}
-
-								generic_params = std::move(generic_parse_result.value());
-							}
-
-							return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type alias name.")
-								.and_then
-								(
-									[&alias_name, &generic_params, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
-									{
-										return ParseType()
-											.and_then
-											(
-												[&alias_name, &generic_params, has_generic_params, this](std::shared_ptr<MidoriType>&& aliased_type) -> MidoriResult::StatementResult
-												{
-													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after type alias definition.")
-														.and_then
-														(
-															[&alias_name, &generic_params, &aliased_type, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
-															{
-																if (has_generic_params)
-																{
-																	EndScope();
-																}
-
-																m_state.m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
-
-																return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(alias_name), std::move(generic_params), std::move(aliased_type)));
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
-			}
-		);
 }
 
 MidoriResult::StatementResult Parser::ParseContinueStatement()
@@ -5524,7 +5502,17 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 				Token::Name::TYPE,
 				[this](Token&&) -> MidoriResult::StatementResult
 				{
-					return ParseTypeAliasDeclaration();
+					return ParseTypeDeclaration();
+				}
+			);
+		},
+		[this]() -> MidoriResult::StatementResult
+		{
+			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+				Token::Name::ALIAS,
+				[this](Token&&) -> MidoriResult::StatementResult
+				{
+					return ParseAliasDeclaration();
 				}
 			);
 		},
@@ -6492,6 +6480,7 @@ Parser& Parser::Synchronize() &
 			case Token::Name::INSTANCE:
 			case Token::Name::FOREIGN:
 			case Token::Name::TYPE:
+			case Token::Name::ALIAS:
 				return *this;
 			default:
 				Advance();

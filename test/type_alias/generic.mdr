@@ -16,8 +16,8 @@ struct Pair<A, B>
 };
 
 // Generic type alias
-type IntPair = Pair<Int, Int>;
-type TextIntPair = Pair<Text, Int>;
+alias IntPair = Pair<Int, Int>;
+alias TextIntPair = Pair<Text, Int>;
 
 // Use the type aliases
 def p1: IntPair = new Pair(10, 20);
@@ -29,8 +29,8 @@ IO::PrintLine(p2.first);
 IO::PrintLine(p2.second as Text);
 
 // Type alias for Array with concrete type
-type IntArray = Array<Int>;
-type TextArray = Array<Text>;
+alias IntArray = Array<Int>;
+alias TextArray = Array<Text>;
 
 def nums: IntArray = [100, 200, 300];
 def names: TextArray = ["Alice", "Bob", "Charlie"];
