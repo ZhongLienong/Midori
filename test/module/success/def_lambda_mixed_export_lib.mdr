@@ -1,0 +1,11 @@
+module DefLambdaMixedExportLib
+
+public export { Double, Triple, Echo, Offset }
+
+def Double = fn(n : Int) : Int => n * 2;
+
+defun Triple(n : Int) : Int => n * 3;
+
+def Echo = fn<T>(x : T) : T => x;
+
+def Offset : Int = 10;

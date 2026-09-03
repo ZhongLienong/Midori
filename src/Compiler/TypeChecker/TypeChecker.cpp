@@ -2933,9 +2933,22 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 				}
 				else if constexpr (std::is_same_v<Node, MidoriStatement::VariableDefinition>)
 				{
-					if ((exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme)) && stmt.m_annotated_type.has_value())
+					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
-						signatures[stmt.m_name.m_lexeme] = stmt.m_annotated_type.value();
+						if (stmt.m_annotated_type.has_value())
+						{
+							signatures[stmt.m_name.m_lexeme] = stmt.m_annotated_type.value();
+						}
+						else if (stmt.m_value != nullptr && stmt.m_value->template IsExpression<MidoriExpression::Function>())
+						{
+							const MidoriExpression::Function& function = stmt.m_value->template GetExpression<MidoriExpression::Function>();
+							std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(
+								function.m_param_types,
+								std::shared_ptr<MidoriType>(function.m_return_type)
+							);
+							function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+							signatures[stmt.m_name.m_lexeme] = function_type;
+						}
 					}
 				}
 			},
