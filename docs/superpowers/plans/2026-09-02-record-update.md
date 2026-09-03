@@ -173,3 +173,63 @@ when missed, but `Analysis/SemanticFacts.cpp` and `Analysis/SharedAnalysis.cpp` 
 reading rather than extending; the purity chain especially, since a record update
 is pure exactly when its source and every value expression are, and getting it
 wrong would let dead-code elimination drop one.
+
+---
+
+## Complete — 2026-09-02, commit `ee5eb20`
+
+**304/304** integration and **821 assertions / 147 cases**, both green. All eight
+acceptance criteria met.
+
+### The approved lowering was wrong, and only running it caught that
+
+The trace proposed, and this plan approved, a stack sequence beginning
+`DUP`/`GET_MEMBER i` per preserved field. **That does not work.** `DUP` copies the
+*top* of the stack, so once the first field has been pushed it duplicates that
+field rather than the source. The first execution was a memory-access violation.
+
+The correction stays inside the approved fork — no hidden local, no new opcode —
+by keeping the source on top and sinking each field beneath it with `SWAP`, then a
+single `POP` before `CONSTRUCT_STRUCT`.
+
+Worth recording as a process point rather than a footnote: the trace asserted an
+opcode sequence without executing it, and the review approved it on the same
+basis. Everything else in that trace was measured and everything else was right.
+The `Wide` struct in `test/struct/record_update.mdr` exists specifically to
+exercise more than one preserved field, which is the case that fails silently
+otherwise.
+
+### The `match` guard is more load-bearing than the simulation suggested
+
+Disabling the `pending_match` counter and rebuilding takes the suite from
+**304/304 to 111/304**, plus 9 failing unit cases. The Python simulation's figure
+of 51 understated it, because each misparsed prelude function breaks every test
+that imports it.
+
+### The four silent-fallthrough sites, resolved
+
+- `SemanticFacts.cpp` `IsPureExpression` — **case added.** A record update is pure
+  exactly when its source and every value expression are pure. Without it the node
+  would have been silently treated as impure: safe, but it would have invisibly
+  cost dead-code elimination the ability to drop one. Verified in both directions —
+  a pure unused update is dropped, while `{ p with x = Noisy() }` still runs its
+  effect.
+- `SharedAnalysis.cpp` `GetPrimaryToken` — **case added**, returning
+  `m_with_keyword`. Falling through would have silently dropped the source location
+  from every diagnostic anchored on a record update.
+- `SharedAnalysis.cpp` `IsTerminatingExpressionImpl` — correct as-is. A record
+  update never terminates control flow, and `Construct` relies on the same default.
+- `SemanticFacts.cpp` pattern-match folding — correct as-is. A record update is not
+  a statically-known constructor value, so "unknown" is the right answer.
+
+`LocalAccessCollector` and `TailCallOptimization` turned out to be compile-enforced
+rather than silent — their `std::visit` overload sets have no generic fallback.
+
+### Observable, by design
+
+Field side effects run in **declared** order, not written order:
+`{ r with b = f(), a = g() }` calls `g()` before `f()`. That follows from
+declared-order emission, which the plan specified.
+
+Duplicate-field detection lives in the parser rather than the type checker, so it
+reports lexically at the offending token.
