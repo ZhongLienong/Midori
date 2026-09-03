@@ -419,6 +419,24 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Construct& cons
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::RecordUpdate& record_update, int depth) const
+{
+	PrintWithIndentation(depth, "RecordUpdate {");
+	PrintWithIndentation(depth + 1, "Source: ");
+	Visit(record_update.m_source, depth + 2);
+	PrintWithIndentation(depth + 1, "Fields: ");
+	std::ranges::for_each
+	(
+		record_update.m_updates,
+		[depth, this](const MidoriExpression::RecordUpdate::FieldUpdate& update)
+		{
+			PrintWithIndentation(depth + 2, update.m_name.m_lexeme + " = ");
+			Visit(update.m_value, depth + 3);
+		}
+	);
+	PrintWithIndentation(depth, "}");
+}
+
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Array& array, int depth) const
 {
 	PrintWithIndentation(depth, "Array {");

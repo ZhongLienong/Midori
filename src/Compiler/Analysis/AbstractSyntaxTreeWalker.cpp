@@ -235,6 +235,15 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Construct& con
 	}
 }
 
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::RecordUpdate& record_update)
+{
+	VisitExpression(record_update.m_source);
+	for (MidoriExpression::RecordUpdate::FieldUpdate& update : record_update.m_updates)
+	{
+		VisitExpression(update.m_value);
+	}
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Spawn& spawn)
 {
 	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)

@@ -571,6 +571,12 @@ private:
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
 
+	bool ProbeRecordUpdate();
+
+	MidoriResult::ExpressionResult ParseRecordUpdate();
+
+	MidoriResult::ExpressionResult ParsePostfixChain(std::unique_ptr<MidoriExpression>&& expr);
+
 	MidoriResult::ExpressionResult ParseLoopExpression();
 
 	MidoriResult::ExpressionResult ParseForExpression();

@@ -542,6 +542,34 @@ public:
 		}
 	};
 
+	// `{ source with field = value, other = value }` - a copy of `source` with those
+	// fields replaced. Deliberately NOT lowered to a Construct node: Construct types
+	// itself by looking up the constructor function and freshening it, which fails
+	// inside a generic function (TypeChecker "could not infer all type arguments").
+	// A record update instead takes its type from the already-resolved source.
+	struct RecordUpdate : BaseExpression
+	{
+		struct FieldUpdate
+		{
+			Token m_name;
+			std::unique_ptr<MidoriExpression> m_value;
+			// Slot in the struct's declared member order; filled by the type checker.
+			int m_index = -1;
+
+			FieldUpdate(const Token& name, std::unique_ptr<MidoriExpression>&& value);
+		};
+
+		Token m_with_keyword;
+		std::unique_ptr<MidoriExpression> m_source;
+		std::vector<FieldUpdate> m_updates;
+		// One entry per declared member slot, in declared order. Holds the index into
+		// m_updates that supplies that slot, or -1 when the slot is copied from the
+		// source. Filled by the type checker, consumed by the code generator.
+		std::vector<int> m_slot_sources;
+
+		RecordUpdate(const Token& with_keyword, std::unique_ptr<MidoriExpression>&& source, std::vector<FieldUpdate>&& updates);
+	};
+
 	struct IfElse : BaseExpression
 	{
 		Token m_if_token;
@@ -727,7 +755,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_variant;
 
 public:

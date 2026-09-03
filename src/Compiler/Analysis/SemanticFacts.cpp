@@ -850,6 +850,27 @@ namespace
 				{
 					return true;
 				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::RecordUpdate>)
+				{
+					// A record update reads the source's members and builds a new struct, so it
+					// is pure exactly when the source and every value expression are. This case
+					// has to be spelled out: the chain ends in `else { return false; }`, so
+					// omitting it would silently mark every record update impure and cost dead
+					// code elimination the ability to drop one.
+					if (!IsPureExpression(*node.m_source))
+					{
+						return false;
+					}
+
+					for (const MidoriExpression::RecordUpdate::FieldUpdate& update : node.m_updates)
+					{
+						if (!IsPureExpression(*update.m_value))
+						{
+							return false;
+						}
+					}
+					return true;
+				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Construct>)
 				{
 					for (const std::unique_ptr<MidoriExpression>& arg : node.m_params)
@@ -1270,6 +1291,15 @@ namespace
 			for (const std::unique_ptr<MidoriExpression>& param : node.m_params)
 			{
 				VisitExpression(*param);
+			}
+		}
+
+		void Visit(const MidoriExpression::RecordUpdate& node)
+		{
+			VisitExpression(*node.m_source);
+			for (const MidoriExpression::RecordUpdate::FieldUpdate& update : node.m_updates)
+			{
+				VisitExpression(*update.m_value);
 			}
 		}
 

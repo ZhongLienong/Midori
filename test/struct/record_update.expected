@@ -1,0 +1,10 @@
+origin: 1,2,origin
+moved: 5,2,origin
+relabelled: 1,42,renamed
+swapped: 2,1
+origin still: 1,2,origin
+projected: 77
+twice: 10,20
+wide: 123045
+block: 101
+match block: 7

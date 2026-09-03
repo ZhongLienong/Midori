@@ -234,6 +234,19 @@ MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::
 {
 }
 
+MidoriExpression::RecordUpdate::FieldUpdate::FieldUpdate(const Token& name, std::unique_ptr<MidoriExpression>&& value)
+	: m_name(name),
+	m_value(std::move(value))
+{
+}
+
+MidoriExpression::RecordUpdate::RecordUpdate(const Token& with_keyword, std::unique_ptr<MidoriExpression>&& source, std::vector<FieldUpdate>&& updates)
+	: m_with_keyword(with_keyword),
+	m_source(std::move(source)),
+	m_updates(std::move(updates))
+{
+}
+
 MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type)
 	:
 	m_if_token(if_token),

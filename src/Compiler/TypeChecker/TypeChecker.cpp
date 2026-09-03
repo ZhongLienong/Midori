@@ -6089,6 +6089,75 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	return construct.m_type_data;
 }
 
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate& record_update)
+{
+	MidoriResult::TypeResult source_result = Evaluate(record_update.m_source);
+	if (!source_result.has_value())
+	{
+		return source_result;
+	}
+
+	std::shared_ptr<MidoriType> source_type = source_result.value();
+
+	// Multi-variant types are out of scope: `{ u with ... }` on a union would require the
+	// variant to be statically known. A union is always a UnionType even when it has a
+	// single variant, so the two are trivially distinguishable here.
+	if (source_type->IsType<MidoriType::UnionType>())
+	{
+		std::string suggestion = std::format("'{}' is a union; record update needs the variant to be statically known and is not yet supported on multi-variant types", source_type->GetType<MidoriType::UnionType>().m_name);
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Record update expression type error: multi-variant type", record_update.m_with_keyword, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+	}
+
+	if (!source_type->IsType<MidoriType::StructType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Record update expression type error: not a struct", record_update.m_with_keyword, m_file_name, m_source_lines, source_type));
+	}
+
+	const MidoriType::StructType& struct_type = source_type->GetType<MidoriType::StructType>();
+
+	// One slot per declared member, in declared order; -1 means "copy from the source".
+	record_update.m_slot_sources.assign(struct_type.m_member_names.size(), -1);
+
+	for (size_t update_index : std::views::iota(0u, record_update.m_updates.size()))
+	{
+		MidoriExpression::RecordUpdate::FieldUpdate& update = record_update.m_updates[update_index];
+
+		std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), update.m_name.m_lexeme);
+		if (find_result == struct_type.m_member_names.cend())
+		{
+			std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, update.m_name.m_lexeme);
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record update", update.m_name, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+		}
+
+		update.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
+		record_update.m_slot_sources[static_cast<size_t>(update.m_index)] = static_cast<int>(update_index);
+
+		std::shared_ptr<MidoriType> member_type = struct_type.m_member_types[static_cast<size_t>(update.m_index)];
+
+		ExpectedTypeGuard guard(*this, member_type);
+		MidoriResult::TypeResult value_result = Evaluate(update.m_value);
+		if (!value_result.has_value())
+		{
+			return value_result;
+		}
+
+		MidoriResult::TypeResult unify_result = Unify(update.m_name, member_type, value_result.value(), UnifyDiagnosticMode::ExpectedActual);
+		if (!unify_result.has_value())
+		{
+			return unify_result;
+		}
+	}
+
+	// The result is the source's own already-resolved type. Deliberately NOT routed
+	// through Construct: Construct types itself by looking the constructor function up by
+	// name and freshening it, then demands that every type argument be inferable. Inside a
+	// generic function that fails - `new Bag(b.items, t)` in `defun Retag<T>(b : Bag<T>,
+	// t : Int) : Bag<T>` reports "could not infer all type arguments for 'Bag'" - whereas
+	// taking the type from the source works. See test/struct/record_update_generic.mdr.
+	record_update.m_type_data = source_type;
+	return record_update.m_type_data;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 {
 	std::shared_ptr<MidoriType> expected_array_type;

@@ -2016,6 +2016,7 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::Call& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Function& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Construct& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::RecordUpdate& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::IfElse& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::MemberAccess& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::MemberAssignment& arg) const { (*m_self)(arg); }
@@ -4413,6 +4414,69 @@ void CodeGenerator::operator()(MidoriExpression::Construct& construct)
 		EmitByte(OpCode::SET_TAG, line);
 		EmitByte(static_cast<OpCode>(tag), line);
 	}
+}
+
+void CodeGenerator::operator()(MidoriExpression::RecordUpdate& record_update)
+{
+	int line = record_update.m_with_keyword.m_line;
+
+	size_t arity = record_update.m_slot_sources.size();
+	// CONSTRUCT_STRUCT carries its arity in a single byte, the same ceiling `new` has.
+	if (arity > static_cast<size_t>(BYTE_MASK))
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Too many struct members for a record update (max {})", static_cast<int>(BYTE_MASK)), record_update.m_with_keyword, m_file_name, m_source_lines));
+		return;
+	}
+
+	// Evaluate the source exactly once and keep it ON TOP of the operand stack - where it
+	// is also a GC root - while the fields accumulate underneath it in declared order:
+	//
+	//   <source>                       [src]
+	//   per copied slot i:
+	//     DUP; GET_MEMBER i; SWAP      [.., member_i, src]
+	//   per replaced slot:
+	//     <value expression>; SWAP     [.., value, src]
+	//   POP                            [f0, .., fn-1]
+	//   CONSTRUCT_STRUCT n             [copy]
+	//
+	// The source has to stay on top because DUP copies the TOP of the stack, not a fixed
+	// slot, and there is no PICK opcode to reach past the fields already pushed. Leaving
+	// the source at the bottom and DUPing works for one preserved field and silently reads
+	// the previous field for every one after that.
+	//
+	// No new opcode is needed, so the VM, the bytecode linker and the disassembler are
+	// untouched. m_operand_depth has to account for the source and the accumulated fields,
+	// or a block appearing in a value expression would compute its local slots wrongly.
+	Visit(record_update.m_source);
+	m_operand_depth += 1;
+
+	for (size_t slot : std::views::iota(0u, arity))
+	{
+		int update_index = record_update.m_slot_sources[slot];
+		if (update_index < 0)
+		{
+			EmitByte(OpCode::DUP, line);
+			EmitByte(OpCode::GET_MEMBER, line);
+			EmitByte(static_cast<OpCode>(slot), line);
+		}
+		else
+		{
+			// Every right-hand side is evaluated against the ORIGINAL record, which is what
+			// makes `{ r with a = r.b, b = r.a }` a swap rather than a sequential update.
+			Visit(record_update.m_updates[static_cast<size_t>(update_index)].m_value);
+		}
+
+		// Sink the field below the source, restoring "source on top".
+		EmitByte(OpCode::SWAP, line);
+		m_operand_depth += 1;
+	}
+
+	m_operand_depth -= static_cast<int>(arity) + 1;
+
+	// Drop the source; the fields are left in declared order for CONSTRUCT_STRUCT.
+	EmitByte(OpCode::POP, line);
+	EmitByte(OpCode::CONSTRUCT_STRUCT, line);
+	EmitByte(static_cast<OpCode>(arity), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Array& array)

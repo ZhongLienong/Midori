@@ -657,3 +657,109 @@ def result = match new Option::Some(7) with
 	REQUIRE(none_pattern.m_args.empty());
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(none_case.m_expr).m_token.m_lexeme == "0");
 }
+
+TEST_CASE("Parser tells a record update apart from a block", "[parser]")
+{
+	// '{' opens a block. The record-update probe scans at depth 0 for the first ';', '}'
+	// or 'with'. The pending-match counter is what keeps `{ match x with case ... }` a
+	// block: simulating the probe over the whole .mdr corpus misclassifies 0 braces with
+	// that counter and 51 without it. These cases pin that behaviour.
+	const std::string source_code =
+		R"(module ParserRecordUpdate
+union Option = Some(Int) | None;
+struct Point
+{
+	x : Int,
+	y : Int
+};
+def p = new Point(1, 2);
+def updated = { p with x = 5, y = 6 };
+def block_with_match = { match p.x with case _ => 1 };
+def plain_block = { def local = 1; local };
+def block_expression_only = { p.x };
+def nested_source = { { p with x = 1 } with y = 2 };
+def projected = { p with x = 9 }.x;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdate.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+
+	const MidoriStatement::VariableDefinition& updated_definition = RequireVariableDefinition(program, 3u, "updated");
+	const MidoriExpression::RecordUpdate& updated_expr = RequireExpression<MidoriExpression::RecordUpdate>(updated_definition.m_value);
+	REQUIRE(updated_expr.m_updates.size() == 2u);
+	REQUIRE(updated_expr.m_updates[0u].m_name.m_lexeme == "x");
+	REQUIRE(updated_expr.m_updates[1u].m_name.m_lexeme == "y");
+	static_cast<void>(RequireExpression<MidoriExpression::NameAccess>(updated_expr.m_source));
+
+	// A bare `match ... with` inside braces is still a block, not a record update.
+	const MidoriStatement::VariableDefinition& match_definition = RequireVariableDefinition(program, 4u, "block_with_match");
+	static_cast<void>(RequireExpression<MidoriExpression::Block>(match_definition.m_value));
+
+	const MidoriStatement::VariableDefinition& plain_definition = RequireVariableDefinition(program, 5u, "plain_block");
+	static_cast<void>(RequireExpression<MidoriExpression::Block>(plain_definition.m_value));
+
+	const MidoriStatement::VariableDefinition& expression_only_definition = RequireVariableDefinition(program, 6u, "block_expression_only");
+	static_cast<void>(RequireExpression<MidoriExpression::Block>(expression_only_definition.m_value));
+
+	// A record update may itself be the source of another.
+	const MidoriStatement::VariableDefinition& nested_definition = RequireVariableDefinition(program, 7u, "nested_source");
+	const MidoriExpression::RecordUpdate& nested_expr = RequireExpression<MidoriExpression::RecordUpdate>(nested_definition.m_value);
+	static_cast<void>(RequireExpression<MidoriExpression::RecordUpdate>(nested_expr.m_source));
+
+	// A record update is a value, so the postfix chain still applies to it.
+	const MidoriStatement::VariableDefinition& projected_definition = RequireVariableDefinition(program, 8u, "projected");
+	const MidoriExpression::MemberAccess& projected_expr = RequireExpression<MidoriExpression::MemberAccess>(projected_definition.m_value);
+	static_cast<void>(RequireExpression<MidoriExpression::RecordUpdate>(projected_expr.m_struct));
+}
+
+TEST_CASE("Parser keeps a record update in function body position out of the block path", "[parser]")
+{
+	// The function-body brace is a second, separate '{' dispatch site that bypasses
+	// ParsePrimary. Patching only ParsePrimary would leave `defun ... => { c with ... }`
+	// parsing as a block, which is precisely the builder-style form record update exists
+	// for. A record update there also continues through the postfix chain; a block
+	// deliberately does not, so that `fn() => {}()` still parses its call separately.
+	const std::string source_code =
+		R"(module ParserRecordUpdateBody
+struct Config
+{
+	host : Text,
+	port : Int
+};
+defun WithPort(c : Config, p : Int) : Config => { c with port = p };
+defun PortOf(c : Config) : Int => { c with port = 1 }.port;
+defun BlockBodied() : Int => { def local = 2; local };
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+
+	REQUIRE(program.size() >= 4u);
+	REQUIRE(program[1u] != nullptr);
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::FunctionDefinition>());
+	const MidoriStatement::FunctionDefinition& with_port = program[1u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::RecordUpdate& with_port_body = RequireExpression<MidoriExpression::RecordUpdate>(with_port.m_body);
+	REQUIRE(with_port_body.m_updates.size() == 1u);
+	REQUIRE(with_port_body.m_updates[0u].m_name.m_lexeme == "port");
+
+	REQUIRE(program[2u] != nullptr);
+	REQUIRE(program[2u]->IsStatement<MidoriStatement::FunctionDefinition>());
+	const MidoriStatement::FunctionDefinition& port_of = program[2u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::MemberAccess& port_of_body = RequireExpression<MidoriExpression::MemberAccess>(port_of.m_body);
+	static_cast<void>(RequireExpression<MidoriExpression::RecordUpdate>(port_of_body.m_struct));
+
+	REQUIRE(program[3u] != nullptr);
+	REQUIRE(program[3u]->IsStatement<MidoriStatement::FunctionDefinition>());
+	const MidoriStatement::FunctionDefinition& block_bodied = program[3u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	static_cast<void>(RequireExpression<MidoriExpression::Block>(block_bodied.m_body));
+}

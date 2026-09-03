@@ -1,0 +1,12 @@
+module RecordUpdateUnknownField
+
+// An unknown field names both the field and the struct.
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+def p = new Point(1, 2);
+def bad = { p with z = 3 };

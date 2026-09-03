@@ -289,6 +289,8 @@ private:
 
 	void operator()(MidoriExpression::Construct& construct);
 
+	void operator()(MidoriExpression::RecordUpdate& record_update);
+
 	void operator()(MidoriExpression::Array& array);
 
 	void operator()(MidoriExpression::IndexAccess& array_get);

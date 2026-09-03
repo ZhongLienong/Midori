@@ -1,0 +1,10 @@
+module RecordUpdateUnion
+
+// Multi-variant types are out of scope: the variant would have to be statically known.
+// A union is a UnionType even when it has one variant, so this is rejected with a clear
+// error rather than being silently mistaken for a struct.
+
+union Shape = Circle(Int) | Square(Int);
+
+def s = new Shape::Circle(3);
+def bad = { s with Circle = 4 };

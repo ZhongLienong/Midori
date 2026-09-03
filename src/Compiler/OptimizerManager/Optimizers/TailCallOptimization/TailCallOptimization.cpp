@@ -172,6 +172,23 @@ namespace
 				return false;
 			}
 
+			bool operator()(const MidoriExpression::RecordUpdate& node) const
+			{
+				if (ContainsRecursiveCallImpl(*node.m_source, m_function_name))
+				{
+					return true;
+				}
+
+				for (const MidoriExpression::RecordUpdate::FieldUpdate& update : node.m_updates)
+				{
+					if (ContainsRecursiveCallImpl(*update.m_value, m_function_name))
+					{
+						return true;
+					}
+				}
+				return false;
+			}
+
 			bool operator()(const MidoriExpression::IfElse& node) const
 			{
 				return ContainsRecursiveCallImpl(*node.m_condition, m_function_name)

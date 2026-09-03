@@ -267,6 +267,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Construct& construct);
 
+	MidoriResult::TypeResult operator()(MidoriExpression::RecordUpdate& record_update);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::Array& array);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::IndexAccess& array_get);

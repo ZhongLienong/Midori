@@ -203,6 +203,12 @@ namespace
 				{
 					return &node.m_data_name;
 				}
+				else if constexpr (std::is_same_v<T, MidoriExpression::RecordUpdate>)
+				{
+					// Spelled out because this chain ends in `else { return nullptr; }`: without
+					// it every diagnostic anchored on a record update would lose its location.
+					return &node.m_with_keyword;
+				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
 				{
 					return &node.m_if_token;

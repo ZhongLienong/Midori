@@ -1,0 +1,62 @@
+module RecordUpdatePipe
+
+// Builder-style piping is the reason record update exists: without it there is no way to
+// produce a modified copy of a struct, so a struct cannot appear in a pipeline at all.
+//
+// Every `=>` body here is a record update rather than a block. That goes through the
+// function-body brace at Parser.cpp's ParseFunction, NOT through ParsePrimary, so it is a
+// separate dispatch site and needs its own coverage.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+struct Config
+{
+	host : Text,
+	port : Int,
+	tls : Bool
+};
+
+defun WithPort(c : Config, p : Int) : Config => { c with port = p };
+
+defun WithTls(c : Config, t : Bool) : Config => { c with tls = t };
+
+defun WithHost(c : Config, h : Text) : Config => { c with host = h };
+
+defun Describe(c : Config) : Text =>
+{
+	c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls then "on" else "off")
+};
+
+def base = new Config("localhost", 80, false);
+
+def configured = base
+	|> WithPort(8080)
+	|> WithTls(true);
+
+IO::PrintLine("base: " ++ Describe(base));
+IO::PrintLine("configured: " ++ Describe(configured));
+
+def rehosted = configured |> WithHost("example.com") |> WithPort(443);
+IO::PrintLine("rehosted: " ++ Describe(rehosted));
+
+// A record update in function-body position still runs through the postfix chain, so it
+// can be projected immediately - the same as it behaves in expression position.
+defun PortAfterBump(c : Config) : Int => { c with port = c.port + 1 }.port;
+
+IO::PrintLine("bumped port: " ++ (PortAfterBump(base) as Text));
+
+// The block fast path is unchanged: `fn() => {}()` must still parse the call separately
+// rather than swallowing the parens into the body.
+def unit_maker = fn() : Unit => {};
+unit_maker();
+
+def block_bodied = fn() : Int =>
+{
+	def local = 3;
+	local * 3
+};
+
+IO::PrintLine("block bodied: " ++ (block_bodied() as Text));

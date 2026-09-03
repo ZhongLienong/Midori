@@ -76,6 +76,8 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Construct& construct, int depth = 0) const;
 
+	void operator()(const MidoriExpression::RecordUpdate& record_update, int depth = 0) const;
+
 	void operator()(const MidoriExpression::Array& array, int depth = 0) const;
 
 	void operator()(const MidoriExpression::IndexAccess& array_get, int depth = 0) const;

@@ -201,6 +201,15 @@ void MidoriOptimizer::operator()(MidoriExpression::Construct& construct)
 	}
 }
 
+void MidoriOptimizer::operator()(MidoriExpression::RecordUpdate& record_update)
+{
+	VisitAndReplace(record_update.m_source);
+	for (MidoriExpression::RecordUpdate::FieldUpdate& update : record_update.m_updates)
+	{
+		VisitAndReplace(update.m_value);
+	}
+}
+
 void MidoriOptimizer::operator()(MidoriExpression::Spawn& spawn)
 {
 	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
