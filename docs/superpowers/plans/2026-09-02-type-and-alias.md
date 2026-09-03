@@ -89,9 +89,21 @@ Where each is parsed, and exactly which AST node and `MidoriType` each produces.
 
 Check specifically that this does not collide with the record-update brace probe added in `ee5eb20`.
 
-- [ ] **Step 4: Decide whether `alias` needs a new token**
+- [ ] **Step 4: The `alias` keyword collides with existing identifiers — measured**
 
-`ALIAS` is not currently in `Token.h`. Report what adding a reserved word costs — lexer table, any keyword-count assertions, and whether any existing `.mdr` file in the repo uses `alias` as an identifier. That last one matters: adding a reserved word is a breaking change for any code using it as a name.
+`ALIAS` is not in `Token.h` today. Reserving it **is** a breaking change here, not
+hypothetically: `alias` is used as a variable name in **12 tracked `.mdr` files,
+35 occurrences**, all confined to `test/` — for example
+`def alias = items;` in `test/expression/success/concat_assign_array_alias.mdr:9`.
+Nothing in `MidoriPrelude/` uses it.
+
+Since those are all test locals, renaming them is mechanical. Do that as its own
+commit *before* reserving the keyword, so a bisect never lands on a state where
+the tests fail to parse. Several of the filenames also contain `alias`; leave the
+filenames alone — only the identifiers need to change.
+
+Still report what else reserving a word costs: the lexer table, and any
+keyword-count assertion in the unit tests.
 
 - [ ] **Step 5: Size it and report**
 
