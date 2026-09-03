@@ -397,7 +397,8 @@ TEST_CASE("Parser synchronizes consume failures to every top-level declaration s
 		{ "class", "class Next<T> {\n\tproject: fn(value: T) -> T;\n};\n", Token::Name::CLASS },
 		{ "instance", "instance Next<Int> {\n\tdefun project(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
 		{ "foreign", "foreign \"MIDORI_FFI_Next\" NextForeign : fn() -> Int;\n", Token::Name::FOREIGN },
-		{ "type", "type Alias = Int;\n", Token::Name::TYPE },
+		{ "type", "type Nominal = Empty | Full(Int);\n", Token::Name::TYPE },
+		{ "alias", "alias Shorthand = Int;\n", Token::Name::ALIAS },
 	};
 
 	for (const SyncCase& sync_case : cases)
@@ -762,4 +763,175 @@ defun BlockBodied() : Int => { def local = 2; local };
 	REQUIRE(program[3u]->IsStatement<MidoriStatement::FunctionDefinition>());
 	const MidoriStatement::FunctionDefinition& block_bodied = program[3u]->GetStatement<MidoriStatement::FunctionDefinition>();
 	static_cast<void>(RequireExpression<MidoriExpression::Block>(block_bodied.m_body));
+}
+
+TEST_CASE("Parser lowers a type record onto the node a struct produces", "[parser]")
+{
+	// The whole point of the record form is that it is not a new node. A `type`
+	// record and the equivalent `struct` must be indistinguishable downstream,
+	// which is what lets the type checker, code generator and VM stay untouched.
+	const std::string source_code =
+		R"(module TypeRecordLowering
+struct FromStruct
+{
+	x: Int,
+	y: Text
+};
+type FromType = { x: Int, y: Text };
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeRecordLowering.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 2u);
+
+	REQUIRE(program[0u] != nullptr);
+	REQUIRE(program[1u] != nullptr);
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::Struct>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::Struct>());
+
+	const MidoriStatement::Struct& from_struct = program[0u]->GetStatement<MidoriStatement::Struct>();
+	const MidoriStatement::Struct& from_type = program[1u]->GetStatement<MidoriStatement::Struct>();
+
+	REQUIRE(from_struct.m_name.m_lexeme == "FromStruct");
+	REQUIRE(from_type.m_name.m_lexeme == "FromType");
+
+	REQUIRE(from_struct.m_self_type->IsType<MidoriType::StructType>());
+	REQUIRE(from_type.m_self_type->IsType<MidoriType::StructType>());
+
+	const MidoriType::StructType& struct_type = from_struct.m_self_type->GetType<MidoriType::StructType>();
+	const MidoriType::StructType& type_type = from_type.m_self_type->GetType<MidoriType::StructType>();
+
+	// Everything but the name matches, because only the name differs in source.
+	REQUIRE(type_type.m_member_names == struct_type.m_member_names);
+	REQUIRE(type_type.m_member_types.size() == struct_type.m_member_types.size());
+	REQUIRE(type_type.m_member_types[0u]->IsType<MidoriType::IntegerType>());
+	REQUIRE(type_type.m_member_types[1u]->IsType<MidoriType::TextType>());
+	REQUIRE(type_type.m_generic_params.empty());
+	REQUIRE(from_type.m_generic_params.empty());
+}
+
+TEST_CASE("Parser lowers a type sum onto the node a union produces", "[parser]")
+{
+	const std::string source_code =
+		R"(module TypeSumLowering
+union FromUnion<T> = Empty | Full(T);
+type FromType<T> = Empty | Full(T);
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeSumLowering.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 2u);
+
+	REQUIRE(program[0u] != nullptr);
+	REQUIRE(program[1u] != nullptr);
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::Union>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::Union>());
+
+	const MidoriStatement::Union& from_union = program[0u]->GetStatement<MidoriStatement::Union>();
+	const MidoriStatement::Union& from_type = program[1u]->GetStatement<MidoriStatement::Union>();
+
+	REQUIRE(from_union.m_name.m_lexeme == "FromUnion");
+	REQUIRE(from_type.m_name.m_lexeme == "FromType");
+
+	// Generic parameters flow through the shared prologue identically.
+	REQUIRE(from_type.m_generic_params.size() == from_union.m_generic_params.size());
+	REQUIRE(from_type.m_generic_params.size() == 1u);
+	REQUIRE(from_type.m_generic_params[0u].m_lexeme == from_union.m_generic_params[0u].m_lexeme);
+	REQUIRE(from_type.m_constructor_names.size() == from_union.m_constructor_names.size());
+	REQUIRE(from_type.m_constructor_names.size() == 2u);
+
+	REQUIRE(from_type.m_self_type->IsType<MidoriType::UnionType>());
+	const MidoriType::UnionType& type_type = from_type.m_self_type->GetType<MidoriType::UnionType>();
+	const MidoriType::UnionType& union_type = from_union.m_self_type->GetType<MidoriType::UnionType>();
+
+	REQUIRE(type_type.m_member_info.size() == union_type.m_member_info.size());
+	REQUIRE(type_type.m_generic_params == union_type.m_generic_params);
+
+	// Variants are namespaced under their own union's name, so the keys differ by
+	// design - `FromUnion::Empty` against `FromType::Empty`. Compare the variant
+	// suffix, and with it the tag order and arity that both spellings produce.
+	const auto variant_suffix = [](const std::string& qualified_name) -> std::string
+	{
+		const size_t separator = qualified_name.rfind(':');
+		return separator == std::string::npos ? qualified_name : qualified_name.substr(separator + 1u);
+	};
+
+	const auto tags_by_variant = [&variant_suffix](const MidoriType::UnionType& union_to_index)
+	{
+		std::unordered_map<std::string, std::pair<int, size_t>> indexed;
+		for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& entry : union_to_index.m_member_info)
+		{
+			indexed.emplace(variant_suffix(entry.first), std::make_pair(entry.second.m_tag, entry.second.m_member_types.size()));
+		}
+		return indexed;
+	};
+
+	REQUIRE(tags_by_variant(type_type) == tags_by_variant(union_type));
+}
+
+TEST_CASE("Parser rejects a parameterised alias instead of silently dropping its parameters", "[parser][diagnostic]")
+{
+	// Accepting this would store a type with m_generic_params cleared, so the
+	// mismatch would surface later against a count nobody wrote. Fail here.
+	const std::string source_code =
+		R"(module ParameterisedAlias
+struct Box<T>
+{
+	item: T
+};
+alias BoxAlias<T> = Box<T>;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mdr");
+	REQUIRE_FALSE(parse_result.has_value());
+
+	RequireErrorMatches(
+		parse_result.error(),
+		MidoriTest::ErrorExpectation
+		{
+			.m_stage = CompilerStage::Parser,
+			.m_line = 6,
+			.m_rendered_substrings = { "Alias declarations cannot take generic parameters", "alias IntBox = Box<Int>;" }
+		});
+}
+
+TEST_CASE("Parser accepts an alias of an instantiated generic type", "[parser]")
+{
+	// The restriction is on alias parameters, not on aliasing a parameterised
+	// type that has already been given its arguments.
+	const std::string source_code =
+		R"(module InstantiatedAlias
+struct Box<T>
+{
+	item: T
+};
+alias IntBox = Box<Int>;
+def boxed : IntBox = new Box(1);
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstantiatedAlias.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 3u);
+	REQUIRE(program[1u] != nullptr);
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::TypeAlias>());
+
+	const MidoriStatement::TypeAlias& alias = program[1u]->GetStatement<MidoriStatement::TypeAlias>();
+	REQUIRE(alias.m_name.m_lexeme == "IntBox");
+	REQUIRE(alias.m_generic_params.empty());
+	REQUIRE(alias.m_aliased_type->IsType<MidoriType::StructType>());
 }
