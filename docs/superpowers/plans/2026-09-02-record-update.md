@@ -98,3 +98,78 @@ Expected shape, subject to the trace: a new `MidoriExpression::RecordUpdate` nod
 7. Builder-style piping works end to end:
    `Config("localhost", 80, false) |> WithPort(8080) |> WithTls(true)`
 8. Tests carry `.expected` snapshots, each verified to bite by corrupting it before restoring.
+
+---
+
+## Trace findings — 2026-09-02
+
+**The `{` ambiguity is bounded in practice, measured not argued.** Distinguishing
+`{ s with … }` from a block needs a scan from `{` at depth 0, stopping at the
+first of `;` or `}` (block), `WITH` (record update), or EOF. One extra rule is
+required: track an unconsumed `MATCH` at depth 0, because `{ match o with case … }`
+puts `WITH` at depth 0 immediately inside the brace.
+
+Validated by token-level simulation over all 352 `.mdr` files in the repo:
+
+| variant | `{` misclassified as a record update |
+|---|---|
+| with the `match` guard | **0** |
+| without it | **51** — all in `MidoriPrelude/Prelude/Result.mdr`, `Option.mdr` and similar |
+
+So the guard is a demonstrated requirement, not defensive padding. Scan cost over
+the same corpus: 1493 braces probed, mean 14.2 tokens, median 8, p95 43, max 212.
+Precedent exists — `ProbeArrayComprehension` (`Parser.cpp:2412-2495`) already does
+this shape of scan.
+
+`TryParser` (`Parser.h:192-205`) is **not** a safe fallback: it restores
+`ParseState` only, not `m_warnings`, `m_pending_statements`, or the
+`s_match_counter` / `s_comp_counter` statics, so backtracking over a failed block
+parse has side effects.
+
+**There are two `{` dispatch sites, and the second is load-bearing.**
+`Parser.cpp:1729` in `ParsePrimary`, and `Parser.cpp:4291`, the function-body fast
+path that deliberately bypasses `ParseCall` to stop `fn() => {}()` eating the
+`()`. The plan's headline example —
+`defun WithPort(c: Config, p: Int) : Config => { c with port = p }` — goes through
+`:4291`, so patching only `ParsePrimary` would leave it parsing as a block.
+
+**No new opcode is needed.** Existing operations compose: evaluate the source,
+then `DUP`/`GET_MEMBER i` per preserved field, the value expressions for replaced
+fields, `CONSTRUCT_STRUCT n`, then `SWAP`/`POP`. Zero change to the VM, the
+bytecode linker, or the disassembler. The value stack is a GC root set, so holding
+the source there across allocating field expressions is safe. `m_operand_depth`
+must be incremented for the live source, exactly as `Construct` does at
+`CodeGenerator.cpp:4388`.
+
+**A record update must not lower to a `Construct` node** — and the reason is a
+language-level fact worth keeping:
+
+```
+defun Retag<T>(b: Bag<T>, t: Int) : Bag<T> => new Bag(b.items, t);
+  -> Construct expression type error: could not infer all type arguments for 'Bag'
+```
+
+`Construct` rejects a generic struct built inside a generic function
+(`TypeChecker.cpp:6064-6074`, the `HasTypeVariables` guard). A record update typed
+from the *source's own type* has no such problem, so
+`defun WithTag<T>(b: Bag<T>, t: Int) : Bag<T> => { b with tag = t }` **works where
+`new Bag(...)` does not.** Record update is therefore strictly more expressive
+than construction inside generic code, not merely more convenient.
+
+It also sidesteps three of the four known traps: typing from the source's own type
+needs no `Freshen`, no constructor lookup, no `SubstituteTypeParams`, and no
+instance resolution.
+
+**Multi-variant detection is trivial.** `struct` and `union` are separate
+`MidoriType` variants, and a `union` is always `UnionType` even with one variant.
+The scoped-out error is a two-line mirror of `TypeChecker.cpp:5523-5526`. The
+`type`/`alias` merge is needed to *support* multi-variant updates, not to *detect*
+them.
+
+**Size:** roughly 350 production lines across ~15 files. The visitor boilerplate is
+a real tax — a new `ExpressionUnion` variant touches 11 files. Most fail to compile
+when missed, but `Analysis/SemanticFacts.cpp` and `Analysis/SharedAnalysis.cpp` use
+`if constexpr` chains that **silently fall through to `else`**. Those two need
+reading rather than extending; the purity chain especially, since a record update
+is pure exactly when its source and every value expression are, and getting it
+wrong would let dead-code elimination drop one.
