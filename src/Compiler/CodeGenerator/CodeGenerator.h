@@ -358,6 +358,10 @@ private:
 
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 
+	static std::shared_ptr<MidoriType> RepresentationOf(const std::shared_ptr<MidoriType>& type);
+
+	static bool IsNewTypeErasedConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& target_type);
+
 	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map);
 
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);

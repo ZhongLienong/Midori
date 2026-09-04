@@ -2490,6 +2490,13 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	std::shared_ptr<MidoriType> from_type = as.m_from_type.lock();
 	const std::shared_ptr<MidoriType>& target_type = as.m_to_type;
 
+	// A newtype and its representation share a runtime representation, so a conversion
+	// between them is a no-op. The Convertable lookup below still runs first, so a
+	// hand-written instance with real behaviour keeps winning; this flag only suppresses
+	// the "instance method not found" diagnostic raised for the derived instance, which
+	// has no method body to emit.
+	const bool is_newtype_erased_conversion = IsNewTypeErasedConversion(from_type, target_type);
+
 	// Handle conversions that use Convertable typeclass or involve type variables
 	if (as.m_uses_convertable || from_type->IsType<MidoriType::TypeVariable>() || target_type->IsType<MidoriType::TypeVariable>())
 	{
@@ -2589,13 +2596,13 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 					return;
 				}
 			}
-			else if (as.m_uses_convertable)
+			else if (as.m_uses_convertable && !is_newtype_erased_conversion)
 			{
 				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method '"s + mangled_name + "' not found"s, as.m_as_keyword, m_file_name, m_source_lines));
 				return;
 			}
 		}
-		else if (as.m_uses_convertable)
+		else if (as.m_uses_convertable && !is_newtype_erased_conversion)
 		{
 			// Type variables without resolution - this shouldn't happen if type checking was correct
 			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Cannot resolve Convertable instance for type variables outside of specialization context"s, as.m_as_keyword, m_file_name, m_source_lines));
@@ -2606,6 +2613,15 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 	// Identity casts are no-ops: the operand is already the target type and sits on the stack.
 	// CanonicalizationCleanup normally erases these nodes, but lowering must not depend on it.
 	if (*from_type == *target_type)
+	{
+		return;
+	}
+
+	// Erasing newtype conversion: nothing to emit, the operand is already the right
+	// machine value. Placed after the Convertable resolution above so a hand-written
+	// instance takes priority, and before built-in cast selection because a newtype
+	// matches none of the built-in target shapes.
+	if (is_newtype_erased_conversion)
 	{
 		return;
 	}
@@ -2840,7 +2856,7 @@ bool CodeGenerator::TryEmitFusedBinary(MidoriExpression::Binary& binary, int lin
 		return false;
 	}
 
-	const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
+	const std::shared_ptr<MidoriType> operand_type = RepresentationOf(GetConcreteTypeForExpression(binary.m_left));
 	if (!operand_type->IsType<MidoriType::IntegerType>())
 	{
 		return false;
@@ -2879,7 +2895,7 @@ std::optional<int> CodeGenerator::TryEmitFusedConditionBranch(std::unique_ptr<Mi
 		return std::nullopt;
 	}
 
-	const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
+	const std::shared_ptr<MidoriType> operand_type = RepresentationOf(GetConcreteTypeForExpression(binary.m_left));
 	if (!operand_type->IsType<MidoriType::IntegerType>())
 	{
 		return std::nullopt;
@@ -3009,7 +3025,14 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			Visit(binary.m_right);
 			m_operand_depth -= 1;
 		}
-		const std::shared_ptr<MidoriType>& operand_type = GetConcreteTypeForExpression(binary.m_left);
+		const std::shared_ptr<MidoriType> nominal_operand_type = GetConcreteTypeForExpression(binary.m_left);
+
+		// When the type checker routed this operator through a typeclass instance the
+		// operand type is a dispatch key and must stay nominal, or a hand-written
+		// instance Orderable<Meters> would resolve to Int's implementation. Otherwise the
+		// operand type only picks a machine instruction, so the newtype is erased.
+		const bool uses_instance_dispatch = binary.m_uses_orderable || binary.m_uses_equatable || binary.m_uses_concatenable;
+		const std::shared_ptr<MidoriType> operand_type = uses_instance_dispatch ? nominal_operand_type : RepresentationOf(nominal_operand_type);
 
 		switch (binary.m_op.m_token_name)
 		{
@@ -3488,7 +3511,7 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	{
 	case Token::Name::SINGLE_MINUS:
 	{
-		if (GetConcreteTypeForExpression(unary.m_expr)->IsType<MidoriType::FloatType>())
+		if (RepresentationOf(GetConcreteTypeForExpression(unary.m_expr))->IsType<MidoriType::FloatType>())
 		{
 			EmitByte(OpCode::NEGATE_FLOAT, unary.m_op.m_line);
 		}
@@ -6190,6 +6213,42 @@ std::shared_ptr<MidoriType> CodeGenerator::GetConcreteTypeForExpression(const st
 		return SubstituteGenericTypes(type, m_generic_type_substitution);
 	}
 	return type;
+}
+
+// Opcode selection only. Never call this from instance selection or generic
+// deduction - a newtype must stay nominal there, or instance Foo<Int> starts
+// matching Meters.
+std::shared_ptr<MidoriType> CodeGenerator::RepresentationOf(const std::shared_ptr<MidoriType>& type)
+{
+	std::shared_ptr<MidoriType> current = type;
+	while (current != nullptr && current->IsType<MidoriType::NewType>())
+	{
+		current = current->GetType<MidoriType::NewType>().m_representation;
+	}
+
+	return current;
+}
+
+bool CodeGenerator::IsNewTypeErasedConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& target_type)
+{
+	if (from_type == nullptr || target_type == nullptr)
+	{
+		return false;
+	}
+
+	if (!from_type->IsType<MidoriType::NewType>() && !target_type->IsType<MidoriType::NewType>())
+	{
+		return false;
+	}
+
+	std::shared_ptr<MidoriType> from_representation = RepresentationOf(from_type);
+	std::shared_ptr<MidoriType> target_representation = RepresentationOf(target_type);
+	if (from_representation == nullptr || target_representation == nullptr)
+	{
+		return false;
+	}
+
+	return *from_representation == *target_representation;
 }
 
 std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map)

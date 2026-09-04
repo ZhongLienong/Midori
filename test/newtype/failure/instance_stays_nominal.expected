@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/newtype/failure/instance_stays_nominal.mdr:13
+   |
+13 | def leaked: Int = Describable::Describe(7);
+   |                                          ^ Call expression type error: no matching concrete instance for 'Describable::Describe'
+   |
