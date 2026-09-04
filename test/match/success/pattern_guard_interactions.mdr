@@ -1,0 +1,46 @@
+module MatchPatternGuardInteractions
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+union Step = Continue(Int) | Stop(Int);
+
+defun Impure(n: Int): Bool =>
+{
+	IO::PrintLine("guard ran on " ++ (n as Text));
+	n > 0
+};
+
+def constant_scrutinee = match 5 with
+	case 5 if Impure(5) => "guarded five"
+	case 5 => "plain five"
+	default => "other"
+;
+
+IO::PrintLine("constant_scrutinee=" ++ constant_scrutinee);
+
+defun CountDown(s: Step, acc: Int): Int => match s with
+	case Step::Continue(n) if n > 0 => CountDown(new Step::Continue(n - 1), acc + n)
+	case Step::Continue(_) => acc
+	case Step::Stop(n) => acc + n
+;
+
+IO::PrintLine("count_down=" ++ (CountDown(new Step::Continue(10000), 0) as Text));
+
+def nested = match new Step::Continue(3) with
+	case Step::Continue(n) if (match n with case 3 => true default => false) => "nested guard hit"
+	case Step::Continue(_) => "nested guard missed"
+	case Step::Stop(_) => "stop"
+;
+
+IO::PrintLine("nested=" ++ nested);
+
+def many_bindings = match (1, (2, 3), [4, 5]) with
+	case (a, (b, c), [d, e]) if a + b + c + d + e > 100 => 0
+	case (a, (b, c), [d, e]) if a + b + c + d + e > 10 => a * b * c * d * e
+	default => -1
+;
+
+IO::PrintLine("many_bindings=" ++ (many_bindings as Text));

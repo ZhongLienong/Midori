@@ -1,0 +1,5 @@
+guard ran on 5
+constant_scrutinee=guarded five
+count_down=50005000
+nested=nested guard hit
+many_bindings=120
