@@ -37,6 +37,9 @@ cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Buil
 2. `Analysis/SemanticFacts.cpp` uses `if constexpr` chains (57 arms) that **fall through silently** rather than failing to compile. This plan adds no AST node, so it should not bite — but read it before assuming so.
 3. `src/Utility/Formatter/Formatter.cpp` has three switches ending in `default:` with the same hazard. Task 9 covers it.
 4. **Measure, do not reason.** Several plans here asserted premises that survived only until someone traced them.
+5. **`CodeGenerator.cpp` has three *exhaustive* `std::visit` visitors** — `IsGenericType`'s `GenericTypeVisitor` (`:5542`), `DeduceGenericVisitor` (`:5734`) and `SubstituteGenericTypes`'s visitor (`:6410`). They enumerate every alternative by hand with **no fallback**, so adding a variant to `MidoriTypeUnion` is a hard compile error there, not a silent fall-through. This is the *opposite* of trap 2 and it is good news — codegen cannot silently ignore a newtype. Discovered while executing Task 1, which had to add the three arms to keep the build green. Files listed per task below do not include this; expect it.
+
+   The `DeduceGenericVisitor` arm added there guards on `m_concrete_type->IsType<MidoriType::NewType>()`, so a `Meters` concrete against an `Int` pattern deduces nothing. That guard is what keeps dispatch nominal — **do not remove it in Task 8.**
 
 ---
 
@@ -239,7 +242,9 @@ Expected: 4 cases pass.
 
 Temporarily change the `ToString` arm's final `return type_variant.m_name;` to `return stringify(*type_variant.m_representation);`. Rebuild and rerun.
 
-Expected: the first two cases **fail**. Restore the line.
+Expected: **exactly one case fails** — "A newtype renders as its own name". Restore the line.
+
+(Corrected after execution. An earlier draft of this plan predicted two failures. Only one fails, and that is correct: `TypeEqualityVisitor`'s generic arm opens with `if constexpr (!std::is_same_v<TypeA, TypeB>) return false;`, so `NewType` versus `IntegerType` is decided on the variant alternative before `ToString` is ever called. The equality cases therefore exercise a genuinely independent path and are rightly unaffected by a `ToString` mutation.)
 
 This is the corrupt-and-restore check the spec requires. Do not skip it — a test that renders the name by accident proves nothing.
 
