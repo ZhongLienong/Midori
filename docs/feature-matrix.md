@@ -23,13 +23,17 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Bottom type: `Never` | Stable | `test/prelude/`, `test/hashmap/` | Mostly exercised through `Prelude/Panic` and bottom-type unification rather than a dedicated `Never` fixture. |
 | Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `tests/unit/parser/`, `tests/unit/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
 | Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
-| Type aliases | Stable | `test/type_alias/`, `test/generics/` | Aliases work for simple and generic shapes. |
+| Type aliases | Stable | `test/type_alias/`, `test/generics/` | `alias X = Y` is transparent. The older transparent `type X = Y` has been migrated; `type` is now nominal. Parameterised aliases are limited — see the type-declaration row. |
+| `type` declarations | Stable | `test/type_declaration/`, `test/newtype/` | One keyword for three shapes: `type P = { x: Int }` record, `type O<T> = A \| B(T)` sum, `type Meters = Int` newtype. The right-hand side selects the kind. `struct` and `union` still work and are scheduled for removal. |
+| Newtypes | Stable | `test/newtype/` | `type Meters = Int` is nominal — an `Int` does not pass where `Meters` is expected. Erased at opcode selection, so zero runtime cost. Typeclass instances attach to the newtype independently of its representation. Generic newtypes are declaration-only. |
 | First-class functions and lambdas | Stable | `test/generics/`, `test/pipe/`, `test/closure/` | Includes anonymous functions and contextual lambda inference. |
 
 ## Expressions and Control Flow
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
+| Pattern guards | Stable | `test/match/`, `tests/unit/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
+| Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions where `new` cannot infer type arguments. |
 | `if`, block expressions, `return`, `loop`, `break`, `continue` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | The language remains expression-oriented even for most control-flow forms. |
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `tests/unit/runtime/` | Both `start..end` and `start..step..end` are implemented. |
@@ -98,6 +102,9 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `channel<T>(cap)` keyword | Stable | `test/concurrency/` | Creates a typed bounded channel. `T` must satisfy `Transferable`. |
 | `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
 | `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |
+| Constrained instances | Stable | `test/typeclass/` | `instance C<T> where D<T>` — an instance may require constraints on its own type parameters, resolved recursively and across module boundaries. |
+| `Indexable<C, I>` typeclass | Stable | `test/typeclass/` | `x[i]` resolves through `Indexable` for any type with an instance, arrays included. Two type parameters, so a container may be indexed by something other than `Int`. |
+| Generic lambdas | Stable | `test/generics/` | `fn<T>(x: T) : T where C<T> => e`, bound to a top-level `def`. Anonymous, capturing and nested generic lambdas are rejected with a diagnostic — the supported envelope matches `defun`. |
 | `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, and `Channel<T>`. Derivable for structs and unions. |
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
