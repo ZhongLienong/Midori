@@ -1,0 +1,13 @@
+module ArityMismatch
+
+// Test: too many arguments for a parameterised alias.
+// Expected: a diagnostic naming the alias and the count it declares.
+
+struct Box<T>
+{
+	item: T
+};
+
+alias BoxAlias<T> = Box<T>;
+
+def boxed : BoxAlias<Int, Text> = new Box(1);

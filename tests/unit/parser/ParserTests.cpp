@@ -879,20 +879,101 @@ type FromType<T> = Empty | Full(T);
 	REQUIRE(tags_by_variant(type_type) == tags_by_variant(union_type));
 }
 
-TEST_CASE("Parser rejects a parameterised alias instead of silently dropping its parameters", "[parser][diagnostic]")
+TEST_CASE("Parser records the parameters a parameterised alias binds", "[parser]")
 {
-	// Accepting this would store a type with m_generic_params cleared, so the
-	// mismatch would surface later against a count nobody wrote. Fail here.
+	// The expansion's own m_generic_params are cleared by substitution, so the
+	// parameters have to survive on the alias itself for the use site to find.
 	const std::string source_code =
 		R"(module ParameterisedAlias
+struct Pair<A, B>
+{
+	first: A,
+	second: B
+};
+alias IntKeyed<V> = Pair<Int, V>;
+def keyed : IntKeyed<Text> = new Pair(1, "one");
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 3u);
+	REQUIRE(program[1u] != nullptr);
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::TypeAlias>());
+
+	const MidoriStatement::TypeAlias& alias = program[1u]->GetStatement<MidoriStatement::TypeAlias>();
+	REQUIRE(alias.m_name.m_lexeme == "IntKeyed");
+	REQUIRE(alias.m_generic_params.size() == 1u);
+	REQUIRE(alias.m_generic_params[0u].m_lexeme == "V");
+
+	// The stored expansion is the template a use site substitutes into: Pair's own
+	// parameters are gone, and its arguments read Int and the alias's V.
+	REQUIRE(alias.m_aliased_type->IsType<MidoriType::StructType>());
+
+	const MidoriType::StructType& expansion = alias.m_aliased_type->GetType<MidoriType::StructType>();
+	REQUIRE(expansion.m_name == "Pair");
+	REQUIRE(expansion.m_generic_params.empty());
+	REQUIRE(expansion.m_is_generic_instantiation);
+	REQUIRE(expansion.m_type_arguments.size() == 2u);
+	REQUIRE(expansion.m_type_arguments[0u]->IsType<MidoriType::IntegerType>());
+	REQUIRE(expansion.m_type_arguments[1u]->IsType<MidoriType::GenericParam>());
+	REQUIRE(expansion.m_type_arguments[1u]->GetType<MidoriType::GenericParam>().m_name == "V");
+}
+
+TEST_CASE("Parser applies a parameterised alias positionally, not by the expansion's parameter names", "[parser]")
+{
+	// Swapped<A, B> must reach Pair<B, A>. Reusing Pair's names would make this
+	// pass for the wrong reason, so the alias deliberately reverses them.
+	const std::string source_code =
+		R"(module SwappedAlias
+struct Pair<A, B>
+{
+	first: A,
+	second: B
+};
+alias Swapped<A, B> = Pair<B, A>;
+def swapped : Swapped<Int, Text> = new Pair("one", 2);
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SwappedAlias.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 3u);
+	REQUIRE(program[2u] != nullptr);
+	REQUIRE(program[2u]->IsStatement<MidoriStatement::VariableDefinition>());
+
+	const MidoriStatement::VariableDefinition& definition = program[2u]->GetStatement<MidoriStatement::VariableDefinition>();
+	REQUIRE(definition.m_annotated_type.has_value());
+	REQUIRE(definition.m_annotated_type.value()->IsType<MidoriType::StructType>());
+
+	const MidoriType::StructType& annotated = definition.m_annotated_type.value()->GetType<MidoriType::StructType>();
+	REQUIRE(annotated.m_type_arguments.size() == 2u);
+	REQUIRE(annotated.m_type_arguments[0u]->IsType<MidoriType::TextType>());
+	REQUIRE(annotated.m_type_arguments[1u]->IsType<MidoriType::IntegerType>());
+}
+
+TEST_CASE("Parser rejects a 'where' constraint on an alias", "[parser][diagnostic]")
+{
+	// An alias is transparent, so a constraint written on it has nothing left to
+	// attach to by the time the expansion is checked.
+	const std::string source_code =
+		R"(module ConstrainedAlias
 struct Box<T>
 {
 	item: T
 };
-alias BoxAlias<T> = Box<T>;
+alias BoxAlias<T> where Show<T> = Box<T>;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ConstrainedAlias.mdr");
 	REQUIRE_FALSE(parse_result.has_value());
 
 	RequireErrorMatches(
@@ -901,7 +982,7 @@ alias BoxAlias<T> = Box<T>;
 		{
 			.m_stage = CompilerStage::Parser,
 			.m_line = 6,
-			.m_rendered_substrings = { "Alias declarations cannot take generic parameters", "alias IntBox = Box<Int>;" }
+			.m_rendered_substrings = { "Alias declarations cannot carry 'where' constraints" }
 		});
 }
 

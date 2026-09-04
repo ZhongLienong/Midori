@@ -32,12 +32,19 @@ private:
 		using StructConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 		using UnionConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 		using DefinedTypeTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+		using AliasGenericParamTable = std::unordered_map<std::string, std::vector<std::string>>;
 		using DefinedNames = std::unordered_set<std::string>;
 
 		VariableTable m_variables;
 		StructConstructorTable m_struct_constructors;
 		UnionConstructorTable m_union_constructors;
 		DefinedTypeTable m_defined_types;
+		// An alias resolves to its expansion at parse time, and substitution clears the
+		// expansion's own m_generic_params. The parameters a parameterised alias binds
+		// therefore belong to the alias, not to the type it expands to, and are kept here
+		// beside m_defined_types under the same name. Only parameterised aliases get an
+		// entry, so an unparameterised one resolves exactly as it always has.
+		AliasGenericParamTable m_alias_generic_params;
 		DefinedNames m_defined_names;
 	};
 
@@ -485,6 +492,8 @@ private:
 	UseImportResolution ResolveUseImport(const std::string& symbol_name) const;
 
 	std::string BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
+
+	static std::string BuildTypeArgumentCountMismatchMessage(const std::string& type_name, bool is_alias, size_t expected_count, size_t actual_count);
 
 	ImportedSymbolAccess ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const;
 

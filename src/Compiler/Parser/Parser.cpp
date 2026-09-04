@@ -704,6 +704,16 @@ Parser::UseImportResolution Parser::ResolveUseImport(const std::string& symbol_n
 	return resolution;
 }
 
+std::string Parser::BuildTypeArgumentCountMismatchMessage(const std::string& type_name, bool is_alias, size_t expected_count, size_t actual_count)
+{
+	if (!is_alias)
+	{
+		return std::format("Type argument count mismatch: expected {}, got {}", expected_count, actual_count);
+	}
+
+	return std::format("Type argument count mismatch for alias '{}': expected {}, got {}", type_name, expected_count, actual_count);
+}
+
 std::string Parser::BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const
 {
 	std::string modules;
@@ -3396,37 +3406,21 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 
 MidoriResult::StatementResult Parser::ParseAliasDeclaration()
 {
-	MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected alias name.");
-	if (!name_result.has_value())
+	// The header gives an alias the same prologue every nominal declaration has, and
+	// with it the scope that binds `T` while `= Box<T>` is parsed.
+	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("alias", "Alias");
+	if (!header_result.has_value())
 	{
-		return std::unexpected(name_result.error());
+		return std::unexpected(header_result.error());
 	}
 
-	Token alias_name = std::move(name_result.value());
-	alias_name.m_lexeme = Mangle(alias_name.m_lexeme);
-	if (alias_name.m_lexeme[0u] != std::toupper(alias_name.m_lexeme[0u]))
-	{
-		return std::unexpected(GenerateParserError("Alias name must start with a capital letter.", alias_name));
-	}
+	TypeDeclarationHeader header = std::move(header_result.value());
 
-	constexpr bool is_variable = false;
-	MidoriResult::TokenResult defined_name_result = DefineName(alias_name, is_variable);
-	if (!defined_name_result.has_value())
+	// An alias is transparent: it disappears into its expansion before anything can
+	// discharge a constraint written on it. Rejecting is the only honest answer.
+	if (!header.m_constraints.empty())
 	{
-		return std::unexpected(defined_name_result.error());
-	}
-
-	alias_name = std::move(defined_name_result.value());
-
-	// Parameterised aliases are rejected rather than accepted and silently broken.
-	// `alias X<T> = Box<T>` would store SubstituteTypeParams(Box, {T -> T}), which
-	// rebuilds the StructType with m_generic_params cleared, so the alias would
-	// reach its use site advertising zero parameters and `X<Int>` would report an
-	// argument-count mismatch against a count the user never wrote. Failing loudly
-	// here beats failing invisibly there. The restriction lifts when that is fixed.
-	if (Check(Token::Name::LEFT_ANGLE, 0))
-	{
-		return std::unexpected(GenerateParserError("Alias declarations cannot take generic parameters. Alias an instantiated type instead, as in 'alias IntBox = Box<Int>;'.", alias_name));
+		return std::unexpected(GenerateParserError("Alias declarations cannot carry 'where' constraints. Constrain the type the alias expands to instead.", header.m_name));
 	}
 
 	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after alias name.");
@@ -3449,9 +3443,26 @@ MidoriResult::StatementResult Parser::ParseAliasDeclaration()
 		return std::unexpected(semicolon_result.error());
 	}
 
-	m_state.m_scopes.back().m_defined_types[alias_name.m_lexeme] = aliased_type;
+	if (header.m_has_generic_params)
+	{
+		EndScope();
+	}
 
-	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(alias_name), std::vector<Token>(), std::move(aliased_type)));
+	// aliased_type is already the template a use site needs: substituting Box's own
+	// parameters with the alias's left every occurrence of `T` in it standing for the
+	// alias's `T`, so applying the alias is one more substitution over the same body.
+	// Only the parameter names and their order do not survive that rewrite, so those
+	// are what the scope records.
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
+
+	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = aliased_type;
+	if (!generic_param_names.empty())
+	{
+		m_state.m_scopes.back().m_alias_generic_params[header.m_name.m_lexeme] = std::move(generic_param_names);
+	}
+
+	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(aliased_type)));
 }
 
 MidoriResult::StatementResult Parser::ParseClassDeclaration()
@@ -5167,6 +5178,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
 
 								std::shared_ptr<MidoriType> base_type = nullptr;
+								const std::vector<std::string>* alias_generic_params = nullptr;
 								auto try_parse_associated_type = [this, &type_name]() -> MidoriResult::TypeResult
 								{
 									std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
@@ -5222,6 +5234,12 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								if (found_scope_it != m_state.m_scopes.crend())
 								{
 									base_type = found_scope_it->m_defined_types.at(type_name.m_lexeme);
+
+									Scope::AliasGenericParamTable::const_iterator alias_params_it = found_scope_it->m_alias_generic_params.find(type_name.m_lexeme);
+									if (alias_params_it != found_scope_it->m_alias_generic_params.cend())
+									{
+										alias_generic_params = std::addressof(alias_params_it->second);
+									}
 								}
 								else
 								{
@@ -5340,8 +5358,15 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
 
+									// An alias binds its own parameters, and its expansion no longer
+									// carries any, so the alias is asked first and the expansion
+									// only when the name is not one.
 									std::vector<std::string> generic_params;
-									if (base_type->IsType<MidoriType::StructType>())
+									if (alias_generic_params != nullptr)
+									{
+										generic_params = *alias_generic_params;
+									}
+									else if (base_type->IsType<MidoriType::StructType>())
 									{
 										generic_params = base_type->GetType<MidoriType::StructType>().m_generic_params;
 									}
@@ -5353,8 +5378,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									if (type_args.size() != generic_params.size())
 									{
 										return std::unexpected(GenerateParserError(
-											"Type argument count mismatch: expected " + std::to_string(generic_params.size()) +
-											", got " + std::to_string(type_args.size()), type_name));
+											BuildTypeArgumentCountMismatchMessage(type_name.m_lexeme, alias_generic_params != nullptr, generic_params.size(), type_args.size()), type_name));
 									}
 
 									if (base_type->IsType<MidoriType::UnionType>())
@@ -5402,6 +5426,14 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									}
 
 									return MidoriType::SubstituteTypeParams(base_type, substitutions);
+								}
+
+								// Without arguments a parameterised alias would hand back a template
+								// whose parameters nothing binds.
+								if (alias_generic_params != nullptr)
+								{
+									return std::unexpected(GenerateParserError(
+										BuildTypeArgumentCountMismatchMessage(type_name.m_lexeme, true, alias_generic_params->size(), 0u), type_name));
 								}
 
 								return base_type;

@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_alias/failure/missing_type_arguments.mdr:13
+   |
+13 | def boxed : BoxAlias = new Box(1);
+   |             ^^^^^^^^ Type argument count mismatch for alias 'BoxAlias': expected 1, got 0
+   |
