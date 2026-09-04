@@ -44,7 +44,9 @@ worth having.
 |---|---|
 | Value binding, functions included | `def x = e` |
 | Anonymous function | `fn<T>(x: T) -> R where C<T> => e` |
-| Introduce a distinct type | `type Point = { x: Int, y: Int }` |
+| Introduce a distinct record | `type Point = { x: Int, y: Int }` |
+| Introduce a distinct sum | `type Option<T> = Some(T) \| None` |
+| Introduce a distinct type over another | `type Meters = Int` |
 | Abbreviate a type expression | `alias IntMap<V> = Map<Int, V>` |
 | Record update | `{ s with f = v, g = w }` |
 | Consume an iterable | `for x in it { }` |
@@ -133,6 +135,14 @@ rebuilt on `Array`.
 `Text` is immutable — a nominal newtype over `Array<Byte>`, not a transparent
 alias, so `Hashable<Text>` does not collapse into `Hashable<Array<Byte>>` and
 make every byte array a valid map key.
+
+**The mechanism exists as of 2026-09-02.** This section previously named the
+requirement without giving it a form — "newtype" appeared once in the whole
+document and never as a declaration. It is `type X = Y`, the same keyword as the
+record and sum forms, on the principle that `type` always introduces a distinct
+type. Verified nominal (`Expected type 'Meters' but got 'Int'`), erased at opcode
+selection so it costs nothing at runtime, and carrying typeclass instances
+independently of its representation — which is what `Text` actually needs.
 
 There is **no mutable type**. Building is a runtime concern behind comprehensions
 and folds; FFI mutation lives outside the language behind opaque foreign handles,
