@@ -183,6 +183,51 @@ Four categories remain:
    (`a && b` is `if a then b else False`). Function application evaluates its
    arguments, so these cannot be library functions.
 
+---
+
+## 7b. Additive grammar — complete 2026-09-02
+
+Every form the redesign adds is in, and every deletion it enables is now unblocked.
+Nothing has been removed yet; `defun`, `new`, `struct`, `union`, assignment and the
+`:` return separator all still work.
+
+| Form | Status |
+|---|---|
+| `fn<T>(x: T) -> R where C<T> => e` | in — top-level `def`, capture-free, matching `defun`'s envelope |
+| `{ s with f = v, g = w }` | in — simultaneous, duplicate fields an error, no nested paths |
+| `type` records, sums and newtypes; `alias` | in — newtypes nominal and erased at opcode selection |
+| `case P if cond => e` | in — a guarded arm does not count toward exhaustiveness |
+| `->` in return position | in — 831 sites migrated across 260 files |
+| `Point(1, 2)` without `new` | in — same `Construct` node, byte-identical bytecode |
+
+**Suite 342/342, unit tests 982 assertions / 174 cases.**
+
+### Two things this settled that the design had left open
+
+**Newtypes had no declaration form.** Section 5 required `Text` to be a nominal
+newtype over `Array<Byte>` but never said how one is written — "newtype" appeared
+once in the whole document, as a consequence. It is `type X = Y`, on the principle
+that `type` always introduces a distinct type.
+
+**`new X<T>(...)` was the only explicit type-argument syntax in the language.**
+`Id<Int>(3)` on an ordinary call is a parse error. So deleting `new` would have
+removed the only escape hatch for a case that needed one — building a generic
+struct inside a generic function. That is why the over-strict `HasTypeVariables`
+guard was relaxed first (`7008c5e`): the escape hatch is no longer needed, and
+`new` became deletable as a result. The ordering mattered.
+
+### Known gaps, tracked separately
+
+- **Constructions cannot appear in pipelines.** `x |> Point(1)` fails with an arity
+  error, and `x |> new Point(1)` fails identically, so this is pre-existing rather
+  than new. `ParsePipe` prepends the piped value only when its right-hand side is a
+  `Call`, and a construction is a `Construct`.
+- **A bare constructor name is a diagnostic, deliberately.** `Apply(Point, 1, 2)`
+  reports that a constructor is monomorphised at each construction site and has no
+  single procedure to pass around. Same wall as generic functions as values.
+- Parameterised aliases, generic newtypes as values, and an expected-type leak
+  through `MemberAccess` into `Construct` each have their own task.
+
 ## 8. Open calls — pin while writing, not blockers
 
 - **`Bool` as a library union.** Deletes four things for the price of one
