@@ -641,6 +641,10 @@ private:
 
 	MidoriResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header);
 
+	bool TypeBodyHasTopLevelBar();
+
+	MidoriResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header);
+
 	MidoriResult::StatementResult ParseStructDeclaration();
 
 	MidoriResult::StatementResult ParseUnionDeclaration();

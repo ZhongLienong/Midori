@@ -3345,6 +3345,102 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(header.m_name), std::move(header.m_generic_params), std::move(constructor_names), std::move(header.m_constraints), std::move(union_type)));
 }
 
+bool Parser::TypeBodyHasTopLevelBar()
+{
+	// Bounded scan from the current token to the depth-0 ';' that ends the
+	// declaration, following the ProbeArrayComprehension precedent. A depth-0
+	// '|' means a sum; anything else is a newtype over a type expression.
+	int paren_depth = 0;
+	int angle_depth = 0;
+	int brace_depth = 0;
+	int bracket_depth = 0;
+
+	for (int offset = 0; !Check(Token::Name::END_OF_FILE, offset); offset += 1)
+	{
+		const Token::Name token_name = Peek(offset).m_token_name;
+
+		if (token_name == Token::Name::LEFT_PAREN)
+		{
+			paren_depth += 1;
+		}
+		else if (token_name == Token::Name::RIGHT_PAREN)
+		{
+			paren_depth -= 1;
+		}
+		else if (token_name == Token::Name::LEFT_ANGLE)
+		{
+			angle_depth += 1;
+		}
+		else if (token_name == Token::Name::RIGHT_ANGLE)
+		{
+			angle_depth -= 1;
+		}
+		else if (token_name == Token::Name::LEFT_BRACE)
+		{
+			brace_depth += 1;
+		}
+		else if (token_name == Token::Name::RIGHT_BRACE)
+		{
+			brace_depth -= 1;
+		}
+		else if (token_name == Token::Name::LEFT_BRACKET)
+		{
+			bracket_depth += 1;
+		}
+		else if (token_name == Token::Name::RIGHT_BRACKET)
+		{
+			bracket_depth -= 1;
+		}
+
+		const bool at_top_level = paren_depth == 0 && angle_depth == 0 && brace_depth == 0 && bracket_depth == 0;
+
+		if (at_top_level && token_name == Token::Name::SINGLE_SEMICOLON)
+		{
+			return false;
+		}
+
+		if (at_top_level && token_name == Token::Name::SINGLE_BAR)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header)
+{
+	MidoriResult::TypeResult representation_result = ParseType();
+	if (!representation_result.has_value())
+	{
+		return std::unexpected(representation_result.error());
+	}
+
+	std::shared_ptr<MidoriType> representation = std::move(representation_result.value());
+
+	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after newtype definition.");
+	if (!semicolon_result.has_value())
+	{
+		return std::unexpected(semicolon_result.error());
+	}
+
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
+
+	std::shared_ptr<MidoriType> new_type = MidoriType::MakeNewType(header.m_name.m_lexeme, representation, std::move(generic_param_names));
+
+	if (header.m_has_generic_params)
+	{
+		EndScope();
+	}
+
+	// Registered in the enclosing scope so uses of the name resolve to the
+	// nominal type rather than to its representation.
+	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = new_type;
+
+	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(new_type)));
+}
+
 MidoriResult::StatementResult Parser::ParseStructDeclaration()
 {
 	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("struct", "Struct");
@@ -3387,9 +3483,8 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 		return std::unexpected(equal_result.error());
 	}
 
-	// One token after '=' decides the kind, with no scan needed. '{' opens a
-	// record body and ParseType has no LEFT_BRACE branch, so the two shapes
-	// cannot be confused. A sum body is anything else.
+	// The token after '=' decides the kind. '{' opens a record body and ParseType
+	// has no LEFT_BRACE branch, so the two shapes cannot be confused.
 	//
 	// This '{' is not the record-update probe's '{'. ProbeRecordUpdate runs at
 	// exactly two sites, ParsePrimary and the function-body fast path, both in
@@ -3401,6 +3496,16 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 		return ParseStructBody(std::move(header_result.value()));
 	}
 
+	// A depth-0 '|' anywhere before the terminating ';' means a sum. Without one,
+	// the right-hand side is a type expression and this declares a newtype. A
+	// single-variant sum therefore needs an explicit leading bar, which is what
+	// frees the bare-name spelling for newtypes.
+	if (!TypeBodyHasTopLevelBar())
+	{
+		return ParseNewTypeBody(std::move(header_result.value()));
+	}
+
+	Match(Token::Name::SINGLE_BAR);
 	return ParseUnionBody(std::move(header_result.value()));
 }
 

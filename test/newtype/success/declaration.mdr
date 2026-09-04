@@ -1,0 +1,5 @@
+module NewtypeDeclaration
+
+type Meters = Int;
+
+alias Feet = Int;
