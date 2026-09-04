@@ -531,7 +531,17 @@ Declare it in `src/Compiler/Parser/Parser.h` beside the other probe helpers:
 	bool TypeBodyHasTopLevelBar() const;
 ```
 
-All nine token names used above are verified present in `src/Compiler/Token/Token.h`: `LEFT_PAREN` (`:18`), `RIGHT_PAREN`, `LEFT_BRACE`, `RIGHT_BRACE`, `LEFT_BRACKET`, `RIGHT_BRACKET` (`:23`), `RIGHT_ANGLE` (`:47`), `LEFT_ANGLE` (`:49`), `END_OF_FILE` (`:134`). No adjustment needed.
+All nine token names used above are verified present in `src/Compiler/Token/Token.h`: `LEFT_PAREN` (`:18`), `RIGHT_PAREN`, `LEFT_BRACE`, `RIGHT_BRACE`, `LEFT_BRACKET`, `RIGHT_BRACKET` (`:23`), `RIGHT_ANGLE` (`:47`), `LEFT_ANGLE` (`:49`), `END_OF_FILE` (`:134`).
+
+> **The scan above is incomplete as written, and it shipped a regression. Corrected during execution.**
+>
+> The lexer merges `>>` into a single `RIGHT_SHIFT` token (`Token.h:33`). Counting only `RIGHT_ANGLE` means `Array<Array<Int>>` never returns `angle_depth` to zero, so the scan misses its depth-0 `;`, runs to EOF, returns `false`, and misroutes the declaration to `ParseNewTypeBody`. The visible symptom was `type Result = Ok(Array<Array<Int>>) | Err(Text);` — **valid union syntax that parsed fine before this task** — failing with `Undefined struct or union`.
+>
+> The parser already had the answer: `ConsumeTypeRightAngle` (`Parser.cpp:995`) splits a `RIGHT_SHIFT` into two synthetic `RIGHT_ANGLE` tokens. A read-only probe must not mutate the token stream, so the fix is `angle_depth -= 2` on `RIGHT_SHIFT`. `LEFT_SHIFT` needs no symmetric arm — two `<` cannot lex adjacently in valid type syntax, and adding one would desync the probe from `ParseType`.
+>
+> Also add the `MAX_ARRAY_SIZE` cap and an early bail-out when any depth goes negative, so the comment's claim of a "bounded scan" is actually true — `ProbeArrayComprehension`, the cited precedent, has both guards and this did not.
+>
+> **Lesson: when a lookahead probe duplicates logic the real parser already has, find what the real parser does about edge cases first.** `ConsumeTypeRightAngle` existed precisely because someone already hit this.
 
 - [ ] **Step 4: Add the newtype body parser**
 
