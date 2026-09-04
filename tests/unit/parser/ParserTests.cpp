@@ -397,7 +397,7 @@ TEST_CASE("Parser synchronizes consume failures to every top-level declaration s
 		{ "class", "class Next<T> {\n\tproject: fn(value: T) -> T;\n};\n", Token::Name::CLASS },
 		{ "instance", "instance Next<Int> {\n\tdefun project(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
 		{ "foreign", "foreign \"MIDORI_FFI_Next\" NextForeign : fn() -> Int;\n", Token::Name::FOREIGN },
-		{ "type", "type Nominal = Empty | Full(Int);\n", Token::Name::TYPE },
+		{ "type", "type Nominal = Int;\n", Token::Name::TYPE },
 		{ "alias", "alias Shorthand = Int;\n", Token::Name::ALIAS },
 	};
 
@@ -877,6 +877,132 @@ type FromType<T> = Empty | Full(T);
 	};
 
 	REQUIRE(tags_by_variant(type_type) == tags_by_variant(union_type));
+}
+
+TEST_CASE("Parser lowers a bare type name onto a nominal newtype", "[parser]")
+{
+	const std::string source_code =
+		R"(module NewtypeLowering
+type Meters = Int;
+alias Feet = Int;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "NewtypeLowering.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 2u);
+
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::TypeAlias>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::TypeAlias>());
+
+	// Same node, opposite semantics: the newtype carries a NewType, the alias
+	// carries the bare representation. That difference is the feature.
+	const MidoriStatement::TypeAlias& newtype = program[0u]->GetStatement<MidoriStatement::TypeAlias>();
+	const MidoriStatement::TypeAlias& alias = program[1u]->GetStatement<MidoriStatement::TypeAlias>();
+
+	REQUIRE(newtype.m_name.m_lexeme == "Meters");
+	REQUIRE(newtype.m_aliased_type->IsType<MidoriType::NewType>());
+	REQUIRE(newtype.m_aliased_type->GetType<MidoriType::NewType>().m_representation->IsType<MidoriType::IntegerType>());
+
+	REQUIRE(alias.m_name.m_lexeme == "Feet");
+	REQUIRE(alias.m_aliased_type->IsType<MidoriType::IntegerType>());
+}
+
+TEST_CASE("Parser still reads a leading-bar single-variant sum as a union", "[parser]")
+{
+	const std::string source_code =
+		R"(module LeadingBarSum
+type Solo = | Only(Int);
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "LeadingBarSum.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 1u);
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::Union>());
+	REQUIRE(program[0u]->GetStatement<MidoriStatement::Union>().m_name.m_lexeme == "Solo");
+}
+
+TEST_CASE("A type binding inside a class body is still an associated type", "[parser]")
+{
+	// `type Item ...` here is the same syntax as a top-level newtype. The two
+	// readings are kept apart by parse position, not by syntax, so this pins the
+	// boundary rather than trusting it.
+	const std::string source_code =
+		R"(module AssociatedTypeBoundary
+class Container<T> {
+	type Item;
+	First: fn(value: T) -> Item;
+};
+type Meters = Int;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "AssociatedTypeBoundary.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 2u);
+
+	// The class body's `type Item` stayed inside the class and produced no
+	// top-level declaration of its own.
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::Class>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::TypeAlias>());
+	REQUIRE(program[1u]->GetStatement<MidoriStatement::TypeAlias>().m_aliased_type->IsType<MidoriType::NewType>());
+}
+
+TEST_CASE("A type binding inside an instance body is still an associated type binding", "[parser]")
+{
+	// The 9 real associated-type bindings in the codebase are all instance-body
+	// bindings (`type Item = Int;`), which reads identically, as source syntax, to
+	// a top-level newtype declaration. This is the closer analogue to a top-level
+	// declaration than the class-body form above, since the class body only
+	// declares the associated type name without a representation.
+	const std::string source_code =
+		R"(module InstanceAssociatedTypeBoundary
+class Container<T> {
+	type Item;
+	First: fn(value: T) -> Item;
+};
+instance Container<Int> {
+	type Item = Int;
+
+	defun First(value: Int) : Int => value;
+};
+type Meters = Int;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstanceAssociatedTypeBoundary.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 3u);
+
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::Class>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::Instance>());
+	REQUIRE(program[2u]->IsStatement<MidoriStatement::TypeAlias>());
+
+	// The instance body's `type Item = Int;` stayed inside the instance and bound
+	// a plain Int, not a NewType - it never reached top-level dispatch.
+	const MidoriStatement::Instance& instance = program[1u]->GetStatement<MidoriStatement::Instance>();
+	REQUIRE(instance.m_associated_types.size() == 1u);
+	REQUIRE(instance.m_associated_types[0u].m_name.m_lexeme == "Item");
+	REQUIRE(instance.m_associated_types[0u].m_type->IsType<MidoriType::IntegerType>());
+
+	REQUIRE(program[2u]->GetStatement<MidoriStatement::TypeAlias>().m_aliased_type->IsType<MidoriType::NewType>());
 }
 
 TEST_CASE("Parser records the parameters a parameterised alias binds", "[parser]")
