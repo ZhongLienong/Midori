@@ -47,3 +47,37 @@ TEST_CASE("A newtype equals another newtype with the same name", "[type]")
 
 	REQUIRE(*left == *right);
 }
+
+TEST_CASE("A self-referential newtype's ToString recursion guard preserves nominal identity", "[type]")
+{
+	// FINDING 1 regression test. MidoriType::ToString()'s outer recursion guard
+	// special-cases StructType and UnionType to return their own name on cycle
+	// re-entry, and previously fell through to the literal string "Recursive"
+	// for every other alternative, NewType included. Since InstanceKey and
+	// MangleInstanceMethodName are both keyed on ToString, two distinct
+	// self-referential newtypes both rendering "Recursive" would collapse into
+	// one shared instance slot -- exactly the nominality collision this feature
+	// exists to prevent.
+	//
+	// A cycle planted in m_representation cannot reach this guard: the NewType
+	// arm of ToStringVisitor never stringifies m_representation at all (that is
+	// the point of the type -- see the "never renders its representation" case
+	// above), so a self-reference there is simply never visited and the guard
+	// is never exercised. The reachable cycle is through m_type_arguments on a
+	// generic instantiation, which StringifyTypeArguments does recurse into, so
+	// that is what this test constructs -- directly through the public API, no
+	// undefined behaviour.
+	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
+	MidoriType::NewType& meters_data = meters->GetType<MidoriType::NewType>();
+	meters_data.m_is_generic_instantiation = true;
+	meters_data.m_type_arguments = { meters };
+
+	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
+	MidoriType::NewType& seconds_data = seconds->GetType<MidoriType::NewType>();
+	seconds_data.m_is_generic_instantiation = true;
+	seconds_data.m_type_arguments = { seconds };
+
+	REQUIRE(meters->ToString() == "Meters<Meters>");
+	REQUIRE(seconds->ToString() == "Seconds<Seconds>");
+	REQUIRE(meters->ToString() != seconds->ToString());
+}

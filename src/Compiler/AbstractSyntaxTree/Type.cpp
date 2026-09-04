@@ -502,17 +502,7 @@ struct MidoriType::TypeEqualityVisitor
 				return true;
 			}
 			s_visiting.insert(key);
-			bool result = a.m_name == b.m_name
-				&& a.m_type_arguments.size() == b.m_type_arguments.size()
-				&& std::ranges::equal
-				(
-					a.m_type_arguments,
-					b.m_type_arguments,
-					[](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2)
-					{
-						return *t1 == *t2;
-					}
-				);
+			bool result = a.m_name == b.m_name && MidoriType::CompareTypeArguments(a.m_type_arguments, b.m_type_arguments);
 			s_visiting.erase(key);
 			return result;
 		}
@@ -737,6 +727,10 @@ std::string MidoriType::ToString() const
 				else if (type.IsType<UnionType>())
 				{
 					return type.GetType<UnionType>().m_name;
+				}
+				else if (type.IsType<NewType>())
+				{
+					return type.GetType<NewType>().m_name;
 				}
 				return "Recursive"s;
 			}
