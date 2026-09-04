@@ -1074,6 +1074,24 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Note `GetConcreteTypeForExpression` (`CodeGenerator.h:359`) is **not** a safe blanket chokepoint despite feeding all four `operand_type` declarations, because its result at `:2504` also feeds `Convertable` lookup.
 
+> **The MUST-erase table above is wrong in two places. Corrected during execution — the implementer was right to refuse it.**
+>
+> The governing rule held; the *classification* of two sites did not. Both turned out to be dispatch wearing opcode-selection clothing:
+>
+> - **`iter_type` and unary `#` must NOT erase.** Both feed `MatchInstanceTypeArg` via `EmitIterableNextCall` / `EmitCountableCall` — instance selection. The genuinely opcode-selecting unary site is `SINGLE_MINUS`, and only that one erases.
+> - **Binary `operand_type` must erase *conditionally*.** It also feeds `EmitOrderableCompare` / `EmitEquatableEquals` / `EmitConcatenableConcat`, which mangle instance names from `operand_type->ToString()`. Blanket erasure would make a hand-written `instance Orderable<Meters>` silently resolve to `$Compare_Int`. Erase only when `!(binary.m_uses_orderable || binary.m_uses_equatable || binary.m_uses_concatenable)` — these are per-expression fields on the binary node, not global flags, so the guard is precise.
+>
+> **Lesson: "is this opcode selection or dispatch?" cannot be answered from the variable's name or its `IsType<>` call site.** It has to be answered by following what the value feeds. Three of the sites I classified by inspection were feeding instance mangling one or two calls downstream.
+
+### Known holes, recorded rather than fixed
+
+Found while implementing Tasks 7–8. None is a regression; each is a limit of the feature as built.
+
+1. **Arithmetic directly on a newtype is rejected.** `Meters + Meters` fails with `expected numeric type ... but got Meters`, because `IsNumericType()` does not recurse into `NewType`. This is defensible nominal behaviour — you cast out, compute, cast back — but it means the arithmetic erasure sites are defensive rather than load-bearing today. Making arithmetic work *on* newtypes is a separate type-checker decision, not part of this plan.
+2. **A hand-written `Convertable<Int, Meters>` is self-recursive by construction** and stack-overflows: the only way to produce a `Meters` inside its own `Convert` body is `as Meters`, which resolves back to that same instance. Codegen normally avoids this by preferring built-in lowering for built-in casts, but there is no built-in lowering for a newtype to prefer. User-written newtype conversions are therefore permitted but unusable. Not introduced here — there was no way to write one before.
+3. **Generic specialisation over a `Convertable` constraint at a newtype is untested.** `m_method_resolution_map` is built from real instance ASTs and a derived instance has none.
+4. **Derived-instance replacement needed a real design addition.** Type aliases are checked before any `instance` naming them, so a derived instance always lands first and a hand-written one collided with `instance already defined for this type`. Fixed with `InstanceInfo::m_is_derived`, letting an explicit declaration replace a derived entry. The plan assumed a `contains` guard would suffice; it protected the wrong instance.
+
 **Files:**
 - Modify: `src/Compiler/CodeGenerator/CodeGenerator.h`, `src/Compiler/CodeGenerator/CodeGenerator.cpp`
 - Test: `test/newtype/success/erasure.mdr` (create)
