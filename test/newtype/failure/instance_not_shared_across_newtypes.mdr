@@ -1,0 +1,17 @@
+module NewtypeInstanceNotSharedAcrossNewtypes
+
+type Meters = Int;
+
+type Seconds = Int;
+
+class Describable<T> {
+	Describe: fn(value: T) -> Int;
+};
+
+instance Describable<Meters> {
+	defun Describe(value: Meters): Int => value as Int;
+};
+
+def elapsed: Seconds = 7 as Seconds;
+
+def result: Int = Describable::Describe(elapsed);
