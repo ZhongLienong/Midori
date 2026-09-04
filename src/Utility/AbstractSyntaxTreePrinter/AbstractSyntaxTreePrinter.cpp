@@ -556,6 +556,11 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Case& case_expr
 	PrintWithIndentation(depth, "Case {");
 	PrintWithIndentation(depth + 1, "Pattern: ");
 	Visit(case_expr.m_pattern, depth + 2);
+	if (case_expr.HasGuard())
+	{
+		PrintWithIndentation(depth + 1, "Guard: ");
+		Visit(case_expr.m_guard.value(), depth + 2);
+	}
 	PrintWithIndentation(depth + 1, "Value {");
 	Visit(case_expr.m_expr, depth + 2);
 	PrintWithIndentation(depth + 1, "}");

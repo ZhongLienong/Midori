@@ -957,6 +957,11 @@ namespace
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Case>)
 				{
+					if (node.HasGuard() && !IsPureExpression(*node.m_guard.value()))
+					{
+						return false;
+					}
+
 					return IsPureExpression(*node.m_expr);
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Default>)
@@ -1395,6 +1400,10 @@ namespace
 		void Visit(const MidoriExpression::Case& node)
 		{
 			VisitPattern(*node.m_pattern);
+			if (node.HasGuard())
+			{
+				VisitExpression(*node.m_guard.value());
+			}
 			VisitExpression(*node.m_expr);
 		}
 

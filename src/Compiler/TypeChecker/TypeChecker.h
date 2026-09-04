@@ -140,6 +140,8 @@ private:
 
 	MidoriResult::TypeResult CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 
+	std::optional<CompilerError> CheckCaseGuard(MidoriExpression::Case& case_expr);
+
 	bool IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 
 	std::shared_ptr<MidoriType>* FindNameType(const std::string& name);

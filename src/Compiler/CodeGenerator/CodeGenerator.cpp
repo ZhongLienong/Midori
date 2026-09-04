@@ -4835,6 +4835,14 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 		EmitVariable(match.m_match_value_index, OpCode::GET_LOCAL, line);
 		EmitPatternBind(*match_case.m_pattern);
 
+		std::optional<int> guard_failure_jump = std::nullopt;
+		if (match_case.HasGuard())
+		{
+			Visit(match_case.m_guard.value());
+			guard_failure_jump = EmitJump(OpCode::JUMP_IF_FALSE, line);
+			EmitByte(OpCode::POP, line);
+		}
+
 		Visit(match_case.m_expr);
 
 		if (binding_count > 0)
@@ -4857,6 +4865,12 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 		}
 
 		end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
+
+		if (guard_failure_jump.has_value())
+		{
+			PatchJump(guard_failure_jump.value(), line);
+			EmitPopCount(binding_count + 1, line);
+		}
 
 		for (int jump_addr : failure_jumps)
 		{

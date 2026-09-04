@@ -336,12 +336,18 @@ MidoriExpression::Match::Match(const Token& switch_keyword, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count)
+MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count, std::unique_ptr<MidoriExpression>&& guard)
 	: m_keyword(keyword),
 	m_pattern(std::move(pattern)),
 	m_expr(std::move(expr)),
+	m_guard(MakeOptionalExpression(std::move(guard))),
 	m_binding_count(binding_count)
 {
+}
+
+bool MidoriExpression::Case::HasGuard() const
+{
+	return m_guard.has_value();
 }
 
 MidoriExpression::Default::Default(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr)

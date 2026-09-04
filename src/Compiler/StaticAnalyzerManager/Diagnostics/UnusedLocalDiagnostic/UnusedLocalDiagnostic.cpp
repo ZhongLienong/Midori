@@ -232,6 +232,10 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::Case& case_expr)
 {
 	PushScope();
 	VisitPattern(case_expr.m_pattern);
+	if (case_expr.HasGuard())
+	{
+		VisitExpression(case_expr.m_guard.value());
+	}
 	VisitExpression(case_expr.m_expr);
 	PopScope();
 }

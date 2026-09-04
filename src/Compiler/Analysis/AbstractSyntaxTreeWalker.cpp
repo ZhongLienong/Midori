@@ -348,6 +348,10 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Match& match)
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Case& case_expr)
 {
 	VisitPattern(case_expr.m_pattern);
+	if (case_expr.HasGuard())
+	{
+		VisitExpression(case_expr.m_guard.value());
+	}
 	VisitExpression(case_expr.m_expr);
 }
 

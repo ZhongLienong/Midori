@@ -1,0 +1,9 @@
+large
+small
+zero or below
+zero or below
+boom
+statement_level=even
+guard_on_binding=medium
+guard_on_tuple=7
+guard_falls_to_default=fell through

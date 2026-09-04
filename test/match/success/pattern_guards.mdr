@@ -1,0 +1,54 @@
+module MatchPatternGuards
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+}
+
+union Result = Ok(Int) | Err(Text);
+
+defun Classify(r: Result): Text => match r with
+	case Result::Ok(n) if n > 100 => "large"
+	case Result::Ok(n) if n > 0 => "small"
+	case Result::Ok(_) => "zero or below"
+	case Result::Err(e) => e
+;
+
+IO::PrintLine(Classify(new Result::Ok(500)));
+IO::PrintLine(Classify(new Result::Ok(7)));
+IO::PrintLine(Classify(new Result::Ok(0)));
+IO::PrintLine(Classify(new Result::Ok(-3)));
+IO::PrintLine(Classify(new Result::Err("boom")));
+
+def statement_level = match new Result::Ok(42) with
+	case Result::Ok(n) if n % 2 == 1 => "odd"
+	case Result::Ok(n) if n % 2 == 0 => "even"
+	case Result::Ok(_) => "unreachable"
+	case Result::Err(_) => "error"
+;
+
+IO::PrintLine("statement_level=" ++ statement_level);
+
+def guard_on_binding = match 17 with
+	case n if n > 20 => "big"
+	case n if n > 10 => "medium"
+	default => "small"
+;
+
+IO::PrintLine("guard_on_binding=" ++ guard_on_binding);
+
+def guard_on_tuple = match (3, 4) with
+	case (a, b) if a + b > 100 => 0
+	case (a, b) if a + b > 5 => a + b
+	default => -1
+;
+
+IO::PrintLine("guard_on_tuple=" ++ (guard_on_tuple as Text));
+
+def guard_falls_to_default = match true with
+	case true if 1 > 2 => "impossible"
+	case false => "false branch"
+	default => "fell through"
+;
+
+IO::PrintLine("guard_falls_to_default=" ++ guard_falls_to_default);

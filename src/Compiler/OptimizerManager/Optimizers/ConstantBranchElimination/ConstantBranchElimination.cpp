@@ -83,6 +83,11 @@ void ConstantBranchElimination::operator()(MidoriExpression::Match& match)
 		}
 
 		MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+		if (match_case.HasGuard())
+		{
+			return;
+		}
+
 		const std::optional<bool> pattern_matches = MidoriAnalysis::TryMatchPattern(*match_case.m_pattern, *match.m_arg_expr);
 		if (!pattern_matches.has_value())
 		{

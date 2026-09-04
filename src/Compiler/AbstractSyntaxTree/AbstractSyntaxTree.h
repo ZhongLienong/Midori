@@ -697,9 +697,12 @@ public:
 		Token m_keyword;
 		std::unique_ptr<MidoriPattern> m_pattern;
 		std::unique_ptr<MidoriExpression> m_expr;
+		std::optional<std::unique_ptr<MidoriExpression>> m_guard = std::nullopt;
 		int m_binding_count = 0;
 
-		Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count);
+		Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count, std::unique_ptr<MidoriExpression>&& guard = nullptr);
+
+		bool HasGuard() const;
 	};
 
 	struct Default : BaseExpression

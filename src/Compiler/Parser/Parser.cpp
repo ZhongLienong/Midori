@@ -4606,7 +4606,20 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 	}
 
 	std::unique_ptr<MidoriPattern> pattern = std::move(pattern_result.value());
-	if (pattern->IsPattern<MidoriPattern::Constructor>())
+
+	std::unique_ptr<MidoriExpression> guard = nullptr;
+	if (Match(Token::Name::IF))
+	{
+		MidoriResult::ExpressionResult guard_result = ParseExpression();
+		if (!guard_result.has_value())
+		{
+			EndScope();
+			return std::unexpected(std::move(guard_result.error()));
+		}
+		guard = std::move(guard_result.value());
+	}
+
+	if (guard == nullptr && pattern->IsPattern<MidoriPattern::Constructor>())
 	{
 		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
 		if (constructor.m_is_union)
@@ -4625,15 +4638,15 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then
 		(
-			[&keyword, &pattern, binding_count, this](Token&&)->MidoriResult::ExpressionResult
+			[&keyword, &pattern, &guard, binding_count, this](Token&&)->MidoriResult::ExpressionResult
 			{
 				return ParseExpression()
 					.and_then
 					(
-						[&keyword, &pattern, binding_count, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
+						[&keyword, &pattern, &guard, binding_count, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
 						{
 							EndScope();
-							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), binding_count));
+							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), binding_count, std::move(guard)));
 						}
 					);
 			}

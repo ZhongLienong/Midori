@@ -3961,33 +3961,41 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						{
 							error = std::move(pattern_result.error());
 						}
-						else if (is_union && match_case.m_pattern->IsPattern<MidoriPattern::Constructor>())
+						else if (match_case.HasGuard())
 						{
-							const MidoriPattern::Constructor& ctor = match_case.m_pattern->GetPattern<MidoriPattern::Constructor>();
-							if (ctor.m_is_union)
-							{
-								missing_cases.erase(ctor.m_name);
-							}
-						}
-						else if (is_bool && match_case.m_pattern->IsPattern<MidoriPattern::Literal>())
-						{
-							const MidoriPattern::Literal& literal = match_case.m_pattern->GetPattern<MidoriPattern::Literal>();
-							if (literal.m_kind == MidoriPattern::LiteralKind::Bool)
-							{
-								if (literal.m_token.m_token_name == Token::Name::TRUE)
-								{
-									missing_cases.erase("true");
-								}
-								else if (literal.m_token.m_token_name == Token::Name::FALSE)
-								{
-									missing_cases.erase("false");
-								}
-							}
+							error = CheckCaseGuard(match_case);
 						}
 
-						if ((is_union || is_bool) && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+						if (!error.has_value() && !match_case.HasGuard())
 						{
-							missing_cases.clear();
+							if (is_union && match_case.m_pattern->IsPattern<MidoriPattern::Constructor>())
+							{
+								const MidoriPattern::Constructor& ctor = match_case.m_pattern->GetPattern<MidoriPattern::Constructor>();
+								if (ctor.m_is_union)
+								{
+									missing_cases.erase(ctor.m_name);
+								}
+							}
+							else if (is_bool && match_case.m_pattern->IsPattern<MidoriPattern::Literal>())
+							{
+								const MidoriPattern::Literal& literal = match_case.m_pattern->GetPattern<MidoriPattern::Literal>();
+								if (literal.m_kind == MidoriPattern::LiteralKind::Bool)
+								{
+									if (literal.m_token.m_token_name == Token::Name::TRUE)
+									{
+										missing_cases.erase("true");
+									}
+									else if (literal.m_token.m_token_name == Token::Name::FALSE)
+									{
+										missing_cases.erase("false");
+									}
+								}
+							}
+
+							if ((is_union || is_bool) && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+							{
+								missing_cases.clear();
+							}
 						}
 
 						if (!error.has_value())
@@ -4041,6 +4049,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					{
 						bool irrefutable = match.m_cases.size() == 1u
 							&& match.m_cases[0u]->IsExpression<MidoriExpression::Case>()
+							&& !match.m_cases[0u]->GetExpression<MidoriExpression::Case>().HasGuard()
 							&& IsIrrefutablePattern(*match.m_cases[0u]->GetExpression<MidoriExpression::Case>().m_pattern, resolved_arg_type);
 						if (!irrefutable)
 						{
@@ -4055,8 +4064,35 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 		);
 }
 
+std::optional<CompilerError> TypeChecker::CheckCaseGuard(MidoriExpression::Case& case_expr)
+{
+	MidoriResult::TypeResult guard_result = Evaluate(case_expr.m_guard.value());
+	if (!guard_result.has_value())
+	{
+		return std::move(guard_result.error());
+	}
+
+	std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+	std::shared_ptr<MidoriType> resolved_guard_type = ApplySubstitution(guard_result.value());
+	if (!Unify(case_expr.m_keyword, bool_type, resolved_guard_type).has_value())
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case guard must be of type Bool", case_expr.m_keyword, m_file_name, m_source_lines, resolved_guard_type, bool_type);
+	}
+
+	return std::nullopt;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_expr)
 {
+	if (case_expr.HasGuard())
+	{
+		std::optional<CompilerError> guard_error = CheckCaseGuard(case_expr);
+		if (guard_error.has_value())
+		{
+			return std::unexpected(std::move(guard_error.value()));
+		}
+	}
+
 	return Evaluate(case_expr.m_expr)
 		.and_then
 		(

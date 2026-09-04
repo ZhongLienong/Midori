@@ -284,6 +284,11 @@ namespace
 
 			bool operator()(const MidoriExpression::Case& node) const
 			{
+				if (node.HasGuard() && ContainsRecursiveCallImpl(*node.m_guard.value(), m_function_name))
+				{
+					return true;
+				}
+
 				return ContainsRecursiveCallImpl(*node.m_expr, m_function_name);
 			}
 
@@ -531,6 +536,11 @@ bool TailCallOptimization::IsTailRecursive(std::unique_ptr<MidoriExpression>& ex
 	if (expr->IsExpression<MidoriExpression::Case>())
 	{
 		MidoriExpression::Case& case_expr = expr->GetExpression<MidoriExpression::Case>();
+		if (case_expr.HasGuard() && ContainsRecursiveCallImpl(*case_expr.m_guard.value(), function_name))
+		{
+			return false;
+		}
+
 		return IsTailRecursive(case_expr.m_expr, function_name);
 	}
 	if (expr->IsExpression<MidoriExpression::Default>())

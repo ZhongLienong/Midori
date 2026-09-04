@@ -313,6 +313,10 @@ void MidoriOptimizer::operator()(MidoriExpression::Match& match)
 
 void MidoriOptimizer::operator()(MidoriExpression::Case& case_expr)
 {
+	if (case_expr.HasGuard())
+	{
+		VisitAndReplace(case_expr.m_guard.value());
+	}
 	VisitAndReplace(case_expr.m_expr);
 }
 
