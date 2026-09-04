@@ -168,3 +168,33 @@ TEST_CASE("Formatter normalizes string escape sequences", "[formatter][edge]")
 	CHECK(formatted.find("\"a\\nb\\tc\"") != std::string::npos);
 	RequireIdempotent(source_code, "Strings.mdr");
 }
+
+TEST_CASE("Formatter round-trips newtype declarations and leading-bar sums", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"type Meters=Int;\n"
+		"type Solo=|Only(Int);\n";
+
+	const std::string formatted = FormatOrFail(source_code, "NewtypeFormat.mdr");
+
+	const std::string expected =
+		"module Main\n"
+		"type Meters = Int;\n"
+		"type Solo = | Only(Int);\n";
+
+	CHECK(formatted == expected);
+}
+
+TEST_CASE("Formatter is idempotent for newtype declarations", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"type Meters = Int;\n"
+		"type Solo = | Only(Int);\n";
+
+	const std::string once = FormatOrFail(source_code, "NewtypeIdempotent.mdr");
+	const std::string twice = FormatOrFail(once, "NewtypeIdempotent.mdr");
+
+	CHECK(once == twice);
+}
