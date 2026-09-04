@@ -91,17 +91,31 @@ than tidily. Of the 126 codegen tests:
 | `m_concrete_type` / `pattern` / `concrete` | 24 | 0 — members and parameters |
 | miscellaneous one-offs | ~12 | — |
 
-So **90 of 126 funnel through 9 local declarations**, and stripping newtypes there makes
-those 90 see the representation automatically. The 24 member/parameter receivers have
-their chokepoints outside these declarations and must be located during implementation —
-that is the one part of the codegen estimate not yet pinned down by measurement, and it
-should be traced before the codegen task starts rather than assumed to be as tidy as the
-locals.
+The 24 member/parameter receivers were the one part of the estimate not pinned by
+measurement. Tracing them **inverted the naive design rule**, so it is recorded here
+rather than discovered during implementation:
+
+- `pattern` / `concrete` (15 uses) are the two parameters of a single function,
+  `MatchInstanceTypeArg` (`CodeGenerator.cpp:915`) — **instance selection**.
+- `m_concrete_type` (9 uses) is one member of one visitor, `DeduceGenericVisitor`
+  (`:5579`), constructed at `:5724` — **generic specialisation keying**.
+
+Both must stay **nominal**. Erasing there would make `instance Foo<Int>` match `Meters`,
+destroying the entire feature. The `type` local at `:6157` is likewise a recursive
+"contains a generic?" helper that must *recurse into* a newtype's representation rather
+than erase it.
+
+So the rule is not "nominal in the front end, erased in the back end". It is finer:
+
+> **Opcode selection erases. Dispatch stays nominal.**
+
+Erasure sites are therefore named and individually justified, never applied as a blanket
+rule — and notably `GetConcreteTypeForExpression` (`CodeGenerator.h:359`) is *not* a safe
+chokepoint despite feeding all four `operand_type` declarations, because its result at
+`:2504` also feeds `Convertable` instance lookup, which must stay nominal.
 
 The 219 TypeChecker sites mostly want to *stay* nominal, so they need an audit pass
 rather than edits.
-
-The design rule that follows: **nominal in the TypeChecker, erased in the CodeGenerator.**
 
 ---
 
@@ -168,6 +182,20 @@ class body, `:3820` instance body) that never reach top-level statement dispatch
 (`:5534`), so nothing breaks — but the two readings of one syntax now sit side by side,
 so a test pins the boundary.
 
+### Statement node — reused, not added
+
+A newtype declaration reuses `MidoriStatement::TypeAlias` unchanged. Verified: every
+consumer already does exactly what a newtype wants — `ShadowingPolicyDiagnostic` calls
+`DefineType(name)` and pushes generic params, `SemanticFacts::Visit` is empty, and
+`CodeGenerator::operator()` returns without emitting. The declaration's only real work
+happens in the parser, which registers a `NewType` in the type table instead of the bare
+right-hand side.
+
+This is what keeps trap 2 inapplicable: no new AST variant, so no silent `if constexpr`
+fall-through in `SemanticFacts.cpp` or `SharedAnalysis.cpp`. The node's name becomes
+mildly misleading, which spec §4 already plans to fix by collapsing `Struct`, `Union` and
+`TypeAlias` into one `TypeDefinition`.
+
 ### Type checking — nominal
 
 A newtype unifies only with itself. It does **not** unify with its representation in
@@ -184,9 +212,10 @@ unwrap.
 ### Code generation — erased
 
 A newtype has no representation of its own. Construction and projection emit **no
-instructions**. `CodeGenerator` strips newtypes at the 9 local-declaration chokepoints
-identified above — plus the member and parameter chokepoints still to be located — via
-one helper:
+instructions**. `CodeGenerator` strips newtypes only at the named opcode-selection sites
+identified above — the four `operand_type` declarations (`:2843`, `:2882`, `:3012`,
+`:3518`), the `as` built-in-cast path (`:2490`–`:2491`) after `Convertable` lookup has
+already been attempted nominally, and `iter_type` — via one helper:
 
 ```cpp
 const std::shared_ptr<MidoriType>& RepresentationOf(const std::shared_ptr<MidoriType>& type);
