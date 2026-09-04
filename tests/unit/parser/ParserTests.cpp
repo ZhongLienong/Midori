@@ -1142,3 +1142,86 @@ def boxed : IntBox = new Box(1);
 	REQUIRE(alias.m_generic_params.empty());
 	REQUIRE(alias.m_aliased_type->IsType<MidoriType::StructType>());
 }
+
+TEST_CASE("Parser accepts '->' and ':' interchangeably in return position", "[parser]")
+{
+	const std::string source_code =
+		R"(module ReturnSeparator
+defun ArrowDefun(x: Int) -> Int => x;
+defun ColonDefun(x: Int) : Int => x;
+def arrow_lambda = fn(x: Int) -> Int => x;
+def colon_lambda = fn(x: Int) : Int => x;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ReturnSeparator.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 4u);
+
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::FunctionDefinition>());
+	REQUIRE(program[1u]->IsStatement<MidoriStatement::FunctionDefinition>());
+
+	const MidoriStatement::FunctionDefinition& arrow_defun = program[0u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriStatement::FunctionDefinition& colon_defun = program[1u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	REQUIRE(arrow_defun.m_return_type->ToString() == colon_defun.m_return_type->ToString());
+	REQUIRE(arrow_defun.m_return_type->ToString() == "Int");
+
+	const MidoriStatement::VariableDefinition& arrow_binding = RequireVariableDefinition(program, 2u, "arrow_lambda");
+	const MidoriStatement::VariableDefinition& colon_binding = RequireVariableDefinition(program, 3u, "colon_lambda");
+	const MidoriExpression::Function& arrow_lambda = RequireExpression<MidoriExpression::Function>(arrow_binding.m_value);
+	const MidoriExpression::Function& colon_lambda = RequireExpression<MidoriExpression::Function>(colon_binding.m_value);
+	REQUIRE(arrow_lambda.m_return_type->ToString() == colon_lambda.m_return_type->ToString());
+	REQUIRE(arrow_lambda.m_return_type->ToString() == "Int");
+}
+
+TEST_CASE("Parser separates a function-type annotation from an arrow return type", "[parser]")
+{
+	// `->` inside the annotation belongs to the function type; the second `->`
+	// is the lambda's own return position. They are different positions and the
+	// parser must not confuse one for the other.
+	const std::string source_code =
+		R"(module ArrowAnnotation
+def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowAnnotation.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriStatement::VariableDefinition& definition = RequireVariableDefinition(parse_result->m_program, 0u, "predicate");
+	REQUIRE(definition.m_annotated_type.has_value());
+	REQUIRE(definition.m_annotated_type.value()->IsType<MidoriType::FunctionType>());
+
+	const MidoriExpression::Function& lambda = RequireExpression<MidoriExpression::Function>(definition.m_value);
+	REQUIRE(lambda.m_return_type->ToString() == "Bool");
+}
+
+TEST_CASE("Parser keeps '->' available as the channel send operator", "[parser]")
+{
+	const std::string source_code =
+		R"(module ArrowSend
+defun Send(c: Channel<Text>) -> Int => { c -> "value"; 0 };
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowSend.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+	REQUIRE(program.size() == 1u);
+	REQUIRE(program[0u]->IsStatement<MidoriStatement::FunctionDefinition>());
+
+	const MidoriStatement::FunctionDefinition& send_definition = program[0u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	REQUIRE(send_definition.m_return_type->ToString() == "Int");
+
+	const MidoriExpression::Block& body = RequireExpression<MidoriExpression::Block>(send_definition.m_body);
+	REQUIRE(!body.m_stmts.empty());
+}

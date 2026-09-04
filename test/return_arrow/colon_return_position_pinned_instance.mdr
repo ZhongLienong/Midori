@@ -1,0 +1,19 @@
+module ColonReturnPositionPinnedInstance
+
+// PINNED: instance-method definitions keep ':' in return position here on
+// purpose, for the same reason as colon_return_position_pinned.mdr. The
+// typeclass method *signature* has always used '->' because it is a function
+// type, not a definition. Do not migrate this file to '->'.
+
+import { "../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    defun show(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+PrintLine(Show::show(3));

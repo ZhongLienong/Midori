@@ -1017,6 +1017,16 @@ MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 }
 
+MidoriResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
+{
+	if (Check(Token::Name::THIN_ARROW, 0) || Check(Token::Name::SINGLE_COLON, 0))
+	{
+		return Advance();
+	}
+
+	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
+}
+
 Parser& Parser::BeginScope() &
 {
 	m_state.m_scopes.emplace_back();
@@ -2962,7 +2972,7 @@ MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
 										std::vector<Token> params = std::move(split.m_params);
 										std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
-										return Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.")
+										return ConsumeReturnTypeSeparator("Expected '->' or ':' before return type.")
 											.and_then
 											(
 												[&func_name, &generic_params, &generic_param_types, &params, &param_types, &local_index, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
@@ -4066,7 +4076,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		std::vector<Token> params = std::move(split.m_params);
 		std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
-		MidoriResult::TokenResult return_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before return type.");
+		MidoriResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' or ':' before return type.");
 		if (!return_colon_result.has_value())
 		{
 			EndScope();
@@ -4512,7 +4522,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
 	std::shared_ptr<MidoriType> return_type = MidoriType::MakeUndecidedType();
-	if (Match(Token::Name::SINGLE_COLON))
+	if (Match(Token::Name::SINGLE_COLON, Token::Name::THIN_ARROW))
 	{
 		MidoriResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
