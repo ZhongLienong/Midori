@@ -1,0 +1,71 @@
+module NewtypeIterableStaysNominal
+
+// `for` and unary `#` were the two sites where iter_type was briefly
+// (wrongly) erased during implementation, leaking into MatchInstanceTypeArg
+// and EmitIterableNextCall. This pins the `for`/Iterable half of that fix:
+// Ticker is a newtype over Counter, and Counter already has an Iterable
+// instance in this file. Iterable<Ticker>'s Next produces different values
+// than Iterable<Counter>'s Next, so if the newtype were ever erased before
+// instance lookup, the loop below would silently sum Counter's raw values
+// (0 + 1 + 2 = 3) instead of Ticker's (1 + 11 + 21 = 33).
+
+import
+{
+	"../../../MidoriPrelude/Iterable.mdr",
+	"../../../MidoriPrelude/Prelude/Option.mdr",
+	"../../../MidoriPrelude/Prelude/Panic.mdr",
+}
+
+use Option.{Option}
+
+struct Counter
+{
+	current: Int,
+	end: Int
+};
+
+instance Iterable<Counter>
+{
+	type Item = Int;
+	defun Next(counter: Counter) : Option<Int> => {
+		if counter.current >= counter.end
+		then new Option::None()
+		else {
+			def value = counter.current;
+			counter.current = counter.current + 1;
+			new Option::Some(value)
+		}
+	};
+};
+
+type Ticker = Counter;
+
+instance Iterable<Ticker>
+{
+	type Item = Int;
+	defun Next(ticker: Ticker) : Option<Int> => {
+		def counter: Counter = ticker as Counter;
+		if counter.current >= counter.end
+		then new Option::None()
+		else {
+			def value = (counter.current * 10) + 1;
+			counter.current = counter.current + 1;
+			new Option::Some(value)
+		}
+	};
+};
+
+defun TickerNew(end: Int) : Ticker => {
+	def counter: Counter = new Counter(0, end);
+	counter as Ticker
+};
+
+def total = 0;
+
+for i in TickerNew(3) {
+	total = total + i;
+};
+
+if total == 33
+then ()
+else Panic::Panic("Iterable<Ticker> instance should resolve nominally, not fall back to Iterable<Counter>'s behaviour");
