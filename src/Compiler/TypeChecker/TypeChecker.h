@@ -77,9 +77,10 @@ private:
 		std::vector<MidoriType::ClassConstraint> m_constraints;
 		AssociatedTypeEnvironment m_associated_type_bindings;
 		std::unordered_map<std::string, std::unique_ptr<MidoriStatement>> m_method_impls;
+		bool m_is_derived = false;
 
 		InstanceInfo() = default;
-		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods);
+		InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods, bool is_derived = false);
 	};
 
 	struct ResolvedInstanceMatch
@@ -178,6 +179,8 @@ private:
 	std::shared_ptr<MidoriType> ResolveAssociatedType(const MidoriType::AssociatedType& associated_type);
 
 	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
+
+	void RegisterIdentityConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type);
 
 	MidoriResult::TypeResult ResolveIndexableElementType(const Token& op, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type);
 

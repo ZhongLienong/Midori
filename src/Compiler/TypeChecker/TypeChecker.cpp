@@ -2736,12 +2736,13 @@ TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::stri
 {
 }
 
-TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods)
+TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods, bool is_derived)
 	: m_class_name(tc_name),
 	m_type_args(std::move(args)),
 	m_constraints(std::move(constraints)),
 	m_associated_type_bindings(std::move(associated_type_bindings)),
-	m_method_impls(std::move(methods))
+	m_method_impls(std::move(methods)),
+	m_is_derived(is_derived)
 {
 }
 
@@ -3687,9 +3688,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 
 	InstanceKey instance_key{instance_stmt.m_class_name.m_lexeme, concrete_type_names};
 
-	if (m_instances.contains(instance_key))
+	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator existing_instance_it = m_instances.find(instance_key);
+	if (existing_instance_it != m_instances.end())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		// A derived identity conversion is only a stand-in for the instance the user did
+		// not write. An explicit declaration with real behaviour replaces it rather than
+		// colliding with it; the type alias that derived it is always checked first, so
+		// this is the only order in which the two can meet.
+		if (!existing_instance_it->second.m_is_derived)
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		}
+
+		m_instances.erase(existing_instance_it);
 	}
 
 	AssociatedTypeEnvironment associated_type_bindings;
@@ -3874,9 +3885,32 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& typ
 		}
 	}
 
+	if (type_alias.m_aliased_type->IsType<MidoriType::NewType>())
+	{
+		const MidoriType::NewType& new_type = type_alias.m_aliased_type->GetType<MidoriType::NewType>();
+		RegisterIdentityConversion(type_alias.m_aliased_type, new_type.m_representation);
+		RegisterIdentityConversion(new_type.m_representation, type_alias.m_aliased_type);
+	}
+
 	// Type alias is already registered in the parser's type table
 	// Nothing more to do at type-checking time - the alias is resolved at parse time
 	return MidoriType::MakeUndecidedType();
+}
+
+void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type)
+{
+	InstanceKey conversion_key{ std::string(CONVERTABLE_CLASS_NAME), { from_type->ToString(), to_type->ToString() } };
+	if (m_instances.contains(conversion_key))
+	{
+		return;
+	}
+
+	std::vector<std::shared_ptr<MidoriType>> type_args{ from_type, to_type };
+	m_instances.emplace
+	(
+		std::move(conversion_key),
+		InstanceInfo(std::string(CONVERTABLE_CLASS_NAME), std::move(type_args), {}, {}, {}, true)
+	);
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
