@@ -1092,6 +1092,16 @@ Found while implementing Tasks 7–8. None is a regression; each is a limit of t
 3. **Generic specialisation over a `Convertable` constraint at a newtype is untested.** `m_method_resolution_map` is built from real instance ASTs and a derived instance has none.
 4. **Derived-instance replacement needed a real design addition.** Type aliases are checked before any `instance` naming them, so a derived instance always lands first and a hand-written one collided with `instance already defined for this type`. Fixed with `InstanceInfo::m_is_derived`, letting an explicit declaration replace a derived entry. The plan assumed a `contains` guard would suffice; it protected the wrong instance.
 
+5. **Generic newtypes are declaration-and-annotation only — the largest remaining gap.** Found by the Task 10 audit and confirmed by probe.
+
+   `MidoriType::NewType` appears **twice** in `TypeChecker.cpp`, against **64** occurrences of `StructType`. It has no branch in `HasTypeVariables`, `ApplySubstitution`, `Unify`'s generic-type-argument matching, `CollectTypeVariableIds`, `ContainsAssociatedTypes`, `OccursCheck` or `Freshen`. The derived `Convertable` instances are registered for the un-instantiated newtype only, so `Convertable<Array<Int>, Boxed<Int>>` never exists and even `[1, 2, 3] as Boxed<Int>` fails.
+
+   **What works:** every non-generic newtype — declaration, nominal rejection both ways, typeclass instances keyed nominally, `as` in both directions, and full erasure to the representation.
+
+   **What does not:** constructing or inferring a *generic* newtype at a concrete instantiation.
+
+   This does **not** block the motivating case. Spec §5 wants `Text` as a newtype over `Array<Byte>`, which is not generic. Closing the gap is its own task with its own tests — it means threading `NewType` through the seven type-checker functions above, and deriving `Convertable` per instantiation rather than per declaration.
+
 **Files:**
 - Modify: `src/Compiler/CodeGenerator/CodeGenerator.h`, `src/Compiler/CodeGenerator/CodeGenerator.cpp`
 - Test: `test/newtype/success/erasure.mdr` (create)
