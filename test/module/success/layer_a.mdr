@@ -7,4 +7,4 @@ import
     "layer_b.mdr"
 }
 
-defun process(x: Int) : Int => LayerB::transform(x);
+defun process(x: Int) -> Int => LayerB::transform(x);

@@ -9,6 +9,6 @@ type Coordinates = (Int, Int, Int);
 type Transformer = fn(Int) -> Int;
 type Items = Array<Int>;
 
-defun UseCoordinates(c: Coordinates) : Coordinates => c;
-defun UseTransformer(t: Transformer) : Transformer => t;
-defun UseItems(items: Items) : Items => items;
+defun UseCoordinates(c: Coordinates) -> Coordinates => c;
+defun UseTransformer(t: Transformer) -> Transformer => t;
+defun UseItems(items: Items) -> Items => items;

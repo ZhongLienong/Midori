@@ -8,9 +8,9 @@ import
 }
 
 // Uses functions from math_lib internally
-defun compute(x: Int) : Int => Math::add(Math::multiply(x, x), x);
+defun compute(x: Int) -> Int => Math::add(Math::multiply(x, x), x);
 
-defun square(x: Int) : Int => Math::multiply(x, x);
+defun square(x: Int) -> Int => Math::multiply(x, x);
 
 // Private helper
-defun internal_process(x: Int) : Int => Math::add(x, 1);
+defun internal_process(x: Int) -> Int => Math::add(x, 1);

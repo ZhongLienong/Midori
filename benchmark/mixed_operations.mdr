@@ -7,7 +7,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun TestTextArrayCombination(iterations : Int) : Unit =>
+defun TestTextArrayCombination(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -42,7 +42,7 @@ defun TestTextArrayCombination(iterations : Int) : Unit =>
 	IO::PrintLine("Text-Array combination (" ++ (iterations as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayFilter(size : Int) : Unit =>
+defun TestArrayFilter(size : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;
@@ -79,7 +79,7 @@ defun TestArrayFilter(size : Int) : Unit =>
 	IO::PrintLine("Array filter (even numbers from " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayMap(size : Int) : Unit =>
+defun TestArrayMap(size : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;
@@ -114,7 +114,7 @@ defun TestArrayMap(size : Int) : Unit =>
 	IO::PrintLine("Array map (multiply by 2, " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestStringBuilder(num_parts : Int) : Unit =>
+defun TestStringBuilder(num_parts : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -149,7 +149,7 @@ defun TestStringBuilder(num_parts : Int) : Unit =>
 	IO::PrintLine("String builder pattern (" ++ (num_parts as Text) ++ " parts): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestComplexDataStructure() : Unit =>
+defun TestComplexDataStructure() -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -175,7 +175,7 @@ defun TestComplexDataStructure() : Unit =>
 	IO::PrintLine("Complex data structure (1000 records): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayReversal(size : Int) : Unit =>
+defun TestArrayReversal(size : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;
@@ -210,7 +210,7 @@ defun TestArrayReversal(size : Int) : Unit =>
 	IO::PrintLine("Array reversal (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestMemoryIntensive() : Unit =>
+defun TestMemoryIntensive() -> Unit =>
 {
 	def start = DateTime::GetTime();
 

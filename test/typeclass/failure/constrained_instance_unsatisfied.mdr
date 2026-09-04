@@ -11,7 +11,7 @@ struct Boxed<T> { item: T };
 struct Opaque { tag: Int };
 
 instance Show<Boxed<T>> where Show<T> {
-    defun show(value: Boxed<T>) : Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+    defun show(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
 def bad = new Boxed<Opaque>(new Opaque(1));

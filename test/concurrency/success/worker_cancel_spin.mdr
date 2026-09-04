@@ -6,7 +6,7 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/System.mdr" }
 use System.{Sleep}
 
-defun Spin(_dummy: Int) : Int => {
+defun Spin(_dummy: Int) -> Int => {
     def i = 0;
     loop
     {

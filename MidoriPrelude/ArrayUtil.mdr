@@ -1,11 +1,11 @@
 module ArrayUtil
 import { "./Appendable.mdr", "./Equatable.mdr", "./Extendable.mdr", "./Prependable.mdr" }
 public export { Length, Append, Prepend, Extend, Contains, Slice, Reverse }
-defun Length < T >(array: Array < T >): Int =>#array;
-defun Append < T >(array: Array < T >, value: T): Unit => Appendable::Append(array, value);
-defun Prepend < T >(array: Array < T >, value: T): Unit => Prependable::Prepend(array, value);
-defun Extend < T >(array: Array < T >, other: Array < T >): Unit => Extendable::Extend(array, other);
-defun Contains < T >(array: Array < T >, value: T): Bool where Equatable < T > => {
+defun Length < T >(array: Array < T >) -> Int =>#array;
+defun Append < T >(array: Array < T >, value: T) -> Unit => Appendable::Append(array, value);
+defun Prepend < T >(array: Array < T >, value: T) -> Unit => Prependable::Prepend(array, value);
+defun Extend < T >(array: Array < T >, other: Array < T >) -> Unit => Extendable::Extend(array, other);
+defun Contains < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => {
     def index = 0;
     loop {
         if index >= Length(array) then break false else {
@@ -15,7 +15,7 @@ defun Contains < T >(array: Array < T >, value: T): Bool where Equatable < T > =
         }
     }
 };
-defun Slice < T >(array: Array < T >, start: Int, end: Int): Array < T > => {
+defun Slice < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => {
     def slice_start = start;
     def slice_end = end;
     def array_length = Length(array);
@@ -46,7 +46,7 @@ defun Slice < T >(array: Array < T >, start: Int, end: Int): Array < T > => {
         }
     }
 };
-defun Reverse < T >(array: Array < T >): Array < T > => {
+defun Reverse < T >(array: Array < T >) -> Array < T > => {
     def result: Array < T > =[];
     def index = Length(array) - 1;
     loop {

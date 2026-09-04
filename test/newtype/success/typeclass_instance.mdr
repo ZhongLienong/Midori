@@ -12,7 +12,7 @@ class Describable<T> {
 };
 
 instance Describable<Meters> {
-	defun Describe(value: Meters): Int => value as Int;
+	defun Describe(value: Meters) -> Int => value as Int;
 };
 
 def distance: Meters = 7 as Meters;

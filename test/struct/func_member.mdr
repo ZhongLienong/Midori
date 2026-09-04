@@ -22,7 +22,7 @@ struct Fib
 def s = new FunStruct
 (
 	0, 
-	fn(x : Int) : Int => x,
-	fn() : Unit => (),
-	fn(x : Int) : Int => x + x
+	fn(x : Int) -> Int => x,
+	fn() -> Unit => (),
+	fn(x : Int) -> Int => x + x
 );

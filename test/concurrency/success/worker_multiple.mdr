@@ -3,7 +3,7 @@ module worker_multiple
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Counter(label: Text) : Int => {
+defun Counter(label: Text) -> Int => {
     def i = 0;
     loop
     {

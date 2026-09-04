@@ -5,14 +5,14 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun foo() : Int =>
+defun foo() -> Int =>
 {
-	defun getFunc() : Int => 1;
+	defun getFunc() -> Int => 1;
 	if (true)
 	then
 	{
 		def y : Int = 5;
-		getFunc = fn() : Int => y;
+		getFunc = fn() -> Int => y;
 	}
 	else
 	{

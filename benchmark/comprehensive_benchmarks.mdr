@@ -7,7 +7,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun TestTextConcatenation(iterations : Int) : Unit =>
+defun TestTextConcatenation(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def result = "";
@@ -26,7 +26,7 @@ defun TestTextConcatenation(iterations : Int) : Unit =>
 	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestTextAppend(iterations : Int) : Unit =>
+defun TestTextAppend(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def result = "";
@@ -45,7 +45,7 @@ defun TestTextAppend(iterations : Int) : Unit =>
 	IO::PrintLine("Text append (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestTextBuilding(iterations : Int) : Unit =>
+defun TestTextBuilding(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def result = "";
@@ -64,7 +64,7 @@ defun TestTextBuilding(iterations : Int) : Unit =>
 	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayAppend(size : Int) : Unit =>
+defun TestArrayAppend(size : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def arr : Array<Int> = [];
@@ -83,7 +83,7 @@ defun TestArrayAppend(size : Int) : Unit =>
 	IO::PrintLine("Array append (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayConcatenation(size : Int) : Unit =>
+defun TestArrayConcatenation(size : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def arr : Array<Int> = [];
@@ -102,7 +102,7 @@ defun TestArrayConcatenation(size : Int) : Unit =>
 	IO::PrintLine("Array concatenation (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayAccess(size : Int, num_accesses : Int) : Unit =>
+defun TestArrayAccess(size : Int, num_accesses : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;
@@ -135,7 +135,7 @@ defun TestArrayAccess(size : Int, num_accesses : Int) : Unit =>
 	IO::PrintLine("Array access (" ++ (num_accesses as Text) ++ " accesses, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayIteration(size : Int) : Unit =>
+defun TestArrayIteration(size : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;
@@ -167,7 +167,7 @@ defun TestArrayIteration(size : Int) : Unit =>
 	IO::PrintLine("Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayOfText(size : Int) : Unit =>
+defun TestArrayOfText(size : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def arr : Array<Text> = [];
@@ -186,7 +186,7 @@ defun TestArrayOfText(size : Int) : Unit =>
 	IO::PrintLine("Array of Text (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestNestedArrays(outer_size : Int, inner_size : Int) : Unit =>
+defun TestNestedArrays(outer_size : Int, inner_size : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 	def outer : Array<Array<Int>> = [];
@@ -217,7 +217,7 @@ defun TestNestedArrays(outer_size : Int, inner_size : Int) : Unit =>
 	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestArrayFilter(size : Int) : Unit =>
+defun TestArrayFilter(size : Int) -> Unit =>
 {
 	def arr : Array<Int> = [];
 	def i = 0;

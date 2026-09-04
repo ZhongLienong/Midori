@@ -3,7 +3,7 @@ module channel_spawn_syntax
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Producer(ch: Channel<Text>) : Int => {
+defun Producer(ch: Channel<Text>) -> Int => {
     ch -> "left";
     ch -> "right";
     close(ch);

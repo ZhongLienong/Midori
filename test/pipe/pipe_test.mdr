@@ -14,95 +14,95 @@ struct Point
 };
 
 // Basic arithmetic operations
-defun Add(a : Int, b : Int) : Int =>
+defun Add(a : Int, b : Int) -> Int =>
 {
 	a + b
 };
 
-defun Multiply(a : Int, b : Int) : Int =>
+defun Multiply(a : Int, b : Int) -> Int =>
 {
 	a * b
 };
 
-defun Subtract(a : Int, b : Int) : Int =>
+defun Subtract(a : Int, b : Int) -> Int =>
 {
 	a - b
 };
 
-defun Divide(a : Int, b : Int) : Int =>
+defun Divide(a : Int, b : Int) -> Int =>
 {
 	a / b
 };
 
-defun Square(n : Int) : Int =>
+defun Square(n : Int) -> Int =>
 {
 	n * n
 };
 
-defun Cube(n : Int) : Int =>
+defun Cube(n : Int) -> Int =>
 {
 	n * n * n
 };
 
-defun Negate(n : Int) : Int =>
+defun Negate(n : Int) -> Int =>
 {
 	0 - n
 };
 
-defun Abs(n : Int) : Int =>
+defun Abs(n : Int) -> Int =>
 {
 	if n < 0 then 0 - n else n
 };
 
-defun Mod(a : Int, b : Int) : Int =>
+defun Mod(a : Int, b : Int) -> Int =>
 {
 	a % b
 };
 
 // Text operations
-defun IntToText(n : Int) : Text =>
+defun IntToText(n : Int) -> Text =>
 {
 	n as Text
 };
 
-defun Concat(prefix : Text, suffix : Text) : Text =>
+defun Concat(prefix : Text, suffix : Text) -> Text =>
 {
 	prefix ++ suffix
 };
 
-defun AddPrefix(n : Int, prefix : Text) : Text =>
+defun AddPrefix(n : Int, prefix : Text) -> Text =>
 {
 	prefix ++ (n as Text)
 };
 
 // Point operations
-defun MakePoint(px : Int, py : Int) : Point =>
+defun MakePoint(px : Int, py : Int) -> Point =>
 {
 	new Point(px, py)
 };
 
-defun GetX(p : Point) : Int =>
+defun GetX(p : Point) -> Int =>
 {
 	p.x
 };
 
-defun GetY(p : Point) : Int =>
+defun GetY(p : Point) -> Int =>
 {
 	p.y
 };
 
-defun ManhattanDistance(p : Point) : Int =>
+defun ManhattanDistance(p : Point) -> Int =>
 {
 	Abs(p.x) + Abs(p.y)
 };
 
-defun ScalePoint(p : Point, factor : Int) : Point =>
+defun ScalePoint(p : Point, factor : Int) -> Point =>
 {
 	new Point(p.x * factor, p.y * factor)
 };
 
 
-defun Main() : Unit =>
+defun Main() -> Unit =>
 {
 	IO::PrintLine("=== Pipe Operator Comprehensive Test ===");
 	IO::PrintLine("");
@@ -153,7 +153,7 @@ defun Main() : Unit =>
 
 	// Test 5: Lambda in pipe
 	IO::PrintLine("Test 5: Lambda in pipeline");
-	def triple = fn(x : Int) : Int => { x * 3 };
+	def triple = fn(x : Int) -> Int => { x * 3 };
 	def result5 = 7
 		|> triple
 		|> Add(1)

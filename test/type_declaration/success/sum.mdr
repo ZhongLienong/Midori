@@ -14,14 +14,14 @@ type Shape = Dot | Line(Int) | Box(Int, Int);
 // Recursive: a variant naming the type being declared.
 type IntList = Nil | Cons(Int, IntList);
 
-defun Area(s: Shape) : Int =>
+defun Area(s: Shape) -> Int =>
 	match s with
 		case Shape::Dot => 0
 		case Shape::Line(n) => n
 		case Shape::Box(w, h) => w * h
 ;
 
-defun SumList(l: IntList) : Int =>
+defun SumList(l: IntList) -> Int =>
 	match l with
 		case IntList::Nil => 0
 		case IntList::Cons(x, rest) => x + SumList(rest)

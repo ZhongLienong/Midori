@@ -6,8 +6,8 @@ class Prependable < C, Elem > {
 foreign "MIDORI_FFI_ArrayPrepend" ArrayPrepend: fn(Array < T >, T) -> Unit;
 foreign "MIDORI_FFI_TextPrepend" TextPrepend: fn(Text, Text) -> Unit;
 instance Prependable < Array < T >, T > {
-    defun Prepend(container: Array < T >, elem: T): Unit => ArrayPrepend(container, elem);
+    defun Prepend(container: Array < T >, elem: T) -> Unit => ArrayPrepend(container, elem);
 };
 instance Prependable < Text, Text > {
-    defun Prepend(container: Text, elem: Text): Unit => TextPrepend(container, elem);
+    defun Prepend(container: Text, elem: Text) -> Unit => TextPrepend(container, elem);
 };

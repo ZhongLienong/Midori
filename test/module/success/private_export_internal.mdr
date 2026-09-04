@@ -1,4 +1,4 @@
 module Math.Internal
 private export { hidden }
 
-defun hidden() : Int => 7;
+defun hidden() -> Int => 7;

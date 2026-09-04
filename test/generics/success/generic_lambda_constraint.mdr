@@ -10,7 +10,7 @@ import
 	"../../../MidoriPrelude/Convertable.mdr"
 }
 
-def Show = fn<T>(x: T) : Text where Convertable<T, Text> => x as Text;
+def Show = fn<T>(x: T) -> Text where Convertable<T, Text> => x as Text;
 
 IO::PrintLine(Show(42));
 IO::PrintLine(Show(3.5));

@@ -5,7 +5,7 @@ import { "../../../MidoriPrelude/IO.mdr" }
 def pair = (42, "answer");
 def (count, label) = pair;
 
-defun main(): Int => {
+defun main() -> Int => {
     def result = (count + 1, true);
     def (local_count, ok) = result;
 

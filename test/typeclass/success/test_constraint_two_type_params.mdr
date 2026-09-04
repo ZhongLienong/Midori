@@ -4,7 +4,7 @@ module TestConstraintTwoTypeParams
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
 // Generic function with two constrained type parameters
-defun ProcessTwo<T1, T2>(a: T1, b: T2) : Text
+defun ProcessTwo<T1, T2>(a: T1, b: T2) -> Text
     where Convertable<T1, Text>, Convertable<T2, Text> => {
     def a_text = a as Text;
     def b_text = b as Text;
@@ -12,7 +12,7 @@ defun ProcessTwo<T1, T2>(a: T1, b: T2) : Text
 };
 
 // Function with one type parameter used multiple times
-defun Duplicate<T>(value: T) : Text where Convertable<T, Text> => {
+defun Duplicate<T>(value: T) -> Text where Convertable<T, Text> => {
     def text_val = value as Text;
     return text_val ++ " and " ++ text_val;
 };

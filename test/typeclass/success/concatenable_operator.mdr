@@ -7,10 +7,10 @@ struct Chunk {
 };
 
 instance Concatenable<Chunk> {
-    defun Concat(left: Chunk, right: Chunk) : Chunk => new Chunk(left.text ++ right.text);
+    defun Concat(left: Chunk, right: Chunk) -> Chunk => new Chunk(left.text ++ right.text);
 };
 
-defun Join<T>(left: T, right: T) : T
+defun Join<T>(left: T, right: T) -> T
     where Concatenable<T> => left ++ right;
 
 def combined = new Chunk("mid") ++ new Chunk("ori");

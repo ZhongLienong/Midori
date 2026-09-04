@@ -16,13 +16,13 @@ struct Vec3
     Z : Float,
 } deriving (Transferable);
 
-defun vec3_add(a : Vec3, b : Vec3) : Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
-defun vec3_sub(a : Vec3, b : Vec3) : Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-defun vec3_scale(a : Vec3, s : Float) : Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
-defun vec3_dot(a : Vec3, b : Vec3) : Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
-defun vec3_length(a : Vec3) : Float => Math::SquareRoot(vec3_dot(a, a));
+defun vec3_add(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+defun vec3_sub(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+defun vec3_scale(a : Vec3, s : Float) -> Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
+defun vec3_dot(a : Vec3, b : Vec3) -> Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+defun vec3_length(a : Vec3) -> Float => Math::SquareRoot(vec3_dot(a, a));
 
-defun vec3_normalize(a : Vec3) : Vec3 =>
+defun vec3_normalize(a : Vec3) -> Vec3 =>
 {
     def len = vec3_length(a);
     if len < 0.000001
@@ -30,15 +30,15 @@ defun vec3_normalize(a : Vec3) : Vec3 =>
     else vec3_scale(a, 1.0 / len)
 };
 
-defun vec3_reflect(incident : Vec3, normal : Vec3) : Vec3 =>
+defun vec3_reflect(incident : Vec3, normal : Vec3) -> Vec3 =>
 {
     def d = vec3_dot(incident, normal);
     vec3_sub(incident, vec3_scale(normal, 2.0 * d))
 };
 
-defun vec3_abs(a : Vec3) : Vec3 => new Vec3(Math::Abs(a.X), Math::Abs(a.Y), Math::Abs(a.Z));
+defun vec3_abs(a : Vec3) -> Vec3 => new Vec3(Math::Abs(a.X), Math::Abs(a.Y), Math::Abs(a.Z));
 
-defun vec3_max_comp(a : Vec3) : Float => Math::Max(a.X, Math::Max(a.Y, a.Z));
+defun vec3_max_comp(a : Vec3) -> Float => Math::Max(a.X, Math::Max(a.Y, a.Z));
 
 struct Material
 {
@@ -54,9 +54,9 @@ struct HitResult
     MatId : Int,
 };
 
-defun sdf_sphere(p : Vec3, radius : Float) : Float => vec3_length(p) - radius;
+defun sdf_sphere(p : Vec3, radius : Float) -> Float => vec3_length(p) - radius;
 
-defun sdf_box(p : Vec3, half_size : Vec3) : Float =>
+defun sdf_box(p : Vec3, half_size : Vec3) -> Float =>
 {
     def q = vec3_sub(vec3_abs(p), half_size);
     def outside = vec3_length(new Vec3(Math::Max(q.X, 0.0), Math::Max(q.Y, 0.0), Math::Max(q.Z, 0.0)));
@@ -64,15 +64,15 @@ defun sdf_box(p : Vec3, half_size : Vec3) : Float =>
     outside + inside
 };
 
-defun sdf_plane(p : Vec3, normal : Vec3, offset : Float) : Float => vec3_dot(p, normal) + offset;
+defun sdf_plane(p : Vec3, normal : Vec3, offset : Float) -> Float => vec3_dot(p, normal) + offset;
 
-defun sdf_torus(p : Vec3, major_r : Float, minor_r : Float) : Float =>
+defun sdf_torus(p : Vec3, major_r : Float, minor_r : Float) -> Float =>
 {
     def q_len = Math::SquareRoot(p.X * p.X + p.Z * p.Z) - major_r;
     Math::SquareRoot(q_len * q_len + p.Y * p.Y) - minor_r
 };
 
-defun sdf_cylinder(p : Vec3, radius : Float, half_height : Float) : Float =>
+defun sdf_cylinder(p : Vec3, radius : Float, half_height : Float) -> Float =>
 {
     def d_radial = Math::SquareRoot(p.X * p.X + p.Z * p.Z) - radius;
     def d_height = Math::Abs(p.Y) - half_height;
@@ -81,19 +81,19 @@ defun sdf_cylinder(p : Vec3, radius : Float, half_height : Float) : Float =>
     outside + inside
 };
 
-defun smooth_union(d1 : Float, d2 : Float, k : Float) : Float =>
+defun smooth_union(d1 : Float, d2 : Float, k : Float) -> Float =>
 {
     def h = Math::Max(k - Math::Abs(d1 - d2), 0.0) / k;
     Math::Min(d1, d2) - h * h * k * 0.25
 };
 
-defun smooth_subtraction(d1 : Float, d2 : Float, k : Float) : Float =>
+defun smooth_subtraction(d1 : Float, d2 : Float, k : Float) -> Float =>
 {
     def h = Math::Max(k - Math::Abs(d1 + d2), 0.0) / k;
     Math::Max(-1.0 * d1, d2) + h * h * k * 0.25
 };
 
-defun scene_sdf(p : Vec3) : HitResult =>
+defun scene_sdf(p : Vec3) -> HitResult =>
 {
     def floor_d = sdf_plane(p, new Vec3(0.0, 1.0, 0.0), 1.0);
 
@@ -139,7 +139,7 @@ defun scene_sdf(p : Vec3) : HitResult =>
     new HitResult(best_d6, best_mat6)
 };
 
-defun get_material(mat_id : Int) : Material =>
+defun get_material(mat_id : Int) -> Material =>
 {
     if mat_id == 0
     then new Material(0.35, 0.35, 0.40, 0.05)
@@ -154,7 +154,7 @@ defun get_material(mat_id : Int) : Material =>
     else new Material(0.80, 0.45, 0.70, 0.35)
 };
 
-defun estimate_normal(p : Vec3) : Vec3 =>
+defun estimate_normal(p : Vec3) -> Vec3 =>
 {
     def eps = 0.0005;
     def dx = (scene_sdf(new Vec3(p.X + eps, p.Y, p.Z))).Distance - (scene_sdf(new Vec3(p.X - eps, p.Y, p.Z))).Distance;
@@ -163,7 +163,7 @@ defun estimate_normal(p : Vec3) : Vec3 =>
     vec3_normalize(new Vec3(dx, dy, dz))
 };
 
-defun soft_shadow(ro : Vec3, rd : Vec3, t_min : Float, t_max : Float, k : Float) : Float =>
+defun soft_shadow(ro : Vec3, rd : Vec3, t_min : Float, t_max : Float, k : Float) -> Float =>
 {
     def result = 1.0;
     def t = t_min;
@@ -193,7 +193,7 @@ defun soft_shadow(ro : Vec3, rd : Vec3, t_min : Float, t_max : Float, k : Float)
     Math::Clamp(result, 0.0, 1.0)
 };
 
-defun ambient_occlusion(p : Vec3, n : Vec3) : Float =>
+defun ambient_occlusion(p : Vec3, n : Vec3) -> Float =>
 {
     def ao = 0.0;
     def scale = 1.0;
@@ -211,7 +211,7 @@ defun ambient_occlusion(p : Vec3, n : Vec3) : Float =>
     Math::Clamp(1.0 - 3.0 * ao, 0.0, 1.0)
 };
 
-defun checkerboard(p : Vec3) : Float =>
+defun checkerboard(p : Vec3) -> Float =>
 {
     def fx = Math::Floor(p.X * 2.0) as Int;
     def fz = Math::Floor(p.Z * 2.0) as Int;
@@ -221,7 +221,7 @@ defun checkerboard(p : Vec3) : Float =>
     else 0.6
 };
 
-defun raymarch(ro : Vec3, rd : Vec3) : Vec3 =>
+defun raymarch(ro : Vec3, rd : Vec3) -> Vec3 =>
 {
     def max_steps = 128;
     def max_dist = 80.0;
@@ -292,7 +292,7 @@ defun raymarch(ro : Vec3, rd : Vec3) : Vec3 =>
     }
 };
 
-defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) : Unit =>
+defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
 {
     def r = Math::Clamp(Math::Round(cr * 255.0), 0.0, 255.0) as Int;
     def g = Math::Clamp(Math::Round(cg * 255.0), 0.0, 255.0) as Int;
@@ -303,7 +303,7 @@ defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float)
     Appendable::Append(pixels, 255);
 };
 
-defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3) : Array<Int> =>
+defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3) -> Array<Int> =>
 {
     def pixels : Array<Int> = [];
     def width_f = width as Float;
@@ -344,7 +344,7 @@ defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_ori
     pixels
 };
 
-defun append_pixels(target : Array<Int>, values : Array<Int>) : Unit =>
+defun append_pixels(target : Array<Int>, values : Array<Int>) -> Unit =>
 {
     def index = 0;
     loop
@@ -355,7 +355,7 @@ defun append_pixels(target : Array<Int>, values : Array<Int>) : Unit =>
     };
 };
 
-defun render_parallel(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3, budget : Int) : Array<Int> =>
+defun render_parallel(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3, budget : Int) -> Array<Int> =>
 {
     def row_count = y_end - y_start;
     if budget <= 1 || row_count <= 1

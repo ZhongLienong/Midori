@@ -11,18 +11,18 @@ class Debug<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) : Text => {
+    defun show(value: Int) -> Text => {
         return "Int(" ++ (value as Text) ++ ")";
     };
 };
 
 instance Debug<Int> {
-    defun debug(value: Int) : Text => {
+    defun debug(value: Int) -> Text => {
         return "Debug(" ++ (value as Text) ++ ")";
     };
 };
 
-defun debug_value<T>(x: T) : Text where Debug<T> => {
+defun debug_value<T>(x: T) -> Text where Debug<T> => {
     return Debug::debug(x);
 };
 

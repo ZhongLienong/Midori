@@ -3,7 +3,7 @@ module channel_pingpong
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Ponger(ch_in: Channel<Text>, ch_out: Channel<Text>) : Int => {
+defun Ponger(ch_in: Channel<Text>, ch_out: Channel<Text>) -> Int => {
     def msg = <- ch_in;
     PrintLine("Ponger received: " ++ msg);
     ch_out -> "pong";

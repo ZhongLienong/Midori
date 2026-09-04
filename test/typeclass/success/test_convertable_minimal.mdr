@@ -9,12 +9,12 @@ class Convertable<From, To> {
 
 // Bool -> Int conversion
 instance Convertable<Bool, Int> {
-    defun Convert(value: Bool) : Int => {
+    defun Convert(value: Bool) -> Int => {
         if value then 1 else 0
     };
 };
 
-defun BoolToInt<T>(value: T) : Int where Convertable<T, Int> => {
+defun BoolToInt<T>(value: T) -> Int where Convertable<T, Int> => {
     return Convertable::Convert(value);
 };
 

@@ -9,13 +9,13 @@ import
 
 def epsilon = 0.0001;
 
-defun Expect(condition: Bool, message: Text) : Unit => {
+defun Expect(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectApprox(actual: Float, expected: Float, tolerance: Float, message: Text) : Unit => {
+defun ExpectApprox(actual: Float, expected: Float, tolerance: Float, message: Text) -> Unit => {
     Expect(Math::Abs(actual - expected) <= tolerance, message)
 };
 

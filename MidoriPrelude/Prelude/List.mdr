@@ -8,10 +8,10 @@ union List < T > = Nil | Cons(T, List);
 struct ListIter < T > {
     current: List < T >
 };
-defun ListIterNew < T >(list: List < T >): ListIter < T > => new ListIter < T >(list);
+defun ListIterNew < T >(list: List < T >) -> ListIter < T > => new ListIter < T >(list);
 instance Iterable < ListIter < T >> {
     type Item = T;
-    defun Next(iter: ListIter < T >): Option < T > => {
+    defun Next(iter: ListIter < T >) -> Option < T > => {
         match iter.current with
             case List::Cons(head, tail) => {
             iter.current = tail;
@@ -20,25 +20,25 @@ instance Iterable < ListIter < T >> {
             case List::Nil => new Option::None < T >()
     };
 };
-defun ListMap < A, B >(list: List < A >, f: fn(A) -> B): List < B > => {
+defun ListMap < A, B >(list: List < A >, f: fn(A) -> B) -> List < B > => {
     match list with
         case List::Cons(head, tail) => new List::Cons < B >(f(head), ListMap(tail, f))
         case List::Nil => new List::Nil < B >()
 };
-defun ListLength < T >(list: List < T >): Int => {
+defun ListLength < T >(list: List < T >) -> Int => {
     match list with
         case List::Cons(_, tail) => 1 + ListLength(tail)
         case List::Nil => 0
 };
 instance Countable < List < T >> {
-    defun Count(value: List < T >): Int => ListLength(value);
+    defun Count(value: List < T >) -> Int => ListLength(value);
 };
-defun ListAppend < T >(left: List < T >, right: List < T >): List < T > => {
+defun ListAppend < T >(left: List < T >, right: List < T >) -> List < T > => {
     match left with
         case List::Nil => right
         case List::Cons(head, tail) => new List::Cons < T >(head, ListAppend(tail, right))
 };
-defun ListFilter < T >(list: List < T >, predicate: fn(T) -> Bool): List < T > => {
+defun ListFilter < T >(list: List < T >, predicate: fn(T) -> Bool) -> List < T > => {
     match list with
         case List::Nil => new List::Nil < T >()
         case List::Cons(head, tail) => {
@@ -46,22 +46,22 @@ defun ListFilter < T >(list: List < T >, predicate: fn(T) -> Bool): List < T > =
         if predicate(head) then new List::Cons < T >(head, filtered_tail) else filtered_tail
     }
 };
-defun ListReverseInto < T >(list: List < T >, reversed: List < T >): List < T > => {
+defun ListReverseInto < T >(list: List < T >, reversed: List < T >) -> List < T > => {
     match list with
         case List::Cons(head, tail) => ListReverseInto(tail, new List::Cons < T >(head, reversed))
         case List::Nil => reversed
 };
-defun ListReverse < T >(list: List < T >): List < T > => ListReverseInto(list, new List::Nil < T >());
-defun ListFold < T, A >(list: List < T >, initial: A, f: fn(A, T) -> A): A => {
+defun ListReverse < T >(list: List < T >) -> List < T > => ListReverseInto(list, new List::Nil < T >());
+defun ListFold < T, A >(list: List < T >, initial: A, f: fn(A, T) -> A) -> A => {
     match list with
         case List::Cons(head, tail) => ListFold(tail, f(initial, head), f)
         case List::Nil => initial
 };
-defun ListFromArrayAt < T >(values: Array < T >, index: Int): List < T > => {
+defun ListFromArrayAt < T >(values: Array < T >, index: Int) -> List < T > => {
     if index >=#values then new List::Nil < T >() else new List::Cons < T >(values[index], ListFromArrayAt(values, index + 1))
 };
-defun ListFromArray < T >(values: Array < T >): List < T > => ListFromArrayAt(values, 0);
-defun ListToArrayAppend < T >(list: List < T >, values: Array < T >): Array < T > => {
+defun ListFromArray < T >(values: Array < T >) -> List < T > => ListFromArrayAt(values, 0);
+defun ListToArrayAppend < T >(list: List < T >, values: Array < T >) -> Array < T > => {
     match list with
         case List::Cons(head, tail) => {
         ArrayUtil::Append(values, head);
@@ -69,7 +69,7 @@ defun ListToArrayAppend < T >(list: List < T >, values: Array < T >): Array < T 
     }
         case List::Nil => values
 };
-defun ListToArray < T >(list: List < T >): Array < T > => {
+defun ListToArray < T >(list: List < T >) -> Array < T > => {
     def values: Array < T > =[];
     ListToArrayAppend(list, values)
 };

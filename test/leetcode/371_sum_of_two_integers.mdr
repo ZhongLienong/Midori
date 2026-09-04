@@ -5,6 +5,6 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun GetSum(a : Int, b : Int) : Int => if b == 0 then a else GetSum(a ^ b, (a & b) << 1);
+defun GetSum(a : Int, b : Int) -> Int => if b == 0 then a else GetSum(a ^ b, (a & b) << 1);
 
 IO::PrintLine(GetSum(20, 22) as Text);

@@ -7,7 +7,7 @@ class Describable<T> {
 };
 
 instance Describable<Meters> {
-	defun Describe(value: Meters): Int => value as Int;
+	defun Describe(value: Meters) -> Int => value as Int;
 };
 
 def leaked: Int = Describable::Describe(7);

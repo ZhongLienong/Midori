@@ -2,7 +2,7 @@ module DeadCodeElimination
 
 import { "../../MidoriPrelude/IO.mdr" }
 
-defun print_and_return(value: Int) : Int => {
+defun print_and_return(value: Int) -> Int => {
     IO::PrintLine("effect=" ++ (value as Text));
     value
 };
@@ -29,7 +29,7 @@ def kept_effectful_statement: Int = {
     4
 };
 
-defun early_return() : Int => {
+defun early_return() -> Int => {
     return 3;
     print_and_return(99);
 };

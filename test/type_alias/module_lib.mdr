@@ -18,6 +18,6 @@ struct Point
 alias Position = Point;
 
 // Functions using type aliases
-defun createPoint(x: Float, y: Float) : Position => new Point(x, y);
+defun createPoint(x: Float, y: Float) -> Position => new Point(x, y);
 
-defun getUserId() : UserId => 42;
+defun getUserId() -> UserId => 42;

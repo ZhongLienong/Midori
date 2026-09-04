@@ -7,13 +7,13 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
-defun Expect(condition: Bool, message: Text) : Unit => {
+defun Expect(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectRange(value: Int, minimum: Int, maximum: Int, message: Text) : Unit => {
+defun ExpectRange(value: Int, minimum: Int, maximum: Int, message: Text) -> Unit => {
     Expect(value >= minimum && value <= maximum, message)
 };
 

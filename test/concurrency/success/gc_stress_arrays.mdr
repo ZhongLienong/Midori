@@ -6,7 +6,7 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/Appendable.mdr" }
 use Appendable.{Appendable}
 
-defun BuildArrayWorker(ch: Channel<Int>, size: Int) : Int => {
+defun BuildArrayWorker(ch: Channel<Int>, size: Int) -> Int => {
     def arr : Array<Int> = [];
     def i = 0;
     loop

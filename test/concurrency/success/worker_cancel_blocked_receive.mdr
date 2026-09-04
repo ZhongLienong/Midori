@@ -6,7 +6,7 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/System.mdr" }
 use System.{Sleep}
 
-defun BlockOnChannel(ch: Channel<Int>) : Int => {
+defun BlockOnChannel(ch: Channel<Int>) -> Int => {
     def v = <- ch;
     v
 };

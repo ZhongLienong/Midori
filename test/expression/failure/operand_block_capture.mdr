@@ -6,5 +6,5 @@ import
 }
 
 def a = 10;
-def f = a + { def q = 5; def g = fn() : Int => q; g() + q };
+def f = a + { def q = 5; def g = fn() -> Int => q; g() + q };
 IO::PrintLine(f as Text);

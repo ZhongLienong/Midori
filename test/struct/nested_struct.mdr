@@ -18,7 +18,7 @@ struct Complex
 	img : Float,
 };
 
-def TestNestedStruct = fn() : Unit =>
+def TestNestedStruct = fn() -> Unit =>
 {
 	struct Test
 	{
@@ -27,14 +27,14 @@ def TestNestedStruct = fn() : Unit =>
 
 	def test = new Test(1);
 
-	defun struct_in_closure() : Unit =>
+	defun struct_in_closure() -> Unit =>
 	{
 		struct Test2
 		{
 			x : Int
 		};
 
-		fn() : Unit =>
+		fn() -> Unit =>
 		{
 			struct Test3
 			{

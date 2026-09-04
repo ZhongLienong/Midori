@@ -15,19 +15,19 @@ struct Boxed<T> { item: T };
 struct Wrapped<T> { inner: T };
 
 instance Tag<Int> {
-    defun tag(value: Int) : Text => "tag:" ++ (value as Text);
+    defun tag(value: Int) -> Text => "tag:" ++ (value as Text);
 };
 
 instance Show<Int> {
-    defun show(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
+    defun show(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
 };
 
 instance Show<Wrapped<T>> where Tag<T> {
-    defun show(value: Wrapped<T>) : Text => "Wrapped(" ++ Tag::tag(value.inner) ++ ")";
+    defun show(value: Wrapped<T>) -> Text => "Wrapped(" ++ Tag::tag(value.inner) ++ ")";
 };
 
 instance Show<Boxed<T>> where Show<T> {
-    defun show(value: Boxed<T>) : Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+    defun show(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
 def deep = new Boxed<Boxed<Wrapped<Int>>>(new Boxed<Wrapped<Int>>(new Wrapped<Int>(5)));

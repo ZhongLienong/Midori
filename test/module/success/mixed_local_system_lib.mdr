@@ -4,6 +4,6 @@ module Utils
 
 public export { FormatNumber }
 
-defun FormatNumber(n: Float): Text => {
+defun FormatNumber(n: Float) -> Text => {
     "Number: " ++ (n as Text)
 };

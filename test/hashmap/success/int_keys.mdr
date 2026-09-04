@@ -9,13 +9,13 @@ import
 }
 use Option.{Option}
 
-defun Expect(condition: Bool, message: Text) : Unit => {
+defun Expect(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectSomeText(result: Option<Text>, expected: Text, message: Text) : Unit => {
+defun ExpectSomeText(result: Option<Text>, expected: Text, message: Text) -> Unit => {
     match result with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)

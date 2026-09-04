@@ -7,6 +7,6 @@ public export { FuncA }
 import { "circular_b.mdr" }
 use CircularB.{FuncB}
 
-defun FuncA(): Float => {
+defun FuncA() -> Float => {
     FuncB() + 1.0
 };

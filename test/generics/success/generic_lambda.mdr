@@ -9,12 +9,12 @@ import
 	"../../../MidoriPrelude/IO.mdr"
 }
 
-def Id = fn<T>(x: T) : T => x;
+def Id = fn<T>(x: T) -> T => x;
 
 IO::PrintLine(Id(5) as Text);
 IO::PrintLine(Id("a"));
 
-def First = fn<A, B>(a: A, _b: B) : A => a;
+def First = fn<A, B>(a: A, _b: B) -> A => a;
 
 IO::PrintLine(First(10, "ignored") as Text);
 IO::PrintLine(First("kept", 99));

@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun Pow(x : Float, n : Int) : Float =>
+defun Pow(x : Float, n : Int) -> Float =>
 {
 	if n < 0
 	then Pow(1.0 / x, -n)

@@ -10,14 +10,14 @@ module OperatorExplicitMethodAgree
 
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr", "../../../MidoriPrelude/Concatenable.mdr", "../../../MidoriPrelude/Convertable.mdr", }
 
-defun Same < T > (value: T): T => value;
+defun Same < T > (value: T) -> T => value;
 
 struct Bag < T > {
     items: Array < T >
 };
 
 instance Countable < Bag < T >> {
-    defun Count(value: Bag < T >): Int => #value.items;
+    defun Count(value: Bag < T >) -> Int => #value.items;
 };
 
 def text = "hello";

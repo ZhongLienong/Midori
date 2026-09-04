@@ -1,6 +1,6 @@
 module spawn_nontransferable_argument
 
-defun RunCallback(callback: fn(Int) -> Int) : Int => {
+defun RunCallback(callback: fn(Int) -> Int) -> Int => {
     callback(1)
 };
 

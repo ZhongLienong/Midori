@@ -7,7 +7,7 @@ struct CustomType {
     value: Int
 };
 
-defun ToText<T>(value: T) : Text where Convertable<T, Text> => {
+defun ToText<T>(value: T) -> Text where Convertable<T, Text> => {
     return value as Text;
 };
 

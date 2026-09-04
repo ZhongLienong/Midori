@@ -2,4 +2,4 @@ module DefLambdaExportLib
 
 public export { Twice }
 
-def Twice = fn(n : Int) : Int => n * 2;
+def Twice = fn(n : Int) -> Int => n * 2;

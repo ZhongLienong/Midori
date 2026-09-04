@@ -10,7 +10,7 @@ struct Point
 
 union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
-defun HashValue<T>(value: T) : Int where Hashable<T> => {
+defun HashValue<T>(value: T) -> Int where Hashable<T> => {
     Hashable::Hash(value)
 };
 

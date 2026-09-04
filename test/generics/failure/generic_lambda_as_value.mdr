@@ -9,7 +9,7 @@ import
 	"../../../MidoriPrelude/IO.mdr"
 }
 
-def Id = fn<T>(x: T) : T => x;
-defun apply(f: fn(Int) -> Int, v: Int) : Int => f(v);
+def Id = fn<T>(x: T) -> T => x;
+defun apply(f: fn(Int) -> Int, v: Int) -> Int => f(v);
 
 IO::PrintLine(apply(Id, 5) as Text);

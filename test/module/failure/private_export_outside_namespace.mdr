@@ -9,4 +9,4 @@ use Math.Internal.{hidden}
 
 def value = hidden();
 
-defun main() : Int => value;
+defun main() -> Int => value;

@@ -5,16 +5,16 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun make_parent() : fn() -> Int =>
+defun make_parent() -> fn() -> Int =>
 {
 	def value = 0;
-	def child = fn() : Int =>
+	def child = fn() -> Int =>
 	{
 		value = value + 1;
 		value
 	};
 
-	return fn() : Int =>
+	return fn() -> Int =>
 	{
 		def _ = child();
 		value

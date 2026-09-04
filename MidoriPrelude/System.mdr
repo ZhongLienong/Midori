@@ -23,38 +23,38 @@ foreign "MIDORI_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
 foreign "MIDORI_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
-defun Exit(code: Int): Unit => ExitRaw(code);
-defun Sleep(milliseconds: Int): Unit => SleepRaw(milliseconds);
-defun UnknownSystemContext(context: Text, message: Text): Text => {
+defun Exit(code: Int) -> Unit => ExitRaw(code);
+defun Sleep(milliseconds: Int) -> Unit => SleepRaw(milliseconds);
+defun UnknownSystemContext(context: Text, message: Text) -> Text => {
     if message == "" then context else context ++ ": " ++ message
 };
-defun MakeSystemError(context: Text, error_kind: Int): SystemError => {
+defun MakeSystemError(context: Text, error_kind: Int) -> SystemError => {
     def message = GetLastSystemErrorMessageRaw();
     if error_kind == 2 then new SystemError::InvalidDirectory(context) else new SystemError::UnknownSystem(UnknownSystemContext(context, message))
 };
-defun SystemResultFromStatus < T >(context: Text, value: T): Result < T, SystemError > => {
+defun SystemResultFromStatus < T >(context: Text, value: T) -> Result < T, SystemError > => {
     def error_kind = GetLastSystemErrorKindRaw();
     if error_kind == 0 then new Result::Ok < T,
     SystemError >(value) else new Result::Err < T,
     SystemError >(MakeSystemError(context, error_kind))
 };
-defun TryGetEnv(name: Text): Option < Text > => {
+defun TryGetEnv(name: Text) -> Option < Text > => {
     def value = GetEnvRaw(name);
     if GetLastSystemErrorKindRaw() == 0 then new Option::Some < Text >(value) else new Option::None < Text >()
 };
-defun SetEnv(name: Text, value: Text): Result < Unit, SystemError > => {
+defun SetEnv(name: Text, value: Text) -> Result < Unit, SystemError > => {
     SetEnvRaw(name, value);
     SystemResultFromStatus(name, ())
 };
-defun CurrentDirectory(): Result < Text, SystemError > => {
+defun CurrentDirectory() -> Result < Text, SystemError > => {
     def path = GetCurrentDirectoryRaw();
     SystemResultFromStatus("current directory", path)
 };
-defun TrySetCurrentDirectory(path: Text): Result < Unit, SystemError > => {
+defun TrySetCurrentDirectory(path: Text) -> Result < Unit, SystemError > => {
     SetCurrentDirectoryRaw(path);
     SystemResultFromStatus(path, ())
 };
-defun Run(command: Text): Result < ProcessResult, SystemError > => {
+defun Run(command: Text) -> Result < ProcessResult, SystemError > => {
     def exit_code = ExecuteRaw(command);
     def error_kind = GetLastSystemErrorKindRaw();
     if error_kind != 0 then new Result::Err < ProcessResult,
@@ -62,8 +62,8 @@ defun Run(command: Text): Result < ProcessResult, SystemError > => {
     SystemError >(new ProcessResult(exit_code)) else new Result::Err < ProcessResult,
     SystemError >(new SystemError::CommandFailed(exit_code))
 };
-defun CurrentPlatform(): Platform => {
+defun CurrentPlatform() -> Platform => {
     def platform = GetPlatformRaw();
     if platform == "Windows" then new Platform::Windows() else if platform == "macOS" then new Platform::MacOS() else if platform == "Linux" then new Platform::Linux() else if platform == "WebAssembly" then new Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then new Platform::WebAssembly() else new Platform::Unknown(platform)
 };
-defun CurrentProcessId(): Int => GetProcessIdRaw();
+defun CurrentProcessId() -> Int => GetProcessIdRaw();

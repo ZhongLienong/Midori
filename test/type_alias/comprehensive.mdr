@@ -42,7 +42,7 @@ def numbers: IntList = [1, 2, 3, 4, 5];
 IO::PrintLine(numbers[2] as Text);
 
 // Type alias with function parameter type
-defun apply_to_id(id: UserId) : Text =>
+defun apply_to_id(id: UserId) -> Text =>
 {
 	"User ID: " ++ (id as Text)
 };
@@ -50,7 +50,7 @@ defun apply_to_id(id: UserId) : Text =>
 IO::PrintLine(apply_to_id(user_id));
 
 // Type alias with function return type
-defun get_default_id() : UserId => 0;
+defun get_default_id() -> UserId => 0;
 
 def default_id: UserId = get_default_id();
 IO::PrintLine(default_id as Text);

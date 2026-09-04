@@ -7,7 +7,7 @@ struct Box {
 };
 
 instance Countable<Box> {
-    defun Count(box: Box) : Int => #box.values;
+    defun Count(box: Box) -> Int => #box.values;
 };
 
 def box = new Box([1, 2, 3, 4]);

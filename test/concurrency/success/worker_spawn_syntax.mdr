@@ -3,7 +3,7 @@ module worker_spawn_syntax
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun WorkerTask(message: Text) : Int => {
+defun WorkerTask(message: Text) -> Int => {
     if message == "hello" then 42 else 0
 };
 

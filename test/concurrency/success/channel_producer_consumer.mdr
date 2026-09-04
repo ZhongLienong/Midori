@@ -3,7 +3,7 @@ module channel_producer_consumer
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Producer(ch: Channel<Text>, count: Int) : Int => {
+defun Producer(ch: Channel<Text>, count: Int) -> Int => {
     def i = 0;
     loop
     {

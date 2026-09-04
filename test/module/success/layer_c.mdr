@@ -2,4 +2,4 @@
 module LayerC
 public export { calculate }
 
-defun calculate(x: Int) : Int => x * x + x;
+defun calculate(x: Int) -> Int => x * x + x;

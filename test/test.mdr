@@ -3,7 +3,7 @@ import { "../MidoriPrelude/IO.mdr", "../MidoriPrelude/Convertable.mdr"  }
 
 union ListNode<T> = None | Value(T, ListNode<T>);
 
-defun ListToString<T>(List : ListNode<T>) : Text where Convertable<T, Text> =>
+defun ListToString<T>(List : ListNode<T>) -> Text where Convertable<T, Text> =>
     match List with
         case ListNode::None => ""
         case ListNode::Value(Head, Tail) => (Head as Text) ++ ", " ++ ListToString(Tail)

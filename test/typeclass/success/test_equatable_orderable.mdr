@@ -9,12 +9,12 @@ struct Point {
 
 instance Equatable<Point>
 {
-    defun Equals(a: Point, b: Point) : Bool => a.x == b.x && a.y == b.y;
+    defun Equals(a: Point, b: Point) -> Bool => a.x == b.x && a.y == b.y;
 };
 
 instance Orderable<Point>
 {
-    defun Compare(a: Point, b: Point) : Int => {
+    defun Compare(a: Point, b: Point) -> Int => {
         if a.x < b.x then return -1 else
         if a.x > b.x then return 1 else
         if a.y < b.y then return -1 else

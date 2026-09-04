@@ -6,4 +6,4 @@ import
     "layer_a.mdr"
 }
 
-defun main() : Int => LayerA::process(5);
+defun main() -> Int => LayerA::process(5);

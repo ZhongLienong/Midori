@@ -2,7 +2,7 @@ module ModuleQualifiedAccess
 
 import { <IO> }
 
-defun main(): Int => {
+defun main() -> Int => {
     IO::PrintLine("Hello");
     0
 };

@@ -9,9 +9,9 @@ import
 	"../../../MidoriPrelude/IO.mdr"
 }
 
-defun outer() : Unit =>
+defun outer() -> Unit =>
 {
-	def Id = fn<T>(x: T) : T => x;
+	def Id = fn<T>(x: T) -> T => x;
 	IO::PrintLine(Id(1) as Text);
 };
 

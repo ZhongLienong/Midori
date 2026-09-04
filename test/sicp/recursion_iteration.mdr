@@ -6,37 +6,37 @@ import
 }
 
 // factorial linear recursion
-defun factorial_linear_recursion(n : Int) : Int => if n == 1 then 1 else n * factorial_linear_recursion(n - 1);
+defun factorial_linear_recursion(n : Int) -> Int => if n == 1 then 1 else n * factorial_linear_recursion(n - 1);
 
 // factorial iteration
-defun factorial_iteration(n : Int) : Int =>
+defun factorial_iteration(n : Int) -> Int =>
 {
-	defun fact_iter(product : Int, counter : Int) : Int => if counter > n then product else fact_iter(product * counter, counter + 1);
+	defun fact_iter(product : Int, counter : Int) -> Int => if counter > n then product else fact_iter(product * counter, counter + 1);
 	fact_iter(1, 1)
 };
 
 // fibonacci number tree recursion
-defun fib_tree_recursion(n : Int) : Int => if n < 2 then n else fib_tree_recursion(n - 1) + fib_tree_recursion(n - 2);
+defun fib_tree_recursion(n : Int) -> Int => if n < 2 then n else fib_tree_recursion(n - 1) + fib_tree_recursion(n - 2);
 
 // fibonacci iteration
-defun fib_iteration(n : Int) : Int =>
+defun fib_iteration(n : Int) -> Int =>
 {
-	defun fib_iter(a : Int, b : Int, count : Int) : Int => if count == 0 then b else fib_iter(a + b, a, count - 1);
+	defun fib_iter(a : Int, b : Int, count : Int) -> Int => if count == 0 then b else fib_iter(a + b, a, count - 1);
 	fib_iter(1, 0, n)
 };
 
 // exercise 1.11 tree recursion
-defun exercise_111_tree_recursion(n : Int) : Int => if n < 3 then n else exercise_111_tree_recursion(n - 1) + 2 * exercise_111_tree_recursion(n - 2) + 3 * exercise_111_tree_recursion(n - 3);
+defun exercise_111_tree_recursion(n : Int) -> Int => if n < 3 then n else exercise_111_tree_recursion(n - 1) + 2 * exercise_111_tree_recursion(n - 2) + 3 * exercise_111_tree_recursion(n - 3);
 
 // exercise 1.11 iteration
-defun exercise_111_iteration(n : Int) : Int =>
+defun exercise_111_iteration(n : Int) -> Int =>
 {
-	defun exercise_111_iter(a : Int, b : Int, c : Int, count : Int) : Int => if count == 0 then a else exercise_111_iter(a + 2 * b + 3 * c, a, b, count - 1);
+	defun exercise_111_iter(a : Int, b : Int, c : Int, count : Int) -> Int => if count == 0 then a else exercise_111_iter(a + 2 * b + 3 * c, a, b, count - 1);
 	if n < 3 then n else exercise_111_iter(2, 1, 0, n - 2)
 };
 
 // exercise 1.12
-defun pascal_triangle_elem(row : Int, col : Int) : Int => if (col == 1 || row == col) then 1 else pascal_triangle_elem(row - 1, col) + pascal_triangle_elem(row - 1, col - 1);
+defun pascal_triangle_elem(row : Int, col : Int) -> Int => if (col == 1 || row == col) then 1 else pascal_triangle_elem(row - 1, col) + pascal_triangle_elem(row - 1, col - 1);
 
 
 

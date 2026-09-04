@@ -11,7 +11,7 @@ union Expr = Num(Float)
     | Mul(Expr, Expr)
     | Div(Expr, Expr);
 
-defun eval(expr : Expr) : Float =>
+defun eval(expr : Expr) -> Float =>
     match expr with
         case Expr::Num(value) => value
         case Expr::Add(left, right) => eval(left) + eval(right)

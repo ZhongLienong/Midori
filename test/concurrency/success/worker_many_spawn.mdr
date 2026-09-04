@@ -3,7 +3,7 @@ module worker_many_spawn
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun IdentityWorker(ch: Channel<Int>, val: Int) : Int => {
+defun IdentityWorker(ch: Channel<Int>, val: Int) -> Int => {
     ch -> val;
     0
 };

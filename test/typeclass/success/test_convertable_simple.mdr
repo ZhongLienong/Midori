@@ -9,14 +9,14 @@ class Convertable<From, To> {
 
 // Bool -> Int conversion
 instance Convertable<Bool, Int> {
-    defun Convert(value: Bool) : Int => {
+    defun Convert(value: Bool) -> Int => {
         if value then 1 else 0
     };
 };
 
 // Bool -> Text conversion
 instance Convertable<Bool, Text> {
-    defun Convert(value: Bool) : Text => {
+    defun Convert(value: Bool) -> Text => {
         if value then "true" else "false"
     };
 };

@@ -3,7 +3,7 @@ module worker_spawn
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun WorkerTask(msg: Text) : Int => {
+defun WorkerTask(msg: Text) -> Int => {
     42
 };
 

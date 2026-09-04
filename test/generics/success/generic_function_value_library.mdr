@@ -5,4 +5,4 @@ module GenericFunctionValueLibrary
 
 public export { Identity }
 
-defun Identity<T>(x: T) : T => x;
+defun Identity<T>(x: T) -> T => x;

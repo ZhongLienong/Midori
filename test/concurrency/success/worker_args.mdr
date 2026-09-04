@@ -3,7 +3,7 @@ module worker_args
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Greeter(name: Text, greeting: Text) : Int => {
+defun Greeter(name: Text, greeting: Text) -> Int => {
     PrintLine(greeting ++ ", " ++ name ++ "!");
     0
 };

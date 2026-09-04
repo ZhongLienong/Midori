@@ -2,9 +2,9 @@ module ImportAtEnd
 
 // Test: import statement at the very end
 
-defun helper(x: Float): Float => { x * 2.0 };
+defun helper(x: Float) -> Float => { x * 2.0 };
 
-defun main(): Unit => {
+defun main() -> Unit => {
     PrintLine("Result: " ++ (helper(10.0) as Text));
 };
 

@@ -23,7 +23,7 @@ def chained_branch: Int = {
 
 def closure_guard: Int = {
     def x: Int = 1;
-    def get_x: fn() -> Int = fn() : Int => x;
+    def get_x: fn() -> Int = fn() -> Int => x;
     x = 2;
     get_x()
 };
@@ -62,7 +62,7 @@ def comprehension_accumulator: Int = {
 
 def call_mutation_guard: Int = {
     def x: Int = 1;
-    def mutate: fn() -> Unit = fn() : Unit => {
+    def mutate: fn() -> Unit = fn() -> Unit => {
         x = 2;
         ()
     };

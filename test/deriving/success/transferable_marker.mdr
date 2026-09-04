@@ -10,7 +10,7 @@ struct Point
 
 union MaybeValue<T> = Nothing | Just(T) deriving (Transferable);
 
-defun RoundTrip<T>(value: T) : T where Transferable<T> => {
+defun RoundTrip<T>(value: T) -> T where Transferable<T> => {
     value
 };
 

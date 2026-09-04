@@ -3,7 +3,7 @@ module channel_pipeline
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Stage1_Double(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) : Int => {
+defun Stage1_Double(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
     def i = 0;
     loop
     {
@@ -15,7 +15,7 @@ defun Stage1_Double(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) : Int
     0
 };
 
-defun Stage2_AddTen(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) : Int => {
+defun Stage2_AddTen(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
     def i = 0;
     loop
     {

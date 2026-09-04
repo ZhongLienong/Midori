@@ -5,9 +5,9 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun makeAdder(a : Int) : fn(Int) -> fn(Int) -> Int =>
+defun makeAdder(a : Int) -> fn(Int) -> fn(Int) -> Int =>
 {
-  return fn(b : Int) : fn(Int) -> Int => fn(c : Int) : Int => a + b + c;
+  return fn(b : Int) -> fn(Int) -> Int => fn(c : Int) -> Int => a + b + c;
 };
 
 def adder = makeAdder(3)(4);

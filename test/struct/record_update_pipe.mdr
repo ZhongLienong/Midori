@@ -19,13 +19,13 @@ struct Config
 	tls : Bool
 };
 
-defun WithPort(c : Config, p : Int) : Config => { c with port = p };
+defun WithPort(c : Config, p : Int) -> Config => { c with port = p };
 
-defun WithTls(c : Config, t : Bool) : Config => { c with tls = t };
+defun WithTls(c : Config, t : Bool) -> Config => { c with tls = t };
 
-defun WithHost(c : Config, h : Text) : Config => { c with host = h };
+defun WithHost(c : Config, h : Text) -> Config => { c with host = h };
 
-defun Describe(c : Config) : Text =>
+defun Describe(c : Config) -> Text =>
 {
 	c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls then "on" else "off")
 };
@@ -44,16 +44,16 @@ IO::PrintLine("rehosted: " ++ Describe(rehosted));
 
 // A record update in function-body position still runs through the postfix chain, so it
 // can be projected immediately - the same as it behaves in expression position.
-defun PortAfterBump(c : Config) : Int => { c with port = c.port + 1 }.port;
+defun PortAfterBump(c : Config) -> Int => { c with port = c.port + 1 }.port;
 
 IO::PrintLine("bumped port: " ++ (PortAfterBump(base) as Text));
 
 // The block fast path is unchanged: `fn() => {}()` must still parse the call separately
 // rather than swallowing the parens into the body.
-def unit_maker = fn() : Unit => {};
+def unit_maker = fn() -> Unit => {};
 unit_maker();
 
-def block_bodied = fn() : Int =>
+def block_bodied = fn() -> Int =>
 {
 	def local = 3;
 	local * 3

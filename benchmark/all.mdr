@@ -7,11 +7,11 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun TestPrimeNumbers() : Unit =>
+defun TestPrimeNumbers() -> Unit =>
 {
-	defun IsPrime(n : Int) : Bool =>
+	defun IsPrime(n : Int) -> Bool =>
 	{
-		defun IsPrimeHelper(n : Int, divisor : Int) : Bool =>
+		defun IsPrimeHelper(n : Int, divisor : Int) -> Bool =>
 		{
 			if divisor * divisor > n
 			then true
@@ -51,9 +51,9 @@ defun TestPrimeNumbers() : Unit =>
 	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestFib(n : Int) : Unit =>
+defun TestFib(n : Int) -> Unit =>
 {
-	defun fib(n : Int) : Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
+	defun fib(n : Int) -> Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
 	def start = DateTime::NowUnixMillis();
 
@@ -64,7 +64,7 @@ defun TestFib(n : Int) : Unit =>
 	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestStringManipulation() : Unit =>
+defun TestStringManipulation() -> Unit =>
 {
     def start = DateTime::NowUnixMillis();
 
@@ -86,10 +86,10 @@ defun TestStringManipulation() : Unit =>
     IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestParenthesisGeneration(max_len : Int) : Unit =>
+defun TestParenthesisGeneration(max_len : Int) -> Unit =>
 {
     def output : Array<Text> = [];
-    defun BackTrack(len : Int, left : Int, right : Int, acc : Text) : Unit =>
+    defun BackTrack(len : Int, left : Int, right : Int, acc : Text) -> Unit =>
     {
 		if left < right
 		then
@@ -129,9 +129,9 @@ defun TestParenthesisGeneration(max_len : Int) : Unit =>
     IO::PrintLine("Parenthesis generation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestAckermann(m : Int, n : Int) : Unit =>
+defun TestAckermann(m : Int, n : Int) -> Unit =>
 {
-	defun Ackermann(m : Int, n : Int) : Int =>
+	defun Ackermann(m : Int, n : Int) -> Int =>
 	{
 		if m == 0
 		then n + 1
@@ -152,9 +152,9 @@ defun TestAckermann(m : Int, n : Int) : Unit =>
 	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestSorting(size : Int) : Unit =>
+defun TestSorting(size : Int) -> Unit =>
 {
-	defun QuickSort(arr : Array<Int>, len : Int) : Array<Int> =>
+	defun QuickSort(arr : Array<Int>, len : Int) -> Array<Int> =>
 	{
 		if len <= 1
 		then arr
@@ -228,9 +228,9 @@ defun TestSorting(size : Int) : Unit =>
 	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
 };
 
-defun TestBinarySearch(array_size : Int, num_searches : Int) : Unit =>
+defun TestBinarySearch(array_size : Int, num_searches : Int) -> Unit =>
 {
-	defun BinarySearch(arr : Array<Int>, target : Int, low : Int, high : Int) : Int =>
+	defun BinarySearch(arr : Array<Int>, target : Int, low : Int, high : Int) -> Int =>
 	{
 		if low > high
 		then -1

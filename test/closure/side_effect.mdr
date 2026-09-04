@@ -5,10 +5,10 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-def makeCounter = fn() : fn() -> Int =>
+def makeCounter = fn() -> fn() -> Int =>
 {
 	def privateCounter = 0;
-	fn() : Int => { privateCounter = privateCounter + 1; privateCounter }
+	fn() -> Int => { privateCounter = privateCounter + 1; privateCounter }
 };
 
 def counter = makeCounter();

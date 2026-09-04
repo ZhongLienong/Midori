@@ -1,5 +1,5 @@
 module WarningUnused
-defun main(): Int => {
+defun main() -> Int => {
 def used = 0;
 def unused = 2;
 used

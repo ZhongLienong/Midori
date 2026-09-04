@@ -3,7 +3,7 @@ module channel_basic
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Producer(ch: Channel<Text>) : Int => {
+defun Producer(ch: Channel<Text>) -> Int => {
     ch -> "message1";
     ch -> "message2";
     ch -> "done";

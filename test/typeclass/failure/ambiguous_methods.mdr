@@ -14,20 +14,20 @@ class Debug<T> {
 };
 
 instance Show<Int> {
-    defun display(value: Int) : Text => {
+    defun display(value: Int) -> Text => {
         return "Show: " ++ (value as Text);
     };
 };
 
 instance Debug<Int> {
-    defun display(value: Int) : Text => {
+    defun display(value: Int) -> Text => {
         return "Debug: " ++ (value as Text);
     };
 };
 
 // ERROR: Function with BOTH constraints - which display?
 // With qualified class methods required, unqualified access is rejected.
-defun print_both<T>(x: T) : Text where Show<T>, Debug<T> => {
+defun print_both<T>(x: T) -> Text where Show<T>, Debug<T> => {
     return display(x);  // Error: unqualified class method
 };
 

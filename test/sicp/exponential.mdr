@@ -5,11 +5,11 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun fast_expt(x : Int, n : Int) : Int =>
+defun fast_expt(x : Int, n : Int) -> Int =>
 {
-	defun is_even(x : Int) : Bool => x % 2 == 0;
+	defun is_even(x : Int) -> Bool => x % 2 == 0;
 
-	defun fast_expt_iter(acc_odd : Int, acc_even : Int, count : Int) : Int =>
+	defun fast_expt_iter(acc_odd : Int, acc_even : Int, count : Int) -> Int =>
 	{
 		if count == 0 
 		then acc_odd

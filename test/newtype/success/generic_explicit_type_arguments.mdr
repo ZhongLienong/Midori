@@ -7,6 +7,6 @@ module NewtypeGenericExplicitTypeArguments
 // "Type argument count mismatch: expected 0, got 1".
 type Boxed<T> = Array<T>;
 
-defun Identity(x: Boxed<Int>) : Boxed<Int> => x;
+defun Identity(x: Boxed<Int>) -> Boxed<Int> => x;
 
 def identity_fn = Identity;

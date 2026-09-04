@@ -9,14 +9,14 @@ struct Box<T> where Show<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) : Text => {
+    defun show(value: Int) -> Text => {
         return value as Text;
     };
 };
 
-defun MakeBox<T>(value: T) : Box<T> => new Box<T>(value);
+defun MakeBox<T>(value: T) -> Box<T> => new Box<T>(value);
 
-defun ShowBox<T>(box: Box<T>) : Text => {
+defun ShowBox<T>(box: Box<T>) -> Text => {
     return Show::show(box.value);
 };
 

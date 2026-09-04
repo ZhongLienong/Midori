@@ -10,7 +10,7 @@ import
 	"../../../MidoriPrelude/IO.mdr"
 }
 
-def Depth = fn<T>(x: T, n: Int) : Int => if n <= 0 then 0 else 1 + Depth(x, n - 1);
+def Depth = fn<T>(x: T, n: Int) -> Int => if n <= 0 then 0 else 1 + Depth(x, n - 1);
 
 IO::PrintLine(Depth("a", 3) as Text);
 IO::PrintLine(Depth(7, 5) as Text);

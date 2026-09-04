@@ -6,7 +6,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun fib_tail(n : Int, a : Int, b : Int) : Int =>
+defun fib_tail(n : Int, a : Int, b : Int) -> Int =>
 {
 	if n == 0
 	then a

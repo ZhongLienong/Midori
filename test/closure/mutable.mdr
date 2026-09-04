@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-def x = fn(y : Int) : fn(Int) -> Int => fn(z : Int) : Int => { y = y - 1; y + z };
+def x = fn(y : Int) -> fn(Int) -> Int => fn(z : Int) -> Int => { y = y - 1; y + z };
 
 def f = x(5);
 

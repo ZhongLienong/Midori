@@ -6,13 +6,13 @@ import
 	"../../MidoriPrelude/IO.mdr"
 }
 
-defun Main() : Unit =>
+defun Main() -> Unit =>
 {
 	def seed = 0;
-	def counter = fn(delta : Int) : Int => { seed = seed + delta; seed };
+	def counter = fn(delta : Int) -> Int => { seed = seed + delta; seed };
 
 	def last = "tracker-initial";
-	def tracker = fn(t : Text) : Text => { if t == "" then last else { last = t; last } };
+	def tracker = fn(t : Text) -> Text => { if t == "" then last else { last = t; last } };
 
 	def keeper : Array<Text> = [];
 	def init = 0;

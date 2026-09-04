@@ -3,7 +3,7 @@ module value_transfer_text
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun TextWorker(ch : Channel<Text>) : Int =>
+defun TextWorker(ch : Channel<Text>) -> Int =>
 {
     ch -> "hello world";
     ch -> "";

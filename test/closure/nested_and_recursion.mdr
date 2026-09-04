@@ -5,12 +5,12 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-def createCounter = fn(initial : Int) : fn(Int) -> fn() -> Int =>
+def createCounter = fn(initial : Int) -> fn(Int) -> fn() -> Int =>
 {
-  def counter = fn(value : Int) : fn() -> Int =>
+  def counter = fn(value : Int) -> fn() -> Int =>
   {
     initial = initial + value;
-    fn() : Int => initial
+    fn() -> Int => initial
   };
   counter
 };

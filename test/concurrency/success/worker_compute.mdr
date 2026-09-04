@@ -3,7 +3,7 @@ module worker_compute
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun SumRange(ch: Channel<Int>, start: Int, end_val: Int) : Int => {
+defun SumRange(ch: Channel<Int>, start: Int, end_val: Int) -> Int => {
     def sum = 0;
     def i = start;
     loop

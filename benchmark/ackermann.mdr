@@ -6,7 +6,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun Ackermann(m : Int, n : Int) : Int =>
+defun Ackermann(m : Int, n : Int) -> Int =>
 {
 	if m == 0
 	then n + 1

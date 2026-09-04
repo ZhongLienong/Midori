@@ -3,17 +3,17 @@ module shared_bytecode
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Adder(ch: Channel<Int>, a: Int, b: Int) : Int => {
+defun Adder(ch: Channel<Int>, a: Int, b: Int) -> Int => {
     ch -> (a + b);
     0
 };
 
-defun Multiplier(ch: Channel<Int>, a: Int, b: Int) : Int => {
+defun Multiplier(ch: Channel<Int>, a: Int, b: Int) -> Int => {
     ch -> (a * b);
     0
 };
 
-defun Squarer(ch: Channel<Int>, x: Int) : Int => {
+defun Squarer(ch: Channel<Int>, x: Int) -> Int => {
     ch -> (x * x);
     0
 };

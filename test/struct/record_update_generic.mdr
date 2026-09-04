@@ -25,9 +25,9 @@ struct Bag<T>
 };
 
 // The record update here is inside a generic function, typed against Bag<T>.
-defun WithTag<T>(b : Bag<T>, t : Int) : Bag<T> => { b with tag = t };
+defun WithTag<T>(b : Bag<T>, t : Int) -> Bag<T> => { b with tag = t };
 
-defun WithItems<T>(b : Bag<T>, xs : Array<T>) : Bag<T> => { b with items = xs };
+defun WithItems<T>(b : Bag<T>, xs : Array<T>) -> Bag<T> => { b with items = xs };
 
 def ints = new Bag([1, 2, 3], 7);
 def texts = new Bag(["a", "b"], 1);

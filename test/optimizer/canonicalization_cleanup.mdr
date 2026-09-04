@@ -8,22 +8,22 @@ struct Point
     y : Int
 };
 
-defun grouped_value(value: Int) : Int => (((value)));
-defun unary_plus_value(value: Int) : Int => +(+value);
-defun double_negative_value(value: Int) : Int => -(-value);
-defun double_not_value(flag: Bool) : Bool => !(!flag);
-defun and_left_identity(flag: Bool) : Bool => true && flag;
-defun and_right_identity(flag: Bool) : Bool => flag && true;
-defun or_left_identity(flag: Bool) : Bool => false || flag;
-defun or_right_identity(flag: Bool) : Bool => flag || false;
-defun shift_identity(value: Int) : Int => value << 0;
-defun bitor_identity(value: Int) : Int => value | 0;
-defun xor_identity(value: Int) : Int => value ^ 0;
-defun text_left_identity(value: Text) : Text => "" ++ value;
-defun text_right_identity(value: Text) : Text => value ++ "";
-defun array_left_identity(values: Array<Int>) : Array<Int> => [] ++ values;
-defun array_right_identity(values: Array<Int>) : Array<Int> => values ++ [];
-defun point_x(point: Point) : Int => (point as Point).x;
+defun grouped_value(value: Int) -> Int => (((value)));
+defun unary_plus_value(value: Int) -> Int => +(+value);
+defun double_negative_value(value: Int) -> Int => -(-value);
+defun double_not_value(flag: Bool) -> Bool => !(!flag);
+defun and_left_identity(flag: Bool) -> Bool => true && flag;
+defun and_right_identity(flag: Bool) -> Bool => flag && true;
+defun or_left_identity(flag: Bool) -> Bool => false || flag;
+defun or_right_identity(flag: Bool) -> Bool => flag || false;
+defun shift_identity(value: Int) -> Int => value << 0;
+defun bitor_identity(value: Int) -> Int => value | 0;
+defun xor_identity(value: Int) -> Int => value ^ 0;
+defun text_left_identity(value: Text) -> Text => "" ++ value;
+defun text_right_identity(value: Text) -> Text => value ++ "";
+defun array_left_identity(values: Array<Int>) -> Array<Int> => [] ++ values;
+defun array_right_identity(values: Array<Int>) -> Array<Int> => values ++ [];
+defun point_x(point: Point) -> Int => (point as Point).x;
 
 def input_true: Bool = true;
 def input_false: Bool = false;

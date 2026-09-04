@@ -10,19 +10,19 @@ import
 
 use Option.{Option}
 
-defun Expect(condition: Bool, message: Text) : Unit => {
+defun Expect(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectSomeInt(result: Option<Int>, expected: Int, message: Text) : Unit => {
+defun ExpectSomeInt(result: Option<Int>, expected: Int, message: Text) -> Unit => {
     match result with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)
 };
 
-defun ExpectNoneInt(result: Option<Int>, message: Text) : Unit => {
+defun ExpectNoneInt(result: Option<Int>, message: Text) -> Unit => {
     match result with
         case Option::Some(_) => Panic::Panic(message)
         case Option::None() => ()

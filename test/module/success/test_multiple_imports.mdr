@@ -8,10 +8,10 @@ import
 }
 
 // Access symbols from different modules
-defun test_multiple() : Int => {
+defun test_multiple() -> Int => {
     def math_result = Math::add(5, 3);
     def utils_result = StringUtils::double(10);
     Math::multiply(math_result, utils_result)
 };
 
-defun main() : Int => test_multiple();
+defun main() -> Int => test_multiple();

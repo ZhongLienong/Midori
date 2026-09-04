@@ -9,7 +9,7 @@ struct Pair
     B : Int,
 };
 
-defun AllocHeavyWorker(ch: Channel<Int>, count: Int) : Int => {
+defun AllocHeavyWorker(ch: Channel<Int>, count: Int) -> Int => {
     def sum = 0;
     def i = 0;
     loop
