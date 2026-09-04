@@ -81,3 +81,38 @@ TEST_CASE("A self-referential newtype's ToString recursion guard preserves nomin
 	REQUIRE(seconds->ToString() == "Seconds<Seconds>");
 	REQUIRE(meters->ToString() != seconds->ToString());
 }
+
+TEST_CASE("Substituting a newtype's parameter rewrites its representation", "[type]")
+{
+	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
+	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+
+	const std::shared_ptr<MidoriType> instantiated = MidoriType::SubstituteTypeParams(boxed, substitutions);
+
+	REQUIRE(instantiated->IsType<MidoriType::NewType>());
+
+	const MidoriType::NewType& result = instantiated->GetType<MidoriType::NewType>();
+	REQUIRE(result.m_name == "Boxed");
+	REQUIRE(result.m_representation->IsType<MidoriType::ArrayType>());
+	REQUIRE(result.m_representation->GetType<MidoriType::ArrayType>().m_element_type->IsType<MidoriType::IntegerType>());
+}
+
+TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "[type]")
+{
+	// Trap 1: since e730762, SubstituteTypeParams with an empty map is not the
+	// identity for StructType - it rebuilds with m_generic_params cleared. The
+	// NewType arm must not inherit that behaviour.
+	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
+	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+
+	const std::unordered_map<std::string, std::shared_ptr<MidoriType>> empty;
+	const std::shared_ptr<MidoriType> result = MidoriType::SubstituteTypeParams(boxed, empty);
+
+	REQUIRE(result->IsType<MidoriType::NewType>());
+	REQUIRE(result->GetType<MidoriType::NewType>().m_generic_params == std::vector<std::string>{"T"});
+}

@@ -150,6 +150,34 @@ namespace
 
 				return new_union_type;
 			}
+			else if constexpr (std::is_same_v<T, MidoriType::NewType>)
+			{
+				std::vector<std::string> preserved_generic_params = type_variant.m_generic_params;
+				TypePtr new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_representation, std::move(preserved_generic_params));
+				cache[current_type.get()] = new_newtype;
+
+				MidoriType::NewType& new_ref = new_newtype->GetType<MidoriType::NewType>();
+				new_ref.m_representation = substitute(type_variant.m_representation);
+
+				std::vector<MidoriType::ClassConstraint> new_constraints;
+				new_constraints.reserve(type_variant.m_constraints.size());
+				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+				{
+					std::vector<TypePtr> new_type_args;
+					new_type_args.reserve(constraint.m_type_args.size());
+					std::ranges::transform(constraint.m_type_args, std::back_inserter(new_type_args), substitute);
+					new_constraints.emplace_back(constraint.m_class_name, std::move(new_type_args));
+				}
+				new_ref.m_constraints = std::move(new_constraints);
+
+				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+				{
+					new_ref.m_is_generic_instantiation = true;
+					new_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
+				}
+
+				return new_newtype;
+			}
 			else if constexpr (std::is_same_v<T, MidoriType::AssociatedType>)
 			{
 				std::vector<TypePtr> new_type_args;
