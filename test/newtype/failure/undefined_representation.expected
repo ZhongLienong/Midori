@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/newtype/failure/undefined_representation.mdr:8
+  |
+8 | type Bad = UnknownRepresentation;
+  |            ^^^^^^^^^^^^^^^^^^^^^ Undefined struct or union.
+  |

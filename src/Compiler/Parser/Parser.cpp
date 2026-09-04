@@ -3348,8 +3348,23 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 bool Parser::TypeBodyHasTopLevelBar()
 {
 	// Bounded scan from the current token to the depth-0 ';' that ends the
-	// declaration, following the ProbeArrayComprehension precedent. A depth-0
-	// '|' means a sum; anything else is a newtype over a type expression.
+	// declaration, capped by MAX_ARRAY_SIZE and bailing out as soon as any
+	// depth counter would go negative, following the ProbeArrayComprehension
+	// and ProbeRecordUpdate precedent: unlike those, this scan has no closing
+	// delimiter of its own to bound it, so both guards are needed to keep a
+	// malformed declaration from running this to true EOF. A depth-0 '|'
+	// means a sum; anything else is a newtype over a type expression.
+	//
+	// The lexer merges adjacent '>' characters into one RIGHT_SHIFT token
+	// (e.g. the '>>' closing Array<Array<Int>>), so RIGHT_SHIFT closes two
+	// angle-bracket levels here, mirroring how ConsumeTypeRightAngle later
+	// splits that same token into two synthetic RIGHT_ANGLE tokens when the
+	// real type parser consumes it. LEFT_SHIFT gets no symmetric treatment:
+	// two '<' are never adjacent in well-formed type syntax (every '<' that
+	// opens a type argument list is preceded by a type name), and ParseType
+	// has no LEFT_SHIFT-splitting counterpart to ConsumeTypeRightAngle, so
+	// treating '<<' as two opens here would only desynchronize this probe
+	// from what the real parser does with it.
 	int paren_depth = 0;
 	int angle_depth = 0;
 	int brace_depth = 0;
@@ -3375,6 +3390,10 @@ bool Parser::TypeBodyHasTopLevelBar()
 		{
 			angle_depth -= 1;
 		}
+		else if (token_name == Token::Name::RIGHT_SHIFT)
+		{
+			angle_depth -= 2;
+		}
 		else if (token_name == Token::Name::LEFT_BRACE)
 		{
 			brace_depth += 1;
@@ -3392,6 +3411,11 @@ bool Parser::TypeBodyHasTopLevelBar()
 			bracket_depth -= 1;
 		}
 
+		if (paren_depth < 0 || angle_depth < 0 || brace_depth < 0 || bracket_depth < 0)
+		{
+			return false;
+		}
+
 		const bool at_top_level = paren_depth == 0 && angle_depth == 0 && brace_depth == 0 && bracket_depth == 0;
 
 		if (at_top_level && token_name == Token::Name::SINGLE_SEMICOLON)
@@ -3402,6 +3426,11 @@ bool Parser::TypeBodyHasTopLevelBar()
 		if (at_top_level && token_name == Token::Name::SINGLE_BAR)
 		{
 			return true;
+		}
+
+		if (offset > MAX_ARRAY_SIZE)
+		{
+			return false;
 		}
 	}
 
@@ -3428,6 +3457,7 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
 
 	std::shared_ptr<MidoriType> new_type = MidoriType::MakeNewType(header.m_name.m_lexeme, representation, std::move(generic_param_names));
+	new_type->GetType<MidoriType::NewType>().m_constraints = header.m_constraints;
 
 	if (header.m_has_generic_params)
 	{
@@ -5478,6 +5508,17 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									else if (base_type->IsType<MidoriType::UnionType>())
 									{
 										generic_params = base_type->GetType<MidoriType::UnionType>().m_generic_params;
+									}
+									else if (base_type->IsType<MidoriType::NewType>())
+									{
+										// A newtype is not transparent like an alias: it carries its own
+										// m_generic_params (Task 2's substitution arm deliberately
+										// preserves them), spelled with the newtype's own parameter
+										// names, so the base type can be read directly here exactly as
+										// for struct and union. No alias_generic_params side table is
+										// needed because there is no separate "expansion" whose params
+										// could differ from the declaration's own.
+										generic_params = base_type->GetType<MidoriType::NewType>().m_generic_params;
 									}
 
 									if (type_args.size() != generic_params.size())

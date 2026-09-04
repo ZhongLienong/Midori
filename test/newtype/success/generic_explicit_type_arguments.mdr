@@ -1,0 +1,12 @@
+module NewtypeGenericExplicitTypeArguments
+
+// Regression: ParseNewTypeBody never made a generic newtype's own generic
+// parameters visible to the type-argument resolver (the alias_generic_params
+// side table stays empty for newtypes), so any explicit type argument on the
+// newtype's name -- Boxed<Int> below -- failed to parse with a misleading
+// "Type argument count mismatch: expected 0, got 1".
+type Boxed<T> = Array<T>;
+
+defun Identity(x: Boxed<Int>) : Boxed<Int> => x;
+
+def identity_fn = Identity;

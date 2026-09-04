@@ -1,0 +1,8 @@
+module NewtypeUndefinedRepresentation
+
+// Test: a newtype whose right-hand side names a type that does not exist.
+// Expected: a diagnostic on the unresolved representation, not the
+// misleading "Expected ';' after union body" a mis-dispatch to
+// ParseUnionBody would have produced.
+
+type Bad = UnknownRepresentation;

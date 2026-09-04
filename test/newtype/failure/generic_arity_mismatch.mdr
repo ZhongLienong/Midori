@@ -1,0 +1,10 @@
+module NewtypeGenericArityMismatch
+
+// Test: too many explicit type arguments for a generic newtype.
+// Expected: a diagnostic naming the expected and actual argument counts,
+// exercising the resolver's NewType arm (Critical 2's fix) rather than
+// treating a generic newtype as arity-0 like an unregistered alias would.
+
+type Boxed<T> = Array<T>;
+
+def x: Boxed<Int, Text> = [1];
