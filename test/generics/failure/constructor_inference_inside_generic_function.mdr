@@ -1,0 +1,22 @@
+module ConstructorInferenceInsideGenericFunction
+
+// Being inside a generic function is not a licence to leave a construction ambiguous.
+// `Bag<T>` is fine there because T is owned by `Hold`, but `Option::None` introduces a
+// type variable of its own that nothing pins, so it is still an inference failure.
+
+struct Bag<T>
+{
+	items : Array<T>,
+	tag : Int
+};
+
+union Option<T> = Some(T) | None;
+
+defun Hold<T>(xs : Array<T>) -> Bag<T> =>
+{
+	def owned = new Bag(xs, 0);
+	def unowned = new Option::None();
+	owned
+};
+
+def held = Hold([1, 2]);

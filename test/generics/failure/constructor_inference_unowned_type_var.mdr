@@ -1,0 +1,15 @@
+module ConstructorInferenceUnownedTypeVar
+
+// A construction is ambiguous when its residual type variable belongs to no enclosing
+// generic definition. `Id` is freshened at this call site, so the type variable that
+// `Option::None` unifies against is invented here and nothing will ever decide it.
+//
+// This is the boundary case for the relaxed guard in
+// TypeChecker::operator()(MidoriExpression::Construct&): admitting the expected type of
+// the expression itself into the set of owned type variables would let this compile.
+
+union Option<T> = Some(T) | None;
+
+defun Id<T>(x : T) -> T => x;
+
+def unresolved = Id(new Option::None());

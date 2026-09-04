@@ -1,0 +1,9 @@
+ints: 1 tag 7
+texts: b tag 9
+block: 20 p
+pair: 5/five x/letter
+some_int: 41
+some_text: wrapped
+retagged: 99 42
+original tag untouched: 7
+nested: 3 a 7

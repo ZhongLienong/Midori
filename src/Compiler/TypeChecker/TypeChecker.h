@@ -156,6 +156,8 @@ private:
 
 	FresheningContext MakeLambdaFresheningContext();
 
+	std::unordered_set<int> CollectEnclosingTypeVariableIds();
+
 	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);

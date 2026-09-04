@@ -2286,6 +2286,47 @@ TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 	return context;
 }
 
+// The type variables an enclosing generic definition owns: everything reachable from the
+// names currently in scope (its generic parameter bindings and its own parameters), from
+// the class constraints in force, and from the return type being checked against. Each of
+// those is pinned when that definition is monomorphised at a call site, so a variable left
+// over in one of them is not an inference failure. A variable that appears in none of them
+// was invented locally and nothing will ever decide it.
+//
+// Deliberately excludes m_expected_expr_type: that is the type demanded of the expression
+// being checked, and it has already been unified into that expression's own type, so
+// feeding it back in would let an expression vouch for itself.
+std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
+{
+	std::unordered_set<int> enclosing_type_vars;
+
+	for (const TypeEnvironment& scope : m_name_type_table)
+	{
+		for (const auto& [_, bound_type] : scope)
+		{
+			std::unordered_set<int> scope_type_vars = CollectTypeVariableIds(ApplySubstitution(bound_type));
+			enclosing_type_vars.insert(scope_type_vars.cbegin(), scope_type_vars.cend());
+		}
+	}
+
+	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	{
+		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		{
+			std::unordered_set<int> constraint_type_vars = CollectTypeVariableIds(ApplySubstitution(type_arg));
+			enclosing_type_vars.insert(constraint_type_vars.cbegin(), constraint_type_vars.cend());
+		}
+	}
+
+	if (m_expected_return_type != nullptr)
+	{
+		std::unordered_set<int> expected_return_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_return_type));
+		enclosing_type_vars.insert(expected_return_type_vars.cbegin(), expected_return_type_vars.cend());
+	}
+
+	return enclosing_type_vars;
+}
+
 std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type)
 {
 	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
@@ -5935,32 +5976,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		function.m_return_type = inferred_type.m_return_type;
 	}
 
-	std::unordered_set<int> outer_visible_type_vars;
-	for (const TypeEnvironment& scope : m_name_type_table)
-	{
-		for (const auto& [_, bound_type] : scope)
-		{
-			std::unordered_set<int> scope_type_vars = CollectTypeVariableIds(ApplySubstitution(bound_type));
-			outer_visible_type_vars.insert(scope_type_vars.cbegin(), scope_type_vars.cend());
-		}
-	}
-	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-	{
-		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-		{
-			std::unordered_set<int> constraint_type_vars = CollectTypeVariableIds(ApplySubstitution(type_arg));
-			outer_visible_type_vars.insert(constraint_type_vars.cbegin(), constraint_type_vars.cend());
-		}
-	}
+	// Collected before the lambda's own scope is pushed, so its parameters - the very
+	// things this visitor has to infer - are not in the set.
+	std::unordered_set<int> outer_visible_type_vars = CollectEnclosingTypeVariableIds();
 	if (m_expected_expr_type != nullptr)
 	{
 		std::unordered_set<int> expected_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_expr_type));
 		outer_visible_type_vars.insert(expected_type_vars.cbegin(), expected_type_vars.cend());
-	}
-	if (m_expected_return_type != nullptr)
-	{
-		std::unordered_set<int> expected_return_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_return_type));
-		outer_visible_type_vars.insert(expected_return_type_vars.cbegin(), expected_return_type_vars.cend());
 	}
 
 	std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
@@ -6133,14 +6155,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (HasTypeVariables(construct.m_type_data))
 	{
-		return std::unexpected(
-			MidoriError::GenerateTypeCheckerErrorWithContext(
-				std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
-				construct.m_data_name,
-				m_file_name,
-				m_source_lines
-			)
+		// Inside a generic definition the declared types have already been freshened, so
+		// `new Bag(xs, t)` in `defun MakeBag<T>(xs : Array<T>, t : Int) -> Bag<T>` infers
+		// Bag<T0> for a type variable T0 that stands for T. That is fully inferred, not
+		// ambiguous - the enclosing definition owns T0 and monomorphisation decides it at
+		// each call site. Only a variable that no enclosing definition owns is ambiguous.
+		std::unordered_set<int> enclosing_type_vars = CollectEnclosingTypeVariableIds();
+		std::unordered_set<int> unresolved_type_vars = CollectTypeVariableIds(construct.m_type_data);
+
+		bool only_enclosing_type_vars_remain = std::ranges::all_of
+		(
+			unresolved_type_vars,
+			[&enclosing_type_vars](int type_var_id) { return enclosing_type_vars.contains(type_var_id); }
 		);
+
+		if (!only_enclosing_type_vars_remain)
+		{
+			return std::unexpected(
+				MidoriError::GenerateTypeCheckerErrorWithContext(
+					std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
+					construct.m_data_name,
+					m_file_name,
+					m_source_lines
+				)
+			);
+		}
 	}
 
 	// Mark as generic instantiation if this was a generic struct/union
@@ -6218,12 +6257,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 		}
 	}
 
-	// The result is the source's own already-resolved type. Deliberately NOT routed
-	// through Construct: Construct types itself by looking the constructor function up by
-	// name and freshening it, then demands that every type argument be inferable. Inside a
-	// generic function that fails - `new Bag(b.items, t)` in `defun Retag<T>(b : Bag<T>,
-	// t : Int) : Bag<T>` reports "could not infer all type arguments for 'Bag'" - whereas
-	// taking the type from the source works. See test/struct/record_update_generic.mdr.
+	// The result is the source's own already-resolved type, so no inference is needed here
+	// at all. Construct instead looks the constructor function up by name, freshens it and
+	// infers the type arguments from the supplied members; that also works inside a generic
+	// function - `new Bag(b.items, t)` in `defun Retag<T>(b : Bag<T>, t : Int) -> Bag<T>`
+	// infers Bag<T0>, a type variable the enclosing function owns. See
+	// test/generics/success/generic_construction_in_generic_function.mdr.
 	record_update.m_type_data = source_type;
 	return record_update.m_type_data;
 }

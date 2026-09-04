@@ -543,10 +543,10 @@ public:
 	};
 
 	// `{ source with field = value, other = value }` - a copy of `source` with those
-	// fields replaced. Deliberately NOT lowered to a Construct node: Construct types
-	// itself by looking up the constructor function and freshening it, which fails
-	// inside a generic function (TypeChecker "could not infer all type arguments").
-	// A record update instead takes its type from the already-resolved source.
+	// fields replaced. Kept as its own node because it names only the fields it changes:
+	// lowering it to a Construct would mean rebuilding the full argument list, and every
+	// unmentioned field would have to be re-read from the source by name.
+	// A record update takes its type from the already-resolved source.
 	struct RecordUpdate : BaseExpression
 	{
 		struct FieldUpdate

@@ -1,17 +1,12 @@
 module RecordUpdateGeneric
 
-// Record update works on a generic struct, including from inside a generic function -
-// where `new` does NOT.
+// Record update works on a generic struct, including from inside a generic function.
 //
 // A record update takes its type straight from the already-resolved source, whose member
-// types are concrete at that point. Construct instead looks the constructor function up
-// by name, freshens it, and then requires every type argument to be inferable. Rewriting
-// `{ b with tag = t }` below as `new Bag(b.items, t)` fails to compile with
-//
-//   Construct expression type error: could not infer all type arguments for 'Bag'
-//
-// so DO NOT "simplify" record update into a Construct node - it would reintroduce that
-// failure. See MidoriExpression::RecordUpdate in AbstractSyntaxTree.h.
+// types are concrete at that point. `new Bag(b.items, t)` also works here - see
+// test/generics/success/generic_construction_in_generic_function.mdr - but a record
+// update names only the fields it changes and copies the rest, which is the point of
+// keeping it as its own node. See MidoriExpression::RecordUpdate in AbstractSyntaxTree.h.
 
 import
 {
