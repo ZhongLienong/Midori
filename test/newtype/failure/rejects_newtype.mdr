@@ -1,0 +1,7 @@
+module NewtypeRejectsNewtype
+
+type Meters = Int;
+
+defun TakesInt(value: Int) : Int => value;
+
+defun Leak(distance: Meters) : Int => TakesInt(distance);
