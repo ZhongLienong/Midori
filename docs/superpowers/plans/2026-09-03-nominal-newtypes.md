@@ -369,6 +369,16 @@ In `SubstitutionVisitor::operator()`, after the `UnionType` arm, add:
 
 Note the deliberate difference from the `StructType` arm: `m_generic_params` is **preserved**, not cleared. Trap 1.
 
+> **Interaction discovered during execution — this bit, and it was a bug in this plan.**
+>
+> Preserving `m_generic_params` is correct, but it collides with the branch order of Task 1's `ToString` arm, which tests `!m_generic_params.empty()` *first* and renders the **parameter names**. A substituted `Boxed<Int>` therefore still carried `m_generic_params == {"T"}` and rendered `"Boxed<T>"` — and so did `Boxed<Text>`. Since `InstanceKey` and `MangleInstanceMethodName` are keyed on `ToString`, two distinct instantiations collapsed into one instance slot: a silent wrong-instance bug, in exactly the mechanism this feature exists to protect.
+>
+> `StructType` and `UnionType` never hit this because they *clear* `m_generic_params` on substitution — the very behaviour trap 1 says not to copy. Both halves of that advice were right individually and wrong together.
+>
+> **Fix:** reorder the `ToString` arm so the `m_is_generic_instantiation && !m_type_arguments.empty()` branch is tested *before* the `m_generic_params` branch. All three states then render correctly: an un-substituted declaration falls through to the names branch, an empty-map substitution renders `Boxed<T>`, and a real instantiation renders `Boxed<Int>`.
+>
+> **Lesson for the remaining tasks:** a test that only asserts on struct *fields* (as the two tests in this task originally did) will not catch a rendering bug. Where `ToString` is the load-bearing property, assert on `ToString` — and assert that two different instantiations render *differently*, not merely that one renders correctly.
+
 - [ ] **Step 4: Run to verify it passes**
 
 ```powershell
