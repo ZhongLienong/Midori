@@ -361,6 +361,24 @@ namespace
 					return type_variant.m_name;
 				}
 			}
+			else if constexpr (std::is_same_v<Type, MidoriType::NewType>)
+			{
+				// Never renders its representation. InstanceKey and
+				// MangleInstanceMethodName key on this string, so rendering the
+				// representation here would collapse Hashable<Meters> into
+				// Hashable<Int>.
+				if (!type_variant.m_generic_params.empty())
+				{
+					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+				}
+
+				if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
+				{
+					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+				}
+
+				return type_variant.m_name;
+			}
 			else if constexpr (std::is_same_v<Type, MidoriType::AssociatedType>)
 			{
 				if (type_variant.m_type_args.empty())
@@ -470,6 +488,31 @@ struct MidoriType::TypeEqualityVisitor
 			}
 			s_visiting.insert(key);
 			bool result = MidoriType::CompareUnionTypes(a, b);
+			s_visiting.erase(key);
+			return result;
+		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::NewType>)
+		{
+			// Name and type arguments only. Comparing representations would make
+			// Meters equal to Int, which is the whole thing this prevents.
+			thread_local std::unordered_set<std::pair<const void*, const void*>, TypeConstPairHash> s_visiting;
+			std::pair<const void*, const void*> key{&a, &b};
+			if (s_visiting.contains(key))
+			{
+				return true;
+			}
+			s_visiting.insert(key);
+			bool result = a.m_name == b.m_name
+				&& a.m_type_arguments.size() == b.m_type_arguments.size()
+				&& std::ranges::equal
+				(
+					a.m_type_arguments,
+					b.m_type_arguments,
+					[](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2)
+					{
+						return *t1 == *t2;
+					}
+				);
 			s_visiting.erase(key);
 			return result;
 		}
@@ -624,6 +667,11 @@ std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, s
 	union_type.m_generic_params = std::move(generic_params);
 	union_type.m_constraints = {};
 	return std::make_shared<MidoriType>(MidoriTypeUnion(std::move(union_type)));
+}
+
+std::shared_ptr<MidoriType> MidoriType::MakeNewType(const std::string& name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(NewType{.m_name = name, .m_representation = representation, .m_generic_params = std::move(generic_params), .m_type_arguments = {}, .m_constraints = {}}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)

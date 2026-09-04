@@ -122,6 +122,16 @@ public:
 		UnionType(const std::string& name);
 	};
 
+	struct NewType
+	{
+		std::string m_name;
+		std::shared_ptr<MidoriType> m_representation;
+		std::vector<std::string> m_generic_params;
+		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
+		std::vector<ClassConstraint> m_constraints;
+		bool m_is_generic_instantiation = false;
+	};
+
 	using MidoriTypeUnion = std::variant
 	<
 		UndecidedType,
@@ -143,6 +153,7 @@ public:
 		FunctionType,
 		StructType,
 		UnionType,
+		NewType,
 		AssociatedType,
 		ClassConstraint
 	>;
@@ -197,6 +208,7 @@ public:
 	static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false);
 	static std::shared_ptr<MidoriType> MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
 	static std::shared_ptr<MidoriType> MakeUnionType(const std::string& name, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MidoriType> MakeNewType(const std::string& name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params = {});
 
 	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
 

@@ -5542,6 +5542,21 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 			}
 			return false;
 		}
+		bool operator()(const MidoriType::NewType& type_variant) const
+		{
+			if (m_self->IsGenericType(type_variant.m_representation))
+			{
+				return true;
+			}
+			for (const std::shared_ptr<MidoriType>& type_arg : type_variant.m_type_arguments)
+			{
+				if (m_self->IsGenericType(type_arg))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
 
 		bool operator()(const MidoriType::UndecidedType&) const { return false; }
 		bool operator()(const MidoriType::GenericParam&) const { return false; }
@@ -5719,6 +5734,21 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 			}
 		}
 		void operator()(const MidoriType::ClassConstraint&) const {}
+		void operator()(const MidoriType::NewType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::NewType>())
+			{
+				const MidoriType::NewType& c_newtype = m_concrete_type->GetType<MidoriType::NewType>();
+				m_self->DeduceGenericTypesRecursive(p_var.m_representation, c_newtype.m_representation, m_map, m_visited);
+				if (p_var.m_type_arguments.size() == c_newtype.m_type_arguments.size())
+				{
+					for (size_t i = 0uz; i < p_var.m_type_arguments.size(); i += 1uz)
+					{
+						m_self->DeduceGenericTypesRecursive(p_var.m_type_arguments[i], c_newtype.m_type_arguments[i], m_map, m_visited);
+					}
+				}
+			}
+		}
 	};
 
 	std::visit(DeduceGenericVisitor{ this, param_type, concrete_type, map, visited }, param_type->m_type);
@@ -6378,6 +6408,31 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 				return MidoriType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(substituted_type_args));
 			}
 			return m_current;
+		}
+
+		std::shared_ptr<MidoriType> operator()(const MidoriType::NewType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_representation = m_substitute(type_variant.m_representation);
+			std::vector<std::string> instantiated_generic_params;
+			std::shared_ptr<MidoriType> new_newtype = MidoriType::MakeNewType(type_variant.m_name, substituted_representation, std::move(instantiated_generic_params));
+			m_cache[m_current.get()] = new_newtype;
+			MidoriType::NewType& new_newtype_ref = new_newtype->GetType<MidoriType::NewType>();
+			std::vector<MidoriType::ClassConstraint> substituted_constraints;
+			substituted_constraints.reserve(type_variant.m_constraints.size());
+			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
+			{
+				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
+				substituted_type_args.reserve(constraint.m_type_args.size());
+				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
+				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
+			}
+			new_newtype_ref.m_constraints = std::move(substituted_constraints);
+			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
+			{
+				new_newtype_ref.m_is_generic_instantiation = true;
+				new_newtype_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, m_substitute);
+			}
+			return new_newtype;
 		}
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UndecidedType&) const { return m_current; }
