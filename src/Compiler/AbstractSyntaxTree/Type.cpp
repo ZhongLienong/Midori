@@ -395,14 +395,14 @@ namespace
 				// MangleInstanceMethodName key on this string, so rendering the
 				// representation here would collapse Hashable<Meters> into
 				// Hashable<Int>.
-				if (!type_variant.m_generic_params.empty())
-				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
-				}
-
 				if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
 				{
 					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+				}
+
+				if (!type_variant.m_generic_params.empty())
+				{
+					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
 
 				return type_variant.m_name;

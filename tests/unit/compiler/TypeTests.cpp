@@ -116,3 +116,43 @@ TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "
 	REQUIRE(result->IsType<MidoriType::NewType>());
 	REQUIRE(result->GetType<MidoriType::NewType>().m_generic_params == std::vector<std::string>{"T"});
 }
+
+TEST_CASE("A substituted newtype renders its type argument, not its parameter name", "[type]")
+{
+	// If ToStringVisitor's NewType arm tested m_generic_params before
+	// m_is_generic_instantiation, this would render "Boxed<T>" even after
+	// substitution -- since SubstitutionVisitor deliberately preserves
+	// m_generic_params (trap 1). InstanceKey and MangleInstanceMethodName are
+	// keyed on ToString, so that would collapse every instantiation onto one
+	// instance slot.
+	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
+	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+
+	const std::shared_ptr<MidoriType> instantiated = MidoriType::SubstituteTypeParams(boxed, substitutions);
+
+	REQUIRE(instantiated->ToString() == "Boxed<Int>");
+}
+
+TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
+{
+	// This is the assertion that actually pins the InstanceKey property: case
+	// above alone would still pass if both instantiations collapsed onto some
+	// other shared string, so long as it wasn't "Boxed<T>".
+	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
+	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> int_substitutions;
+	int_substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	const std::shared_ptr<MidoriType> boxed_int = MidoriType::SubstituteTypeParams(boxed, int_substitutions);
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> text_substitutions;
+	text_substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::TextType>();
+	const std::shared_ptr<MidoriType> boxed_text = MidoriType::SubstituteTypeParams(boxed, text_substitutions);
+
+	REQUIRE(boxed_int->ToString() != boxed_text->ToString());
+}
