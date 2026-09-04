@@ -67,6 +67,23 @@ private:
 		}
 	};
 
+	// The result of matching a name against the struct and union constructor tables.
+	// `new Point(...)` and `Point(...)` resolve through the same lookup and build the
+	// same MidoriExpression::Construct node, so the lookup lives on its own.
+	struct ConstructorResolution
+	{
+		std::shared_ptr<MidoriType> m_type;
+		std::string m_constructor_name;
+		bool m_is_struct;
+
+		ConstructorResolution(std::shared_ptr<MidoriType>&& type, std::string&& constructor_name, bool is_struct)
+			: m_type(std::move(type)), m_constructor_name(std::move(constructor_name)), m_is_struct(is_struct)
+		{
+		}
+	};
+
+	using ConstructorResolutionResult = MidoriResult::Result<std::optional<ConstructorResolution>>;
+
 	using Scopes = std::vector<Scope>;
 
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
@@ -509,6 +526,8 @@ private:
 
 	MidoriResult::ExpressionResult ResolveQualifiedName(const Token& name_token, const std::string& mangled_name);
 
+	ConstructorResolutionResult ResolveConstructorName(const Token& name_token, const std::string& mangled_name);
+
 	Token& Peek(int offset);
 
 	Token& Previous();
@@ -582,6 +601,8 @@ private:
 	MidoriResult::ExpressionResult ParseConstruct();
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
+
+	MidoriResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct, bool has_explicit_type_args);
 
 	MidoriResult::ExpressionResult ParsePrimary();
 

@@ -591,6 +591,88 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	return std::unexpected(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
 }
 
+Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& name_token, const std::string& mangled_name)
+{
+	for (Scopes::const_reverse_iterator scopes_iter = m_state.m_scopes.crbegin(); scopes_iter != m_state.m_scopes.crend(); ++scopes_iter)
+	{
+		const Scope& scope = *scopes_iter;
+		if (scope.m_union_constructors.contains(mangled_name))
+		{
+			return ConstructorResolution(std::shared_ptr<MidoriType>(scope.m_union_constructors.at(mangled_name)), std::string(mangled_name), false);
+		}
+		else if (scope.m_struct_constructors.contains(mangled_name))
+		{
+			return ConstructorResolution(std::shared_ptr<MidoriType>(scope.m_struct_constructors.at(mangled_name)), std::string(mangled_name), true);
+		}
+	}
+
+	std::string lookup_base = mangled_name;
+	size_t separator_pos = mangled_name.find(NameSeparator);
+	if (separator_pos != std::string::npos)
+	{
+		lookup_base = mangled_name.substr(0u, separator_pos);
+	}
+
+	const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
+	{
+		return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), name_token));
+	}
+
+	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
+	{
+		const std::string& module_name = use_import_resolution.m_module_name;
+		if (m_context.m_imported_type_signatures.contains(module_name))
+		{
+			const TypeEnvironment& env = m_context.m_imported_type_signatures.at(module_name);
+			if (env.contains(lookup_base))
+			{
+				std::shared_ptr<MidoriType> type = env.at(lookup_base);
+				if (type->IsType<MidoriType::UnionType>() && separator_pos != std::string::npos)
+				{
+					const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+					std::string member_key = union_type.m_name + NameSeparator.data() + mangled_name.substr(separator_pos + NameSeparator.length());
+					if (union_type.m_member_info.contains(member_key))
+					{
+						return ConstructorResolution(std::move(type), std::move(member_key), false);
+					}
+				}
+				else if (type->IsType<MidoriType::StructType>() && lookup_base == mangled_name)
+				{
+					return ConstructorResolution(std::move(type), std::string(mangled_name), true);
+				}
+			}
+		}
+	}
+
+	if (separator_pos != std::string::npos)
+	{
+		for (const std::pair<const std::string, TypeEnvironment>& imported : m_context.m_imported_type_signatures)
+		{
+			const TypeEnvironment& env = imported.second;
+			if (!env.contains(lookup_base))
+			{
+				continue;
+			}
+
+			std::shared_ptr<MidoriType> type = env.at(lookup_base);
+			if (!type->IsType<MidoriType::UnionType>())
+			{
+				continue;
+			}
+
+			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+			std::string member_key = union_type.m_name + NameSeparator.data() + mangled_name.substr(separator_pos + NameSeparator.length());
+			if (union_type.m_member_info.contains(member_key))
+			{
+				return ConstructorResolution(std::move(type), std::move(member_key), false);
+			}
+		}
+	}
+
+	return std::optional<ConstructorResolution>(std::nullopt);
+}
+
 bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 {
 	// No module system enabled, allow all access
@@ -1532,130 +1614,33 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 			Token data_name_token_value = base_name_token;
 			data_name_token_value.m_lexeme = constructor_name;
 
-			std::optional<std::shared_ptr<MidoriType>> defined_type = std::nullopt;
-			bool is_struct = false;
-			for (Scopes::const_reverse_iterator scopes_iter = m_state.m_scopes.crbegin(); scopes_iter != m_state.m_scopes.crend(); ++scopes_iter)
+			ConstructorResolutionResult resolution = ResolveConstructorName(base_name_token, constructor_name);
+			if (!resolution.has_value())
 			{
-				const Scope& scope = *scopes_iter;
-				if (scope.m_union_constructors.contains(data_name_token_value.m_lexeme))
-				{
-					defined_type.emplace(scope.m_union_constructors.at(data_name_token_value.m_lexeme));
-					break;
-				}
-				else if (scope.m_struct_constructors.contains(data_name_token_value.m_lexeme))
-				{
-					is_struct = true;
-					defined_type.emplace(scope.m_struct_constructors.at(data_name_token_value.m_lexeme));
-					break;
-				}
+				return std::unexpected(std::move(resolution.error()));
 			}
 
-			if (defined_type == std::nullopt)
-			{
-				std::string raw_name = data_name_token_value.m_lexeme;
-				std::string lookup_base = raw_name;
-				std::string member_part;
-
-				size_t separator_pos = raw_name.find(NameSeparator);
-				if (separator_pos != std::string::npos)
-				{
-					lookup_base = raw_name.substr(0, separator_pos);
-					member_part = raw_name.substr(separator_pos);
-				}
-
-				const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
-				if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
-				{
-					return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), base_name_token));
-				}
-
-				if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
-				{
-					const std::string& module_name = use_import_resolution.m_module_name;
-					if (m_context.m_imported_type_signatures.contains(module_name))
-					{
-						std::string type_name = lookup_base;
-						const TypeEnvironment& env = m_context.m_imported_type_signatures.at(module_name);
-						
-						if (env.contains(type_name))
-						{
-							std::shared_ptr<MidoriType> type = env.at(type_name);
-							if (type->IsType<MidoriType::UnionType>())
-							{
-								std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
-								const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-								std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
-								
-								if (union_type.m_member_info.contains(member_key))
-								{
-									defined_type = type;
-									data_name_token_value.m_lexeme = member_key; // Use fully qualified constructor name
-								}
-							}
-							else if (type->IsType<MidoriType::StructType>())
-							{
-								if (type_name == raw_name)
-								{
-									is_struct = true;
-									defined_type = type;
-								}
-							}
-						}
-					}
-				}
-				
-				// Try bare imports (without use alias)
-				if (defined_type == std::nullopt)
-				{
-					for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
-					{
-						std::string type_name = lookup_base;
-						if (env.contains(type_name))
-						{
-							std::shared_ptr<MidoriType> type = env.at(type_name);
-							if (type->IsType<MidoriType::UnionType>())
-							{
-								if (separator_pos != std::string::npos)
-								{
-									std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
-									const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-									std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
-
-									if (union_type.m_member_info.contains(member_key))
-									{
-										defined_type = type;
-										data_name_token_value.m_lexeme = member_key;
-										break;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-
-			if (defined_type == std::nullopt)
+			if (!resolution.value().has_value())
 			{
 				return std::unexpected(GenerateParserError("Undefined struct.", data_name_token_value));
 			}
 
-			// If type arguments were provided, instantiate the generic type
+			ConstructorResolution& constructor = resolution.value().value();
+			data_name_token_value.m_lexeme = constructor.m_constructor_name;
+			std::shared_ptr<MidoriType> defined_type = std::move(constructor.m_type);
+
 			if (!type_args.empty())
 			{
-				std::shared_ptr<MidoriType> base_type = defined_type.value();
-
-				// Get generic parameters from the base type
 				std::vector<std::string> generic_params;
-				if (base_type->IsType<MidoriType::StructType>())
+				if (defined_type->IsType<MidoriType::StructType>())
 				{
-					generic_params = base_type->GetType<MidoriType::StructType>().m_generic_params;
+					generic_params = defined_type->GetType<MidoriType::StructType>().m_generic_params;
 				}
-				else if (base_type->IsType<MidoriType::UnionType>())
+				else if (defined_type->IsType<MidoriType::UnionType>())
 				{
-					generic_params = base_type->GetType<MidoriType::UnionType>().m_generic_params;
+					generic_params = defined_type->GetType<MidoriType::UnionType>().m_generic_params;
 				}
 
-				// Check argument count matches parameter count
 				if (type_args.size() != generic_params.size())
 				{
 					return std::unexpected
@@ -1673,49 +1658,10 @@ MidoriResult::ExpressionResult Parser::ParseConstruct()
 					substitutions[generic_params[i]] = type_args[i];
 				}
 
-				defined_type = MidoriType::SubstituteTypeParams(base_type, substitutions);
+				defined_type = MidoriType::SubstituteTypeParams(defined_type, substitutions);
 			}
 
-			const bool has_explicit_type_args = !type_args.empty();
-
-			return Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.")
-				.and_then
-				(
-					[&defined_type, &data_name_token_value, is_struct, has_explicit_type_args, this](Token&&) ->MidoriResult::ExpressionResult
-					{
-						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
-							(
-								[this]() { return ParseExpression(); },
-								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-								[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
-							)
-							.and_then
-							(
-								[&defined_type, &data_name_token_value, is_struct, has_explicit_type_args](std::vector<std::unique_ptr<MidoriExpression>>&& arguments)->MidoriResult::ExpressionResult
-								{
-									std::shared_ptr<MidoriType> defined_type_copy = defined_type.value();
-									if (is_struct)
-									{
-										std::unique_ptr<MidoriExpression> cons_struct_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), has_explicit_type_args, MidoriExpression::Construct::Struct{}));
-										return cons_struct_expr;
-									}
-									else
-									{
-										const MidoriType::UnionType& union_type = defined_type.value()->GetType<MidoriType::UnionType>();
-										std::unique_ptr<MidoriExpression> cons_union_expr = std::make_unique<MidoriExpression>(MidoriExpression::Construct(data_name_token_value, std::move(arguments), std::move(defined_type_copy), has_explicit_type_args, MidoriExpression::Construct::Union(union_type.m_member_info.at(data_name_token_value.m_lexeme).m_tag)));
-										return cons_union_expr;
-									}
-								}
-							)
-							.or_else
-							(
-								[&data_name_token_value, this](CompilerError&& original_error) ->MidoriResult::ExpressionResult
-								{
-									return std::unexpected(std::move(original_error));
-								}
-							);
-					}
-				);
+			return FinishConstruct(std::move(data_name_token_value), std::move(defined_type), constructor.m_is_struct, !type_args.empty());
 		}
 		else
 		{
@@ -1743,6 +1689,34 @@ MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpressi
 				return std::make_unique<MidoriExpression>(MidoriExpression::Call(Previous(), std::move(callee), std::move(arguments)));
 			}
 		);
+}
+
+MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct, bool has_explicit_type_args)
+{
+	MidoriResult::TokenResult left_paren = Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.");
+	if (!left_paren.has_value())
+	{
+		return std::unexpected(std::move(left_paren.error()));
+	}
+
+	MidoriResult::Result<std::vector<std::unique_ptr<MidoriExpression>>> arguments = ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+		(
+			[this]() { return ParseExpression(); },
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
+			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
+		);
+	if (!arguments.has_value())
+	{
+		return std::unexpected(std::move(arguments.error()));
+	}
+
+	if (is_struct)
+	{
+		return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), has_explicit_type_args, MidoriExpression::Construct::Struct{}));
+	}
+
+	const int tag = constructed_type->GetType<MidoriType::UnionType>().m_member_info.at(constructor_token.m_lexeme).m_tag;
+	return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), has_explicit_type_args, MidoriExpression::Construct::Union(tag)));
 }
 
 MidoriResult::ExpressionResult Parser::ParsePrimary()
@@ -1850,6 +1824,43 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						const bool has_matching_export = (m_context.m_module_declarations != nullptr) && IsExportedInAnyModule(*m_context.m_module_declarations, symbol_name);
 						error_msg += "\n  Hint: Use 'use "s + std::string(has_matching_export ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
 						return std::unexpected(GenerateParserError(std::move(error_msg), variable));
+					}
+
+					// A constructor may be written without 'new': `Point(1, 2)` and
+					// `Option::Some(5)` build the same Construct node `new` builds. A name
+					// bound to a variable still wins, so this only adds spellings that used
+					// to be errors. The check precedes import resolution because a union
+					// constructor is qualified by its union, not by a module, and import
+					// resolution would report a missing module instead.
+					std::string variable_lookup_name = mangled_name;
+					if (FindVariableScope(variable_lookup_name) == m_state.m_scopes.crend())
+					{
+						ConstructorResolutionResult resolution = ResolveConstructorName(variable, mangled_name);
+						if (!resolution.has_value())
+						{
+							return std::unexpected(std::move(resolution.error()));
+						}
+
+						if (resolution.value().has_value())
+						{
+							ConstructorResolution& constructor = resolution.value().value();
+							Token constructor_token = variable;
+							constructor_token.m_lexeme = constructor.m_constructor_name;
+
+							if (!Check(Token::Name::LEFT_PAREN, 0))
+							{
+								return std::unexpected
+								(
+									GenerateParserError
+									(
+										std::format("Constructor '{}' cannot be used as a value; it is monomorphised at each construction site and has no single procedure to pass around. Write '{}(...)' to construct, or wrap it in a lambda.", constructor.m_constructor_name, constructor.m_constructor_name),
+										constructor_token
+									)
+								);
+							}
+
+							return FinishConstruct(std::move(constructor_token), std::move(constructor.m_type), constructor.m_is_struct, false);
+						}
 					}
 
 					// Check if this is a module-qualified name
