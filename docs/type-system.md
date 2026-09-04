@@ -145,7 +145,7 @@ Generic constructors accept explicit type arguments, but Midori can infer omitte
 def some_int = new Option::Some(42);
 def empty_int : Option<Int> = new Option::None();
 
-defun Wrap<T>(value: T) : Option<T> => new Option::Some(value);
+defun Wrap<T>(value: T) -> Option<T> => new Option::Some(value);
 ```
 
 The explicit form remains available:
@@ -224,7 +224,7 @@ Aliases can be imported and exported like other symbols. They are fully intercha
 Functions, structs, unions, and aliases can all be parameterized:
 
 ```midori
-defun identity<T>(value: T) : T => value;
+defun identity<T>(value: T) -> T => value;
 
 struct Pair<A, B>
 {
@@ -240,7 +240,7 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-defun Display<T>(value: T) : Text where Show<T> => {
+defun Display<T>(value: T) -> Text where Show<T> => {
     return Show::show(value);
 };
 ```
@@ -252,7 +252,7 @@ struct Box<T> where Show<T> {
     value: T
 };
 
-defun ShowBox<T>(box: Box<T>) : Text => {
+defun ShowBox<T>(box: Box<T>) -> Text => {
     return Show::show(box.value);
 };
 ```
@@ -271,7 +271,7 @@ class Show<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) : Text => {
+    defun show(value: Int) -> Text => {
         return value as Text;
     };
 };
@@ -308,7 +308,7 @@ instance Iterable<Counter>
 {
     type Item = Int;
 
-    defun Next(counter: Counter) : Option<Int> => {
+    defun Next(counter: Counter) -> Option<Int> => {
         if counter.current >= counter.end
         then new Option::None()
         else {
@@ -323,7 +323,7 @@ instance Iterable<Counter>
 Use projection syntax to refer to an associated type in other signatures:
 
 ```midori
-defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
+defun NextValue<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
     where Iterable<Iter> => {
     return Iterable::Next(iter);
 };
@@ -344,12 +344,12 @@ Several operators are wired into the type checker and code generator so they can
 Examples:
 
 ```midori
-defun ConvertIt<From, To>(value: From) : To
+defun ConvertIt<From, To>(value: From) -> To
     where Convertable<From, To> => {
     value as To
 };
 
-defun Join<T>(left: T, right: T) : T
+defun Join<T>(left: T, right: T) -> T
     where Concatenable<T> => {
     left ++ right
 };
@@ -389,7 +389,7 @@ These are currently defined for integer-style numeric types (`Int`, `Byte`, and 
 Pattern matching is expression-oriented:
 
 ```midori
-defun Unwrap(option: Option<Int>) : Int => {
+defun Unwrap(option: Option<Int>) -> Int => {
     return match option with
         case Option::Some(value) => value
         case Option::None() => 0
@@ -458,7 +458,7 @@ def identity = fn(x) => { x };  // error: no expected function type
 The fully explicit lambda syntax remains valid:
 
 ```midori
-fn(x: Int) : Int => { x + 1 }
+fn(x: Int) -> Int => { x + 1 }
 ```
 
 ## Special Types

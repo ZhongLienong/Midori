@@ -50,7 +50,7 @@ with the line that owns the brace.
 
 | Construct  | Form                                                           |
 |------------|----------------------------------------------------------------|
-| `defun`    | `defun name(args): Type => { ... };`                            |
+| `defun`    | `defun name(args) -> Type => { ... };`                            |
 | `def`      | `def name = expr;` or `def name = { ... };`                     |
 | `if`       | `if(cond) then { ... } else { ... };`                           |
 | `for`      | `for x in iter { ... };`                                        |
@@ -59,7 +59,7 @@ with the line that owns the brace.
 | `struct`   | `struct Name { field: Type, ... };`                             |
 | `union`    | `union Name { case Variant(Type), ... };`                       |
 | `class`    | `class Name a where { defun method(): a; ... };`                |
-| `instance` | `instance Name Type where { defun method(): Type => ...; };`    |
+| `instance` | `instance Name Type where { defun method() -> Type => ...; };`    |
 
 `import { ... }` and `export { ... }` use a single-line *inline brace*: the
 opening and closing braces stay on the same line as the directive even when the
