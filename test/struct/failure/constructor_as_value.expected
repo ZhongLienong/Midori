@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/struct/failure/constructor_as_value.mdr:18
+   |
+18 | def bad = Apply(Point, 1, 2);
+   |                 ^^^^^ Constructor 'Point' cannot be used as a value; it is monomorphised at each construction site and has no single procedure to pass around. Write 'Point(...)' to construct, or wrap it in a lambda.
+   |

@@ -1,0 +1,82 @@
+module ConstructorWithoutNew
+
+// A struct constructor is callable without `new`: `Point(1, 2)` parses into the same
+// MidoriExpression::Construct node `new Point(1, 2)` produces. `new` still works, so both
+// spellings appear side by side below and must agree.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+struct Bag<T>
+{
+	items : Array<T>,
+	extra : T
+};
+
+struct Wrapper
+{
+	inner : Point,
+	label : Text
+};
+
+// The constructor is monomorphised per construction site, so it is not a value; a lambda
+// is how you pass one around, and the lambda body uses the bare spelling.
+def make : fn(Int, Int) -> Point = fn(a, b) => { Point(a, b) };
+
+defun MakeBagInner<T>(items : Array<T>, extra : T) -> Bag<T> =>
+{
+	Bag(items, extra)
+};
+
+defun MakeBag<T>(items : Array<T>, extra : T) -> Bag<T> =>
+{
+	MakeBagInner(items, extra)
+};
+
+defun ShowPoint(p : Point) -> Text =>
+{
+	(p.x as Text) ++ "," ++ (p.y as Text)
+};
+
+def bare = Point(1, 2);
+def keyword = new Point(1, 2);
+IO::PrintLine("bare: " ++ ShowPoint(bare));
+IO::PrintLine("keyword: " ++ ShowPoint(keyword));
+
+// A construction is an ordinary primary expression, so postfix chains follow it.
+def projected = Point(7, 8).x;
+IO::PrintLine("projected: " ++ (projected as Text));
+
+// Nesting, in both spellings and mixed.
+def nested = Wrapper(Point(3, 4), "bare");
+def nested_mixed = Wrapper(new Point(5, 6), "mixed");
+IO::PrintLine("nested: " ++ ShowPoint(nested.inner) ++ " " ++ nested.label);
+IO::PrintLine("nested_mixed: " ++ ShowPoint(nested_mixed.inner) ++ " " ++ nested_mixed.label);
+
+// Generic inference is unchanged: the bare spelling inside a generic function still binds
+// T from the arguments rather than needing an explicit type argument.
+def bag = MakeBag([1, 2, 3], 7);
+IO::PrintLine("bag: " ++ (bag.extra as Text) ++ " " ++ (bag.items[0] as Text) ++ (bag.items[2] as Text));
+
+def text_bag = MakeBag(["a", "b"], "z");
+IO::PrintLine("text_bag: " ++ text_bag.extra ++ " " ++ text_bag.items[1]);
+
+// `new` keeps its explicit type arguments; the bare spelling has no such form.
+def explicit = new Bag<Int>([9], 10);
+IO::PrintLine("explicit: " ++ (explicit.extra as Text));
+
+def through_lambda = make(11, 12);
+IO::PrintLine("through_lambda: " ++ ShowPoint(through_lambda));
+
+// A record update over a bare construction, to show the node is the same one the rest of
+// the pipeline already understands.
+def updated = { Point(20, 21) with y = 99 };
+IO::PrintLine("updated: " ++ ShowPoint(updated));

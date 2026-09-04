@@ -1,0 +1,10 @@
+bare: 1,2
+keyword: 1,2
+projected: 7
+nested: 3,4 bare
+nested_mixed: 5,6 mixed
+bag: 7 13
+text_bag: z b
+explicit: 10
+through_lambda: 11,12
+updated: 20,99

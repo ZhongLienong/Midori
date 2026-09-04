@@ -1,0 +1,18 @@
+module StructConstructorAsValue
+
+// A struct constructor is monomorphised at each construction site, so there is no single
+// procedure behind the name. Writing it bare in value position is a parser diagnostic
+// rather than a silent lookup that would emit a global slot the name never had.
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+defun Apply(f : fn(Int, Int) -> Point, a : Int, b : Int) -> Point =>
+{
+	f(a, b)
+};
+
+def bad = Apply(Point, 1, 2);

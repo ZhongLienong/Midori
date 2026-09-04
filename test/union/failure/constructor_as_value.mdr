@@ -1,0 +1,9 @@
+module UnionConstructorAsValue
+
+// The zero-arity variant keeps its parentheses. A bare `Opt::None` is a name in value
+// position, not a construction, and the diagnostic says so instead of resolving the
+// qualifier as a module that does not exist.
+
+union Opt<T> = Some(T) | None;
+
+def bad = Opt::None;

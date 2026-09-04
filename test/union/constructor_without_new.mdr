@@ -1,0 +1,72 @@
+module UnionConstructorWithoutNew
+
+// A union variant is callable without `new`, qualified by its union: `Opt::Some(5)`.
+// Zero-arity variants keep their parentheses — `Opt::None()`, never a bare `Opt::None` —
+// so there is exactly one spelling for a construction.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+union Opt<T> = Some(T) | None;
+
+union Shape = Circle(Int) | Rect(Int, Int);
+
+union List = Nil | Cons(Int, List);
+
+defun ShowOpt(o : Opt<Int>) -> Text =>
+{
+	match o with
+	case Opt::Some(v) => "some " ++ (v as Text)
+	case Opt::None() => "none"
+};
+
+defun Area(s : Shape) -> Int =>
+{
+	match s with
+	case Shape::Circle(r) => r * r * 3
+	case Shape::Rect(w, h) => w * h
+};
+
+defun Sum(l : List) -> Int =>
+{
+	match l with
+	case List::Nil() => 0
+	case List::Cons(head, tail) => head + Sum(tail)
+};
+
+defun WrapInner<T>(value : T) -> Opt<T> =>
+{
+	Opt::Some(value)
+};
+
+def bare_some = Opt::Some(5);
+def keyword_some = new Opt::Some(5);
+IO::PrintLine("bare_some: " ++ ShowOpt(bare_some));
+IO::PrintLine("keyword_some: " ++ ShowOpt(keyword_some));
+
+def bare_none : Opt<Int> = Opt::None();
+def keyword_none : Opt<Int> = new Opt::None();
+IO::PrintLine("bare_none: " ++ ShowOpt(bare_none));
+IO::PrintLine("keyword_none: " ++ ShowOpt(keyword_none));
+
+IO::PrintLine("circle: " ++ (Area(Shape::Circle(2)) as Text));
+IO::PrintLine("rect: " ++ (Area(Shape::Rect(3, 4)) as Text));
+IO::PrintLine("mixed: " ++ (Area(new Shape::Rect(5, 6)) as Text));
+
+// Nested constructions, recursively, in the bare spelling only.
+def digits = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
+IO::PrintLine("digits: " ++ (Sum(digits) as Text));
+
+// And mixed with `new` at every other level.
+def mixed_digits = List::Cons(10, new List::Cons(20, List::Nil()));
+IO::PrintLine("mixed_digits: " ++ (Sum(mixed_digits) as Text));
+
+// Generic inference through a generic function, bare spelling inside the body.
+def wrapped = WrapInner(42);
+IO::PrintLine("wrapped: " ++ ShowOpt(wrapped));
+
+// `new` keeps its explicit type arguments.
+def explicit : Opt<Int> = new Opt::None<Int>();
+IO::PrintLine("explicit: " ++ ShowOpt(explicit));
