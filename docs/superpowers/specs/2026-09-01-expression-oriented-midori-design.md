@@ -248,6 +248,54 @@ guard was relaxed first (`7008c5e`): the escape hatch is no longer needed, and
 - Parameterised aliases, generic newtypes as values, and an expected-type leak
   through `MemberAccess` into `Construct` each have their own task.
 
+---
+
+## 7c. Corpus migration — 2026-09-02
+
+Four mechanical rewrites landed, each its own commit, each green on both suites,
+with no compiler source touched:
+
+| Commit | Rewrite | Sites |
+|---|---|---|
+| `0b924b3` | `: R =>` becomes `-> R =>` | 831 across 260 files |
+| `b43de3d` | `defun Name(...)` becomes `def Name = fn(...)` | 802 |
+| `30831f6` | construction without `new` | 616 |
+| `463af7c` | the remaining `defun`s, unblocked by `84f6e81` | 48 |
+| `9e45aa2` | `struct`/`union` become `type` | 172 |
+
+### `defun` cannot be deleted yet — the two forms are not equivalent
+
+The migration was expected to be mechanical. It found three places where
+`defun Name(...)` and `def Name = fn(...)` genuinely diverge in the compiler:
+
+1. **A segfault.** `test/concurrency/success/worker_join_index_regression.mdr`
+   prints `ok` and exits 0. Change only its `defun Run() -> Unit` to
+   `def Run = fn() -> Unit` and it exits **139** with no output. Confirmed on the
+   real file. A hand-minimised three-line version does **not** reproduce, so the
+   trigger is something the full file has and the reduction lost.
+2. **Missing tail-call optimisation.** A self-recursive tail call runs to 10,000
+   frames under `defun` and overflows at roughly 2,499 under `def = fn`. Tail
+   calls are load-bearing and verified elsewhere to a million frames, so the
+   migration would silently change complexity.
+3. **A type-checker gap.** A block whose tail statement is unreachable satisfies
+   the return type under `defun` and does not under `def = fn`. This one may become
+   moot when `return` is deleted.
+
+All three smell like one root cause — the `def = fn` path missing a treatment the
+`FunctionDefinition` path gets. `ClosureLifting` rewrites capture-free lambdas into
+global `FunctionDefinition`s but deliberately skips generic ones, so *whether a
+lambda is lifted* is the likeliest discriminator.
+
+Four `defun` sites in three files are deliberately left unmigrated as live
+reproductions. Tracked separately.
+
+### Deliberately pinned, not oversights
+
+Fourteen `defun` and thirteen `struct`/`union` occurrences remain in tests that
+exist to pin an old form still parsing, each paired with its new-form equivalent.
+Two `.expected` snapshots needed caret columns shifted, since `type` is one
+character wider than `union` and two wider than `struct`.
+
 ## 8. Open calls — pin while writing, not blockers
 
 - **`Bool` as a library union.** Deletes four things for the price of one
