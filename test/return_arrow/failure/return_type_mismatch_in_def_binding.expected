@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/return_arrow/failure/return_type_mismatch_in_def_binding.mdr:9
+  |
+9 | 	return "oops";
+  |  ^^^^^^ Expected type 'Int' but got 'Text'
+  |

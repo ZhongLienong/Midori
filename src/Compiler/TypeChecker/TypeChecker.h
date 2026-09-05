@@ -162,6 +162,8 @@ private:
 
 	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
 
+	MidoriResult::TypeResult ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars);
+
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);

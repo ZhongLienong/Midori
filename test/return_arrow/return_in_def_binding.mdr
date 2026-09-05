@@ -1,0 +1,42 @@
+module ReturnInDefBinding
+
+// Test: `return` inside a function bound with `def Name = fn(...)`.
+// The lambda must set the expected return type, so a return types as Never and a
+// body containing one is validated by the return rather than by its tail.
+// Expected: each pair below agrees, whichever form declares the function.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr"
+}
+
+defun UnreachableTailDefun() -> Int =>
+{
+	return 3;
+	IO::PrintLine("unreachable");
+};
+
+def UnreachableTailBinding = fn() -> Int =>
+{
+	return 4;
+	IO::PrintLine("unreachable");
+};
+
+defun ReachableTailDefun(n : Int) -> Int =>
+{
+	if n > 0 then { return 1; } else ();
+	2
+};
+
+def ReachableTailBinding = fn(n : Int) -> Int =>
+{
+	if n > 0 then { return 5; } else ();
+	6
+};
+
+IO::PrintLine("unreachable_defun=" ++ (UnreachableTailDefun() as Text));
+IO::PrintLine("unreachable_binding=" ++ (UnreachableTailBinding() as Text));
+IO::PrintLine("reachable_defun_taken=" ++ (ReachableTailDefun(1) as Text));
+IO::PrintLine("reachable_defun_fallthrough=" ++ (ReachableTailDefun(0) as Text));
+IO::PrintLine("reachable_binding_taken=" ++ (ReachableTailBinding(1) as Text));
+IO::PrintLine("reachable_binding_fallthrough=" ++ (ReachableTailBinding(0) as Text));

@@ -1,0 +1,12 @@
+module ReturnTypeMismatchInDefBinding
+
+// Test: a return whose value contradicts the declared return type of the lambda
+// that encloses it. The lambda sets the expected return type, so the return itself
+// is what rejects this, exactly as it is under defun.
+
+def Mismatched = fn() -> Int =>
+{
+	return "oops";
+};
+
+Mismatched();

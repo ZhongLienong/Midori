@@ -5981,6 +5981,40 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnitLiteral& 
 	return unit.m_type_data;
 }
 
+MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars)
+{
+	function.m_type_data = ApplySubstitution(function.m_type_data);
+	const MidoriType::FunctionType& resolved_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+	function.m_param_types = resolved_type.m_param_types;
+	function.m_return_type = resolved_type.m_return_type;
+
+	if (HasTypeVariables(function.m_type_data))
+	{
+		std::unordered_set<int> unresolved_type_vars = CollectTypeVariableIds(function.m_type_data);
+		bool only_outer_type_vars_remain = std::ranges::all_of
+		(
+			unresolved_type_vars,
+			[&outer_visible_type_vars](int type_var_id) { return outer_visible_type_vars.contains(type_var_id); }
+		);
+
+		if (!only_outer_type_vars_remain)
+		{
+			return std::unexpected
+			(
+				MidoriError::GenerateTypeCheckerErrorWithContext
+				(
+					"Function expression type error: could not infer all lambda parameter or return types",
+					function.m_function_keyword,
+					m_file_name,
+					m_source_lines
+				)
+			);
+		}
+	}
+
+	return function.m_type_data;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& function)
 {
 	// A generic lambda is specialized by name at each call site, so it is only
@@ -6050,59 +6084,42 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 			}
 		}
 
+		// A return inside the body is validated against this, and only types itself as
+		// Never once it is set. Leaving it unset made `{ return 1; }` type as Int, which
+		// broke every enclosing unification the defun path handles correctly.
+		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		m_expected_return_type = function.m_return_type;
+
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &outer_visible_type_vars, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&function, &outer_visible_type_vars, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
+					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
+
+					// A body containing a return statement is validated by the return itself,
+					// so its natural type does not have to match the declared return type.
+					if (function.m_body->Contains<MidoriExpression::Return>())
+					{
+						return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
+					}
+
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
 							[&function, &outer_visible_type_vars, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
-								function.m_type_data = ApplySubstitution(function.m_type_data);
-								const MidoriType::FunctionType& resolved_type = function.m_type_data->GetType<MidoriType::FunctionType>();
-								function.m_param_types = resolved_type.m_param_types;
-								function.m_return_type = resolved_type.m_return_type;
-
-								if (HasTypeVariables(function.m_type_data))
-								{
-									std::unordered_set<int> unresolved_type_vars = CollectTypeVariableIds(function.m_type_data);
-									bool only_outer_type_vars_remain = true;
-									for (int type_var_id : unresolved_type_vars)
-									{
-										if (!outer_visible_type_vars.contains(type_var_id))
-										{
-											only_outer_type_vars_remain = false;
-											break;
-										}
-									}
-
-									if (!only_outer_type_vars_remain)
-									{
-										return std::unexpected
-										(
-											MidoriError::GenerateTypeCheckerErrorWithContext
-											(
-												"Function expression type error: could not infer all lambda parameter or return types",
-												function.m_function_keyword,
-												m_file_name,
-												m_source_lines
-											)
-										);
-									}
-								}
-
-								return function.m_type_data;
+								return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
 							}
 						);
 				}
 			).or_else
 			(
-				[prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
 				{
+					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
 					return std::unexpected(std::move(error));
 				}
