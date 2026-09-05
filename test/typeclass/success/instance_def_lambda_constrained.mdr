@@ -1,0 +1,25 @@
+module InstanceDefLambdaConstrained
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+struct Boxed<T> { item: T };
+
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+// A constrained instance whose method is written with the binding form still
+// dispatches: the instance's `where` constraints must reach the method body.
+instance Show<Boxed<T>> where Show<T> {
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def inner = new Boxed<Int>(7);
+def outer = new Boxed<Boxed<Int>>(new Boxed<Int>(9));
+
+IO::PrintLine(Show::show(inner));
+IO::PrintLine(Show::show(outer));

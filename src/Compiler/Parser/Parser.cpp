@@ -4041,9 +4041,13 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			continue;
 		}
 
-		if (!Match(Token::Name::DEFUN))
+		// An instance method may be spelled either `defun show(...) -> R => body;` or
+		// `def show = fn(...) -> R => body;`. Both continue into the single parse below,
+		// so the two spellings build the very same FunctionDefinition node.
+		const bool is_def_binding_form = Check(Token::Name::DEF, 0);
+		if (!Match(Token::Name::DEFUN, Token::Name::DEF))
 		{
-			return std::unexpected(GenerateParserError("Expected 'defun' or associated type binding in instance body.", Peek(0)));
+			return std::unexpected(GenerateParserError("Expected 'defun', 'def' or associated type binding in instance body.", Peek(0)));
 		}
 
 		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
@@ -4052,6 +4056,21 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(method_name_result.error());
 		}
 		Token method_name = std::move(method_name_result.value());
+
+		if (is_def_binding_form)
+		{
+			MidoriResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
+			if (!method_equal_result.has_value())
+			{
+				return std::unexpected(method_equal_result.error());
+			}
+
+			MidoriResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
+			if (!method_function_result.has_value())
+			{
+				return std::unexpected(method_function_result.error());
+			}
+		}
 
 		std::vector<Token> generic_params;
 		bool has_generic_params = false;

@@ -1,0 +1,11 @@
+module InstanceDefLambdaRequiresFn
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+// An instance member bound with `def` must be a function literal; the instance
+// body has no place for a plain value binding.
+instance Show<Int> {
+    def show = 42;
+};

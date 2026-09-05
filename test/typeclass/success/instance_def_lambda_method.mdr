@@ -1,0 +1,34 @@
+module InstanceDefLambdaMethod
+
+import { "../../../MidoriPrelude/IO.mdr", }
+
+class Describable<T> {
+    type Tag;
+    Describe: fn(value: T) -> Text;
+    Label: fn(value: T) -> Tag;
+};
+
+struct Point { x: Int, y: Int };
+struct Name { text: Text };
+
+// Every method spelled with the `def x = fn(...)` binding form.
+instance Describable<Point> {
+    type Tag = Int;
+    def Describe = fn(value: Point) -> Text => "Point(" ++ (value.x as Text) ++ ", " ++ (value.y as Text) ++ ")";
+    def Label = fn(value: Point) -> Int => value.x + value.y;
+};
+
+// The `defun` form still works, and the two forms mix inside one body.
+instance Describable<Name> {
+    type Tag = Text;
+    defun Describe(value: Name) -> Text => "Name(" ++ value.text ++ ")";
+    def Label = fn(value: Name) -> Text => value.text;
+};
+
+def origin = new Point(3, 4);
+def caller = new Name("midori");
+
+IO::PrintLine(Describable::Describe(origin));
+IO::PrintLine(Describable::Label(origin) as Text);
+IO::PrintLine(Describable::Describe(caller));
+IO::PrintLine(Describable::Label(caller));

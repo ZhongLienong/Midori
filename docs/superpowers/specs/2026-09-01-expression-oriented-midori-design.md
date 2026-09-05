@@ -199,8 +199,28 @@ Nothing has been removed yet; `defun`, `new`, `struct`, `union`, assignment and 
 | `case P if cond => e` | in — a guarded arm does not count toward exhaustiveness |
 | `->` in return position | in — 831 sites migrated across 260 files |
 | `Point(1, 2)` without `new` | in — same `Construct` node, byte-identical bytecode |
+| `def m = fn(...) -> R => e` in an instance body | in — same `FunctionDefinition` node, byte-identical bytecode |
 
-**Suite 342/342, unit tests 982 assertions / 174 cases.**
+**Suite 350/350, unit tests 982 assertions / 174 cases.**
+
+### Instance bodies, 2026-09-04
+
+The instance body was the last place `defun` was the only spelling, so it was the
+last thing blocking `defun`'s deletion. `defun m(...)` and `def m = fn(...)` now
+share one parse: the dispatch consumes either keyword, then the method name, then
+`= fn` for the binding form, and both continue into the same code, so the two
+spellings build the identical `FunctionDefinition`. An instance method is marked
+by name mangling (`MangleInstanceMethodName`), not by a flag on the node, and the
+mangling happens after the loop over collected methods — so the type checker's
+signature match against the class declaration, the `where`-constraint append from
+`736af40`, and code generation are all reached unchanged.
+
+**Generic instance methods are not reachable in either spelling.** `fn<U>(...)`
+parses, then the type checker rejects it with "instance methods cannot declare
+generic parameters" — the same error `defun m<U>(...)` has always produced. This
+is not a gap the binding form introduces, and it does not block migration: of the
+instance-method `defun`s in tracked `.mdr` files, **none** declares a type
+parameter.
 
 ### Two things this settled that the design had left open
 
