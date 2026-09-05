@@ -1,0 +1,5 @@
+module spawn_generic_def_lambda
+
+def Identity = fn<T>(value: T) -> T => value;
+
+def worker = spawn Identity(7);

@@ -148,6 +148,8 @@ private:
 
 	const std::shared_ptr<MidoriType>* FindNameType(const std::string& name) const;
 
+	const MidoriExpression::Function* FindTopLevelBoundLambda(const std::string& name) const;
+
 	std::shared_ptr<MidoriType> FreshTypeVar();
 
 	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type);

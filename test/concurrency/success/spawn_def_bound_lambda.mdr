@@ -1,0 +1,26 @@
+module spawn_def_bound_lambda
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+def Double = fn(n: Int) -> Int => n * 2;
+
+defun Triple(n: Int) -> Int => n * 3;
+
+def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int => {
+    ch -> ("band:" ++ tag);
+    0
+};
+
+def w1 = spawn Double(21);
+def w2 = spawn Triple(14);
+PrintLine("double=" ++ ((join w1) as Text));
+PrintLine("triple=" ++ ((join w2) as Text));
+
+def ch = channel<Text>(2);
+def w3 = spawn SendBand(ch, "left");
+PrintLine(<- ch);
+close(ch);
+def _r3 = join w3;
+
+PrintLine("direct=" ++ (Double(5) as Text));

@@ -157,6 +157,26 @@ std::string_view ClosureLifting::GetName() const
 	return "ClosureLifting";
 }
 
+void ClosureLifting::operator()(MidoriStatement::VariableDefinition& def)
+{
+	if (def.m_is_elided)
+	{
+		return;
+	}
+
+	// A global binding whose initializer is a lambda is already a named top-level
+	// procedure. The code generator emits it under the binding's own name, so
+	// lifting it here would only add a second global and an indirection, and would
+	// leave the binding's name attached to no procedure at all.
+	if (!def.m_local_index.has_value() && def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
+	{
+		VisitAndReplace(def.m_value->GetExpression<MidoriExpression::Function>().m_body);
+		return;
+	}
+
+	VisitAndReplace(def.m_value);
+}
+
 void ClosureLifting::operator()(MidoriExpression::Function& function)
 {
 	VisitAndReplace(function.m_body);

@@ -1,0 +1,15 @@
+module spawn_def_bound_lambda_globals
+
+import { "../../../MidoriPrelude/IO.mdr" }
+use IO.{PrintLine}
+
+def Increment = fn(n: Int) -> Int => n + 1;
+
+def Factorial = fn(n: Int) -> Int => if n <= 1 then 1 else n * Factorial(n - 1);
+
+defun ScaleViaHelper(n: Int) -> Int => Increment(n) * 10;
+
+def w1 = spawn Factorial(5);
+def w2 = spawn ScaleViaHelper(4);
+PrintLine("factorial=" ++ ((join w1) as Text));
+PrintLine("helper=" ++ ((join w2) as Text));

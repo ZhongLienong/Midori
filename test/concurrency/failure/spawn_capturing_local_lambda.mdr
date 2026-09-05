@@ -1,0 +1,10 @@
+module spawn_capturing_local_lambda
+
+def Outer = fn() -> Int => {
+    def offset = 7;
+    def Inner = fn(n: Int) -> Int => n + offset;
+    def w = spawn Inner(1);
+    join w
+};
+
+def result = Outer();

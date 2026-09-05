@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_generic_def_lambda.mdr:5
+  |
+5 | def worker = spawn Identity(7);
+  |                    ^^^^^^^^ Spawn expression type error: generic functions must be specialized before spawning
+  |

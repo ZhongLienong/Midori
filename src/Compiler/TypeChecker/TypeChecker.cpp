@@ -1747,6 +1747,32 @@ const std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& 
 	return nullptr;
 }
 
+const MidoriExpression::Function* TypeChecker::FindTopLevelBoundLambda(const std::string& name) const
+{
+	for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+	{
+		if (!statement->IsStatement<MidoriStatement::VariableDefinition>())
+		{
+			continue;
+		}
+
+		const MidoriStatement::VariableDefinition& definition = statement->GetStatement<MidoriStatement::VariableDefinition>();
+		if (definition.m_name.m_lexeme != name || definition.m_local_index.has_value())
+		{
+			continue;
+		}
+
+		if (definition.m_value == nullptr || !definition.m_value->IsExpression<MidoriExpression::Function>())
+		{
+			continue;
+		}
+
+		return &definition.m_value->GetExpression<MidoriExpression::Function>();
+	}
+
+	return nullptr;
+}
+
 MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriStatement>& statement)
 {
 	return VisitNode
@@ -5003,6 +5029,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 		}
 	}
 
+	const MidoriExpression::Function* bound_lambda = nullptr;
+	if (!has_top_level_definition)
+	{
+		bound_lambda = FindTopLevelBoundLambda(callee_name);
+		has_top_level_definition = bound_lambda != nullptr;
+	}
+
 	if (!has_top_level_definition)
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: spawn requires a named top-level function", spawn.m_callee_name, m_file_name, m_source_lines));
@@ -5011,6 +5044,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 	if (m_generic_functions.contains(callee_name))
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: generic functions must be specialized before spawning", spawn.m_callee_name, m_file_name, m_source_lines));
+	}
+
+	if (bound_lambda != nullptr && bound_lambda->m_captured_count > 0)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: a spawned function cannot capture its enclosing scope, because captured values do not cross a worker boundary", spawn.m_callee_name, m_file_name, m_source_lines));
 	}
 
 	const std::shared_ptr<MidoriType>* binding = FindNameType(callee_name);

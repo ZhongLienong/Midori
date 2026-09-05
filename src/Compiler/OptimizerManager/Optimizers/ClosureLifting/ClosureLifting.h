@@ -14,6 +14,8 @@ public:
 protected:
 	using MidoriOptimizer::operator();
 
+	void operator()(MidoriStatement::VariableDefinition& def) override;
+
 	void operator()(MidoriExpression::Function& function) override;
 
 	void operator()(MidoriExpression::Block& block) override;

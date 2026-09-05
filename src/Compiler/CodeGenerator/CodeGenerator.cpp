@@ -2246,7 +2246,20 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 
 	if (is_global)
 	{
-		Visit(def.m_value);
+		// A global lambda binding must produce a procedure named after the binding.
+		// A worker starts with empty globals and repopulates them by matching
+		// procedure names against global variable names, so a procedure emitted
+		// under an anonymous name leaves this global unset inside every worker.
+		if (def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
+		{
+			MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+			static_cast<void>(EmitFunction(function.m_params, function.m_body, def.m_name.m_lexeme, line, function.m_captured_count));
+		}
+		else
+		{
+			Visit(def.m_value);
+		}
+
 		EmitVariable(index.value(), OpCode::DEFINE_GLOBAL, line);
 	}
 	else
