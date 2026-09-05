@@ -3,7 +3,7 @@ module GenericWithArrays
 // Test: Generic types with arrays
 // Expected: Should compile - generics can contain arrays
 
-struct Container<T> 
+type Container<T> = 
 {
     items: Array<T>
 };

@@ -8,7 +8,7 @@ alias UserId = Int;
 alias Name = Text;
 
 // Struct definition
-struct Point
+type Point =
 {
     x: Float,
     y: Float

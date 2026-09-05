@@ -7,4 +7,4 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-union Option<T> where Show<T, Int> = Some(T) | None;
+type Option<T> where Show<T, Int> = Some(T) | None;

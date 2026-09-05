@@ -1,6 +1,6 @@
 module MatchGuardNotBool
 
-union Result = Ok(Int) | Err(Text);
+type Result = Ok(Int) | Err(Text);
 
 def value = match Result::Ok(1) with
 	case Result::Ok(n) if n => "positive"

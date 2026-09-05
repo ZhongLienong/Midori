@@ -3,7 +3,7 @@ module GenericUnion
 // Test: Generic union types
 // Expected: Should compile and allow pattern matching on generic unions
 
-union Option<T> = Some(T) | None;
+type Option<T> = Some(T) | None;
 
 // Create different Option instances
 def some_int = Option::Some(42);
@@ -16,7 +16,7 @@ def result = match some_int with
     case Option::None() => 0
 ;
 
-union Result<T, E> = Ok(T) | Err(E);
+type Result<T, E> = Ok(T) | Err(E);
 
 def success : Result<Int, Text> = Result::Ok(100);
 def failure : Result<Int, Text> = Result::Err("error message");

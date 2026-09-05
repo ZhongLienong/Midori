@@ -12,7 +12,7 @@ import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr"
 
 def Same = fn < T >(value: T) -> T => value;
 
-struct Bag < T > {
+type Bag < T > = {
     items: Array < T >
 };
 

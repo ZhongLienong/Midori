@@ -3,7 +3,7 @@ module PhantomTypeParameterUnion
 // Test: A generic union whose type parameter appears in no variant payload
 // Expected: SHOULD FAIL - Tag<Int> and Tag<Text> are distinct types
 
-union Tag<T> = First | Second;
+type Tag<T> = First | Second;
 
 def make_int_tag = fn() -> Tag<Int> => Tag::First();
 

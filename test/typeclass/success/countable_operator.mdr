@@ -2,7 +2,7 @@ module TestCountableOperator
 
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr" }
 
-struct Box {
+type Box = {
     values: Array<Int>
 };
 

@@ -4,13 +4,13 @@ import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashabl
 use Option.{
     Option
 }
-union SetSlot < T > = Empty | Deleted | Occupied(T);
-struct Set < T > {
+type SetSlot < T > = Empty | Deleted | Occupied(T);
+type Set < T > = {
     buckets: Array < SetSlot < T >>,
     count: Int,
     capacity: Int
 };
-struct SetIter < T > {
+type SetIter < T > = {
     set: Set < T >,
     index: Int
 };

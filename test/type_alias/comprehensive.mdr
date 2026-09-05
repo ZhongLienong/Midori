@@ -23,7 +23,7 @@ IO::PrintLine(name);
 IO::PrintLine(score as Text);
 
 // Type alias for struct
-struct Point
+type Point =
 {
 	x: Float,
 	y: Float

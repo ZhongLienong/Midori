@@ -2,7 +2,7 @@ module LambdaInferencePipeMatch
 
 import { "../../MidoriPrelude/IO.mdr" }
 
-union Result<T, E> = Ok(T) | Err(E);
+type Result<T, E> = Ok(T) | Err(E);
 
 def doubler: fn(Int) -> Int = fn(x) => { x * 2 };
 

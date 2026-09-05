@@ -9,18 +9,18 @@ import
 	"../../MidoriPrelude/IO.mdr"
 }
 
-struct Box<T>
+type Box<T> =
 {
 	item: T
 };
 
-struct Pair<A, B>
+type Pair<A, B> =
 {
 	first: A,
 	second: B
 };
 
-union Maybe<T> = Just(T) | Nothing;
+type Maybe<T> = Just(T) | Nothing;
 
 alias BoxAlias<T> = Box<T>;
 alias Swapped<A, B> = Pair<B, A>;

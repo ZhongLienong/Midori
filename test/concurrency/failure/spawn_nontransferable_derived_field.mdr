@@ -2,7 +2,7 @@ module spawn_nontransferable_derived_field
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-struct BadPayload
+type BadPayload =
 {
     callback: fn(Int) -> Int
 } deriving (Transferable);

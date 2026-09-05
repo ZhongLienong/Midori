@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-union LogicExpr =
+type LogicExpr =
     Var(Text)
   | And(LogicExpr, LogicExpr)
   | Or(LogicExpr, LogicExpr)

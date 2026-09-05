@@ -4,7 +4,7 @@ use Result.{
     Result
 }
 public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize }
-union IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
+type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
 foreign "MIDORI_FFI_Print" PrintRaw: fn(Text) -> Unit;
 foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
 foreign "MIDORI_FFI_ReadInput" ReadInputRaw: fn() -> Text;

@@ -3,7 +3,7 @@ module ArityMismatch
 // Test: too many arguments for a parameterised alias.
 // Expected: a diagnostic naming the alias and the count it declares.
 
-struct Box<T>
+type Box<T> =
 {
 	item: T
 };

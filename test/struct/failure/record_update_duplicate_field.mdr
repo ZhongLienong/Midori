@@ -2,7 +2,7 @@ module RecordUpdateDuplicateField
 
 // A field assigned twice is a compile error, not last-one-wins.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

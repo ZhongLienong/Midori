@@ -1,6 +1,6 @@
 module ConcatAssignStructMemberArrayElementRemoved
 
-struct Box
+type Box =
 {
     items : Array<Int>
 };

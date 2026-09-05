@@ -5,14 +5,14 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Vec3
+type Vec3 =
 {
 	x : Float,
 	y : Float,
 	z : Float
 };
 
-struct Complex
+type Complex =
 {
 	real : Float,
 	img : Float,
@@ -20,7 +20,7 @@ struct Complex
 
 def TestNestedStruct = fn() -> Unit =>
 {
-	struct Test
+	type Test =
 	{
 		x : Int
 	};
@@ -29,14 +29,14 @@ def TestNestedStruct = fn() -> Unit =>
 
 	def struct_in_closure = fn() -> Unit =>
 	{
-		struct Test2
+		type Test2 =
 		{
 			x : Int
 		};
 
 		fn() -> Unit =>
 		{
-			struct Test3
+			type Test3 =
 			{
 				x : Vec3,
 				y : Complex

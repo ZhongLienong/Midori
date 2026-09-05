@@ -12,24 +12,24 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int
 };
 
-struct Named
+type Named =
 {
 	label : Text,
 	n : Int
 };
 
-struct Box
+type Box =
 {
 	p : Point
 };
 
-struct Holder<T>
+type Holder<T> =
 {
 	items : Array<T>,
 	tag : Text

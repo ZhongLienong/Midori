@@ -3,7 +3,7 @@ module MissingTypeArguments
 // Test: a parameterised alias named without any arguments.
 // Expected: a diagnostic rather than a template whose parameter nothing binds.
 
-struct Box<T>
+type Box<T> =
 {
 	item: T
 };

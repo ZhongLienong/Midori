@@ -2,7 +2,7 @@ module TransferableRecursiveUnionSpawn
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-union IntList = Nil | Cons(Int, IntList) deriving (Transferable);
+type IntList = Nil | Cons(Int, IntList) deriving (Transferable);
 
 def Count = fn(list: IntList) -> Int =>
     match list with

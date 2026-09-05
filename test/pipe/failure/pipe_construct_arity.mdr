@@ -4,7 +4,7 @@ module PipeConstructArity
 // checker reports counts it: this is a four-argument construction of a two-field struct.
 // The diagnostic points at the construction, not at the pipe.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

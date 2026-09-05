@@ -10,9 +10,9 @@ class Tag<T> {
     tag: fn(value: T) -> Text;
 };
 
-struct Boxed<T> { item: T };
+type Boxed<T> = { item: T };
 
-struct Wrapped<T> { inner: T };
+type Wrapped<T> = { inner: T };
 
 instance Tag<Int> {
     def tag = fn(value: Int) -> Text => "tag:" ++ (value as Text);

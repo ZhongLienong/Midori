@@ -5,26 +5,26 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Term
+type Term =
 {
 	variable : Text,
 	num : Int,
 	is_var : Bool
 };
 
-struct Sum
+type Sum =
 {
 	left : Term,
 	right : Term
 };
 
-struct Product
+type Product =
 {
 	left : Term,
 	right : Term
 };
 
-struct Expr
+type Expr =
 {
 	sum_expr : Sum,
 	prod_expr : Product,

@@ -9,7 +9,7 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
-struct CollisionValue
+type CollisionValue =
 {
     id: Int
 };

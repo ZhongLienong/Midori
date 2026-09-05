@@ -5,19 +5,19 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Float,
 	y : Float,
 };
 
-struct LineSegment
+type LineSegment =
 {
 	start : Point,
 	end : Point,
 };
 
-struct Rectangle
+type Rectangle =
 {
 	width : LineSegment,
 	height : LineSegment,

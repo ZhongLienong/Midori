@@ -9,7 +9,7 @@ import
     <Image>
 }
 
-struct Vec3
+type Vec3 =
 {
     X : Float,
     Y : Float,

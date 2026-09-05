@@ -9,7 +9,7 @@ import
     <Image>
 }
 
-struct GrayScottParams
+type GrayScottParams =
 {
     Feed : Float,
     Kill : Float,
@@ -130,7 +130,7 @@ def copy_grid = fn(src : Array<Float>, dst : Array<Float>, size : Int) -> Unit =
     };
 };
 
-struct Vec3
+type Vec3 =
 {
     X : Float,
     Y : Float,

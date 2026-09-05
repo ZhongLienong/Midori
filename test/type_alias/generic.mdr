@@ -9,7 +9,7 @@ import
 }
 
 // Generic struct for testing
-struct Pair<A, B>
+type Pair<A, B> =
 {
 	first: A,
 	second: B

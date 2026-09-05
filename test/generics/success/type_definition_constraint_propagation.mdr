@@ -4,7 +4,7 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-struct Box<T> where Show<T> {
+type Box<T> where Show<T> = {
     value: T
 };
 

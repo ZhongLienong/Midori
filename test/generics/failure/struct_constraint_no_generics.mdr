@@ -7,6 +7,6 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-struct Box where Show<Int> {
+type Box where Show<Int> = {
     value: Int
 };

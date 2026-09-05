@@ -13,7 +13,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Bag<T>
+type Bag<T> =
 {
 	items : Array<T>,
 	tag : Int

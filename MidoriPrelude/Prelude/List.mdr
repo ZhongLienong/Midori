@@ -4,8 +4,8 @@ public export { List, ListIter, ListIterNew, ListMap, ListLength, ListAppend, Li
 use Option.{
     Option
 }
-union List < T > = Nil | Cons(T, List);
-struct ListIter < T > {
+type List < T > = Nil | Cons(T, List);
+type ListIter < T > = {
     current: List < T >
 };
 def ListIterNew = fn < T >(list: List < T >) -> ListIter < T > => ListIter (list);

@@ -1,7 +1,7 @@
 module Option
 import { "Panic.mdr" }
 public export { Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, OptionOrElse, OptionUnwrap, OptionUnwrapOrElse, OptionUnwrapOrPanic }
-union Option < T > = None | Some(T);
+type Option < T > = None | Some(T);
 def OptionMap = fn < A, B >(option: Option < A >, f: fn(A) -> B) -> Option < B > => {
     match option with
         case Option::Some(value) => Option::Some (f(value))

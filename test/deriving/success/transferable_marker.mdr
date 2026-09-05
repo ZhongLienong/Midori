@@ -2,13 +2,13 @@ module DerivingTransferableMarker
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-struct Point
+type Point =
 {
     x: Int,
     y: Int
 } deriving (Transferable);
 
-union MaybeValue<T> = Nothing | Just(T) deriving (Transferable);
+type MaybeValue<T> = Nothing | Just(T) deriving (Transferable);
 
 def RoundTrip = fn<T>(value: T) -> T where Transferable<T> => {
     value

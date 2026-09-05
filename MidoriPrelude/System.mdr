@@ -7,9 +7,9 @@ use Result.{
     Result
 }
 public export { SystemError, Platform, ProcessResult, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, CurrentPlatform, CurrentProcessId }
-union SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
-union Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
-struct ProcessResult {
+type SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
+type Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
+type ProcessResult = {
     exit_code: Int
 };
 foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;

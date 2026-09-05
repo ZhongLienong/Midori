@@ -2,7 +2,7 @@ module NestedGenericShiftSyntax
 
 import { "../../MidoriPrelude/IO.mdr" }
 
-struct Box<T>
+type Box<T> =
 {
     value: T
 };

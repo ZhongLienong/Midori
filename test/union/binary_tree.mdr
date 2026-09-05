@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-union Tree = Leaf(Int) | Node(Tree, Tree);
+type Tree = Leaf(Int) | Node(Tree, Tree);
 
 def TreeSum = fn(tree : Tree) -> Int =>
 	match tree with

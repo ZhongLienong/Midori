@@ -2,7 +2,7 @@ module CompoundAssignmentOperators
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-struct Box
+type Box =
 {
     count : Int,
     bits : Int

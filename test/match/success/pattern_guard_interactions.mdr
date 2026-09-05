@@ -5,7 +5,7 @@ import
 	"../../../MidoriPrelude/IO.mdr",
 }
 
-union Step = Continue(Int) | Stop(Int);
+type Step = Continue(Int) | Stop(Int);
 
 def Impure = fn(n: Int) -> Bool =>
 {

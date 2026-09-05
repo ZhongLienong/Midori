@@ -2,7 +2,7 @@ module RecordUpdateTypeMismatch
 
 // A value whose type does not match the field's is a compile error.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

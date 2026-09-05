@@ -5,7 +5,7 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-struct Boxed<T> { item: T };
+type Boxed<T> = { item: T };
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";

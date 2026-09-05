@@ -1,6 +1,6 @@
 module OpenAddressing
 public export { ProbeState, ProbeStart, ProbeHasNext, ProbeIndex, ProbeAdvance, ProbeRememberDeleted, ProbeDeletedIndex, ProbeResolveInsertIndex }
-struct ProbeState {
+type ProbeState = {
     start: Int,
     first_deleted: Int,
     offset: Int,

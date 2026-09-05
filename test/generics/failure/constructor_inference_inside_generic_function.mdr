@@ -4,13 +4,13 @@ module ConstructorInferenceInsideGenericFunction
 // `Bag<T>` is fine there because T is owned by `Hold`, but `Option::None` introduces a
 // type variable of its own that nothing pins, so it is still an inference failure.
 
-struct Bag<T>
+type Bag<T> =
 {
 	items : Array<T>,
 	tag : Int
 };
 
-union Option<T> = Some(T) | None;
+type Option<T> = Some(T) | None;
 
 def Hold = fn<T>(xs : Array<T>) -> Bag<T> =>
 {

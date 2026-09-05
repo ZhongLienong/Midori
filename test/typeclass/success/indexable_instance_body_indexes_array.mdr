@@ -11,11 +11,11 @@ import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Indexable.mdr"
 
 use Indexable.{ Indexable }
 
-struct Row {
+type Row = {
     cells: Array < Int >
 };
 
-struct Grid {
+type Grid = {
     rows: Array < Row >
 };
 

@@ -5,7 +5,7 @@ import
 	"../../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

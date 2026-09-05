@@ -8,7 +8,7 @@ import
 	"../../MidoriPrelude/IO.mdr"
 }
 
-struct Inner
+type Inner =
 {
 	v: Int
 };

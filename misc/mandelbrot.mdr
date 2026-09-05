@@ -8,7 +8,7 @@ import
     "../MidoriPrelude/Appendable.mdr"
 }
 
-struct Complex
+type Complex =
 {
     Real : Float,
     Imag : Float,

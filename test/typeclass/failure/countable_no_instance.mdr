@@ -9,7 +9,7 @@ module CountableNoInstance
 
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Collections/Map.mdr", }
 
-struct MapData { url: Text };
+type MapData = { url: Text };
 
 def value = MapData("example.com");
 IO::PrintLine(#value as Text);

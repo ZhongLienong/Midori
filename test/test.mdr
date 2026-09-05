@@ -1,7 +1,7 @@
 module LinkedList
 import { "../MidoriPrelude/IO.mdr", "../MidoriPrelude/Convertable.mdr"  }
 
-union ListNode<T> = None | Value(T, ListNode<T>);
+type ListNode<T> = None | Value(T, ListNode<T>);
 
 def ListToString = fn<T>(List : ListNode<T>) -> Text where Convertable<T, Text> =>
     match List with

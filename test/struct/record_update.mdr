@@ -10,7 +10,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int,
@@ -45,7 +45,7 @@ IO::PrintLine("twice: " ++ (twice.x as Text) ++ "," ++ (twice.y as Text));
 
 // A struct with several preserved fields exercises the stack discipline: DUP copies the
 // TOP of the stack, so the source has to stay on top rather than under the fields.
-struct Wide
+type Wide =
 {
 	a : Int,
 	b : Int,
@@ -60,7 +60,7 @@ IO::PrintLine("wide: " ++ (wide_updated.a as Text) ++ (wide_updated.b as Text) +
 
 // Blocks are unaffected: a block whose first statement is an expression is still a
 // block, and a block containing a bare `match ... with` still parses as a block.
-union Opt = Some(Int) | None;
+type Opt = Some(Int) | None;
 
 def Unwrap = fn(o : Opt) -> Int =>
 {

@@ -7,11 +7,11 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-struct Box<T> where Show<T> {
+type Box<T> where Show<T> = {
     value: T
 };
 
-union Result<T, E> where Show<T>, Show<E> = Ok(T) | Err(E);
+type Result<T, E> where Show<T>, Show<E> = Ok(T) | Err(E);
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {

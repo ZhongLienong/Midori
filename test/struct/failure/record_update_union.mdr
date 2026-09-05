@@ -4,7 +4,7 @@ module RecordUpdateUnion
 // A union is a UnionType even when it has one variant, so this is rejected with a clear
 // error rather than being silently mistaken for a struct.
 
-union Shape = Circle(Int) | Square(Int);
+type Shape = Circle(Int) | Square(Int);
 
 def s = Shape::Circle(3);
 def bad = { s with Circle = 4 };

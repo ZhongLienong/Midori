@@ -3,7 +3,7 @@ module MultiParamGenericStruct
 // Test: Generic struct with multiple type parameters
 // Expected: Should compile and allow different combinations
 
-struct Pair<T, U> 
+type Pair<T, U> = 
 {
     first: T,
     second: U
@@ -19,7 +19,7 @@ def first_val = int_text_pair.first;
 def second_val = int_text_pair.second;
 
 // Nested generics
-struct Triple<A, B, C> 
+type Triple<A, B, C> = 
 {
     a: A,
     b: B,

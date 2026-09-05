@@ -9,13 +9,13 @@ import
     <Image>
 }
 
-struct Complex
+type Complex =
 {
     Real : Float,
     Imag : Float,
 };
 
-struct Color
+type Color =
 {
     R : Float,
     G : Float,

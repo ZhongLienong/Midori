@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-union List = Nil | Cons(Int, List);
+type List = Nil | Cons(Int, List);
 
 def list_sum = fn(lst : List) -> Int =>
 	match lst with

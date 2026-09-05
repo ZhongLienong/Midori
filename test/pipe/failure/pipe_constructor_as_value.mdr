@@ -4,7 +4,7 @@ module PipeConstructorAsValue
 // monomorphised at each construction site and has no single procedure behind the name, so
 // there is nothing to pipe into. `Point(...)` is the spelling that pipes.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

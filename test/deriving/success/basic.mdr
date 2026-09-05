@@ -2,13 +2,13 @@ module DerivingBasic
 
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Equatable.mdr", "../../../MidoriPrelude/Hashable.mdr" }
 
-struct Point
+type Point =
 {
     x: Int,
     y: Int
 } deriving (Equatable, Hashable);
 
-union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
 def HashValue = fn<T>(value: T) -> Int where Hashable<T> => {
     Hashable::Hash(value)

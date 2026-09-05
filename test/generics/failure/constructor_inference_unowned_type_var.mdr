@@ -8,7 +8,7 @@ module ConstructorInferenceUnownedTypeVar
 // TypeChecker::operator()(MidoriExpression::Construct&): admitting the expected type of
 // the expression itself into the set of owned type variables would let this compile.
 
-union Option<T> = Some(T) | None;
+type Option<T> = Some(T) | None;
 
 def Id = fn<T>(x : T) -> T => x;
 

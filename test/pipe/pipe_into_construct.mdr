@@ -12,33 +12,33 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int
 };
 
-struct Bag<T>
+type Bag<T> =
 {
 	count : Int,
 	items : Array<T>
 };
 
-struct Cell<T>
+type Cell<T> =
 {
 	value : T,
 	tag : Int
 };
 
-struct Labelled
+type Labelled =
 {
 	point : Point,
 	label : Text
 };
 
-union Opt<T> = Some(T) | None;
+type Opt<T> = Some(T) | None;
 
-union Shape = Circle(Int) | Rect(Int, Int);
+type Shape = Circle(Int) | Rect(Int, Int);
 
 def ShowPoint = fn(p : Point) -> Text =>
 {

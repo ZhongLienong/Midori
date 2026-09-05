@@ -8,17 +8,17 @@ class Convertable<From, To> {
 };
 
 // Define custom types
-struct Point {
+type Point = {
     x: Int,
     y: Int
 };
 
-struct Vector {
+type Vector = {
     dx: Float,
     dy: Float
 };
 
-struct Person {
+type Person = {
     name: Text,
     age: Int
 };
@@ -141,7 +141,7 @@ def bool_as_int = bool_true as Int;
 IO::PrintLine("Test 8 - Bool conversions: text=" ++ bool_as_text ++ ", int=" ++ (bool_as_int as Text));
 
 // Test 9: Struct with nested conversion
-struct Rectangle {
+type Rectangle = {
     top_left: Point,
     width: Int,
     height: Int

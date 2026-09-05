@@ -3,7 +3,7 @@ module gc_independence
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-struct Pair
+type Pair =
 {
     A : Int,
     B : Int,

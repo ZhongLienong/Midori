@@ -9,7 +9,7 @@ import
 	"../../MidoriPrelude/DateTime.mdr"
 }
 
-struct Box<T> 
+type Box<T> = 
 {
     value: T
 };

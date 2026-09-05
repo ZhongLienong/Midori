@@ -5,7 +5,7 @@ import
 	"../../../MidoriPrelude/IO.mdr",
 }
 
-union Result = Ok(Int) | Err(Text);
+type Result = Ok(Int) | Err(Text);
 
 def Classify = fn(r: Result) -> Text => match r with
 	case Result::Ok(n) if n > 100 => "large"

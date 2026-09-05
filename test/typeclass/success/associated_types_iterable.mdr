@@ -9,7 +9,7 @@ import
 
 use Option.{Option}
 
-struct Counter
+type Counter =
 {
     current: Int,
     end: Int

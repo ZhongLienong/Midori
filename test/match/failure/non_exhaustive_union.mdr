@@ -1,6 +1,6 @@
 module MatchNonExhaustiveUnion
 
-union Option = None | Some(Int);
+type Option = None | Some(Int);
 
 def value = Option::Some(1);
 

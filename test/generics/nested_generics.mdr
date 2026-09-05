@@ -3,12 +3,12 @@ module NestedGenerics
 // Test: Nested generic types
 // Expected: Should compile - generics can be nested
 
-struct Box<T> 
+type Box<T> = 
 {
     value: T
 };
 
-struct Pair<A, B> 
+type Pair<A, B> = 
 {
     first: A,
     second: B

@@ -5,15 +5,15 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct S1
+type S1 =
 {
 };
 
-union U1 = A(Int) | B | C(Float, Int, Text) | D(U1) | E(S1);
+type U1 = A(Int) | B | C(Float, Int, Text) | D(U1) | E(S1);
 
 def z = U1::D(U1::D(U1::E(S1())));
 
-union Inner = A | B(U1);
+type Inner = A | B(U1);
 
 def zz = Inner::A();
 

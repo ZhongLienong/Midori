@@ -4,18 +4,18 @@ import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashabl
 use Option.{
     Option
 }
-union MapSlot < K, V > = Empty | Deleted | Occupied(K, V);
-struct Entry < K, V > {
+type MapSlot < K, V > = Empty | Deleted | Occupied(K, V);
+type Entry < K, V > = {
     key: K,
     value: V
 };
-struct Map < K, V > {
+type Map < K, V > = {
     buckets: Array < MapSlot < K,
     V >>,
     count: Int,
     capacity: Int
 };
-struct MapIter < K, V > {
+type MapIter < K, V > = {
     map: Map < K,
     V >,
     index: Int

@@ -7,7 +7,7 @@ module CountableGenericUserType
 
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr", }
 
-struct Bag < T > {
+type Bag < T > = {
     items: Array < T >
 };
 

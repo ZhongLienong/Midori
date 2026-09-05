@@ -2,22 +2,22 @@ module ArrayLiteralExpectedType
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-struct Row
+type Row =
 {
 	cells : Array<Int>
 };
 
-struct Grid
+type Grid =
 {
 	rows : Array<Row>
 };
 
-struct Box<T>
+type Box<T> =
 {
 	items : Array<T>
 };
 
-union Maybe<T> = Nothing | Just(T);
+type Maybe<T> = Nothing | Just(T);
 
 def CountRows = fn(rows : Array<Row>) -> Int => #rows;
 

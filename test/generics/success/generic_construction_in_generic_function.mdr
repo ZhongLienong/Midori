@@ -15,19 +15,19 @@ import
 	"../../../MidoriPrelude/IO.mdr",
 }
 
-struct Bag<T>
+type Bag<T> =
 {
 	items : Array<T>,
 	tag : Int
 };
 
-struct Pair<A, B>
+type Pair<A, B> =
 {
 	first : A,
 	second : B
 };
 
-union Option<T> = Some(T) | None;
+type Option<T> = Some(T) | None;
 
 // Expression body, no explicit type argument and no annotated local.
 def MakeBag = fn<T>(xs : Array<T>, t : Int) -> Bag<T> => Bag(xs, t);

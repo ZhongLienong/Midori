@@ -12,7 +12,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Config
+type Config =
 {
 	host : Text,
 	port : Int,

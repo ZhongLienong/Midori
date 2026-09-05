@@ -9,7 +9,7 @@ import
     <Image>
 }
 
-struct Vec3
+type Vec3 =
 {
     X : Float,
     Y : Float,
@@ -40,7 +40,7 @@ def vec3_abs = fn(a : Vec3) -> Vec3 => Vec3(Math::Abs(a.X), Math::Abs(a.Y), Math
 
 def vec3_max_comp = fn(a : Vec3) -> Float => Math::Max(a.X, Math::Max(a.Y, a.Z));
 
-struct Material
+type Material =
 {
     BaseR : Float,
     BaseG : Float,
@@ -48,7 +48,7 @@ struct Material
     Specular : Float,
 };
 
-struct HitResult
+type HitResult =
 {
     Distance : Float,
     MatId : Int,

@@ -1,4 +1,4 @@
 module TypeSystemUnresolvedNone
 
-union Option<T> = None | Some(T);
+type Option<T> = None | Some(T);
 def unresolved = Option::None();  // error: missing type context

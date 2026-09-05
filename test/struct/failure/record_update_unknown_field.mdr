@@ -2,7 +2,7 @@ module RecordUpdateUnknownField
 
 // An unknown field names both the field and the struct.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

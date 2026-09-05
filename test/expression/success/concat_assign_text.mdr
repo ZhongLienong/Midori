@@ -5,7 +5,7 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr",
 }
 
-struct Box
+type Box =
 {
     value : Text
 };
