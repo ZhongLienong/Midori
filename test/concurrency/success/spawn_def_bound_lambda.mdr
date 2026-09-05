@@ -5,7 +5,7 @@ use IO.{PrintLine}
 
 def Double = fn(n: Int) -> Int => n * 2;
 
-defun Triple(n: Int) -> Int => n * 3;
+def Triple = fn(n: Int) -> Int => n * 3;
 
 def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int => {
     ch -> ("band:" ++ tag);

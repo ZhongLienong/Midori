@@ -10,7 +10,7 @@ struct Point
 	y : Int
 };
 
-defun Apply(f : fn(Int, Int) -> Point, a : Int, b : Int) -> Point =>
+def Apply = fn(f : fn(Int, Int) -> Point, a : Int, b : Int) -> Point =>
 {
 	f(a, b)
 };

@@ -1,4 +1,4 @@
-module ArrowDefunAndLambda
+module ArrowReturnPosition
 
 import { "../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}

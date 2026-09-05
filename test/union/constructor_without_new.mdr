@@ -15,28 +15,28 @@ union Shape = Circle(Int) | Rect(Int, Int);
 
 union List = Nil | Cons(Int, List);
 
-defun ShowOpt(o : Opt<Int>) -> Text =>
+def ShowOpt = fn(o : Opt<Int>) -> Text =>
 {
 	match o with
 	case Opt::Some(v) => "some " ++ (v as Text)
 	case Opt::None() => "none"
 };
 
-defun Area(s : Shape) -> Int =>
+def Area = fn(s : Shape) -> Int =>
 {
 	match s with
 	case Shape::Circle(r) => r * r * 3
 	case Shape::Rect(w, h) => w * h
 };
 
-defun Sum(l : List) -> Int =>
+def Sum = fn(l : List) -> Int =>
 {
 	match l with
 	case List::Nil() => 0
 	case List::Cons(head, tail) => head + Sum(tail)
 };
 
-defun WrapInner<T>(value : T) -> Opt<T> =>
+def WrapInner = fn<T>(value : T) -> Opt<T> =>
 {
 	Opt::Some(value)
 };

@@ -1,17 +1,9 @@
-[warning] 2 warning(s) in return_in_def_binding.mdr
-Static Analyzer Warning at test/return_arrow/return_in_def_binding.mdr:16
+[warning] 1 warning(s) in return_in_def_binding.mdr
+Static Analyzer Warning at test/return_arrow/return_in_def_binding.mdr:17
    |
-16 | 	IO::PrintLine("unreachable");
+17 | 	IO::PrintLine("unreachable");
    |  ^^ This code is unreachable because control flow already exits earlier in the block.
    |
-Static Analyzer Warning at test/return_arrow/return_in_def_binding.mdr:22
-   |
-22 | 	IO::PrintLine("unreachable");
-   |  ^^ This code is unreachable because control flow already exits earlier in the block.
-   |
-unreachable_defun=3
 unreachable_binding=4
-reachable_defun_taken=1
-reachable_defun_fallthrough=2
 reachable_binding_taken=5
 reachable_binding_fallthrough=6

@@ -13,7 +13,7 @@ class Show<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
+    def show = fn(value: Int) : Text => "Int(" ++ (value as Text) ++ ")";
 };
 
 PrintLine(Show::show(3));

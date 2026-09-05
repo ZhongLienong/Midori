@@ -1,6 +1,6 @@
 module GenericFunctionAsValue
 
-// Test: a generic defun passed where a concrete function type is expected.
+// Test: a generic function passed where a concrete function type is expected.
 // Expected: rejected. A generic function is monomorphised at each call site,
 // so there is no single procedure for the argument to carry.
 

@@ -3,7 +3,8 @@ module TailCallDefBinding
 // Test: a self-recursive tail call in a function bound with `def Name = fn(...)`.
 // The sums assert depth rather than completion: without the tail call the stack
 // overflows at roughly 2,499 frames, far short of the 100,000 counted here.
-// Expected: the `def = fn` binding is optimised exactly as the `defun` is.
+// Expected: every binding below is optimised, whether it is bound at module level,
+// bound locally inside another function, or tail-called from a match arm.
 
 import
 {
@@ -15,17 +16,12 @@ def CountDownBinding = fn(n : Int, acc : Int) -> Int =>
 	if n <= 0 then acc else CountDownBinding(n - 1, acc + n)
 };
 
-defun CountDownDefun(n : Int, acc : Int) -> Int =>
-{
-	if n <= 0 then acc else CountDownDefun(n - 1, acc + n)
-};
-
 def CountDownInMatch = fn(n : Int, acc : Int) -> Int => match n <= 0 with
 	case true => acc
 	default => CountDownInMatch(n - 1, acc + n)
 ;
 
-defun OuterHoldingLocalBinding() -> Int =>
+def OuterHoldingLocalBinding = fn() -> Int =>
 {
 	def CountDownLocal = fn(n : Int, acc : Int) -> Int =>
 	{
@@ -35,6 +31,5 @@ defun OuterHoldingLocalBinding() -> Int =>
 };
 
 IO::PrintLine("binding=" ++ (CountDownBinding(100000, 0) as Text));
-IO::PrintLine("defun=" ++ (CountDownDefun(100000, 0) as Text));
 IO::PrintLine("match=" ++ (CountDownInMatch(100000, 0) as Text));
 IO::PrintLine("local=" ++ (OuterHoldingLocalBinding() as Text));

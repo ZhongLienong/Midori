@@ -1,6 +1,6 @@
 module GenericFunctionBoundToName
 
-// Test: a generic defun rebound to a plain name with 'def'.
+// Test: a generic function rebound to a plain name with 'def'.
 // Expected: rejected. The binding would have to hold one specialization,
 // which pins the type parameter to whichever use came first.
 

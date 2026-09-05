@@ -18,10 +18,11 @@ instance Describable<Point> {
     def Label = fn(value: Point) -> Int => value.x + value.y;
 };
 
-// The `defun` form still works, and the two forms mix inside one body.
+// A second instance of the same class, to show the binding form is not tied to one
+// instantiation and that a method body may return the associated type.
 instance Describable<Name> {
     type Tag = Text;
-    defun Describe(value: Name) -> Text => "Name(" ++ value.text ++ ")";
+    def Describe = fn(value: Name) -> Text => "Name(" ++ value.text ++ ")";
     def Label = fn(value: Name) -> Text => value.text;
 };
 

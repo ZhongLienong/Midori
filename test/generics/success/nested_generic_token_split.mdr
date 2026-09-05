@@ -17,7 +17,7 @@ def InFunctionExpression = fn() -> Int =>
 	#xs
 };
 
-defun InIfInsideDefun() -> Int =>
+def InIfWithinFunction = fn() -> Int =>
 {
 	if 1 == 1
 	then { def xs : Array<Array<Int>> = [[1], [2]]; #xs }
@@ -40,7 +40,7 @@ def in_match : Int = match 1 with
 ;
 
 IO::PrintLine("fn=" ++ (InFunctionExpression() as Text));
-IO::PrintLine("if_in_defun=" ++ (InIfInsideDefun() as Text));
+IO::PrintLine("if_in_function=" ++ (InIfWithinFunction() as Text));
 IO::PrintLine("three_levels=" ++ (InThreeLevels() as Text));
 IO::PrintLine("top_level_if=" ++ (in_top_level_if as Text));
 IO::PrintLine("match=" ++ (in_match as Text));

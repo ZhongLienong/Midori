@@ -31,17 +31,17 @@ struct Wrapper
 // is how you pass one around, and the lambda body uses the bare spelling.
 def make : fn(Int, Int) -> Point = fn(a, b) => { Point(a, b) };
 
-defun MakeBagInner<T>(items : Array<T>, extra : T) -> Bag<T> =>
+def MakeBagInner = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
 {
 	Bag(items, extra)
 };
 
-defun MakeBag<T>(items : Array<T>, extra : T) -> Bag<T> =>
+def MakeBag = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
 {
 	MakeBagInner(items, extra)
 };
 
-defun ShowPoint(p : Point) -> Text =>
+def ShowPoint = fn(p : Point) -> Text =>
 {
 	(p.x as Text) ++ "," ++ (p.y as Text)
 };
