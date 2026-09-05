@@ -5626,6 +5626,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess& get)
 {
+	// The type the context demands of `a.b` describes the member, not the object: `a`'s type is
+	// settled by `a` alone, and the member name then picks a field out of it. Carrying the
+	// demand into the object let a construction there unify its own struct type with whatever
+	// the surrounding call wanted, so `IO::PrintLine((new Point(7, 8)).x as Text)` was rejected
+	// for building a Point where Text was expected.
+	ExpectedTypeGuard object_guard(*this, std::shared_ptr<MidoriType>{});
+
 	return Evaluate(get.m_struct)
 		.and_then
 		(
