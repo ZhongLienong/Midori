@@ -1,0 +1,13 @@
+module PipeConstructArity
+
+// The piped value is prepended to the construction's own arguments, so the arity the
+// checker reports counts it: this is a four-argument construction of a two-field struct.
+// The diagnostic points at the construction, not at the pipe.
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+def bad = 2 |> Point(1, 2, 3);

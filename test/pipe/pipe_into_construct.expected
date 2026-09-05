@@ -1,0 +1,15 @@
+bare: (2, 1)
+keyword: (2, 1)
+ordered: (1, 2)
+piped_some: some 5
+piped_some_keyword: some 6
+rect: 12
+circle: 12
+bag: 2 of 1
+cell: hello tagged 9
+int_cell: 42
+labelled: origin-ish (2, 1)
+chained: (6, 9)
+wrapped text: abc
+wrapped int: 3
+explicit: 5 tagged 1

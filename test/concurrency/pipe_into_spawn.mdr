@@ -1,0 +1,45 @@
+module PipeIntoSpawn
+
+// `spawn Name(...)` builds a Spawn node rather than a Call, so it had the same hole as a
+// construction: the pipe wrapped it instead of prepending, and the arity check on the
+// spawned function's arguments then failed.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+defun Compute(a : Int, b : Int) -> Int =>
+{
+	a + b
+};
+
+defun Subtract(a : Int, b : Int) -> Int =>
+{
+	a - b
+};
+
+defun Triple(n : Int) -> Int =>
+{
+	n * 3
+};
+
+defun Main() -> Unit =>
+{
+	def piped = 1 |> spawn Compute(2);
+	IO::PrintLine("piped: " ++ (join piped as Text));
+
+	// The piped value lands first, so a non-commutative callee shows the order.
+	def ordered = 10 |> spawn Subtract(3);
+	IO::PrintLine("ordered: " ++ (join ordered as Text));
+
+	// A spawn is an ordinary pipeline stage: it can be piped into from a call.
+	def chained = 4 |> Triple |> spawn Compute(1);
+	IO::PrintLine("chained: " ++ (join chained as Text));
+
+	// A single-parameter callee takes the piped value as its only argument.
+	def only = 7 |> spawn Triple();
+	IO::PrintLine("only: " ++ (join only as Text))
+};
+
+Main();

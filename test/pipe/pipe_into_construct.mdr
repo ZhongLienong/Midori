@@ -1,0 +1,131 @@
+module PipeIntoConstruct
+
+// A construction parses to a `Construct` node, not a `Call`, so the pipe has to prepend the
+// piped value into the construction's own argument list. Wrapping it as `Construct(...)(x)`
+// instead reported an arity error at the construction site, which made a struct or a union
+// variant the one shape that could not appear in a pipeline.
+//
+// Both spellings are covered, because `Point(...)` and `new Point(...)` build the same node.
+
+import
+{
+	"../../MidoriPrelude/IO.mdr",
+}
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+struct Bag<T>
+{
+	count : Int,
+	items : Array<T>
+};
+
+struct Cell<T>
+{
+	value : T,
+	tag : Int
+};
+
+struct Labelled
+{
+	point : Point,
+	label : Text
+};
+
+union Opt<T> = Some(T) | None;
+
+union Shape = Circle(Int) | Rect(Int, Int);
+
+defun ShowPoint(p : Point) -> Text =>
+{
+	"(" ++ (p.x as Text) ++ ", " ++ (p.y as Text) ++ ")"
+};
+
+defun ShowOpt(o : Opt<Int>) -> Text =>
+{
+	match o with
+	case Opt::Some(v) => "some " ++ (v as Text)
+	case Opt::None() => "none"
+};
+
+defun Area(s : Shape) -> Int =>
+{
+	match s with
+	case Shape::Circle(r) => r * r * 3
+	case Shape::Rect(w, h) => w * h
+};
+
+defun WithLabel(p : Point, label : Text) -> Labelled =>
+{
+	new Labelled(p, label)
+};
+
+defun ShowLabelled(l : Labelled) -> Text =>
+{
+	l.label ++ " " ++ ShowPoint(l.point)
+};
+
+defun Double(n : Int) -> Int =>
+{
+	n * 2
+};
+
+// The piped value becomes the first constructor argument, in both spellings.
+def bare = 2 |> Point(1);
+def keyword = 2 |> new Point(1);
+IO::PrintLine("bare: " ++ ShowPoint(bare));
+IO::PrintLine("keyword: " ++ ShowPoint(keyword));
+
+// It lands first, not last - this and `bare` disagree unless the order is right.
+IO::PrintLine("ordered: " ++ ShowPoint(1 |> Point(2)));
+
+// Union variants, qualified, in both spellings. The variant tag is decided at parse time,
+// so prepending an argument must leave it alone.
+def piped_some = 5 |> Opt::Some();
+def piped_some_keyword = 6 |> new Opt::Some();
+IO::PrintLine("piped_some: " ++ ShowOpt(piped_some));
+IO::PrintLine("piped_some_keyword: " ++ ShowOpt(piped_some_keyword));
+
+// A multi-argument variant keeps its written arguments after the piped one.
+IO::PrintLine("rect: " ++ ((3 |> Shape::Rect(4) |> Area) as Text));
+IO::PrintLine("circle: " ++ ((2 |> Shape::Circle() |> Area) as Text));
+
+// Generic inference: the piped value has to take part in inference rather than arrive
+// after it has run. Here the written argument fixes T and the piped value fills the
+// concrete slot.
+def bag = 2 |> Bag([1, 2, 3]);
+IO::PrintLine("bag: " ++ (bag.count as Text) ++ " of " ++ (bag.items[0] as Text));
+
+// Here it is the piped value that fixes T, which it can only do by being present before
+// inference runs rather than appended after it.
+def cell = "hello" |> Cell(9);
+IO::PrintLine("cell: " ++ cell.value ++ " tagged " ++ (cell.tag as Text));
+
+def int_cell = 41 |> Cell(1);
+IO::PrintLine("int_cell: " ++ ((int_cell.value + 1) as Text));
+
+// A construction is just another pipeline stage: it can be piped into and out of.
+def labelled = 2 |> Point(1) |> WithLabel("origin-ish");
+IO::PrintLine("labelled: " ++ ShowLabelled(labelled));
+
+// And it composes with an ordinary call on either side.
+IO::PrintLine("chained: " ++ ShowPoint(3 |> Double |> Point(9)));
+
+// Inside a generic function body the declared types are already freshened, so a piped
+// construction has to infer against the freshened parameter rather than a stale one.
+defun WrapIt<T>(v : T) -> Cell<T> =>
+{
+	v |> Cell(7)
+};
+
+IO::PrintLine("wrapped text: " ++ WrapIt("abc").value);
+IO::PrintLine("wrapped int: " ++ (WrapIt(3).value as Text));
+
+// `new Name<T>(...)` carries explicit type arguments on the node, and prepending must not
+// disturb them either.
+def explicit = 5 |> new Cell<Int>(1);
+IO::PrintLine("explicit: " ++ (explicit.value as Text) ++ " tagged " ++ (explicit.tag as Text));

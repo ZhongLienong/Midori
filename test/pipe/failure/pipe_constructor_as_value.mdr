@@ -1,0 +1,13 @@
+module PipeConstructorAsValue
+
+// A bare constructor name on the right of a pipe stays a diagnostic. A constructor is
+// monomorphised at each construction site and has no single procedure behind the name, so
+// there is nothing to pipe into. `Point(...)` is the spelling that pipes.
+
+struct Point
+{
+	x : Int,
+	y : Int
+};
+
+def bad = 2 |> Point;

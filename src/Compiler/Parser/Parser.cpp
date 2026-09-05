@@ -2134,13 +2134,31 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 						return std::unexpected(std::move(right.error()));
 					}
 
-					// Transform pipe into call expression
+					// Prepend the piped value into whichever argument list the right-hand side
+					// already owns, and fall back to a call when it owns none.
 					// x |> f(y) becomes f(x, y)
+					// x |> Point(y) becomes Point(x, y)
+					// x |> spawn Compute(y) becomes spawn Compute(x, y)
 					// x |> f becomes f(x)
+					// A construction and a spawn are not Call nodes, so each needs its own branch.
+					// Prepending at parse time is also what lets the piped value take part in generic
+					// inference on the same footing as a written argument.
 					if (right.value()->IsExpression<MidoriExpression::Call>())
 					{
 						MidoriExpression::Call& call_expr = right.value()->GetExpression<MidoriExpression::Call>();
 						call_expr.m_arguments.insert(call_expr.m_arguments.begin(), std::move(left_expr));
+						left_expr = std::move(right.value());
+					}
+					else if (right.value()->IsExpression<MidoriExpression::Construct>())
+					{
+						MidoriExpression::Construct& construct_expr = right.value()->GetExpression<MidoriExpression::Construct>();
+						construct_expr.m_params.insert(construct_expr.m_params.begin(), std::move(left_expr));
+						left_expr = std::move(right.value());
+					}
+					else if (right.value()->IsExpression<MidoriExpression::Spawn>())
+					{
+						MidoriExpression::Spawn& spawn_expr = right.value()->GetExpression<MidoriExpression::Spawn>();
+						spawn_expr.m_arguments.insert(spawn_expr.m_arguments.begin(), std::move(left_expr));
 						left_expr = std::move(right.value());
 					}
 					else
