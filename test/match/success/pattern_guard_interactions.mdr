@@ -21,7 +21,7 @@ def constant_scrutinee = match 5 with
 
 IO::PrintLine("constant_scrutinee=" ++ constant_scrutinee);
 
-defun CountDown(s: Step, acc: Int) -> Int => match s with
+def CountDown = fn(s: Step, acc: Int) -> Int => match s with
 	case Step::Continue(n) if n > 0 => CountDown(Step::Continue(n - 1), acc + n)
 	case Step::Continue(_) => acc
 	case Step::Stop(n) => acc + n

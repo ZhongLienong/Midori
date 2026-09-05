@@ -29,7 +29,7 @@ def kept_effectful_statement: Int = {
     4
 };
 
-defun early_return() -> Int => {
+def early_return = fn() -> Int => {
     return 3;
     print_and_return(99);
 };

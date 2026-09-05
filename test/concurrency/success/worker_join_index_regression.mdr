@@ -9,12 +9,12 @@ import
 
 use IO.{PrintLine}
 
-defun Answer(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, _view_min_r : Float, _view_min_i : Float, _view_max_r : Float, _view_max_i : Float, fractal_kind : Int, _julia_cr : Float, _julia_ci : Float) -> Array<Int> =>
+def Answer = fn(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, _view_min_r : Float, _view_min_i : Float, _view_max_r : Float, _view_max_i : Float, fractal_kind : Int, _julia_cr : Float, _julia_ci : Float) -> Array<Int> =>
 {
     [y_start, y_end, width, height, limit, samples_per_axis, fractal_kind]
 };
 
-defun Run() -> Unit =>
+def Run = fn() -> Unit =>
 {
     def width = 64;
     def height = 64;
