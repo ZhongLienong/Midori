@@ -3,7 +3,7 @@ module value_transfer_int
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun IntWorker(ch : Channel<Int>) -> Int =>
+def IntWorker = fn(ch : Channel<Int>) -> Int =>
 {
     ch -> 42;
     ch -> -1;

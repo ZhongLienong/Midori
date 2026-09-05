@@ -3,22 +3,22 @@ module worker_result_values
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun ReturnZero(ch: Channel<Int>) -> Int => {
+def ReturnZero = fn(ch: Channel<Int>) -> Int => {
     ch -> 0;
     0
 };
 
-defun ReturnFortyTwo(ch: Channel<Int>) -> Int => {
+def ReturnFortyTwo = fn(ch: Channel<Int>) -> Int => {
     ch -> 42;
     0
 };
 
-defun ReturnNegative(ch: Channel<Int>) -> Int => {
+def ReturnNegative = fn(ch: Channel<Int>) -> Int => {
     ch -> (0 - 1);
     0
 };
 
-defun ComputeReturn(ch: Channel<Int>, x: Int) -> Int => {
+def ComputeReturn = fn(ch: Channel<Int>, x: Int) -> Int => {
     ch -> (x * x + 1);
     0
 };

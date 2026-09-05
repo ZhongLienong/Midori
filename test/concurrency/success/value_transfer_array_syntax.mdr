@@ -3,7 +3,7 @@ module value_transfer_array_syntax
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun BuildValues() -> Array<Int> => {
+def BuildValues = fn() -> Array<Int> => {
     [1, 2, 3, 4]
 };
 

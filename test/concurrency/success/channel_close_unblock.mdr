@@ -3,7 +3,7 @@ module channel_close_unblock
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Sender(ch : Channel<Text>) -> Int =>
+def Sender = fn(ch : Channel<Text>) -> Int =>
 {
     ch -> "first";
     ch -> "second";

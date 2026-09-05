@@ -32,7 +32,7 @@ def append_color = fn(buf : Text, iterations : Int, max_iterations: Int) -> Unit
     }
 };
 
-defun ComputeMandelbrotBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int) -> Int =>
+def ComputeMandelbrotBand = fn(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int) -> Int =>
 {
     def band_data = "";
     def y = y_start;
@@ -63,7 +63,7 @@ defun ComputeMandelbrotBand(ch : Channel<Text>, y_start : Int, y_end : Int, widt
     0
 };
 
-defun ComputeJuliaBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, c_real : Float, c_imag : Float) -> Int =>
+def ComputeJuliaBand = fn(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, c_real : Float, c_imag : Float) -> Int =>
 {
     def c = Complex(c_real, c_imag);
 
@@ -102,7 +102,7 @@ defun ComputeJuliaBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : I
     0
 };
 
-defun parallel_mandelbrot_ppm(width : Int, height : Int, limit : Int, num_workers : Int) -> Text =>
+def parallel_mandelbrot_ppm = fn(width : Int, height : Int, limit : Int, num_workers : Int) -> Text =>
 {
     def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
     def band_height = height / num_workers;
@@ -138,7 +138,7 @@ defun parallel_mandelbrot_ppm(width : Int, height : Int, limit : Int, num_worker
     ppm_header ++ ppm_data
 };
 
-defun parallel_julia_ppm(width : Int, height : Int, c_real : Float, c_imag : Float, limit : Int, num_workers : Int) -> Text =>
+def parallel_julia_ppm = fn(width : Int, height : Int, c_real : Float, c_imag : Float, limit : Int, num_workers : Int) -> Text =>
 {
     def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
     def band_height = height / num_workers;

@@ -339,7 +339,7 @@ def append_pixels = fn(target : Array<Int>, values : Array<Int>) -> Unit =>
     };
 };
 
-defun render_fractal_parallel_range_rgba(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, worker_budget : Int) -> Array<Int> =>
+def render_fractal_parallel_range_rgba = fn(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, worker_budget : Int) -> Array<Int> =>
 {
     def row_count = y_end - y_start;
     if worker_budget <= 1 || row_count <= 1

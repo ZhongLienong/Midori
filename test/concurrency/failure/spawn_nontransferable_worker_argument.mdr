@@ -1,11 +1,11 @@
 module spawn_nontransferable_worker_argument
 
-defun Produce() -> Int =>
+def Produce = fn() -> Int =>
 {
     42
 };
 
-defun Rejoin(worker: Worker<Int>) -> Int =>
+def Rejoin = fn(worker: Worker<Int>) -> Int =>
 {
     join worker
 };

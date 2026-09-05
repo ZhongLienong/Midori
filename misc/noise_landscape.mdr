@@ -270,7 +270,7 @@ def append_pixels = fn(target : Array<Int>, values : Array<Int>) -> Unit =>
     };
 };
 
-defun render_parallel(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3, budget : Int) -> Array<Int> =>
+def render_parallel = fn(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3, budget : Int) -> Array<Int> =>
 {
     def row_count = y_end - y_start;
     if budget <= 1 || row_count <= 1

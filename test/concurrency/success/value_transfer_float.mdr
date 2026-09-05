@@ -3,7 +3,7 @@ module value_transfer_float
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun FloatWorker(ch : Channel<Float>) -> Int =>
+def FloatWorker = fn(ch : Channel<Float>) -> Int =>
 {
     ch -> 3.14;
     ch -> -0.001;

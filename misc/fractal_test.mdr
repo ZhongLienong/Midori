@@ -7,7 +7,7 @@ import
     <Image>
 }
 
-defun WriteTestWorker(ch : Channel<Text>) -> Int =>
+def WriteTestWorker = fn(ch : Channel<Text>) -> Int =>
 {
     def pixels : Array<Int> = [];
     def y = 0;

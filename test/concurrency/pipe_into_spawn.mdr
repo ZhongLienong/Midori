@@ -9,17 +9,17 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun Compute(a : Int, b : Int) -> Int =>
+def Compute = fn(a : Int, b : Int) -> Int =>
 {
 	a + b
 };
 
-defun Subtract(a : Int, b : Int) -> Int =>
+def Subtract = fn(a : Int, b : Int) -> Int =>
 {
 	a - b
 };
 
-defun Triple(n : Int) -> Int =>
+def Triple = fn(n : Int) -> Int =>
 {
 	n * 3
 };

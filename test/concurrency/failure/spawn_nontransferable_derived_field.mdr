@@ -7,7 +7,7 @@ struct BadPayload
     callback: fn(Int) -> Int
 } deriving (Transferable);
 
-defun UsePayload(payload: BadPayload) -> Int => {
+def UsePayload = fn(payload: BadPayload) -> Int => {
     payload.callback(5)
 };
 

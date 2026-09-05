@@ -3,7 +3,7 @@ module worker_failure_propagation
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun GoodWorker(x : Int) -> Int =>
+def GoodWorker = fn(x : Int) -> Int =>
 {
     x * 2 + 20
 };

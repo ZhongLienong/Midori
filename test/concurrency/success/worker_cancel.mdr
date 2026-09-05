@@ -6,7 +6,7 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/System.mdr" }
 use System.{Sleep}
 
-defun LongTask(dummy: Text) -> Int => {
+def LongTask = fn(dummy: Text) -> Int => {
     Sleep(5000);
     0
 };
