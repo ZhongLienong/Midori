@@ -1089,6 +1089,9 @@ MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 
 		m_context.m_tokens[m_state.m_current_token_index] = std::move(first_right_angle);
 
+		// The insert shifts later tokens, so the enclosing level closes on the second
+		// '>'. TokenStream keeps each Token at a stable address precisely so that the
+		// parse frames holding Token& across this call survive the insert.
 		TokenStream split_tokens;
 		split_tokens.AddToken(std::move(second_right_angle));
 		m_context.m_tokens.Insert(m_context.m_tokens.begin() + m_state.m_current_token_index + 1, std::move(split_tokens));

@@ -32,35 +32,59 @@ Token::Token(std::string lexeme, Name token_name, const Token& anchor) noexcept
 {
 }
 
+TokenStream::TokenStream(const TokenStream& other)
+{
+	m_tokens.reserve(other.m_tokens.size());
+	for (const std::unique_ptr<Token>& token : other.m_tokens)
+	{
+		m_tokens.emplace_back(std::make_unique<Token>(*token));
+	}
+}
+
+TokenStream& TokenStream::operator=(const TokenStream& other)
+{
+	if (this != &other)
+	{
+		Storage copied;
+		copied.reserve(other.m_tokens.size());
+		for (const std::unique_ptr<Token>& token : other.m_tokens)
+		{
+			copied.emplace_back(std::make_unique<Token>(*token));
+		}
+		m_tokens = std::move(copied);
+	}
+	return *this;
+}
+
 TokenStream::iterator TokenStream::begin()
 { 
-	return m_tokens.begin(); 
+	return TokenStream::iterator(m_tokens.begin());
 }
 
 TokenStream::iterator TokenStream::end()
 { 
-	return m_tokens.end();
+	return TokenStream::iterator(m_tokens.end());
 }
 
 TokenStream::const_iterator TokenStream::cbegin() const
 { 
-	return m_tokens.cbegin(); 
+	return TokenStream::const_iterator(m_tokens.cbegin());
 }
 
 TokenStream::const_iterator TokenStream::cend() const
 { 
-	return m_tokens.cend(); 
+	return TokenStream::const_iterator(m_tokens.cend());
 }
 
 TokenStream& TokenStream::AddToken(Token&& token)
 { 
-	m_tokens.emplace_back(std::move(token)); 
+	m_tokens.emplace_back(std::make_unique<Token>(std::move(token)));
 	return *this;
 }
 
 Token& TokenStream::operator[](int index) const 
 { 
-	return const_cast<Token&>(m_tokens[static_cast<size_t>(index)]);
+	return *m_tokens[static_cast<size_t>(index)];
 }
 
 int TokenStream::Size() const 
@@ -70,12 +94,12 @@ int TokenStream::Size() const
 
 void TokenStream::Insert(TokenStream::iterator iter, TokenStream&& tokens)
 {
-	m_tokens.insert(iter, tokens.begin(), tokens.end());
+	m_tokens.insert(iter.Position(), std::make_move_iterator(tokens.m_tokens.begin()), std::make_move_iterator(tokens.m_tokens.end()));
 }
 
 void TokenStream::Erase(TokenStream::iterator iter)
 {
-	m_tokens.erase(iter);
+	m_tokens.erase(iter.Position());
 }
 
 void TokenStream::PopBack() noexcept
