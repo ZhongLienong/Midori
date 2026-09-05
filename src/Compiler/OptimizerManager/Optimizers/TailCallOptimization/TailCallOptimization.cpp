@@ -376,13 +376,13 @@ std::string_view TailCallOptimization::GetName() const
 	return "TailCallOptimization";
 }
 
-void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun)
+void TailCallOptimization::MarkTailRecursion(const std::string& function_name, std::unique_ptr<MidoriExpression>& body)
 {
-	m_current_function = defun.m_name.m_lexeme;
+	m_current_function = function_name;
 	m_has_tail_recursion = false;
 	m_marked_new_tail_call = false;
 
-	m_has_tail_recursion = IsTailRecursive(defun.m_body, m_current_function);
+	m_has_tail_recursion = IsTailRecursive(body, m_current_function);
 	if (m_marked_new_tail_call)
 	{
 		MarkOptimization();
@@ -390,7 +390,25 @@ void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun
 
 	m_current_function.clear();
 
-	VisitAndReplace(defun.m_body);
+	VisitAndReplace(body);
+}
+
+void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun)
+{
+	MarkTailRecursion(defun.m_name.m_lexeme, defun.m_body);
+}
+
+void TailCallOptimization::operator()(MidoriStatement::VariableDefinition& def)
+{
+	// `def Name = fn(...)` names its own procedure just as `defun Name(...)` does, so
+	// a call to Name in tail position inside the lambda is the same self-recursion.
+	if (def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
+	{
+		MarkTailRecursion(def.m_name.m_lexeme, def.m_value->GetExpression<MidoriExpression::Function>().m_body);
+		return;
+	}
+
+	VisitAndReplace(def.m_value);
 }
 
 void TailCallOptimization::operator()(MidoriExpression::Block& block)
@@ -401,6 +419,14 @@ void TailCallOptimization::operator()(MidoriExpression::Block& block)
 		{
 			MidoriStatement::FunctionDefinition& nested_defun = stmt->GetStatement<MidoriStatement::FunctionDefinition>();
 			(*this)(nested_defun);
+		}
+		else if (stmt->IsStatement<MidoriStatement::VariableDefinition>())
+		{
+			MidoriStatement::VariableDefinition& nested_def = stmt->GetStatement<MidoriStatement::VariableDefinition>();
+			if (nested_def.m_value != nullptr && nested_def.m_value->IsExpression<MidoriExpression::Function>())
+			{
+				(*this)(nested_def);
+			}
 		}
 	}
 

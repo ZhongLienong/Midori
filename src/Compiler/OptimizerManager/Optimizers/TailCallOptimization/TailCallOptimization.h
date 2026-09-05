@@ -20,9 +20,13 @@ protected:
 
 	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 
+	void operator()(MidoriStatement::VariableDefinition& def) override;
+
 	void operator()(MidoriExpression::Block& block) override;
 
 private:
+
+	void MarkTailRecursion(const std::string& function_name, std::unique_ptr<MidoriExpression>& body);
 
 	bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
 
