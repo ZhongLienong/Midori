@@ -11,11 +11,11 @@ struct S1
 
 union U1 = A(Int) | B | C(Float, Int, Text) | D(U1) | E(S1);
 
-def z = new U1::D(new U1::D(new U1::E(new S1())));
+def z = U1::D(U1::D(U1::E(S1())));
 
 union Inner = A | B(U1);
 
-def zz = new Inner::A();
+def zz = Inner::A();
 
 def sssw = match z with
 	case U1::D(u) => IO::PrintLine("D")

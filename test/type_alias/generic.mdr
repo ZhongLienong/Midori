@@ -20,8 +20,8 @@ alias IntPair = Pair<Int, Int>;
 alias TextIntPair = Pair<Text, Int>;
 
 // Use the type aliases
-def p1: IntPair = new Pair(10, 20);
-def p2: TextIntPair = new Pair("Age", 30);
+def p1: IntPair = Pair(10, 20);
+def p2: TextIntPair = Pair("Age", 30);
 
 IO::PrintLine(p1.first as Text);
 IO::PrintLine(p1.second as Text);

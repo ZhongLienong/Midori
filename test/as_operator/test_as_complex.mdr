@@ -30,14 +30,14 @@ instance Convertable<Point, Text> {
     };
 };
 
-def point = new Point(10, 20);
+def point = Point(10, 20);
 def point_text = point as Text;
 IO::PrintLine("Test 1 - Point to Text: " ++ point_text);
 
 // Test 2: Point -> Vector conversion (Int to Float)
 instance Convertable<Point, Vector> {
     def Convert = fn(p: Point) -> Vector => {
-        new Vector((p.x as Float), (p.y as Float))
+        Vector((p.x as Float), (p.y as Float))
     };
 };
 
@@ -51,7 +51,7 @@ instance Convertable<Person, Text> {
     };
 };
 
-def alice = new Person("Alice", 30);
+def alice = Person("Alice", 30);
 def alice_text = alice as Text;
 IO::PrintLine("Test 3 - Person to Text: " ++ alice_text);
 
@@ -153,7 +153,7 @@ instance Convertable<Rectangle, Text> {
     };
 };
 
-def rect = new Rectangle(new Point(5, 10), 100, 50);
+def rect = Rectangle(Point(5, 10), 100, 50);
 def rect_text = rect as Text;
 IO::PrintLine("Test 9 - Rectangle to Text: " ++ rect_text);
 
@@ -164,7 +164,7 @@ instance Convertable<Person, Int> {
     };
 };
 
-def bob = new Person("Bob", 25);
+def bob = Person("Bob", 25);
 def bob_age = bob as Int;
 
 if bob_age == 25 then {

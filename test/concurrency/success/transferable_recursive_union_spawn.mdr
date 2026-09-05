@@ -11,11 +11,11 @@ defun Count(list: IntList) -> Int =>
 ;
 
 def list =
-    new IntList::Cons(
+    IntList::Cons(
         1,
-        new IntList::Cons(
+        IntList::Cons(
             2,
-            new IntList::Cons(3, new IntList::Nil())
+            IntList::Cons(3, IntList::Nil())
         )
     );
 

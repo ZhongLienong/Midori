@@ -10,4 +10,4 @@ struct Box<T>
 
 alias BoxAlias<T> = Box<T>;
 
-def boxed : BoxAlias = new Box(1);
+def boxed : BoxAlias = Box(1);

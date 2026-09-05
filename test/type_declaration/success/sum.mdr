@@ -27,9 +27,9 @@ def SumList = fn(l: IntList) -> Int =>
 		case IntList::Cons(x, rest) => x + SumList(rest)
 ;
 
-def numbers = new IntList::Cons(1, new IntList::Cons(2, new IntList::Cons(3, new IntList::Nil())));
+def numbers = IntList::Cons(1, IntList::Cons(2, IntList::Cons(3, IntList::Nil())));
 
-IO::PrintLine("dot=" ++ (Area(new Shape::Dot()) as Text));
-IO::PrintLine("line=" ++ (Area(new Shape::Line(7)) as Text));
-IO::PrintLine("box=" ++ (Area(new Shape::Box(3, 4)) as Text));
+IO::PrintLine("dot=" ++ (Area(Shape::Dot()) as Text));
+IO::PrintLine("line=" ++ (Area(Shape::Line(7)) as Text));
+IO::PrintLine("box=" ++ (Area(Shape::Box(3, 4)) as Text));
 IO::PrintLine("list=" ++ (SumList(numbers) as Text));

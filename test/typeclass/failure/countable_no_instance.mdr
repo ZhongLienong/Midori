@@ -11,5 +11,5 @@ import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Collections/Ma
 
 struct MapData { url: Text };
 
-def value = new MapData("example.com");
+def value = MapData("example.com");
 IO::PrintLine(#value as Text);

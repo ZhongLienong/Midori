@@ -46,9 +46,9 @@ def TakesMeters = fn(m: Meters) -> Int => m;
 def raw: Int = 12;
 def distance: Meters = 30;
 
-IO::PrintLine("old=" ++ (OldSum(new OldPoint(1, 2)) as Text));
-IO::PrintLine("new=" ++ (NewSum(new NewPoint(3, 4)) as Text));
-IO::PrintLine("old_flag=" ++ (DescribeOld(new OldFlag::On(5)) as Text));
-IO::PrintLine("new_flag=" ++ (Describe(new NewFlag::On(9)) as Text));
+IO::PrintLine("old=" ++ (OldSum(OldPoint(1, 2)) as Text));
+IO::PrintLine("new=" ++ (NewSum(NewPoint(3, 4)) as Text));
+IO::PrintLine("old_flag=" ++ (DescribeOld(OldFlag::On(5)) as Text));
+IO::PrintLine("new_flag=" ++ (Describe(NewFlag::On(9)) as Text));
 IO::PrintLine("alias_transparent=" ++ (TakesMeters(raw) as Text));
 IO::PrintLine("alias_annotated=" ++ (TakesMeters(distance) as Text));

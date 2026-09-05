@@ -14,5 +14,5 @@ instance Show<Boxed<T>> where Show<T> {
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-def bad = new Boxed<Opaque>(new Opaque(1));
+def bad = Boxed(Opaque(1));
 IO::PrintLine(Show::show(bad));

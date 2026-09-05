@@ -8,22 +8,22 @@ union List < T > = Nil | Cons(T, List);
 struct ListIter < T > {
     current: List < T >
 };
-def ListIterNew = fn < T >(list: List < T >) -> ListIter < T > => new ListIter < T >(list);
+def ListIterNew = fn < T >(list: List < T >) -> ListIter < T > => ListIter (list);
 instance Iterable < ListIter < T >> {
     type Item = T;
     def Next = fn(iter: ListIter < T >) -> Option < T > => {
         match iter.current with
             case List::Cons(head, tail) => {
             iter.current = tail;
-            new Option::Some < T >(head)
+            Option::Some (head)
         }
-            case List::Nil => new Option::None < T >()
+            case List::Nil => Option::None ()
     };
 };
 def ListMap = fn < A, B >(list: List < A >, f: fn(A) -> B) -> List < B > => {
     match list with
-        case List::Cons(head, tail) => new List::Cons < B >(f(head), ListMap(tail, f))
-        case List::Nil => new List::Nil < B >()
+        case List::Cons(head, tail) => List::Cons (f(head), ListMap(tail, f))
+        case List::Nil => List::Nil ()
 };
 def ListLength = fn < T >(list: List < T >) -> Int => {
     match list with
@@ -36,19 +36,19 @@ instance Countable < List < T >> {
 def ListAppend = fn < T >(left: List < T >, right: List < T >) -> List < T > => {
     match left with
         case List::Nil => right
-        case List::Cons(head, tail) => new List::Cons < T >(head, ListAppend(tail, right))
+        case List::Cons(head, tail) => List::Cons (head, ListAppend(tail, right))
 };
 def ListFilter = fn < T >(list: List < T >, predicate: fn(T) -> Bool) -> List < T > => {
     match list with
-        case List::Nil => new List::Nil < T >()
+        case List::Nil => List::Nil ()
         case List::Cons(head, tail) => {
         def filtered_tail = ListFilter(tail, predicate);
-        if predicate(head) then new List::Cons < T >(head, filtered_tail) else filtered_tail
+        if predicate(head) then List::Cons (head, filtered_tail) else filtered_tail
     }
 };
 def ListReverseInto = fn < T >(list: List < T >, reversed: List < T >) -> List < T > => {
     match list with
-        case List::Cons(head, tail) => ListReverseInto(tail, new List::Cons < T >(head, reversed))
+        case List::Cons(head, tail) => ListReverseInto(tail, List::Cons (head, reversed))
         case List::Nil => reversed
 };
 def ListReverse = fn < T >(list: List < T >) -> List < T > => ListReverseInto(list, new List::Nil < T >());
@@ -58,7 +58,7 @@ def ListFold = fn < T, A >(list: List < T >, initial: A, f: fn(A, T) -> A) -> A 
         case List::Nil => initial
 };
 def ListFromArrayAt = fn < T >(values: Array < T >, index: Int) -> List < T > => {
-    if index >=#values then new List::Nil < T >() else new List::Cons < T >(values[index], ListFromArrayAt(values, index + 1))
+    if index >=#values then List::Nil () else List::Cons (values[index], ListFromArrayAt(values, index + 1))
 };
 def ListFromArray = fn < T >(values: Array < T >) -> List < T > => ListFromArrayAt(values, 0);
 def ListToArrayAppend = fn < T >(list: List < T >, values: Array < T >) -> Array < T > => {

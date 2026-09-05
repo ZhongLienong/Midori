@@ -10,4 +10,4 @@ struct Pair<T>
 };
 
 // This should fail - trying to pass Int and Text for the same type parameter T
-def bad_pair = new Pair(42, "hello");
+def bad_pair = Pair(42, "hello");

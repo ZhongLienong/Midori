@@ -43,9 +43,9 @@ foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
 def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
 def TimezoneOffsetMinutes = fn() -> Int => GetTimezoneOffsetRaw();
 def LocalNow = fn() -> LocalTimeParts => {
-    new LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())
+    LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())
 };
 def UtcNow = fn() -> UtcTimeParts => {
-    new UtcTimeParts(GetUtcYearRaw(), GetUtcMonthRaw(), GetUtcDayRaw(), GetUtcHourRaw(), GetUtcMinuteRaw(), GetUtcSecondRaw(), GetUtcDayOfWeekRaw(), GetUtcDayOfYearRaw())
+    UtcTimeParts(GetUtcYearRaw(), GetUtcMonthRaw(), GetUtcDayRaw(), GetUtcHourRaw(), GetUtcMinuteRaw(), GetUtcSecondRaw(), GetUtcDayOfWeekRaw(), GetUtcDayOfYearRaw())
 };
 def FormatLocal = fn(format: Text) -> Text => FormatTimeRaw(format);

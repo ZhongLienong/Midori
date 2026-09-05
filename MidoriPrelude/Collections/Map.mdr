@@ -20,21 +20,19 @@ struct MapIter < K, V > {
     V >,
     index: Int
 };
-def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => new MapIter < K, V >(map, 0);
+def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (map, 0);
 instance Iterable < MapIter < K, V >> {
     type Item = Entry < K,
     V >;
     def Next = fn(iter: MapIter < K, V >) -> Option < Entry < K,
     V >> => {
         loop {
-            if iter.index >= iter.map.capacity then break new Option::None < Entry < K,
-            V >>() else {
+            if iter.index >= iter.map.capacity then break Option::None () else {
                 def idx = iter.index;
                 iter.index = iter.index + 1;
                 def entry = iter.map.buckets[idx];
                 match entry with
-                    case MapSlot::Occupied(key, value) => break new Option::Some < Entry < K,
-                V >>(new Entry < K, V >(key, value))
+                    case MapSlot::Occupied(key, value) => break Option::Some (Entry (key, value))
                     default =>()
             }
         }
@@ -54,8 +52,7 @@ def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => 
 };
 def MapNewWithCapacity = fn < K, V >(capacity: Int) -> Map < K, V > => {
     def cap = if capacity < 16 then 16 else capacity;
-    new Map < K,
-    V >(MakeMapBuckets(cap), 0, cap)
+    Map (MakeMapBuckets(cap), 0, cap)
 };
 def MapNew = fn < K, V >() -> Map < K, V > => MapNewWithCapacity(16);
 def FindMapSlot = fn < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
@@ -112,8 +109,7 @@ def MapInsertNoRehash = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool
         match existing with
             case MapSlot::Occupied(_key, _value) => false
             default => {
-            map.buckets[slot] = new MapSlot::Occupied < K,
-            V >(key, value);
+            map.buckets[slot] = MapSlot::Occupied (key, value);
             map.count = map.count + 1;
             true
         }
@@ -148,11 +144,11 @@ def MapInsert = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where H
 def MapGet = fn < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
-    if slot < 0 then new Option::None < V >() else {
+    if slot < 0 then Option::None () else {
         def entry = map.buckets[slot];
         match entry with
-            case MapSlot::Occupied(_key, value) => new Option::Some < V >(value)
-            default => new Option::None < V >()
+            case MapSlot::Occupied(_key, value) => Option::Some (value)
+            default => Option::None ()
     }
 };
 def MapGetOr = fn < K, V >(map: Map < K, V >, key: K, default_value: V) -> V where Hashable < K >, Equatable < K > => {
@@ -164,13 +160,12 @@ def MapGetOr = fn < K, V >(map: Map < K, V >, key: K, default_value: V) -> V whe
 def MapUpdate = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V > where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
-    if slot < 0 then new Option::None < V >() else {
+    if slot < 0 then Option::None () else {
         def entry = map.buckets[slot];
         def old_value = match entry with
-            case MapSlot::Occupied(_key, existing_value) => new Option::Some < V >(existing_value)
+            case MapSlot::Occupied(_key, existing_value) => Option::Some (existing_value)
             default => new Option::None < V >();
-        map.buckets[slot] = new MapSlot::Occupied < K,
-        V >(key, value);
+        map.buckets[slot] = MapSlot::Occupied (key, value);
         old_value
     }
 };
@@ -250,7 +245,7 @@ def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
             def entry = map.buckets[i];
             match entry with
                 case MapSlot::Occupied(key, value) => {
-                ArrayUtil::Append(entries, new Entry < K, V >(key, value));
+                ArrayUtil::Append(entries, Entry (key, value));
                 ()
             }
                 default =>();

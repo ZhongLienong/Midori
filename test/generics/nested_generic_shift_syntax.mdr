@@ -8,7 +8,7 @@ struct Box<T>
 };
 
 def nested: Array<Array<Text>> = [["left"], ["right"]];
-def boxed = new Box<Array<Array<Text>>>(nested);
+def boxed = Box(nested);
 
 def shift_rows = fn(value: Int, rows: Array<Array<Text>>) -> Int => value >> (#rows - 1);
 

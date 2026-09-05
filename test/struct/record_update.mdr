@@ -17,7 +17,7 @@ struct Point
 	label : Text
 };
 
-def origin = new Point(1, 2, "origin");
+def origin = Point(1, 2, "origin");
 
 // This statement-position update goes through ParsePrimary.
 def moved = { origin with x = 5 };
@@ -54,7 +54,7 @@ struct Wide
 	e : Int
 };
 
-def wide = new Wide(1, 2, 3, 4, 5);
+def wide = Wide(1, 2, 3, 4, 5);
 def wide_updated = { wide with c = 30 };
 IO::PrintLine("wide: " ++ (wide_updated.a as Text) ++ (wide_updated.b as Text) ++ (wide_updated.c as Text) ++ (wide_updated.d as Text) ++ (wide_updated.e as Text));
 
@@ -76,4 +76,4 @@ def block_value =
 };
 
 IO::PrintLine("block: " ++ (block_value as Text));
-IO::PrintLine("match block: " ++ (Unwrap(new Opt::Some(7)) as Text));
+IO::PrintLine("match block: " ++ (Unwrap(Opt::Some(7)) as Text));

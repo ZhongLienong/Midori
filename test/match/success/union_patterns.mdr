@@ -7,8 +7,8 @@ import
 
 union Option = None | Some(Int);
 
-def none_val = new Option::None();
-def some_val = new Option::Some(8);
+def none_val = Option::None();
+def some_val = Option::Some(8);
 
 def none_result = match none_val with
 	case Option::None => 0

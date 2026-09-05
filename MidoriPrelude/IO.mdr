@@ -36,13 +36,11 @@ def UnknownIOContext = fn(path: Text, message: Text) -> Text => {
 };
 def MakeIOError = fn(path: Text, error_kind: Int) -> IOError => {
     def message = GetLastIOErrorMessageRaw();
-    if error_kind == 1 then new IOError::NotFound(path) else if error_kind == 2 then new IOError::PermissionDenied(path) else if error_kind == 3 then new IOError::InvalidPath(path) else new IOError::UnknownIO(UnknownIOContext(path, message))
+    if error_kind == 1 then IOError::NotFound(path) else if error_kind == 2 then IOError::PermissionDenied(path) else if error_kind == 3 then IOError::InvalidPath(path) else IOError::UnknownIO(UnknownIOContext(path, message))
 };
 def IOResultFromStatus = fn < T >(path: Text, value: T) -> Result < T, IOError > => {
     def error_kind = GetLastIOErrorKindRaw();
-    if error_kind == 0 then new Result::Ok < T,
-    IOError >(value) else new Result::Err < T,
-    IOError >(MakeIOError(path, error_kind))
+    if error_kind == 0 then Result::Ok (value) else Result::Err (MakeIOError(path, error_kind))
 };
 def TryReadFile = fn(path: Text) -> Result < Text, IOError > => {
     def content = ReadFileRaw(path);

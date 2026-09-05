@@ -14,17 +14,17 @@ struct SetIter < T > {
     set: Set < T >,
     index: Int
 };
-def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => new SetIter < T >(set, 0);
+def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (set, 0);
 instance Iterable < SetIter < T >> {
     type Item = T;
     def Next = fn(iter: SetIter < T >) -> Option < T > => {
         loop {
-            if iter.index >= iter.set.capacity then break new Option::None < T >() else {
+            if iter.index >= iter.set.capacity then break Option::None () else {
                 def idx = iter.index;
                 iter.index = iter.index + 1;
                 def entry = iter.set.buckets[idx];
                 match entry with
-                    case SetSlot::Occupied(elem) => break new Option::Some < T >(elem)
+                    case SetSlot::Occupied(elem) => break Option::Some (elem)
                     default =>()
             }
         }
@@ -43,7 +43,7 @@ def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => {
 };
 def SetNewWithCapacity = fn < T >(capacity: Int) -> Set < T > => {
     def cap = if capacity < 16 then 16 else capacity;
-    new Set < T >(MakeSetBuckets(cap), 0, cap)
+    Set (MakeSetBuckets(cap), 0, cap)
 };
 def SetNew = fn < T >() -> Set < T > => SetNewWithCapacity(16);
 def FindSetSlot = fn < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
@@ -101,7 +101,7 @@ def SetInsertNoRehash = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable
             case SetSlot::Occupied(_elem) => false
             default => true;
         if was_new then {
-            set.buckets[slot] = new SetSlot::Occupied < T >(elem);
+            set.buckets[slot] = SetSlot::Occupied (elem);
             set.count = set.count + 1;
         } else();
         was_new

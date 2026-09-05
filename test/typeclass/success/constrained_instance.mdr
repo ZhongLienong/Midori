@@ -16,5 +16,5 @@ instance Show<Boxed<T>> where Show<T> {
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-def inner = new Boxed<Int>(7);
+def inner = Boxed(7);
 IO::PrintLine(Show::show(inner));

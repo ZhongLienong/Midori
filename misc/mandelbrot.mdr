@@ -15,8 +15,8 @@ struct Complex
 };
 
 def complex_abs = fn(x : Complex) -> Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
-def complex_add = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
-def complex_mul = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+def complex_add = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real + b.Real, a.Imag + b.Imag);
+def complex_mul = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
 def complex_square = fn(a : Complex) -> Complex => complex_mul(a, a);
 
 def append_color = fn(buf : Text, iterations : Int, max_iterations: Int) -> Unit =>
@@ -41,8 +41,8 @@ defun ComputeMandelbrotBand(ch : Channel<Text>, y_start : Int, y_end : Int, widt
         def x = 0;
         loop
         {
-            def c = new Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
-            def z = new Complex(0.0, 0.0);
+            def c = Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
+            def z = Complex(0.0, 0.0);
             def iterations = 0;
             loop
             {
@@ -65,7 +65,7 @@ defun ComputeMandelbrotBand(ch : Channel<Text>, y_start : Int, y_end : Int, widt
 
 defun ComputeJuliaBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, c_real : Float, c_imag : Float) -> Int =>
 {
-    def c = new Complex(c_real, c_imag);
+    def c = Complex(c_real, c_imag);
 
     def real_min = -2.5;
     def real_max = 2.5;
@@ -81,7 +81,7 @@ defun ComputeJuliaBand(ch : Channel<Text>, y_start : Int, y_end : Int, width : I
         {
             def real = real_min + (x as Float) / (width as Float) * (real_max - real_min);
             def imag = imag_min + (y as Float) / (height as Float) * (imag_max - imag_min);
-            def z = new Complex(real, imag);
+            def z = Complex(real, imag);
             def iterations = 0;
             loop
             {

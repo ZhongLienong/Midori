@@ -21,14 +21,14 @@ union Maybe<T> = Nothing | Just(T);
 
 def CountRows = fn(rows : Array<Row>) -> Int => #rows;
 
-def BuildRows = fn() -> Array<Row> => [new Row([1, 2]), new Row([3, 4])];
+def BuildRows = fn() -> Array<Row> => [Row([1, 2]), Row([3, 4])];
 
-def grid = new Grid([new Row([1, 2]), new Row([3, 4])]);
-def annotated : Array<Row> = [new Row([5, 6])];
-def nested : Array<Array<Row>> = [[new Row([7, 8])]];
+def grid = Grid([Row([1, 2]), Row([3, 4])]);
+def annotated : Array<Row> = [Row([5, 6])];
+def nested : Array<Array<Row>> = [[Row([7, 8])]];
 def empty_nested : Array<Array<Int>> = [[]];
-def boxed = new Box([new Row([9, 10])]);
-def wrapped = new Maybe::Just([new Row([11, 12])]);
+def boxed = Box([Row([9, 10])]);
+def wrapped = Maybe::Just([Row([11, 12])]);
 def lambdas : Array<fn(Int) -> Int> = [fn(a : Int) -> Int => a + 1];
 
 def wrapped_first = match wrapped with
@@ -37,7 +37,7 @@ def wrapped_first = match wrapped with
 ;
 
 IO::PrintLine(grid.rows[1].cells[0] as Text);
-IO::PrintLine(CountRows([new Row([1, 2]), new Row([3, 4])]) as Text);
+IO::PrintLine(CountRows([Row([1, 2]), Row([3, 4])]) as Text);
 IO::PrintLine(#BuildRows() as Text);
 IO::PrintLine(annotated[0].cells[1] as Text);
 IO::PrintLine(nested[0][0].cells[0] as Text);

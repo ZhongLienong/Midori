@@ -20,19 +20,19 @@ def TreeHeight = fn(tree : Tree) -> Int =>
 		case Tree::Node(left, right) => 1 + max(TreeHeight(left), TreeHeight(right))
 };
 
-def tree1 = new Tree::Node(new Tree::Leaf(2), new Tree::Leaf(3));
-def tree2 = new Tree::Node(new Tree::Node(new Tree::Leaf(1), new Tree::Leaf(4)), new Tree::Leaf(5));
-def tree3 = new Tree::Node
+def tree1 = Tree::Node(Tree::Leaf(2), Tree::Leaf(3));
+def tree2 = Tree::Node(Tree::Node(Tree::Leaf(1), Tree::Leaf(4)), Tree::Leaf(5));
+def tree3 = Tree::Node
 (
-	new Tree::Node
+	Tree::Node
 	(
-		new Tree::Node(new Tree::Leaf(1), new Tree::Leaf(1)),
-		new Tree::Leaf(2)
+		Tree::Node(Tree::Leaf(1), Tree::Leaf(1)),
+		Tree::Leaf(2)
 	),
-	new Tree::Leaf(3)
+	Tree::Leaf(3)
 );
-def tree4 = new Tree::Node(new Tree::Leaf(0), new Tree::Node(new Tree::Leaf(0), new Tree::Leaf(0)));
-def tree5 = new Tree::Leaf(42);
+def tree4 = Tree::Node(Tree::Leaf(0), Tree::Node(Tree::Leaf(0), Tree::Leaf(0)));
+def tree5 = Tree::Leaf(42);
 
 // sum
 IO::PrintLine("Expected 5, TreeSum computation generated " ++ (TreeSum(tree1) as Text));

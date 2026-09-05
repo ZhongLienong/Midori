@@ -18,8 +18,8 @@ def inc = fn(x: Int) -> Int => x + 1;
 
 def to_some = fn(x: Int) -> Option<Int> => {
     if x > 0
-    then new Option::Some(x + 10)
-    else new Option::None()
+    then Option::Some(x + 10)
+    else Option::None()
 };
 
 def is_even = fn(x: Int) -> Bool => x % 2 == 0;
@@ -48,8 +48,8 @@ def ExpectErrText = fn(result: Result<Int, Text>, expected: Text, message: Text)
         case Result::Err(err) => Expect(err == expected, message)
 };
 
-def opt_value : Option<Int> = new Option::Some(1);
-def empty_option : Option<Int> = new Option::None();
+def opt_value : Option<Int> = Option::Some(1);
+def empty_option : Option<Int> = Option::None();
 
 ExpectSomeInt(OptionMap(opt_value, inc), 2, "OptionMap should transform a present value");
 ExpectSomeInt(OptionBind(opt_value, to_some), 11, "OptionBind should flatten the mapped option");
@@ -74,7 +74,7 @@ Expect(option_unwrap_or_else_calls == 1, "OptionUnwrapOrElse should call the fal
 def option_or_else_calls = 0;
 def option_fallback = fn() -> Option<Int> => {
     option_or_else_calls = option_or_else_calls + 1;
-    new Option::Some(12)
+    Option::Some(12)
 };
 
 ExpectSomeInt(OptionOrElse(opt_value, option_fallback), 1, "OptionOrElse should preserve Some values");
@@ -82,11 +82,11 @@ Expect(option_or_else_calls == 0, "OptionOrElse should not evaluate the fallback
 ExpectSomeInt(OptionOrElse(empty_option, option_fallback), 12, "OptionOrElse should use the fallback for None");
 Expect(option_or_else_calls == 1, "OptionOrElse should evaluate the fallback exactly once for None");
 
-def ok_value : Result<Int, Text> = new Result::Ok(7);
-def err_value : Result<Int, Text> = new Result::Err("nope");
+def ok_value : Result<Int, Text> = Result::Ok(7);
+def err_value : Result<Int, Text> = Result::Err("nope");
 
 ExpectOkInt(ResultMap(ok_value, inc), 8, "ResultMap should transform Ok values");
-ExpectErrText(ResultBind(err_value, fn(x: Int) -> Result<Int, Text> => new Result::Ok(x + 1)), "nope", "ResultBind should preserve Err values");
+ExpectErrText(ResultBind(err_value, fn(x: Int) -> Result<Int, Text> => Result::Ok(x + 1)), "nope", "ResultBind should preserve Err values");
 Expect(ResultUnwrap(err_value, 42) == 42, "ResultUnwrap should return the default for Err");
 Expect(ResultUnwrapOrPanic(ok_value, "unexpected error") == 7, "ResultUnwrapOrPanic should return the Ok value");
 Expect(ResultIsOk(ok_value), "ResultIsOk should report true for Ok");
@@ -118,7 +118,7 @@ Expect(result_unwrap_or_else_calls == 0, "ResultUnwrapOrElse should not evaluate
 Expect(ResultUnwrapOrElse(err_value, unwrap_error) == 4, "ResultUnwrapOrElse should compute the fallback from Err");
 Expect(result_unwrap_or_else_calls == 1, "ResultUnwrapOrElse should evaluate the fallback exactly once for Err");
 
-def list1 : List<Int> = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
+def list1 : List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
 def list2 = ListMap(list1, inc);
 def list3 = ListAppend(list1, list2);
 def list4 = ListFilter(list3, is_even);

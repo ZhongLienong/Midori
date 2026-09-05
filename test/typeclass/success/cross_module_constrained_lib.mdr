@@ -19,8 +19,8 @@ instance Show<Boxed<T>> where Show<T> {
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-def MakeBoxedInt = fn(n: Int) -> Boxed<Int> => new Boxed<Int>(n);
+def MakeBoxedInt = fn(n: Int) -> Boxed<Int> => Boxed(n);
 
-def MakeBoxedText = fn(t: Text) -> Boxed<Text> => new Boxed<Text>(t);
+def MakeBoxedText = fn(t: Text) -> Boxed<Text> => Boxed(t);
 
-def MakeNested = fn(n: Int) -> Boxed<Boxed<Int>> => new Boxed<Boxed<Int>>(new Boxed<Int>(n));
+def MakeNested = fn(n: Int) -> Boxed<Boxed<Int>> => Boxed(Boxed(n));

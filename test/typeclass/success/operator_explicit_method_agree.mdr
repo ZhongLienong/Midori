@@ -21,7 +21,7 @@ instance Countable < Bag < T >> {
 };
 
 def text = "hello";
-def bag: Bag < Int > = new Bag < Int >([1, 2, 3]);
+def bag: Bag < Int > = Bag ([1, 2, 3]);
 
 IO::PrintLine(#text as Text);
 IO::PrintLine(Countable::Count(text) as Text);

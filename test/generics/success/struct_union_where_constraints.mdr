@@ -25,7 +25,7 @@ instance Show<Text> {
     };
 };
 
-def boxed = new Box(10);
+def boxed = Box(10);
 
 def show_box = fn<T>(b: Box<T>) -> Text => {
     return Show::show(b.value);
@@ -33,6 +33,6 @@ def show_box = fn<T>(b: Box<T>) -> Text => {
 
 def text_result = show_box(boxed);
 
-def ok_val : Result<Int, Text> = new Result::Ok(1);
+def ok_val : Result<Int, Text> = Result::Ok(1);
 
-def err_val : Result<Int, Text> = new Result::Err("fail");
+def err_val : Result<Int, Text> = Result::Err("fail");

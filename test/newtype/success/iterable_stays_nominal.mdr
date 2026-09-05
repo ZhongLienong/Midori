@@ -29,11 +29,11 @@ instance Iterable<Counter>
 	type Item = Int;
 	def Next = fn(counter: Counter) -> Option<Int> => {
 		if counter.current >= counter.end
-		then new Option::None()
+		then Option::None()
 		else {
 			def value = counter.current;
 			counter.current = counter.current + 1;
-			new Option::Some(value)
+			Option::Some(value)
 		}
 	};
 };
@@ -46,17 +46,17 @@ instance Iterable<Ticker>
 	def Next = fn(ticker: Ticker) -> Option<Int> => {
 		def counter: Counter = ticker as Counter;
 		if counter.current >= counter.end
-		then new Option::None()
+		then Option::None()
 		else {
 			def value = (counter.current * 10) + 1;
 			counter.current = counter.current + 1;
-			new Option::Some(value)
+			Option::Some(value)
 		}
 	};
 };
 
 def TickerNew = fn(end: Int) -> Ticker => {
-	def counter: Counter = new Counter(0, end);
+	def counter: Counter = Counter(0, end);
 	counter as Ticker
 };
 

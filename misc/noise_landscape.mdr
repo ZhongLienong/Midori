@@ -16,9 +16,9 @@ struct Vec3
     Z : Float,
 } deriving (Transferable);
 
-def vec3_add = fn(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
-def vec3_sub = fn(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-def vec3_scale = fn(a : Vec3, s : Float) -> Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
+def vec3_add = fn(a : Vec3, b : Vec3) -> Vec3 => Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+def vec3_sub = fn(a : Vec3, b : Vec3) -> Vec3 => Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+def vec3_scale = fn(a : Vec3, s : Float) -> Vec3 => Vec3(a.X * s, a.Y * s, a.Z * s);
 def vec3_dot = fn(a : Vec3, b : Vec3) -> Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
 def vec3_length = fn(a : Vec3) -> Float => Math::SquareRoot(vec3_dot(a, a));
 
@@ -26,7 +26,7 @@ def vec3_normalize = fn(a : Vec3) -> Vec3 =>
 {
     def len = vec3_length(a);
     if len < 0.000001
-    then new Vec3(0.0, 0.0, 0.0)
+    then Vec3(0.0, 0.0, 0.0)
     else vec3_scale(a, 1.0 / len)
 };
 
@@ -90,14 +90,14 @@ def terrain_normal = fn(x : Float, z : Float) -> Vec3 =>
     def hc = terrain_height(x, z);
     def hx = terrain_height(x + eps, z);
     def hz = terrain_height(x, z + eps);
-    vec3_normalize(new Vec3(-1.0 * (hx - hc) / eps, 1.0, -1.0 * (hz - hc) / eps))
+    vec3_normalize(Vec3(-1.0 * (hx - hc) / eps, 1.0, -1.0 * (hz - hc) / eps))
 };
 
 def terrain_color = fn(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 =>
 {
     def slope = 1.0 - normal.Y;
     if height < -0.2
-    then new Vec3(0.15, 0.30, 0.55)
+    then Vec3(0.15, 0.30, 0.55)
     else if height < 0.0
     then
     {
@@ -105,17 +105,17 @@ def terrain_color = fn(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 
         def r = lerp(0.15, 0.76, t);
         def g = lerp(0.30, 0.70, t);
         def b = lerp(0.55, 0.50, t);
-        new Vec3(r, g, b)
+        Vec3(r, g, b)
     }
     else if height < 0.8
     then
     {
         if slope > 0.5
-        then new Vec3(0.45, 0.40, 0.35)
+        then Vec3(0.45, 0.40, 0.35)
         else
         {
             def grass_var = value_noise(world_pos.X * 5.0, world_pos.Z * 5.0) * 0.1;
-            new Vec3(0.25 + grass_var, 0.50 + grass_var, 0.15 + grass_var)
+            Vec3(0.25 + grass_var, 0.50 + grass_var, 0.15 + grass_var)
         }
     }
     else if height < 1.5
@@ -123,26 +123,26 @@ def terrain_color = fn(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 
     {
         def t = (height - 0.8) / 0.7;
         if slope > 0.4
-        then new Vec3(0.50, 0.45, 0.40)
+        then Vec3(0.50, 0.45, 0.40)
         else
         {
             def r = lerp(0.30, 0.55, t);
             def g = lerp(0.50, 0.50, t);
             def b = lerp(0.20, 0.45, t);
-            new Vec3(r, g, b)
+            Vec3(r, g, b)
         }
     }
     else
     {
         def snow_t = Math::Clamp((height - 1.5) / 0.5, 0.0, 1.0);
         if slope > 0.6
-        then new Vec3(0.55, 0.50, 0.45)
+        then Vec3(0.55, 0.50, 0.45)
         else
         {
             def r = lerp(0.55, 0.95, snow_t);
             def g = lerp(0.50, 0.95, snow_t);
             def b = lerp(0.45, 0.98, snow_t);
-            new Vec3(r, g, b)
+            Vec3(r, g, b)
         }
     }
 };
@@ -178,7 +178,7 @@ def raymarch_terrain = fn(ro : Vec3, rd : Vec3) -> Vec3 =>
         def r = lerp(0.75, 0.40, sky_t);
         def g = lerp(0.80, 0.55, sky_t);
         def b = lerp(0.85, 0.85, sky_t);
-        new Vec3(r, g, b)
+        Vec3(r, g, b)
     }
     else
     {
@@ -187,14 +187,14 @@ def raymarch_terrain = fn(ro : Vec3, rd : Vec3) -> Vec3 =>
         def height = terrain_height(hit_p.X, hit_p.Z);
         def base_color = terrain_color(height, normal, hit_p);
 
-        def light_dir = vec3_normalize(new Vec3(0.5, 0.7, -0.3));
+        def light_dir = vec3_normalize(Vec3(0.5, 0.7, -0.3));
         def diff = Math::Max(vec3_dot(normal, light_dir), 0.0);
         def ambient = 0.25;
         def lit = ambient + diff * 0.75;
 
         def fog_dist = t / max_t;
         def fog = Math::Clamp(fog_dist * fog_dist, 0.0, 1.0);
-        def fog_color = new Vec3(0.75, 0.80, 0.85);
+        def fog_color = Vec3(0.75, 0.80, 0.85);
 
         def cr = lerp(base_color.X * lit, fog_color.X, fog);
         def cg = lerp(base_color.Y * lit, fog_color.Y, fog);
@@ -203,7 +203,7 @@ def raymarch_terrain = fn(ro : Vec3, rd : Vec3) -> Vec3 =>
         def cr_t = Math::Pow(Math::Clamp(cr, 0.0, 1.0), 1.0 / 2.2);
         def cg_t = Math::Pow(Math::Clamp(cg, 0.0, 1.0), 1.0 / 2.2);
         def cb_t = Math::Pow(Math::Clamp(cb, 0.0, 1.0), 1.0 / 2.2);
-        new Vec3(cr_t, cg_t, cb_t)
+        Vec3(cr_t, cg_t, cb_t)
     }
 };
 
@@ -227,13 +227,13 @@ def render_band = fn(y_start : Int, y_end : Int, width : Int, height : Int, cam_
     def fov = 0.8;
 
     def forward = vec3_normalize(vec3_sub(cam_target, cam_origin));
-    def world_up = new Vec3(0.0, 1.0, 0.0);
-    def right = vec3_normalize(new Vec3(
+    def world_up = Vec3(0.0, 1.0, 0.0);
+    def right = vec3_normalize(Vec3(
         forward.Z * world_up.Y - forward.Y * world_up.Z,
         forward.X * world_up.Z - forward.Z * world_up.X,
         forward.Y * world_up.X - forward.X * world_up.Y
     ));
-    def up = new Vec3(
+    def up = Vec3(
         right.Z * forward.Y - right.Y * forward.Z,
         right.X * forward.Z - right.Z * forward.X,
         right.Y * forward.X - right.X * forward.Y
@@ -295,8 +295,8 @@ def width = 1920;
 def height = 1080;
 def band_workers = 32;
 
-def cam_origin = new Vec3(8.0, 4.5, 8.0);
-def cam_target = new Vec3(0.0, 0.5, 0.0);
+def cam_origin = Vec3(8.0, 4.5, 8.0);
+def cam_target = Vec3(0.0, 0.5, 0.0);
 
 def start = DateTime::NowUnixMillis();
 IO::PrintLine("Rendering procedural terrain with " ++ (band_workers as Text) ++ " workers...");

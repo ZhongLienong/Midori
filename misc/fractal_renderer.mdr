@@ -22,24 +22,24 @@ struct Color
     B : Float,
 };
 
-def complex_add = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
-def complex_mul = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+def complex_add = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real + b.Real, a.Imag + b.Imag);
+def complex_mul = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
 def complex_square = fn(a : Complex) -> Complex => complex_mul(a, a);
 def complex_cube = fn(a : Complex) -> Complex => complex_mul(a, complex_square(a));
 def complex_fourth = fn(a : Complex) -> Complex => complex_square(complex_square(a));
-def complex_square_conj = fn(a : Complex) -> Complex => new Complex(a.Real * a.Real - a.Imag * a.Imag, -2.0 * a.Real * a.Imag);
-def complex_celtic_square = fn(a : Complex) -> Complex => new Complex(Math::Abs(a.Real * a.Real - a.Imag * a.Imag), 2.0 * a.Real * a.Imag);
+def complex_square_conj = fn(a : Complex) -> Complex => Complex(a.Real * a.Real - a.Imag * a.Imag, -2.0 * a.Real * a.Imag);
+def complex_celtic_square = fn(a : Complex) -> Complex => Complex(Math::Abs(a.Real * a.Real - a.Imag * a.Imag), 2.0 * a.Real * a.Imag);
 def complex_abs_square = fn(a : Complex) -> Float => a.Real * a.Real + a.Imag * a.Imag;
 
-def color_add = fn(a : Color, b : Color) -> Color => new Color(a.R + b.R, a.G + b.G, a.B + b.B);
-def color_scale = fn(a : Color, scale : Float) -> Color => new Color(a.R * scale, a.G * scale, a.B * scale);
+def color_add = fn(a : Color, b : Color) -> Color => Color(a.R + b.R, a.G + b.G, a.B + b.B);
+def color_scale = fn(a : Color, scale : Float) -> Color => Color(a.R * scale, a.G * scale, a.B * scale);
 
 def palette_iq = fn(t : Float, a : Color, b : Color, c : Color, d : Color) -> Color =>
 {
     def r = a.R + b.R * Math::Cos(Math::Tau * (c.R * t + d.R));
     def g = a.G + b.G * Math::Cos(Math::Tau * (c.G * t + d.G));
     def bval = a.B + b.B * Math::Cos(Math::Tau * (c.B * t + d.B));
-    new Color(r, g, bval)
+    Color(r, g, bval)
 };
 
 def smoothstep = fn(t : Float) -> Float => t * t * (3.0 - 2.0 * t);
@@ -48,19 +48,19 @@ def palette_for = fn(palette_id : Int, t : Float) -> Color =>
 {
     def t_clamped = Math::Clamp(t, 0.0, 1.0);
     if palette_id == 1
-    then palette_iq(t_clamped, new Color(0.42, 0.55, 0.65), new Color(0.38, 0.35, 0.25), new Color(1.0, 1.0, 1.0), new Color(0.05, 0.25, 0.55))
+    then palette_iq(t_clamped, Color(0.42, 0.55, 0.65), Color(0.38, 0.35, 0.25), Color(1.0, 1.0, 1.0), Color(0.05, 0.25, 0.55))
     else if palette_id == 2
-    then palette_iq(t_clamped, new Color(0.50, 0.40, 0.30), new Color(0.45, 0.45, 0.45), new Color(1.0, 1.0, 1.0), new Color(0.10, 0.33, 0.67))
+    then palette_iq(t_clamped, Color(0.50, 0.40, 0.30), Color(0.45, 0.45, 0.45), Color(1.0, 1.0, 1.0), Color(0.10, 0.33, 0.67))
     else if palette_id == 3
-    then palette_iq(t_clamped, new Color(0.40, 0.55, 0.45), new Color(0.45, 0.40, 0.35), new Color(1.0, 1.0, 1.0), new Color(0.00, 0.20, 0.45))
-    else palette_iq(t_clamped, new Color(0.55, 0.50, 0.60), new Color(0.45, 0.45, 0.45), new Color(1.0, 1.0, 1.0), new Color(0.00, 0.33, 0.67))
+    then palette_iq(t_clamped, Color(0.40, 0.55, 0.45), Color(0.45, 0.40, 0.35), Color(1.0, 1.0, 1.0), Color(0.00, 0.20, 0.45))
+    else palette_iq(t_clamped, Color(0.55, 0.50, 0.60), Color(0.45, 0.45, 0.45), Color(1.0, 1.0, 1.0), Color(0.00, 0.33, 0.67))
 };
 
 def color_from_smooth = fn(smooth : Float, limit : Int, palette_id : Int) -> Color =>
 {
     def limit_f = limit as Float;
     if smooth >= limit_f
-    then new Color(0.02, 0.02, 0.03)
+    then Color(0.02, 0.02, 0.03)
     else
     {
         def t = Math::Clamp(smooth / limit_f, 0.0, 1.0);

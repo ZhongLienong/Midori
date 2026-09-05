@@ -16,8 +16,8 @@ instance Stepper<Counter> {
     type Item = Int;
     def Step = fn(state: Counter) -> Option<Int> =>
         if state.current >= state.limit
-        then new Option::None<Int>()
-        else new Option::Some<Int>(state.current);
+        then Option::None()
+        else Option::Some(state.current);
 };
 
 instance Stepper<Doubled<S>> where Stepper<S> {
@@ -25,7 +25,7 @@ instance Stepper<Doubled<S>> where Stepper<S> {
     def Step = fn(state: Doubled<S>) -> Option<Stepper::Item<S>> => Stepper::Step(state.inner);
 };
 
-def wrapped = new Doubled<Counter>(new Counter(3, 10));
+def wrapped = Doubled(Counter(3, 10));
 match Stepper::Step(wrapped) with
     case Option::Some(v) => IO::PrintLine(v as Text)
     case Option::None() => IO::PrintLine("none");

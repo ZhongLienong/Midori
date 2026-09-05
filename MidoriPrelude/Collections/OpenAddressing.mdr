@@ -10,7 +10,7 @@ def NormalizeProbeStart = fn(hash: Int, capacity: Int) -> Int => {
     def idx = hash % capacity;
     if idx < 0 then 0 - idx else idx
 };
-def ProbeStart = fn(hash: Int, capacity: Int) -> ProbeState => new ProbeState(NormalizeProbeStart(hash, capacity), - 1, 0, capacity);
+def ProbeStart = fn(hash: Int, capacity: Int) -> ProbeState => ProbeState(NormalizeProbeStart(hash, capacity), - 1, 0, capacity);
 def ProbeHasNext = fn(state: ProbeState) -> Bool => state.offset < state.capacity;
 def ProbeIndex = fn(state: ProbeState) -> Int =>(state.start + state.offset) % state.capacity;
 def ProbeAdvance = fn(state: ProbeState) -> Unit => {

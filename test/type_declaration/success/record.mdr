@@ -12,8 +12,8 @@ import
 type Point = { x: Int, y: Int };
 
 // The type name is the constructor; a single-variant record does not repeat it.
-def origin = new Point(0, 0);
-def moved = new Point(3, 4);
+def origin = Point(0, 0);
+def moved = Point(3, 4);
 
 def SumOf = fn(p: Point) -> Int => p.x + p.y;
 

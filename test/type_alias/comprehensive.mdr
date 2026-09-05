@@ -31,7 +31,7 @@ struct Point
 
 alias Position = Point;
 
-def pos: Position = new Point(10.0, 20.0);
+def pos: Position = Point(10.0, 20.0);
 IO::PrintLine(pos.x as Text);
 IO::PrintLine(pos.y as Text);
 

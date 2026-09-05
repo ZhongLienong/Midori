@@ -11,7 +11,7 @@ import
 // then failed with a misleading "Undefined struct or union" pointing at Ok.
 type Result = Ok(Array<Array<Int>>) | Err(Text);
 
-def value = new Result::Ok([[1, 2], [3]]);
+def value = Result::Ok([[1, 2], [3]]);
 def is_ok = match value with
 	case Result::Ok(_) => true
 	case Result::Err(_) => false;

@@ -10,7 +10,7 @@ instance Countable<Box> {
     def Count = fn(box: Box) -> Int => #box.values;
 };
 
-def box = new Box([1, 2, 3, 4]);
+def box = Box([1, 2, 3, 4]);
 def len = #box;
 
 if len == 4

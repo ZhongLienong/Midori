@@ -13,8 +13,8 @@ struct Point
 	y : Int
 };
 
-def some_value = new Option::Some(7);
-def nested_value = (4, 99, new Point(2, 5));
+def some_value = Option::Some(7);
+def nested_value = (4, 99, Point(2, 5));
 
 def union_result = match some_value with
 	case Option::Some(_) => 1

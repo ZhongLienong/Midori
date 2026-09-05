@@ -78,7 +78,7 @@ def AddPrefix = fn(n : Int, prefix : Text) -> Text =>
 // Point operations
 def MakePoint = fn(px : Int, py : Int) -> Point =>
 {
-	new Point(px, py)
+	Point(px, py)
 };
 
 def GetX = fn(p : Point) -> Int =>
@@ -98,7 +98,7 @@ def ManhattanDistance = fn(p : Point) -> Int =>
 
 def ScalePoint = fn(p : Point, factor : Int) -> Point =>
 {
-	new Point(p.x * factor, p.y * factor)
+	Point(p.x * factor, p.y * factor)
 };
 
 

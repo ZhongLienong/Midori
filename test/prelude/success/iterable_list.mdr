@@ -9,7 +9,7 @@ import
 
 use List.{List, ListIter, ListIterNew}
 
-def list : List<Int> = new List::Cons(1, new List::Cons(2, new List::Cons(3, new List::Nil())));
+def list : List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
 def iter : ListIter<Int> = ListIterNew(list);
 def total = 0;
 

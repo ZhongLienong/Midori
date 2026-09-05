@@ -30,7 +30,7 @@ instance Show<Boxed<T>> where Show<T> {
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-def deep = new Boxed<Boxed<Wrapped<Int>>>(new Boxed<Wrapped<Int>>(new Wrapped<Int>(5)));
+def deep = Boxed(Boxed(Wrapped(5)));
 
 IO::PrintLine(Show::show(deep));
 IO::PrintLine(Show::show(new Boxed<Int>(1)));

@@ -31,28 +31,28 @@ def Expect = fn(condition: Bool, message: Text) -> Unit => {
 };
 
 def values : Set::Set<CollisionValue> = Set::SetNew();
-def value1 = new CollisionValue(1);
-def value2 = new CollisionValue(2);
-def value3 = new CollisionValue(3);
-def value4 = new CollisionValue(4);
+def value1 = CollisionValue(1);
+def value2 = CollisionValue(2);
+def value3 = CollisionValue(3);
+def value4 = CollisionValue(4);
 
 Expect(Set::SetInsert(values, value1), "SetInsert should add the first colliding value");
 Expect(Set::SetInsert(values, value2), "SetInsert should add the second colliding value");
 Expect(Set::SetInsert(values, value3), "SetInsert should add the third colliding value");
-Expect(Set::SetRemove(values, new CollisionValue(1)), "SetRemove should create a tombstone in the collision chain");
+Expect(Set::SetRemove(values, CollisionValue(1)), "SetRemove should create a tombstone in the collision chain");
 
-Expect(Set::SetContains(values, new CollisionValue(2)), "SetContains should continue probing past tombstones");
-Expect(Set::SetContains(values, new CollisionValue(3)), "SetContains should still find later colliding values");
+Expect(Set::SetContains(values, CollisionValue(2)), "SetContains should continue probing past tombstones");
+Expect(Set::SetContains(values, CollisionValue(3)), "SetContains should still find later colliding values");
 
-Expect(!Set::SetInsert(values, new CollisionValue(2)), "SetInsert should remain idempotent after deleting a different colliding value");
+Expect(!Set::SetInsert(values, CollisionValue(2)), "SetInsert should remain idempotent after deleting a different colliding value");
 Expect(Set::SetCount(values) == 2, "Duplicate SetInsert should not change the set count");
 
 Expect(Set::SetInsert(values, value4), "A new colliding value should reuse the tombstone slot");
-Expect(Set::SetContains(values, new CollisionValue(4)), "SetContains should find the value inserted into a recycled tombstone");
+Expect(Set::SetContains(values, CollisionValue(4)), "SetContains should find the value inserted into a recycled tombstone");
 
-Expect(Set::SetRemove(values, new CollisionValue(2)), "SetRemove should remove an existing colliding value");
-Expect(Set::SetInsert(values, new CollisionValue(2)), "Reinserting a removed value should succeed");
-Expect(!Set::SetInsert(values, new CollisionValue(2)), "Reinserting an existing value should stay idempotent");
+Expect(Set::SetRemove(values, CollisionValue(2)), "SetRemove should remove an existing colliding value");
+Expect(Set::SetInsert(values, CollisionValue(2)), "Reinserting a removed value should succeed");
+Expect(!Set::SetInsert(values, CollisionValue(2)), "Reinserting an existing value should stay idempotent");
 Expect(Set::SetCount(values) == 3, "SetCount should track delete and reinsert cycles without duplicates");
 
 IO::PrintLine("hashset_tombstone_regressions: PASS");

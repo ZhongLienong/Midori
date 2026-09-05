@@ -8,8 +8,8 @@ def doubler: fn(Int) -> Int = fn(x) => { x * 2 };
 
 def Transform = fn(value: Int) -> Result<Int, Text> => {
     if value > 10
-    then new Result::Ok(value + 1)
-    else new Result::Err("too small")
+    then Result::Ok(value + 1)
+    else Result::Err("too small")
 };
 
 def pipeline_result =

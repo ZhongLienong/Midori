@@ -3,7 +3,7 @@ module TestPreludeLengthOperatorList
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Prelude/List.mdr" }
 use List.{List}
 
-def list = new List::Cons(1, new List::Cons(2, new List::Nil()));
+def list = List::Cons(1, List::Cons(2, List::Nil()));
 def len = #list;
 
 if len == 2

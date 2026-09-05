@@ -32,8 +32,8 @@ struct Expr
 	error : Bool
 };
 
-def make_variable = fn(name : Text) -> Term => new Term(name, 0, true);
-def make_number = fn(num : Int) -> Term => new Term("", num, false);
+def make_variable = fn(name : Text) -> Term => Term(name, 0, true);
+def make_number = fn(num : Int) -> Term => Term("", num, false);
 def is_variable = fn(t : Term) -> Bool => t.is_var;
 def is_number = fn(t : Term) -> Bool => !t.is_var;
 def is_same_variable = fn(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
@@ -42,14 +42,14 @@ def make_sum = fn(v1 : Term, v2 : Term) -> Expr =>
 {
 	def is_sum = true;
 	def error = false;
-	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
+	return Expr(Sum(v1, v2), Product(v1, v2), is_sum, error);
 };
 
 def make_product = fn(v1 : Term, v2 : Term) -> Expr => 
 {
 	def is_sum = false;
 	def error = false;
-	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
+	return Expr(Sum(v1, v2), Product(v1, v2), is_sum, error);
 };
 
 def is_sum = fn(exp : Expr) -> Bool => exp.is_sum;

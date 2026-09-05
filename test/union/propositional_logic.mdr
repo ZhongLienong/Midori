@@ -65,83 +65,83 @@ IO::PrintLine("");
 IO::PrintLine("--- Axioms / Key Facts (Evaluated in the Current Environment) ---");
 
 // Fact 1: Value of A
-PrintAxiomEvaluation("Fact 1: A", new LogicExpr::Var("A"), env, bool_to_text_local);
+PrintAxiomEvaluation("Fact 1: A", LogicExpr::Var("A"), env, bool_to_text_local);
 // Fact 2: Value of NOT B
-PrintAxiomEvaluation("Fact 2: NOT B", new LogicExpr::Not(new LogicExpr::Var("B")), env, bool_to_text_local);
+PrintAxiomEvaluation("Fact 2: NOT B", LogicExpr::Not(LogicExpr::Var("B")), env, bool_to_text_local);
 
 // Axiom 3: Law of Excluded Middle (for A) - Should always be true
-def axiom3_expr = new LogicExpr::Or(new LogicExpr::Var("A"), new LogicExpr::Not(new LogicExpr::Var("A")));
+def axiom3_expr = LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Not(LogicExpr::Var("A")));
 PrintAxiomEvaluation("Axiom 3 (Law of Excluded Middle): A OR (NOT A)", axiom3_expr, env, bool_to_text_local);
 
 // Axiom 4: Principle of Non-Contradiction (for B) - Should always be true
-def axiom4_expr = new LogicExpr::Not(new LogicExpr::And(new LogicExpr::Var("B"), new LogicExpr::Not(new LogicExpr::Var("B"))));
+def axiom4_expr = LogicExpr::Not(LogicExpr::And(LogicExpr::Var("B"), LogicExpr::Not(LogicExpr::Var("B"))));
 PrintAxiomEvaluation("Axiom 4 (Non-Contradiction): NOT (B AND (NOT B))", axiom4_expr, env, bool_to_text_local);
 
 // Fact 5: A specific compound statement: (A AND C)
-def fact5_expr = new LogicExpr::And(new LogicExpr::Var("A"), new LogicExpr::Var("C"));
+def fact5_expr = LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("C"));
 PrintAxiomEvaluation("Fact 5: A AND C", fact5_expr, env, bool_to_text_local);
 
 // Fact 6: Implication: A -> B (equivalent to (NOT A) OR B)
-def fact6_expr = new LogicExpr::Or(new LogicExpr::Not(new LogicExpr::Var("A")), new LogicExpr::Var("B"));
+def fact6_expr = LogicExpr::Or(LogicExpr::Not(LogicExpr::Var("A")), LogicExpr::Var("B"));
 PrintAxiomEvaluation("Fact 6 (Implication): A -> B (i.e., (NOT A) OR B)", fact6_expr, env, bool_to_text_local);
 
 // Fact 7: Implication: B -> C (equivalent to (NOT B) OR C)
-def fact7_expr = new LogicExpr::Or(new LogicExpr::Not(new LogicExpr::Var("B")), new LogicExpr::Var("C"));
+def fact7_expr = LogicExpr::Or(LogicExpr::Not(LogicExpr::Var("B")), LogicExpr::Var("C"));
 PrintAxiomEvaluation("Fact 7 (Implication): B -> C (i.e., (NOT B) OR C)", fact7_expr, env, bool_to_text_local);
 
 IO::PrintLine("");
 IO::PrintLine("--- Specific Test Cases (with Expected Outcomes) ---");
 
 // Test Case 1: Original Expression
-def expr1 = new LogicExpr::Or(new LogicExpr::And(new LogicExpr::Var("A"), new LogicExpr::Not(new LogicExpr::Var("B"))), new LogicExpr::Var("C"));
+def expr1 = LogicExpr::Or(LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Not(LogicExpr::Var("B"))), LogicExpr::Var("C"));
 PrintTestResult("Test 1", "(A AND NOT B) OR C", expr1, true, env, bool_to_text_local);
 
 // Test Case 2: NOT A
-def expr2 = new LogicExpr::Not(new LogicExpr::Var("A"));
+def expr2 = LogicExpr::Not(LogicExpr::Var("A"));
 PrintTestResult("Test 2", "NOT A", expr2, false, env, bool_to_text_local);
 
 // Test Case 3: A OR B
-def expr3 = new LogicExpr::Or(new LogicExpr::Var("A"), new LogicExpr::Var("B"));
+def expr3 = LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("B"));
 PrintTestResult("Test 3", "A OR B", expr3, true, env, bool_to_text_local);
 
 // Test Case 4: A AND B
-def expr4 = new LogicExpr::And(new LogicExpr::Var("A"), new LogicExpr::Var("B"));
+def expr4 = LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("B"));
 PrintTestResult("Test 4", "A AND B", expr4, false, env, bool_to_text_local);
 
 // Test Case 5: (NOT A) OR (NOT C)
-def expr5 = new LogicExpr::Or(new LogicExpr::Not(new LogicExpr::Var("A")), new LogicExpr::Not(new LogicExpr::Var("C")));
+def expr5 = LogicExpr::Or(LogicExpr::Not(LogicExpr::Var("A")), LogicExpr::Not(LogicExpr::Var("C")));
 PrintTestResult("Test 5", "(NOT A) OR (NOT C)", expr5, false, env, bool_to_text_local);
 
 // Test Case 6: B OR (NOT C AND A)
-def expr6 = new LogicExpr::Or(new LogicExpr::Var("B"), new LogicExpr::And(new LogicExpr::Not(new LogicExpr::Var("C")), new LogicExpr::Var("A")));
+def expr6 = LogicExpr::Or(LogicExpr::Var("B"), LogicExpr::And(LogicExpr::Not(LogicExpr::Var("C")), LogicExpr::Var("A")));
 PrintTestResult("Test 6", "B OR (NOT C AND A)", expr6, false, env, bool_to_text_local);
 
 // Test Case 7: NOT (NOT B)
-def expr7 = new LogicExpr::Not(new LogicExpr::Not(new LogicExpr::Var("B")));
+def expr7 = LogicExpr::Not(LogicExpr::Not(LogicExpr::Var("B")));
 PrintTestResult("Test 7", "NOT (NOT B)", expr7, false, env, bool_to_text_local);
 
 // Test Case 8: A AND D (D is undefined, defaults to false)
-def expr8 = new LogicExpr::And(new LogicExpr::Var("A"), new LogicExpr::Var("D"));
+def expr8 = LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("D"));
 PrintTestResult("Test 8", "A AND D", expr8, false, env, bool_to_text_local);
 
 // Test Case 9: (A OR D) AND (C OR B)
-def expr9 = new LogicExpr::And(new LogicExpr::Or(new LogicExpr::Var("A"), new LogicExpr::Var("D")), new LogicExpr::Or(new LogicExpr::Var("C"), new LogicExpr::Var("B")));
+def expr9 = LogicExpr::And(LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("D")), LogicExpr::Or(LogicExpr::Var("C"), LogicExpr::Var("B")));
 PrintTestResult("Test 9", "(A OR D) AND (C OR B)", expr9, true, env, bool_to_text_local);
 
 // Test Case 10: NOT (A AND C)
-def expr10 = new LogicExpr::Not(new LogicExpr::And(new LogicExpr::Var("A"), new LogicExpr::Var("C")));
+def expr10 = LogicExpr::Not(LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("C")));
 PrintTestResult("Test 10", "NOT (A AND C)", expr10, false, env, bool_to_text_local);
 
 // Test Case 11: De Morgan's Law Example: NOT (A OR B) <=> (NOT A) AND (NOT B)
-def expr11_lhs = new LogicExpr::Not(new LogicExpr::Or(new LogicExpr::Var("A"), new LogicExpr::Var("B")));
+def expr11_lhs = LogicExpr::Not(LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("B")));
 PrintTestResult("Test 11a (De Morgan LHS)", "NOT (A OR B)", expr11_lhs, false, env, bool_to_text_local);
-def expr11_rhs = new LogicExpr::And(new LogicExpr::Not(new LogicExpr::Var("A")), new LogicExpr::Not(new LogicExpr::Var("B")));
+def expr11_rhs = LogicExpr::And(LogicExpr::Not(LogicExpr::Var("A")), LogicExpr::Not(LogicExpr::Var("B")));
 PrintTestResult("Test 11b (De Morgan RHS)", "(NOT A) AND (NOT B)", expr11_rhs, false, env, bool_to_text_local);
 
 // Test Case 12: Variable D (undefined) in OR: B OR D
-def expr12 = new LogicExpr::Or(new LogicExpr::Var("B"), new LogicExpr::Var("D"));
+def expr12 = LogicExpr::Or(LogicExpr::Var("B"), LogicExpr::Var("D"));
 PrintTestResult("Test 12", "B OR D", expr12, false, env, bool_to_text_local);
 
 // Test Case 13: Variable D (undefined) in NOT: NOT D
-def expr13 = new LogicExpr::Not(new LogicExpr::Var("D"));
+def expr13 = LogicExpr::Not(LogicExpr::Var("D"));
 PrintTestResult("Test 13", "NOT D", expr13, true, env, bool_to_text_local);

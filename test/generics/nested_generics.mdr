@@ -15,10 +15,10 @@ struct Pair<A, B>
 };
 
 // Box containing a Pair
-def nested1 = new Box(new Pair(1, 2));
+def nested1 = Box(Pair(1, 2));
 
 // Pair of Boxes
-def nested2 = new Pair(new Box(10), new Box(20));
+def nested2 = Pair(Box(10), Box(20));
 
 // Access nested values
 def inner_pair = nested1.value;

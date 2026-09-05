@@ -5,7 +5,7 @@ module PhantomTypeParameterUnion
 
 union Tag<T> = First | Second;
 
-def make_int_tag = fn() -> Tag<Int> => new Tag::First();
+def make_int_tag = fn() -> Tag<Int> => Tag::First();
 
 def wants_text_tag = fn(t: Tag<Text>) -> Int => 1;
 

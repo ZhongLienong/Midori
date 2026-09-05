@@ -149,7 +149,7 @@ def color_map = fn(a : Float, b : Float) -> Vec3 =>
     def fr = r + highlight * 0.6;
     def fg = g + highlight * 0.3;
     def fb = blue + highlight * 0.1;
-    new Vec3(Math::Clamp(fr, 0.0, 1.0), Math::Clamp(fg, 0.0, 1.0), Math::Clamp(fb, 0.0, 1.0))
+    Vec3(Math::Clamp(fr, 0.0, 1.0), Math::Clamp(fg, 0.0, 1.0), Math::Clamp(fb, 0.0, 1.0))
 };
 
 def append_color_rgba = fn(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
@@ -186,7 +186,7 @@ def iterations = 8000;
 def start = DateTime::NowUnixMillis();
 IO::PrintLine("Running Gray-Scott reaction-diffusion (" ++ (iterations as Text) ++ " steps)...");
 
-def params = new GrayScottParams(0.055, 0.062, 1.0, 0.5, 1.0);
+def params = GrayScottParams(0.055, 0.062, 1.0, 0.5, 1.0);
 
 def grid_a = make_grid(width, height, 1.0);
 def grid_b = make_grid(width, height, 0.0);

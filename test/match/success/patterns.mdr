@@ -16,7 +16,7 @@ def tuple_sum = match pair with
 	case (x, y) => x + y
 ;
 
-def point = new Point(4, 5);
+def point = Point(4, 5);
 def area = match point with
 	case Point(x, y) => x * y
 ;

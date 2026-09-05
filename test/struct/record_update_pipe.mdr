@@ -30,7 +30,7 @@ def Describe = fn(c : Config) -> Text =>
 	c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls then "on" else "off")
 };
 
-def base = new Config("localhost", 80, false);
+def base = Config("localhost", 80, false);
 
 def configured = base
 	|> WithPort(8080)

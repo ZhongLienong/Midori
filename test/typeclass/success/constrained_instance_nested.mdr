@@ -16,5 +16,5 @@ instance Show<Boxed<T>> where Show<T> {
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-def twice = new Boxed<Boxed<Int>>(new Boxed<Int>(3));
+def twice = Boxed(Boxed(3));
 IO::PrintLine(Show::show(twice));

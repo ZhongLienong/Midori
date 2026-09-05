@@ -9,6 +9,6 @@ def ListToString = fn<T>(List : ListNode<T>) -> Text where Convertable<T, Text> 
         case ListNode::Value(Head, Tail) => (Head as Text) ++ ", " ++ ListToString(Tail)
 ;
 
-def MyList = new ListNode::Value(1, new ListNode::Value(2, new ListNode::Value(3, new ListNode::None())));
+def MyList = ListNode::Value(1, ListNode::Value(2, ListNode::Value(3, ListNode::None())));
 
 IO::PrintLine(ListToString(MyList));

@@ -10,5 +10,5 @@ import { "../../../MidoriPrelude/IO.mdr", }
 
 struct SiteMap { url: Text };
 
-def s = new SiteMap("example.com");
+def s = SiteMap("example.com");
 IO::PrintLine(#s as Text);

@@ -18,8 +18,8 @@ instance Indexable < Bag < T >, Int > {
     def Get = fn(container: Bag < T >, index: Int) -> T => container.items[index];
 };
 
-def ints: Bag < Int > = new Bag < Int >([10, 20, 30]);
-def texts: Bag < Text > = new Bag < Text >(["a", "b"]);
+def ints: Bag < Int > = Bag ([10, 20, 30]);
+def texts: Bag < Text > = Bag (["a", "b"]);
 
 IO::PrintLine(ints[1] as Text);
 IO::PrintLine(Indexable::Get(ints, 1) as Text);

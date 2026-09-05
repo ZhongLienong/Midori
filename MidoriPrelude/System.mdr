@@ -30,17 +30,15 @@ def UnknownSystemContext = fn(context: Text, message: Text) -> Text => {
 };
 def MakeSystemError = fn(context: Text, error_kind: Int) -> SystemError => {
     def message = GetLastSystemErrorMessageRaw();
-    if error_kind == 2 then new SystemError::InvalidDirectory(context) else new SystemError::UnknownSystem(UnknownSystemContext(context, message))
+    if error_kind == 2 then SystemError::InvalidDirectory(context) else SystemError::UnknownSystem(UnknownSystemContext(context, message))
 };
 def SystemResultFromStatus = fn < T >(context: Text, value: T) -> Result < T, SystemError > => {
     def error_kind = GetLastSystemErrorKindRaw();
-    if error_kind == 0 then new Result::Ok < T,
-    SystemError >(value) else new Result::Err < T,
-    SystemError >(MakeSystemError(context, error_kind))
+    if error_kind == 0 then Result::Ok (value) else Result::Err (MakeSystemError(context, error_kind))
 };
 def TryGetEnv = fn(name: Text) -> Option < Text > => {
     def value = GetEnvRaw(name);
-    if GetLastSystemErrorKindRaw() == 0 then new Option::Some < Text >(value) else new Option::None < Text >()
+    if GetLastSystemErrorKindRaw() == 0 then Option::Some (value) else Option::None ()
 };
 def SetEnv = fn(name: Text, value: Text) -> Result < Unit, SystemError > => {
     SetEnvRaw(name, value);
@@ -57,13 +55,10 @@ def TrySetCurrentDirectory = fn(path: Text) -> Result < Unit, SystemError > => {
 def Run = fn(command: Text) -> Result < ProcessResult, SystemError > => {
     def exit_code = ExecuteRaw(command);
     def error_kind = GetLastSystemErrorKindRaw();
-    if error_kind != 0 then new Result::Err < ProcessResult,
-    SystemError >(MakeSystemError(command, error_kind)) else if exit_code == 0 then new Result::Ok < ProcessResult,
-    SystemError >(new ProcessResult(exit_code)) else new Result::Err < ProcessResult,
-    SystemError >(new SystemError::CommandFailed(exit_code))
+    if error_kind != 0 then Result::Err (MakeSystemError(command, error_kind)) else if exit_code == 0 then Result::Ok (ProcessResult(exit_code)) else Result::Err (SystemError::CommandFailed(exit_code))
 };
 def CurrentPlatform = fn() -> Platform => {
     def platform = GetPlatformRaw();
-    if platform == "Windows" then new Platform::Windows() else if platform == "macOS" then new Platform::MacOS() else if platform == "Linux" then new Platform::Linux() else if platform == "WebAssembly" then new Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then new Platform::WebAssembly() else new Platform::Unknown(platform)
+    if platform == "Windows" then Platform::Windows() else if platform == "macOS" then Platform::MacOS() else if platform == "Linux" then Platform::Linux() else if platform == "WebAssembly" then Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then Platform::WebAssembly() else Platform::Unknown(platform)
 };
 def CurrentProcessId = fn() -> Int => GetProcessIdRaw();

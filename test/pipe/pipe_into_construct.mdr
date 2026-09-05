@@ -61,7 +61,7 @@ def Area = fn(s : Shape) -> Int =>
 
 def WithLabel = fn(p : Point, label : Text) -> Labelled =>
 {
-	new Labelled(p, label)
+	Labelled(p, label)
 };
 
 def ShowLabelled = fn(l : Labelled) -> Text =>
@@ -76,7 +76,7 @@ def Double = fn(n : Int) -> Int =>
 
 // The piped value becomes the first constructor argument, in both spellings.
 def bare = 2 |> Point(1);
-def keyword = 2 |> new Point(1);
+def keyword = 2 |> Point(1);
 IO::PrintLine("bare: " ++ ShowPoint(bare));
 IO::PrintLine("keyword: " ++ ShowPoint(keyword));
 
@@ -86,7 +86,7 @@ IO::PrintLine("ordered: " ++ ShowPoint(1 |> Point(2)));
 // Union variants, qualified, in both spellings. The variant tag is decided at parse time,
 // so prepending an argument must leave it alone.
 def piped_some = 5 |> Opt::Some();
-def piped_some_keyword = 6 |> new Opt::Some();
+def piped_some_keyword = 6 |> Opt::Some();
 IO::PrintLine("piped_some: " ++ ShowOpt(piped_some));
 IO::PrintLine("piped_some_keyword: " ++ ShowOpt(piped_some_keyword));
 
@@ -127,5 +127,5 @@ IO::PrintLine("wrapped int: " ++ (WrapIt(3).value as Text));
 
 // `new Name<T>(...)` carries explicit type arguments on the node, and prepending must not
 // disturb them either.
-def explicit = 5 |> new Cell<Int>(1);
+def explicit = 5 |> Cell(1);
 IO::PrintLine("explicit: " ++ (explicit.value as Text) ++ " tagged " ++ (explicit.tag as Text));

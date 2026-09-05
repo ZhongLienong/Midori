@@ -24,10 +24,10 @@ def nothing = () as Unit;
 def numbers : Array<Int> = [1, 2, 3];
 def same_numbers = numbers as Array<Int>;
 
-def items : Array<Inner> = [new Inner(11), new Inner(22)];
+def items : Array<Inner> = [Inner(11), Inner(22)];
 def same_items = items as Array<Inner>;
 
-def point = new Inner(42);
+def point = Inner(42);
 def same_point = point as Inner;
 
 IO::PrintLine("int=" ++ (one as Text));

@@ -3,5 +3,5 @@ module ConstructorInferenceRequiresContext
 union Option<T> = Some(T) | None;
 union Result<T, E> = Ok(T) | Err(E);
 
-def unresolved_none = new Option::None();
-def unresolved_ok = new Result::Ok(1);
+def unresolved_none = Option::None();
+def unresolved_ok = Result::Ok(1);

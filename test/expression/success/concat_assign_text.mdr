@@ -14,7 +14,7 @@ def text = "mid";
 def text_alias = text;
 def text_result = text = text ++ "ori";
 
-def box = new Box("cat");
+def box = Box("cat");
 def member_alias = box.value;
 def member_result = {
     box.value = box.value ++ "nip";

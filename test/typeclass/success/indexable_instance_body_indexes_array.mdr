@@ -29,10 +29,10 @@ instance Indexable < Grid, Int > {
     def Get = fn(container: Grid, index: Int) -> Row => container.rows[index];
 };
 
-def first: Row = new Row([1, 2, 3]);
-def second: Row = new Row([4, 5, 6]);
+def first: Row = Row([1, 2, 3]);
+def second: Row = Row([4, 5, 6]);
 def rows: Array < Row > = [first, second];
-def grid: Grid = new Grid(rows);
+def grid: Grid = Grid(rows);
 
 IO::PrintLine(grid[0][2] as Text);
 IO::PrintLine(grid[1][0] as Text);

@@ -28,7 +28,7 @@ def point_x = fn(point: Point) -> Int => (point as Point).x;
 def input_true: Bool = true;
 def input_false: Bool = false;
 def input_numbers: Array<Int> = [4, 5, 6];
-def input_point: Point = new Point(9, 11);
+def input_point: Point = Point(9, 11);
 
 IO::PrintLine("grouped_value=" ++ (grouped_value(42) as Text));
 IO::PrintLine("unary_plus_value=" ++ (unary_plus_value(7) as Text));

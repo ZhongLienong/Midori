@@ -22,7 +22,7 @@ def xor_result = bits ^= 3;
 def lshift_result = bits <<= 2;
 def rshift_result = bits >>= 1;
 
-def box = new Box(4, 7);
+def box = Box(4, 7);
 def member_add_result = box.count += 6;
 def member_shift_result = box.bits <<= 1;
 

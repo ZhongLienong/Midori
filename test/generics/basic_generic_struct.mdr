@@ -15,10 +15,10 @@ struct Box<T>
 };
 
 // Different instantiations with different types
-def int_box = new Box(42);
-def text_box = new Box("hello");
-def float_box = new Box(3.14);
-def bool_box = new Box(true);
+def int_box = Box(42);
+def text_box = Box("hello");
+def float_box = Box(3.14);
+def bool_box = Box(true);
 
 // Access members
 IO::PrintLine(int_box.value as Text); // Should print 42

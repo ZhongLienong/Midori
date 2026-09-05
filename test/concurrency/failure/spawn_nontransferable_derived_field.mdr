@@ -15,4 +15,4 @@ def increment = fn(value: Int) => {
     value + 1
 };
 
-def worker = spawn UsePayload(new BadPayload(increment));
+def worker = spawn UsePayload(BadPayload(increment));

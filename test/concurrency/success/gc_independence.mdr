@@ -14,7 +14,7 @@ defun AllocHeavyWorker(ch: Channel<Int>, count: Int) -> Int => {
     def i = 0;
     loop
     {
-        def p = new Pair(i, i * 2);
+        def p = Pair(i, i * 2);
         sum = sum + p.A + p.B;
         i = i + 1;
         if i >= count then break () else ();

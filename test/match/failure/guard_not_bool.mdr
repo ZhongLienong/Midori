@@ -2,7 +2,7 @@ module MatchGuardNotBool
 
 union Result = Ok(Int) | Err(Text);
 
-def value = match new Result::Ok(1) with
+def value = match Result::Ok(1) with
 	case Result::Ok(n) if n => "positive"
 	case Result::Ok(_) => "other"
 	case Result::Err(e) => e

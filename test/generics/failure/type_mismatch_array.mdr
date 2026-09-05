@@ -8,8 +8,8 @@ struct Box<T>
     value: T
 };
 
-def int_box = new Box(42);
-def text_box = new Box("hello");
+def int_box = Box(42);
+def text_box = Box("hello");
 
 // This should fail - Box<Int> and Box<Text> are different types
 def boxes = [int_box, text_box];

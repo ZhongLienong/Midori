@@ -14,8 +14,8 @@ union Option<T> = Some(T) | None;
 
 def Hold = fn<T>(xs : Array<T>) -> Bag<T> =>
 {
-	def owned = new Bag(xs, 0);
-	def unowned = new Option::None();
+	def owned = Bag(xs, 0);
+	def unowned = Option::None();
 	owned
 };
 

@@ -9,7 +9,7 @@ import
 // the bare-name spelling for newtypes.
 type Solo = | Only(Int);
 
-def value = new Solo::Only(3);
+def value = Solo::Only(3);
 def unwrapped = match value with case Solo::Only(inner) => inner;
 
 if unwrapped == 3 then () else Panic::Panic("leading-bar sum should still construct and match");

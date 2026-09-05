@@ -25,14 +25,14 @@ struct Rectangle
 
 def abs = fn(x : Float) -> Float => if x < 0.0 then -x else x;
 
-def make_point = fn(x : Float, y : Float) -> Point => new Point(x, y);
+def make_point = fn(x : Float, y : Float) -> Point => Point(x, y);
 
 def x_point = fn(pt : Point) -> Float => pt.x;
 def y_point = fn(pt : Point) -> Float => pt.y;
 
 def print_point = fn(pt : Point) -> Unit => IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
 
-def make_segment = fn(start : Point, end : Point) -> LineSegment => new LineSegment(start, end);
+def make_segment = fn(start : Point, end : Point) -> LineSegment => LineSegment(start, end);
 
 def start_segment = fn(seg : LineSegment) -> Point => seg.start;
 
@@ -51,7 +51,7 @@ def make_rect = fn(top_left : Point, bottom_right : Point) -> Rectangle =>
 {
 	def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
 	def top_right = make_point(-x_point(bottom_right), y_point(top_left));
-	return new Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
+	return Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
 };
 
 def width_rect = fn(rect : Rectangle) -> Float =>

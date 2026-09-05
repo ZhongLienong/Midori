@@ -14,17 +14,17 @@ def HashValue = fn<T>(value: T) -> Int where Hashable<T> => {
     Hashable::Hash(value)
 };
 
-def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
+def mapped = OptionBoxMap(OptionBox::Full(5), fn(x) => { x + 1 });
 def bound = OptionBoxBind(mapped, fn(x) => {
     if x > 5
-    then new OptionBox::Full(x * 2)
-    else new OptionBox::Empty()
+    then OptionBox::Full(x * 2)
+    else OptionBox::Empty()
 });
 def unwrapped = OptionBoxUnwrap(bound, 0);
 
-def p1 = new Point(1, 2);
-def p2 = new Point(1, 2);
-def p3 = new Point(2, 3);
+def p1 = Point(1, 2);
+def p2 = Point(1, 2);
+def p3 = Point(2, 3);
 def point_hash_same = HashValue(p1) == HashValue(p2);
 
 IO::PrintLine("derived_eq_same=" ++ (if p1 == p2 then "true" else "false"));

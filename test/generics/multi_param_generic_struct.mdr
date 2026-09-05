@@ -10,9 +10,9 @@ struct Pair<T, U>
 };
 
 // Different instantiations
-def int_text_pair = new Pair(42, "hello");
-def float_bool_pair = new Pair(3.14, true);
-def text_int_pair = new Pair("world", 100);
+def int_text_pair = Pair(42, "hello");
+def float_bool_pair = Pair(3.14, true);
+def text_int_pair = Pair("world", 100);
 
 // Access members
 def first_val = int_text_pair.first;
@@ -26,4 +26,4 @@ struct Triple<A, B, C>
     c: C
 };
 
-def triple = new Triple(1, "two", 3.0);
+def triple = Triple(1, "two", 3.0);

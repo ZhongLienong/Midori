@@ -14,7 +14,7 @@ instance Show<Int> {
     };
 };
 
-def MakeBox = fn<T>(value: T) -> Box<T> => new Box<T>(value);
+def MakeBox = fn<T>(value: T) -> Box<T> => Box(value);
 
 def ShowBox = fn<T>(box: Box<T>) -> Text => {
     return Show::show(box.value);

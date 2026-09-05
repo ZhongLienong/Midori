@@ -6,9 +6,9 @@ module GenericUnion
 union Option<T> = Some(T) | None;
 
 // Create different Option instances
-def some_int = new Option::Some(42);
-def some_text = new Option::Some("hello");
-def none_val : Option<Int> = new Option::None();
+def some_int = Option::Some(42);
+def some_text = Option::Some("hello");
+def none_val : Option<Int> = Option::None();
 
 // Pattern match on generic union
 def result = match some_int with
@@ -18,8 +18,8 @@ def result = match some_int with
 
 union Result<T, E> = Ok(T) | Err(E);
 
-def success : Result<Int, Text> = new Result::Ok(100);
-def failure : Result<Int, Text> = new Result::Err("error message");
+def success : Result<Int, Text> = Result::Ok(100);
+def failure : Result<Int, Text> = Result::Err("error message");
 
 def value = match success with
     case Result::Ok(v) => v

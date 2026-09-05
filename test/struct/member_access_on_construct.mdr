@@ -36,23 +36,23 @@ struct Holder<T>
 };
 
 // The reported repro: an Int member converted to Text, straight into a call argument.
-IO::PrintLine((new Point(7, 8)).x as Text);
-IO::PrintLine("concatenated: " ++ ((new Point(7, 8)).x as Text));
+IO::PrintLine((Point(7, 8)).x as Text);
+IO::PrintLine("concatenated: " ++ ((Point(7, 8)).x as Text));
 
 // The paren-less constructor spelling builds the same node, so it must behave the same.
 IO::PrintLine("paren_less: " ++ (Point(9, 10).y as Text));
 
 // No conversion involved: a Text member already matches the parameter type, and the struct
 // type still must not be unified with it.
-IO::PrintLine((new Named("unconverted", 1)).label);
+IO::PrintLine((Named("unconverted", 1)).label);
 
 // Every object position along a chain, not only the innermost one.
-IO::PrintLine("chained: " ++ ((new Box(new Point(3, 4))).p.x as Text));
+IO::PrintLine("chained: " ++ ((Box(Point(3, 4))).p.x as Text));
 
 // A record update in object position.
-IO::PrintLine("record_update: " ++ ({ new Point(20, 21) with y = 99 }.y as Text));
+IO::PrintLine("record_update: " ++ ({ Point(20, 21) with y = 99 }.y as Text));
 
 // The expected type still reaches a construction that is itself the argument: `Holder<Int>`
 // is the only thing that can decide T here, since the empty array does not pin it.
-def holder : Holder<Int> = new Holder([], "holder");
+def holder : Holder<Int> = Holder([], "holder");
 IO::PrintLine("holder: " ++ holder.tag);

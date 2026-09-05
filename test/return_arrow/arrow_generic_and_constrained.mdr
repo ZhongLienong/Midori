@@ -23,7 +23,7 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 def Describe = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 
-def inner = new Boxed<Int>(7);
+def inner = Boxed(7);
 PrintLine(Show::show(inner));
 PrintLine(Length([1, 2, 3]) as Text);
 PrintLine(Length(Append([1, 2], 3)) as Text);

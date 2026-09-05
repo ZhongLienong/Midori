@@ -7,14 +7,14 @@ struct Chunk {
 };
 
 instance Concatenable<Chunk> {
-    def Concat = fn(left: Chunk, right: Chunk) -> Chunk => new Chunk(left.text ++ right.text);
+    def Concat = fn(left: Chunk, right: Chunk) -> Chunk => Chunk(left.text ++ right.text);
 };
 
 def Join = fn<T>(left: T, right: T) -> T
     where Concatenable<T> => left ++ right;
 
-def combined = new Chunk("mid") ++ new Chunk("ori");
-def joined = Join(new Chunk("type"), new Chunk("class"));
+def combined = Chunk("mid") ++ Chunk("ori");
+def joined = Join(Chunk("type"), Chunk("class"));
 
 if combined.text == "midori" && joined.text == "typeclass"
 then IO::PrintLine("concatenable_operator: PASS")

@@ -11,7 +11,7 @@ struct Point
 	y : Int
 };
 
-def payload = (new Point(2, 5), [3, 4], ());
+def payload = (Point(2, 5), [3, 4], ());
 
 def result = match payload with
 	case (Point(px, py), [a, b], ()) => px + py + a + b
