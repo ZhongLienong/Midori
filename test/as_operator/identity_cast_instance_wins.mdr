@@ -15,7 +15,7 @@ class Convertable<From, To>
 
 instance Convertable<Text, Text>
 {
-	defun Convert(value: Text) -> Text => value ++ "!";
+	def Convert = fn(value: Text) -> Text => value ++ "!";
 };
 
 def shouted = "hello" as Text;

@@ -1,8 +1,8 @@
 module Math
 public export { add, multiply }
 
-defun add(a: Int, b: Int) -> Int => a + b;
+def add = fn(a: Int, b: Int) -> Int => a + b;
 
-defun multiply(a: Int, b: Int) -> Int => a * b;
+def multiply = fn(a: Int, b: Int) -> Int => a * b;
 
-defun internal_helper(x: Int) -> Int => x * 2;
+def internal_helper = fn(x: Int) -> Int => x * 2;

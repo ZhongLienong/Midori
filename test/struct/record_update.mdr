@@ -62,7 +62,7 @@ IO::PrintLine("wide: " ++ (wide_updated.a as Text) ++ (wide_updated.b as Text) +
 // block, and a block containing a bare `match ... with` still parses as a block.
 union Opt = Some(Int) | None;
 
-defun Unwrap(o : Opt) -> Int =>
+def Unwrap = fn(o : Opt) -> Int =>
 {
 	match o with
 	case Opt::Some(v) => v

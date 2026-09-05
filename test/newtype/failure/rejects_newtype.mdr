@@ -2,6 +2,6 @@ module NewtypeRejectsNewtype
 
 type Meters = Int;
 
-defun TakesInt(value: Int) -> Int => value;
+def TakesInt = fn(value: Int) -> Int => value;
 
-defun Leak(distance: Meters) -> Int => TakesInt(distance);
+def Leak = fn(distance: Meters) -> Int => TakesInt(distance);

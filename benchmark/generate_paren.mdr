@@ -7,7 +7,7 @@ import
 }
 
 def output : Array<Text> = [];
-defun BackTrack(len : Int, left : Int, right : Int, acc : Text) -> Unit =>
+def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text) -> Unit =>
 {   
 	if left < right
 	then

@@ -19,9 +19,9 @@ struct Box<T>
 
 union Maybe<T> = Nothing | Just(T);
 
-defun CountRows(rows : Array<Row>) -> Int => #rows;
+def CountRows = fn(rows : Array<Row>) -> Int => #rows;
 
-defun BuildRows() -> Array<Row> => [new Row([1, 2]), new Row([3, 4])];
+def BuildRows = fn() -> Array<Row> => [new Row([1, 2]), new Row([3, 4])];
 
 def grid = new Grid([new Row([1, 2]), new Row([3, 4])]);
 def annotated : Array<Row> = [new Row([5, 6])];

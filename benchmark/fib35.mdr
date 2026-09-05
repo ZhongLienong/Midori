@@ -6,7 +6,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun fib(n : Int) -> Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
+def fib = fn(n : Int) -> Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
 
 def start = DateTime::GetTime();
 

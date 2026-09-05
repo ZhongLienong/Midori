@@ -5,7 +5,7 @@ module GenericParamRigidBody
 
 import { "../../../MidoriPrelude/IO.mdr" }
 
-defun Bad<T>(value: T) -> Unit =>
+def Bad = fn<T>(value: T) -> Unit =>
 {
     IO::Print(value);
 };

@@ -2,9 +2,9 @@
 module MyModule
 public export { greet, add }
 
-defun greet() -> Int => 42;
+def greet = fn() -> Int => 42;
 
-defun add(a: Int, b: Int) -> Int => a + b;
+def add = fn(a: Int, b: Int) -> Int => a + b;
 
 // Internal function - not exported
-defun helper() -> Int => 100;
+def helper = fn() -> Int => 100;

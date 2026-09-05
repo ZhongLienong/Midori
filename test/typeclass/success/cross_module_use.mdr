@@ -5,7 +5,7 @@ module CrossModuleUse
 import { "../../../MidoriPrelude/IO.mdr", "./show_typeclass.mdr" }
 
 // Define a constrained generic function using the imported typeclass
-defun display<T>(value: T) -> Text where Show<T> => {
+def display = fn<T>(value: T) -> Text where Show<T> => {
     return Show::show(value);
 };
 

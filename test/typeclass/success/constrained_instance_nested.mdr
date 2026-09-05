@@ -9,11 +9,11 @@ class Show<T> {
 struct Boxed<T> { item: T };
 
 instance Show<Int> {
-    defun show(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
+    def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
 };
 
 instance Show<Boxed<T>> where Show<T> {
-    defun show(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
 def twice = new Boxed<Boxed<Int>>(new Boxed<Int>(3));

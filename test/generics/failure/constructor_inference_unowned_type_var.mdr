@@ -10,6 +10,6 @@ module ConstructorInferenceUnownedTypeVar
 
 union Option<T> = Some(T) | None;
 
-defun Id<T>(x : T) -> T => x;
+def Id = fn<T>(x : T) -> T => x;
 
 def unresolved = Id(new Option::None());

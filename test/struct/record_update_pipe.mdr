@@ -19,13 +19,13 @@ struct Config
 	tls : Bool
 };
 
-defun WithPort(c : Config, p : Int) -> Config => { c with port = p };
+def WithPort = fn(c : Config, p : Int) -> Config => { c with port = p };
 
-defun WithTls(c : Config, t : Bool) -> Config => { c with tls = t };
+def WithTls = fn(c : Config, t : Bool) -> Config => { c with tls = t };
 
-defun WithHost(c : Config, h : Text) -> Config => { c with host = h };
+def WithHost = fn(c : Config, h : Text) -> Config => { c with host = h };
 
-defun Describe(c : Config) -> Text =>
+def Describe = fn(c : Config) -> Text =>
 {
 	c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls then "on" else "off")
 };
@@ -44,7 +44,7 @@ IO::PrintLine("rehosted: " ++ Describe(rehosted));
 
 // A record update in function-body position still runs through the postfix chain, so it
 // can be projected immediately - the same as it behaves in expression position.
-defun PortAfterBump(c : Config) -> Int => { c with port = c.port + 1 }.port;
+def PortAfterBump = fn(c : Config) -> Int => { c with port = c.port + 1 }.port;
 
 IO::PrintLine("bumped port: " ++ (PortAfterBump(base) as Text));
 

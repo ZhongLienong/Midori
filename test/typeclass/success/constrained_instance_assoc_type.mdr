@@ -14,7 +14,7 @@ struct Doubled<S> { inner: S };
 
 instance Stepper<Counter> {
     type Item = Int;
-    defun Step(state: Counter) -> Option<Int> =>
+    def Step = fn(state: Counter) -> Option<Int> =>
         if state.current >= state.limit
         then new Option::None<Int>()
         else new Option::Some<Int>(state.current);
@@ -22,7 +22,7 @@ instance Stepper<Counter> {
 
 instance Stepper<Doubled<S>> where Stepper<S> {
     type Item = Stepper::Item<S>;
-    defun Step(state: Doubled<S>) -> Option<Stepper::Item<S>> => Stepper::Step(state.inner);
+    def Step = fn(state: Doubled<S>) -> Option<Stepper::Item<S>> => Stepper::Step(state.inner);
 };
 
 def wrapped = new Doubled<Counter>(new Counter(3, 10));

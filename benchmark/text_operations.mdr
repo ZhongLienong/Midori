@@ -7,7 +7,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun TestTextConcatenation(iterations : Int) -> Unit =>
+def TestTextConcatenation = fn(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -29,7 +29,7 @@ defun TestTextConcatenation(iterations : Int) -> Unit =>
 	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestTextAppend(iterations : Int) -> Unit =>
+def TestTextAppend = fn(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -51,7 +51,7 @@ defun TestTextAppend(iterations : Int) -> Unit =>
 	IO::PrintLine("Text append (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestTextBuilding(iterations : Int) -> Unit =>
+def TestTextBuilding = fn(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -73,7 +73,7 @@ defun TestTextBuilding(iterations : Int) -> Unit =>
 	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestTextConversion(iterations : Int) -> Unit =>
+def TestTextConversion = fn(iterations : Int) -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -94,7 +94,7 @@ defun TestTextConversion(iterations : Int) -> Unit =>
 	IO::PrintLine("Int to Text conversion (" ++ (iterations as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestLargeTextConcatenation() -> Unit =>
+def TestLargeTextConcatenation = fn() -> Unit =>
 {
 	def start = DateTime::GetTime();
 
@@ -117,7 +117,7 @@ defun TestLargeTextConcatenation() -> Unit =>
 	IO::PrintLine("Large text chunk concatenation (1000 chunks): " ++ ((end - start) as Text) ++ " ms");
 };
 
-defun TestNestedTextOperations() -> Unit =>
+def TestNestedTextOperations = fn() -> Unit =>
 {
 	def start = DateTime::GetTime();
 

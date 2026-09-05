@@ -1,4 +1,4 @@
 module TestMod
 public export { Foo }
 
-defun Foo() -> Float => { 99.0 };
+def Foo = fn() -> Float => { 99.0 };

@@ -6,8 +6,8 @@ class Countable < T > {
 foreign "MIDORI_FFI_TextLength" TextLength: fn(Text) -> Int;
 foreign "MIDORI_FFI_ArrayLength" ArrayLength: fn(Array < T >) -> Int;
 instance Countable < Text > {
-    defun Count(value: Text) -> Int => TextLength(value);
+    def Count = fn(value: Text) -> Int => TextLength(value);
 };
 instance Countable < Array < T >> {
-    defun Count(value: Array < T >) -> Int => ArrayLength(value);
+    def Count = fn(value: Array < T >) -> Int => ArrayLength(value);
 };

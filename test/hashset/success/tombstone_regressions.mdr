@@ -16,15 +16,15 @@ struct CollisionValue
 
 instance Equatable<CollisionValue>
 {
-    defun Equals(a: CollisionValue, b: CollisionValue) -> Bool => a.id == b.id;
+    def Equals = fn(a: CollisionValue, b: CollisionValue) -> Bool => a.id == b.id;
 };
 
 instance Hashable<CollisionValue>
 {
-    defun Hash(value: CollisionValue) -> Int => 1;
+    def Hash = fn(value: CollisionValue) -> Int => 1;
 };
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)

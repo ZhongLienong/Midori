@@ -8,7 +8,7 @@ use FlexMod.{Exported1, Exported2}
 
 use IO.{PrintLine}
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     PrintLine("Exported1(5) = " ++ (Exported1(5.0) as Text));
     PrintLine("Exported2(5) = " ++ (Exported2(5.0) as Text));
 };

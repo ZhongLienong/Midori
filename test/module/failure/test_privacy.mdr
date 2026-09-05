@@ -8,6 +8,6 @@ import
 }
 
 // This should fail - internal_helper is not exported by Math module
-defun test_access_private() -> Int => Math::internal_helper(42);
+def test_access_private = fn() -> Int => Math::internal_helper(42);
 
-defun main() -> Int => test_access_private();
+def main = fn() -> Int => test_access_private();

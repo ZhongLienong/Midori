@@ -7,7 +7,7 @@ import
 
 union Step = Continue(Int) | Stop(Int);
 
-defun Impure(n: Int) -> Bool =>
+def Impure = fn(n: Int) -> Bool =>
 {
 	IO::PrintLine("guard ran on " ++ (n as Text));
 	n > 0

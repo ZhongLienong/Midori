@@ -7,7 +7,7 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)

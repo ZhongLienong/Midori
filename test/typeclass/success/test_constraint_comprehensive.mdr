@@ -4,7 +4,7 @@ module TestConstraintComprehensive
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
 // Generic comparison after conversion
-defun CompareAsInt<T1, T2>(a: T1, b: T2) -> Text
+def CompareAsInt = fn<T1, T2>(a: T1, b: T2) -> Text
     where Convertable<T1, Int>, Convertable<T2, Int> => {
     def a_int = a as Int;
     def b_int = b as Int;
@@ -16,7 +16,7 @@ defun CompareAsInt<T1, T2>(a: T1, b: T2) -> Text
 };
 
 // Generic sum after conversion
-defun SumAsInt<T1, T2>(a: T1, b: T2) -> Int
+def SumAsInt = fn<T1, T2>(a: T1, b: T2) -> Int
     where Convertable<T1, Int>, Convertable<T2, Int> => {
     def a_int = a as Int;
     def b_int = b as Int;
@@ -24,7 +24,7 @@ defun SumAsInt<T1, T2>(a: T1, b: T2) -> Int
 };
 
 // Generic function that formats a value with a label
-defun FormatWithLabel<T>(label: Text, value: T) -> Text where Convertable<T, Text> => {
+def FormatWithLabel = fn<T>(label: Text, value: T) -> Text where Convertable<T, Text> => {
     return label ++ ": " ++ (value as Text);
 };
 

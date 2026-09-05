@@ -26,22 +26,22 @@ type NewFlag = Off | On(Int);
 // accepted where Meters is declared.
 alias Meters = Int;
 
-defun OldSum(p: OldPoint) -> Int => p.x + p.y;
-defun NewSum(p: NewPoint) -> Int => p.x + p.y;
+def OldSum = fn(p: OldPoint) -> Int => p.x + p.y;
+def NewSum = fn(p: NewPoint) -> Int => p.x + p.y;
 
-defun DescribeOld(f: OldFlag) -> Int =>
+def DescribeOld = fn(f: OldFlag) -> Int =>
 	match f with
 		case OldFlag::Off => 0
 		case OldFlag::On(n) => n
 ;
 
-defun Describe(f: NewFlag) -> Int =>
+def Describe = fn(f: NewFlag) -> Int =>
 	match f with
 		case NewFlag::Off => 0
 		case NewFlag::On(n) => n
 ;
 
-defun TakesMeters(m: Meters) -> Int => m;
+def TakesMeters = fn(m: Meters) -> Int => m;
 
 def raw: Int = 12;
 def distance: Meters = 30;

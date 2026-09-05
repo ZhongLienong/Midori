@@ -16,13 +16,13 @@ struct Vec3
     Z : Float,
 } deriving (Transferable);
 
-defun vec3_add(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
-defun vec3_sub(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-defun vec3_scale(a : Vec3, s : Float) -> Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
-defun vec3_dot(a : Vec3, b : Vec3) -> Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
-defun vec3_length(a : Vec3) -> Float => Math::SquareRoot(vec3_dot(a, a));
+def vec3_add = fn(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+def vec3_sub = fn(a : Vec3, b : Vec3) -> Vec3 => new Vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+def vec3_scale = fn(a : Vec3, s : Float) -> Vec3 => new Vec3(a.X * s, a.Y * s, a.Z * s);
+def vec3_dot = fn(a : Vec3, b : Vec3) -> Float => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+def vec3_length = fn(a : Vec3) -> Float => Math::SquareRoot(vec3_dot(a, a));
 
-defun vec3_normalize(a : Vec3) -> Vec3 =>
+def vec3_normalize = fn(a : Vec3) -> Vec3 =>
 {
     def len = vec3_length(a);
     if len < 0.000001
@@ -30,17 +30,17 @@ defun vec3_normalize(a : Vec3) -> Vec3 =>
     else vec3_scale(a, 1.0 / len)
 };
 
-defun hash2d(x : Float, y : Float) -> Float =>
+def hash2d = fn(x : Float, y : Float) -> Float =>
 {
     def n = Math::Sin(x * 127.1 + y * 311.7) * 43758.5453;
     n - Math::Floor(n)
 };
 
-defun lerp(a : Float, b : Float, t : Float) -> Float => a + (b - a) * t;
+def lerp = fn(a : Float, b : Float, t : Float) -> Float => a + (b - a) * t;
 
-defun smoothstep(t : Float) -> Float => t * t * (3.0 - 2.0 * t);
+def smoothstep = fn(t : Float) -> Float => t * t * (3.0 - 2.0 * t);
 
-defun value_noise(x : Float, y : Float) -> Float =>
+def value_noise = fn(x : Float, y : Float) -> Float =>
 {
     def ix = Math::Floor(x);
     def iy = Math::Floor(y);
@@ -57,7 +57,7 @@ defun value_noise(x : Float, y : Float) -> Float =>
     lerp(nx0, nx1, v)
 };
 
-defun fbm(x : Float, y : Float, octaves : Int) -> Float =>
+def fbm = fn(x : Float, y : Float, octaves : Int) -> Float =>
 {
     def total = 0.0;
     def amplitude = 0.5;
@@ -74,7 +74,7 @@ defun fbm(x : Float, y : Float, octaves : Int) -> Float =>
     total
 };
 
-defun terrain_height(x : Float, z : Float) -> Float =>
+def terrain_height = fn(x : Float, z : Float) -> Float =>
 {
     def base = fbm(x * 0.3 + 50.0, z * 0.3 + 50.0, 6);
     def ridged_raw = fbm(x * 0.5 + 100.0, z * 0.5 + 100.0, 4);
@@ -84,7 +84,7 @@ defun terrain_height(x : Float, z : Float) -> Float =>
     combined * 4.0 - 1.0
 };
 
-defun terrain_normal(x : Float, z : Float) -> Vec3 =>
+def terrain_normal = fn(x : Float, z : Float) -> Vec3 =>
 {
     def eps = 0.02;
     def hc = terrain_height(x, z);
@@ -93,7 +93,7 @@ defun terrain_normal(x : Float, z : Float) -> Vec3 =>
     vec3_normalize(new Vec3(-1.0 * (hx - hc) / eps, 1.0, -1.0 * (hz - hc) / eps))
 };
 
-defun terrain_color(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 =>
+def terrain_color = fn(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 =>
 {
     def slope = 1.0 - normal.Y;
     if height < -0.2
@@ -147,7 +147,7 @@ defun terrain_color(height : Float, normal : Vec3, world_pos : Vec3) -> Vec3 =>
     }
 };
 
-defun raymarch_terrain(ro : Vec3, rd : Vec3) -> Vec3 =>
+def raymarch_terrain = fn(ro : Vec3, rd : Vec3) -> Vec3 =>
 {
     def t = 0.1;
     def max_t = 60.0;
@@ -207,7 +207,7 @@ defun raymarch_terrain(ro : Vec3, rd : Vec3) -> Vec3 =>
     }
 };
 
-defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
+def append_color_rgba = fn(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
 {
     def r = Math::Clamp(Math::Round(cr * 255.0), 0.0, 255.0) as Int;
     def g = Math::Clamp(Math::Round(cg * 255.0), 0.0, 255.0) as Int;
@@ -218,7 +218,7 @@ defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float)
     Appendable::Append(pixels, 255);
 };
 
-defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3) -> Array<Int> =>
+def render_band = fn(y_start : Int, y_end : Int, width : Int, height : Int, cam_origin : Vec3, cam_target : Vec3) -> Array<Int> =>
 {
     def pixels : Array<Int> = [];
     def width_f = width as Float;
@@ -259,7 +259,7 @@ defun render_band(y_start : Int, y_end : Int, width : Int, height : Int, cam_ori
     pixels
 };
 
-defun append_pixels(target : Array<Int>, values : Array<Int>) -> Unit =>
+def append_pixels = fn(target : Array<Int>, values : Array<Int>) -> Unit =>
 {
     def index = 0;
     loop

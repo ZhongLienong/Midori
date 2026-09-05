@@ -9,7 +9,7 @@ import
 	"../../../MidoriPrelude/IO.mdr"
 }
 
-defun identity<T>(x: T) -> T => x;
+def identity = fn<T>(x: T) -> T => x;
 
 def bound = identity;
 

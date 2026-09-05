@@ -6,8 +6,8 @@ class Appendable < C, Elem > {
 foreign "MIDORI_FFI_ArrayAppend" ArrayAppend: fn(Array < T >, T) -> Unit;
 foreign "MIDORI_FFI_TextAppend" TextAppend: fn(Text, Text) -> Unit;
 instance Appendable < Array < T >, T > {
-    defun Append(container: Array < T >, elem: T) -> Unit => ArrayAppend(container, elem);
+    def Append = fn(container: Array < T >, elem: T) -> Unit => ArrayAppend(container, elem);
 };
 instance Appendable < Text, Text > {
-    defun Append(container: Text, elem: Text) -> Unit => TextAppend(container, elem);
+    def Append = fn(container: Text, elem: Text) -> Unit => TextAppend(container, elem);
 };

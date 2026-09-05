@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun foo() -> Unit =>
+def foo = fn() -> Unit =>
 {
 	def arr : Array<fn() -> Int> = [];
 	def i = 0;

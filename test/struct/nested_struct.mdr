@@ -27,7 +27,7 @@ def TestNestedStruct = fn() -> Unit =>
 
 	def test = new Test(1);
 
-	defun struct_in_closure() -> Unit =>
+	def struct_in_closure = fn() -> Unit =>
 	{
 		struct Test2
 		{

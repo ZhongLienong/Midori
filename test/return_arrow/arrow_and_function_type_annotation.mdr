@@ -7,9 +7,9 @@ use IO.{PrintLine}
 // parameter list is the lambda's own return position.
 def Predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 
-defun Apply(f: fn(Int) -> Int, x: Int) -> Int => f(x);
+def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
 
-defun SendOne(c: Channel<Text>) -> Int => { c -> "sent"; 0 };
+def SendOne = fn(c: Channel<Text>) -> Int => { c -> "sent"; 0 };
 
 def ch = channel<Text>(4);
 def sent = SendOne(ch);

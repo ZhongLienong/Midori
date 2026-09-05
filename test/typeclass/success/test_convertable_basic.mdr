@@ -4,7 +4,7 @@ module TestConvertableBasic
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
 // Test using Convert in a constrained generic function
-defun ConvertAndShow<From>(value: From) -> Text
+def ConvertAndShow = fn<From>(value: From) -> Text
     where Convertable<From, Int>, Convertable<Int, Text> => {
     def converted = Convertable::Convert(value);
     return Convertable::Convert(converted);

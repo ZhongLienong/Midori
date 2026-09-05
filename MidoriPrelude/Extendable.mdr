@@ -5,5 +5,5 @@ class Extendable < C > {
 };
 foreign "MIDORI_FFI_ArrayExtend" ArrayExtend: fn(Array < T >, Array < T >) -> Unit;
 instance Extendable < Array < T >> {
-    defun Extend(container: Array < T >, other: Array < T >) -> Unit => ArrayExtend(container, other);
+    def Extend = fn(container: Array < T >, other: Array < T >) -> Unit => ArrayExtend(container, other);
 };

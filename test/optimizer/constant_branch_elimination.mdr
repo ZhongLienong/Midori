@@ -6,8 +6,8 @@ def constant_true: Int = if true then 10 else 20;
 def constant_false: Int = if false then 10 else 20;
 def grouped_true: Int = if true then ((30)) else 40;
 
-defun identity_flag(flag: Bool) -> Bool => if flag then true else false;
-defun invert_flag(flag: Bool) -> Bool => if flag then false else true;
+def identity_flag = fn(flag: Bool) -> Bool => if flag then true else false;
+def invert_flag = fn(flag: Bool) -> Bool => if flag then false else true;
 
 def base_true: Bool = true;
 def base_false: Bool = false;

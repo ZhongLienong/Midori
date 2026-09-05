@@ -8,7 +8,7 @@ import
 	"../../../MidoriPrelude/DateTime.mdr"
 }
 
-defun identity<T>(x: T) -> T => 
+def identity = fn<T>(x: T) -> T => 
 {
     return x;
 };
@@ -18,7 +18,7 @@ def text_result = identity("hello");
 def float_result = identity(3.14);
 
 
-defun swap<A, B>(x: A, y: B) -> Bool => 
+def swap = fn<A, B>(x: A, y: B) -> Bool => 
 {
     // Just test that we can use generic parameters
     return true;
@@ -26,7 +26,7 @@ defun swap<A, B>(x: A, y: B) -> Bool =>
 
 def swap_result = swap(1, "two");
 
-defun first<T, U>(a: T, b: U) -> T => a;
+def first = fn<T, U>(a: T, b: U) -> T => a;
 
 def first_int = first(10, "ignored");
 def first_text = first("kept", 99);

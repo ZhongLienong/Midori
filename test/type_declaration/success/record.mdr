@@ -15,7 +15,7 @@ type Point = { x: Int, y: Int };
 def origin = new Point(0, 0);
 def moved = new Point(3, 4);
 
-defun SumOf(p: Point) -> Int => p.x + p.y;
+def SumOf = fn(p: Point) -> Int => p.x + p.y;
 
 // A record-update brace over a `type`-declared record. This is the collision the
 // design had to rule out: `{` after `=` in a declaration and `{` opening a record

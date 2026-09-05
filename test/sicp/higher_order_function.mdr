@@ -5,31 +5,31 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun cube(x : Float) -> Float => x * x * x;
+def cube = fn(x : Float) -> Float => x * x * x;
 
 
-defun accumulate(combiner : fn(Float, Float) -> Float, null_value : Float, term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float =>
+def accumulate = fn(combiner : fn(Float, Float) -> Float, null_value : Float, term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float =>
 {
     if a > b
     then null_value
     else combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b))
 };
 
-defun sum(term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float => accumulate(fn(a : Float, b : Float) -> Float => a + b, 0.0, term, a, next, b);
+def sum = fn(term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float => accumulate(fn(a : Float, b : Float) -> Float => a + b, 0.0, term, a, next, b);
 
-defun integral(f : fn(Float) -> Float, a : Float, b : Float, dx : Float) -> Float =>
+def integral = fn(f : fn(Float) -> Float, a : Float, b : Float, dx : Float) -> Float =>
 {
-    defun add_dx(x : Float) -> Float => x + dx;
+    def add_dx = fn(x : Float) -> Float => x + dx;
 
     sum(f, a + dx / 2.0, add_dx, b) * dx
 };
 
-defun simpson(f : fn(Float) -> Float, a : Float, b : Float, n : Int) -> Float =>
+def simpson = fn(f : fn(Float) -> Float, a : Float, b : Float, n : Int) -> Float =>
 {
-    defun inc(k : Float) -> Float => k + 1.0;
-    defun aux_fun(h : Float) -> Float =>
+    def inc = fn(k : Float) -> Float => k + 1.0;
+    def aux_fun = fn(h : Float) -> Float =>
     {
-        defun y(k : Float) -> Float =>
+        def y = fn(k : Float) -> Float =>
         {
             if k == 0.0 || k == (n as Float)
             then f(a + k * h)

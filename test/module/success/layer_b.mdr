@@ -7,4 +7,4 @@ import
     "layer_c.mdr"
 }
 
-defun transform(x: Int) -> Int => LayerC::calculate(x);
+def transform = fn(x: Int) -> Int => LayerC::calculate(x);

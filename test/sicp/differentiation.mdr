@@ -32,34 +32,34 @@ struct Expr
 	error : Bool
 };
 
-defun make_variable(name : Text) -> Term => new Term(name, 0, true);
-defun make_number(num : Int) -> Term => new Term("", num, false);
-defun is_variable(t : Term) -> Bool => t.is_var;
-defun is_number(t : Term) -> Bool => !t.is_var;
-defun is_same_variable(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
+def make_variable = fn(name : Text) -> Term => new Term(name, 0, true);
+def make_number = fn(num : Int) -> Term => new Term("", num, false);
+def is_variable = fn(t : Term) -> Bool => t.is_var;
+def is_number = fn(t : Term) -> Bool => !t.is_var;
+def is_same_variable = fn(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
 
-defun make_sum(v1 : Term, v2 : Term) -> Expr => 
+def make_sum = fn(v1 : Term, v2 : Term) -> Expr => 
 {
 	def is_sum = true;
 	def error = false;
 	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
 };
 
-defun make_product(v1 : Term, v2 : Term) -> Expr => 
+def make_product = fn(v1 : Term, v2 : Term) -> Expr => 
 {
 	def is_sum = false;
 	def error = false;
 	return new Expr(new Sum(v1, v2), new Product(v1, v2), is_sum, error);
 };
 
-defun is_sum(exp : Expr) -> Bool => exp.is_sum;
-defun is_product(exp : Expr) -> Bool => !exp.is_sum;
-defun addend(exp : Expr) -> Term => exp.sum_expr.left;
-defun augend(exp : Expr) -> Term => exp.sum_expr.right;
-defun multiplier(exp : Expr) -> Term => exp.prod_expr.left;
-defun multiplicand(exp : Expr) -> Term => exp.prod_expr.right;
+def is_sum = fn(exp : Expr) -> Bool => exp.is_sum;
+def is_product = fn(exp : Expr) -> Bool => !exp.is_sum;
+def addend = fn(exp : Expr) -> Term => exp.sum_expr.left;
+def augend = fn(exp : Expr) -> Term => exp.sum_expr.right;
+def multiplier = fn(exp : Expr) -> Term => exp.prod_expr.left;
+def multiplicand = fn(exp : Expr) -> Term => exp.prod_expr.right;
 
-defun deriv(t : Term, var_ : Text) -> Term =>
+def deriv = fn(t : Term, var_ : Text) -> Term =>
 {
     if is_number(t)
 	then make_number(0)

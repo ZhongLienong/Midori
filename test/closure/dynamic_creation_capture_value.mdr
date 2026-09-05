@@ -5,9 +5,9 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun makeCapture(val : Int) -> fn() -> Int => fn() -> Int => val;
+def makeCapture = fn(val : Int) -> fn() -> Int => fn() -> Int => val;
 
-defun foo() -> Unit =>
+def foo = fn() -> Unit =>
 {
 	def arr : Array<fn() -> Int> = [];
 	def i = 0;

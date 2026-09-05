@@ -2,9 +2,9 @@
 module StringUtils
 public export { get_constant, double }
 
-defun get_constant() -> Int => 5;
+def get_constant = fn() -> Int => 5;
 
-defun double(x: Int) -> Int => x * 2;
+def double = fn(x: Int) -> Int => x * 2;
 
 // Private helper - not exported
-defun internal_helper(x: Int) -> Int => x + 1;
+def internal_helper = fn(x: Int) -> Int => x + 1;

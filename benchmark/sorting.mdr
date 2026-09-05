@@ -7,7 +7,7 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun QuickSort(arr : Array<Int>, len : Int) -> Array<Int> =>
+def QuickSort = fn(arr : Array<Int>, len : Int) -> Array<Int> =>
 {
 	if len <= 1
 	then arr

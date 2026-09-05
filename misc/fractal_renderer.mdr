@@ -22,19 +22,19 @@ struct Color
     B : Float,
 };
 
-defun complex_add(a : Complex, b : Complex) -> Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
-defun complex_mul(a : Complex, b : Complex) -> Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
-defun complex_square(a : Complex) -> Complex => complex_mul(a, a);
-defun complex_cube(a : Complex) -> Complex => complex_mul(a, complex_square(a));
-defun complex_fourth(a : Complex) -> Complex => complex_square(complex_square(a));
-defun complex_square_conj(a : Complex) -> Complex => new Complex(a.Real * a.Real - a.Imag * a.Imag, -2.0 * a.Real * a.Imag);
-defun complex_celtic_square(a : Complex) -> Complex => new Complex(Math::Abs(a.Real * a.Real - a.Imag * a.Imag), 2.0 * a.Real * a.Imag);
-defun complex_abs_square(a : Complex) -> Float => a.Real * a.Real + a.Imag * a.Imag;
+def complex_add = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real + b.Real, a.Imag + b.Imag);
+def complex_mul = fn(a : Complex, b : Complex) -> Complex => new Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
+def complex_square = fn(a : Complex) -> Complex => complex_mul(a, a);
+def complex_cube = fn(a : Complex) -> Complex => complex_mul(a, complex_square(a));
+def complex_fourth = fn(a : Complex) -> Complex => complex_square(complex_square(a));
+def complex_square_conj = fn(a : Complex) -> Complex => new Complex(a.Real * a.Real - a.Imag * a.Imag, -2.0 * a.Real * a.Imag);
+def complex_celtic_square = fn(a : Complex) -> Complex => new Complex(Math::Abs(a.Real * a.Real - a.Imag * a.Imag), 2.0 * a.Real * a.Imag);
+def complex_abs_square = fn(a : Complex) -> Float => a.Real * a.Real + a.Imag * a.Imag;
 
-defun color_add(a : Color, b : Color) -> Color => new Color(a.R + b.R, a.G + b.G, a.B + b.B);
-defun color_scale(a : Color, scale : Float) -> Color => new Color(a.R * scale, a.G * scale, a.B * scale);
+def color_add = fn(a : Color, b : Color) -> Color => new Color(a.R + b.R, a.G + b.G, a.B + b.B);
+def color_scale = fn(a : Color, scale : Float) -> Color => new Color(a.R * scale, a.G * scale, a.B * scale);
 
-defun palette_iq(t : Float, a : Color, b : Color, c : Color, d : Color) -> Color =>
+def palette_iq = fn(t : Float, a : Color, b : Color, c : Color, d : Color) -> Color =>
 {
     def r = a.R + b.R * Math::Cos(Math::Tau * (c.R * t + d.R));
     def g = a.G + b.G * Math::Cos(Math::Tau * (c.G * t + d.G));
@@ -42,9 +42,9 @@ defun palette_iq(t : Float, a : Color, b : Color, c : Color, d : Color) -> Color
     new Color(r, g, bval)
 };
 
-defun smoothstep(t : Float) -> Float => t * t * (3.0 - 2.0 * t);
+def smoothstep = fn(t : Float) -> Float => t * t * (3.0 - 2.0 * t);
 
-defun palette_for(palette_id : Int, t : Float) -> Color =>
+def palette_for = fn(palette_id : Int, t : Float) -> Color =>
 {
     def t_clamped = Math::Clamp(t, 0.0, 1.0);
     if palette_id == 1
@@ -56,7 +56,7 @@ defun palette_for(palette_id : Int, t : Float) -> Color =>
     else palette_iq(t_clamped, new Color(0.55, 0.50, 0.60), new Color(0.45, 0.45, 0.45), new Color(1.0, 1.0, 1.0), new Color(0.00, 0.33, 0.67))
 };
 
-defun color_from_smooth(smooth : Float, limit : Int, palette_id : Int) -> Color =>
+def color_from_smooth = fn(smooth : Float, limit : Int, palette_id : Int) -> Color =>
 {
     def limit_f = limit as Float;
     if smooth >= limit_f
@@ -70,7 +70,7 @@ defun color_from_smooth(smooth : Float, limit : Int, palette_id : Int) -> Color 
     }
 };
 
-defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
+def append_color_rgba = fn(pixels : Array<Int>, cr : Float, cg : Float, cb : Float) -> Unit =>
 {
     def r = Math::Clamp(Math::Round(cr * 255.0), 0.0, 255.0) as Int;
     def g = Math::Clamp(Math::Round(cg * 255.0), 0.0, 255.0) as Int;
@@ -81,7 +81,7 @@ defun append_color_rgba(pixels : Array<Int>, cr : Float, cg : Float, cb : Float)
     Appendable::Append(pixels, 255);
 };
 
-defun smooth_iter_finish(iterations : Int, zr : Float, zi : Float, limit : Int) -> Float =>
+def smooth_iter_finish = fn(iterations : Int, zr : Float, zi : Float, limit : Int) -> Float =>
 {
     if iterations >= limit
     then limit as Float
@@ -100,7 +100,7 @@ defun smooth_iter_finish(iterations : Int, zr : Float, zi : Float, limit : Int) 
     }
 };
 
-defun smooth_iter_mandelbrot(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_mandelbrot = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -118,7 +118,7 @@ defun smooth_iter_mandelbrot(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_julia(z0r : Float, z0i : Float, cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_julia = fn(z0r : Float, z0i : Float, cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = z0r;
     def zi = z0i;
@@ -136,7 +136,7 @@ defun smooth_iter_julia(z0r : Float, z0i : Float, cr : Float, ci : Float, limit 
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_burning_ship(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_burning_ship = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -156,7 +156,7 @@ defun smooth_iter_burning_ship(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_tricorn(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_tricorn = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -174,7 +174,7 @@ defun smooth_iter_tricorn(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_multibrot3(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_multibrot3 = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -194,7 +194,7 @@ defun smooth_iter_multibrot3(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_multibrot4(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_multibrot4 = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -216,7 +216,7 @@ defun smooth_iter_multibrot4(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_celtic(cr : Float, ci : Float, limit : Int) -> Float =>
+def smooth_iter_celtic = fn(cr : Float, ci : Float, limit : Int) -> Float =>
 {
     def zr = 0.0;
     def zi = 0.0;
@@ -234,7 +234,7 @@ defun smooth_iter_celtic(cr : Float, ci : Float, limit : Int) -> Float =>
     smooth_iter_finish(iterations, zr, zi, limit)
 };
 
-defun smooth_iter_for(fractal_kind : Int, pr : Float, pi : Float, julia_cr : Float, julia_ci : Float, limit : Int) -> Float =>
+def smooth_iter_for = fn(fractal_kind : Int, pr : Float, pi : Float, julia_cr : Float, julia_ci : Float, limit : Int) -> Float =>
 {
     if fractal_kind == 0
     then smooth_iter_mandelbrot(pr, pi, limit)
@@ -251,7 +251,7 @@ defun smooth_iter_for(fractal_kind : Int, pr : Float, pi : Float, julia_cr : Flo
     else smooth_iter_celtic(pr, pi, limit)
 };
 
-defun palette_id_for(fractal_kind : Int) -> Int =>
+def palette_id_for = fn(fractal_kind : Int) -> Int =>
 {
     if fractal_kind == 0
     then 0
@@ -268,7 +268,7 @@ defun palette_id_for(fractal_kind : Int) -> Int =>
     else 2
 };
 
-defun render_fractal_band_rgba(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float) -> Array<Int> =>
+def render_fractal_band_rgba = fn(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float) -> Array<Int> =>
 {
     def pixels : Array<Int> = [];
 
@@ -328,7 +328,7 @@ defun render_fractal_band_rgba(y_start : Int, y_end : Int, width : Int, height :
     pixels
 };
 
-defun append_pixels(target : Array<Int>, values : Array<Int>) -> Unit =>
+def append_pixels = fn(target : Array<Int>, values : Array<Int>) -> Unit =>
 {
     def index = 0;
     loop
@@ -360,7 +360,7 @@ defun render_fractal_parallel_range_rgba(y_start : Int, y_end : Int, width : Int
     }
 };
 
-defun render_fractal_parallel_rgba(width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, band_workers : Int) -> Array<Int> =>
+def render_fractal_parallel_rgba = fn(width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, band_workers : Int) -> Array<Int> =>
 {
     def worker_count =
         if band_workers <= 1
@@ -371,7 +371,7 @@ defun render_fractal_parallel_rgba(width : Int, height : Int, limit : Int, sampl
     render_fractal_parallel_range_rgba(0, height, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci, worker_count)
 };
 
-defun render_fractal_file(output_path : Text, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, band_workers : Int) -> Unit =>
+def render_fractal_file = fn(output_path : Text, width : Int, height : Int, limit : Int, samples_per_axis : Int, view_min_r : Float, view_min_i : Float, view_max_r : Float, view_max_i : Float, fractal_kind : Int, julia_cr : Float, julia_ci : Float, band_workers : Int) -> Unit =>
 {
     def pixels = render_fractal_parallel_rgba(width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci, band_workers);
     Image::WriteRGBA(output_path, width, height, pixels);

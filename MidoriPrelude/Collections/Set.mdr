@@ -14,10 +14,10 @@ struct SetIter < T > {
     set: Set < T >,
     index: Int
 };
-defun SetIterNew < T >(set: Set < T >) -> SetIter < T > => new SetIter < T >(set, 0);
+def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => new SetIter < T >(set, 0);
 instance Iterable < SetIter < T >> {
     type Item = T;
-    defun Next(iter: SetIter < T >) -> Option < T > => {
+    def Next = fn(iter: SetIter < T >) -> Option < T > => {
         loop {
             if iter.index >= iter.set.capacity then break new Option::None < T >() else {
                 def idx = iter.index;
@@ -30,7 +30,7 @@ instance Iterable < SetIter < T >> {
         }
     };
 };
-defun MakeSetBuckets < T >(capacity: Int) -> Array < SetSlot < T >> => {
+def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => {
     def buckets: Array < SetSlot < T >> =[];
     def i = 0;
     loop {
@@ -41,12 +41,12 @@ defun MakeSetBuckets < T >(capacity: Int) -> Array < SetSlot < T >> => {
     };
     buckets
 };
-defun SetNewWithCapacity < T >(capacity: Int) -> Set < T > => {
+def SetNewWithCapacity = fn < T >(capacity: Int) -> Set < T > => {
     def cap = if capacity < 16 then 16 else capacity;
     new Set < T >(MakeSetBuckets(cap), 0, cap)
 };
-defun SetNew < T >() -> Set < T > => SetNewWithCapacity(16);
-defun FindSetSlot < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
+def SetNew = fn < T >() -> Set < T > => SetNewWithCapacity(16);
+def FindSetSlot = fn < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
     def probe = OpenAddressing::ProbeStart(hash, set.capacity);
     loop {
         if OpenAddressing::ProbeHasNext(probe) then {
@@ -67,7 +67,7 @@ defun FindSetSlot < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatab
         } else break- 1
     }
 };
-defun FindSetInsertSlot < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
+def FindSetInsertSlot = fn < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
     def probe = OpenAddressing::ProbeStart(hash, set.capacity);
     loop {
         if OpenAddressing::ProbeHasNext(probe) then {
@@ -92,7 +92,7 @@ defun FindSetInsertSlot < T >(set: Set < T >, elem: T, hash: Int) -> Int where E
         }
     }
 };
-defun SetInsertNoRehash < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
+def SetInsertNoRehash = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
     def h = Hashable::Hash(elem);
     def slot = FindSetInsertSlot(set, elem, h);
     if slot < 0 then false else {
@@ -107,7 +107,7 @@ defun SetInsertNoRehash < T >(set: Set < T >, elem: T) -> Bool where Hashable < 
         was_new
     }
 };
-defun SetRehash < T >(set: Set < T >, new_capacity: Int) -> Unit where Hashable < T >, Equatable < T > => {
+def SetRehash = fn < T >(set: Set < T >, new_capacity: Int) -> Unit where Hashable < T >, Equatable < T > => {
     def old_buckets = set.buckets;
     def old_capacity = set.capacity;
     set.buckets = MakeSetBuckets(new_capacity);
@@ -128,17 +128,17 @@ defun SetRehash < T >(set: Set < T >, new_capacity: Int) -> Unit where Hashable 
     };
     ()
 };
-defun SetInsert < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
+def SetInsert = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
     def projected = set.count + 1;
     if projected * 10 >= set.capacity * 7 then SetRehash(set, set.capacity * 2) else();
     SetInsertNoRehash(set, elem)
 };
-defun SetContains < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
+def SetContains = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
     def h = Hashable::Hash(elem);
     def slot = FindSetSlot(set, elem, h);
     slot >= 0
 };
-defun SetRemove < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
+def SetRemove = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
     def h = Hashable::Hash(elem);
     def slot = FindSetSlot(set, elem, h);
     if slot < 0 then false else {
@@ -147,13 +147,13 @@ defun SetRemove < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equ
         true
     }
 };
-defun SetCount < T >(set: Set < T >) -> Int => set.count;
+def SetCount = fn < T >(set: Set < T >) -> Int => set.count;
 instance Countable < Set < T >> {
-    defun Count(value: Set < T >) -> Int => SetCount(value);
+    def Count = fn(value: Set < T >) -> Int => SetCount(value);
 };
-defun SetSize < T >(set: Set < T >) -> Int => SetCount(set);
-defun SetIsEmpty < T >(set: Set < T >) -> Bool => set.count == 0;
-defun SetClear < T >(set: Set < T >) -> Unit => {
+def SetSize = fn < T >(set: Set < T >) -> Int => SetCount(set);
+def SetIsEmpty = fn < T >(set: Set < T >) -> Bool => set.count == 0;
+def SetClear = fn < T >(set: Set < T >) -> Unit => {
     def i = 0;
     loop {
         if i >= set.capacity then break() else {
@@ -164,7 +164,7 @@ defun SetClear < T >(set: Set < T >) -> Unit => {
     set.count = 0;
     ()
 };
-defun SetUnion < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
+def SetUnion = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
     def i = 0;
     loop {
@@ -194,7 +194,7 @@ defun SetUnion < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashab
     };
     result
 };
-defun SetIntersection < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
+def SetIntersection = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
     def i = 0;
     loop {
@@ -213,7 +213,7 @@ defun SetIntersection < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where
     };
     result
 };
-defun SetDifference < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
+def SetDifference = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
     def i = 0;
     loop {
@@ -232,7 +232,7 @@ defun SetDifference < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where H
     };
     result
 };
-defun SetToArray < T >(set: Set < T >) -> Array < T > => {
+def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
     def values: Array < T > =[];
     def i = 0;
     loop {

@@ -40,12 +40,12 @@ foreign "MIDORI_FFI_GetUtcMinute" GetUtcMinuteRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
-defun NowUnixMillis() -> Int => GetTimeRaw() as Int;
-defun TimezoneOffsetMinutes() -> Int => GetTimezoneOffsetRaw();
-defun LocalNow() -> LocalTimeParts => {
+def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
+def TimezoneOffsetMinutes = fn() -> Int => GetTimezoneOffsetRaw();
+def LocalNow = fn() -> LocalTimeParts => {
     new LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())
 };
-defun UtcNow() -> UtcTimeParts => {
+def UtcNow = fn() -> UtcTimeParts => {
     new UtcTimeParts(GetUtcYearRaw(), GetUtcMonthRaw(), GetUtcDayRaw(), GetUtcHourRaw(), GetUtcMinuteRaw(), GetUtcSecondRaw(), GetUtcDayOfWeekRaw(), GetUtcDayOfYearRaw())
 };
-defun FormatLocal(format: Text) -> Text => FormatTimeRaw(format);
+def FormatLocal = fn(format: Text) -> Text => FormatTimeRaw(format);

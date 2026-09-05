@@ -4,22 +4,22 @@ class Hashable < T > {
     Hash: fn(value: T) -> Int;
 };
 instance Hashable < Int > {
-    defun Hash(value: Int) -> Int => value;
+    def Hash = fn(value: Int) -> Int => value;
 };
 instance Hashable < Bool > {
-    defun Hash(value: Bool) -> Int => if value then 1 else 0;
+    def Hash = fn(value: Bool) -> Int => if value then 1 else 0;
 };
 instance Hashable < Byte > {
-    defun Hash(value: Byte) -> Int => value as Int;
+    def Hash = fn(value: Byte) -> Int => value as Int;
 };
 instance Hashable < Word > {
-    defun Hash(value: Word) -> Int => value as Int;
+    def Hash = fn(value: Word) -> Int => value as Int;
 };
 foreign "MIDORI_FFI_HashText" HashText: fn(Text) -> Int;
 instance Hashable < Text > {
-    defun Hash(value: Text) -> Int => HashText(value);
+    def Hash = fn(value: Text) -> Int => HashText(value);
 };
 foreign "MIDORI_FFI_HashFloat" HashFloat: fn(Float) -> Int;
 instance Hashable < Float > {
-    defun Hash(value: Float) -> Int => HashFloat(value);
+    def Hash = fn(value: Float) -> Int => HashFloat(value);
 };

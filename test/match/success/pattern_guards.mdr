@@ -7,7 +7,7 @@ import
 
 union Result = Ok(Int) | Err(Text);
 
-defun Classify(r: Result) -> Text => match r with
+def Classify = fn(r: Result) -> Text => match r with
 	case Result::Ok(n) if n > 100 => "large"
 	case Result::Ok(n) if n > 0 => "small"
 	case Result::Ok(_) => "zero or below"

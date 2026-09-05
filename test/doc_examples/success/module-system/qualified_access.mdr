@@ -2,7 +2,7 @@ module ModuleQualifiedAccess
 
 import { <IO> }
 
-defun main() -> Int => {
+def main = fn() -> Int => {
     IO::PrintLine("Hello");
     0
 };

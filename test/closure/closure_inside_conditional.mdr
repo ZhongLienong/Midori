@@ -5,9 +5,9 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun foo() -> Int =>
+def foo = fn() -> Int =>
 {
-	defun getFunc() -> Int => 1;
+	def getFunc = fn() -> Int => 1;
 	if (true)
 	then
 	{

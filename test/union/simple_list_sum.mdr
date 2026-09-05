@@ -7,7 +7,7 @@ import
 
 union List = Nil | Cons(Int, List);
 
-defun list_sum(lst : List) -> Int =>
+def list_sum = fn(lst : List) -> Int =>
 	match lst with
 		case List::Nil => 0
 		case List::Cons(x, xs) => x + list_sum(xs)

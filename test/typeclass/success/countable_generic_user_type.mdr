@@ -12,7 +12,7 @@ struct Bag < T > {
 };
 
 instance Countable < Bag < T >> {
-    defun Count(value: Bag < T >) -> Int => #value.items;
+    def Count = fn(value: Bag < T >) -> Int => #value.items;
 };
 
 def ints: Bag < Int > = new Bag < Int >([1, 2, 3]);

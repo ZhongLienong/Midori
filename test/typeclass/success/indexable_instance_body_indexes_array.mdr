@@ -21,12 +21,12 @@ struct Grid {
 
 instance Indexable < Row, Int > {
     type Element = Int;
-    defun Get(container: Row, index: Int) -> Int => container.cells[index];
+    def Get = fn(container: Row, index: Int) -> Int => container.cells[index];
 };
 
 instance Indexable < Grid, Int > {
     type Element = Row;
-    defun Get(container: Grid, index: Int) -> Row => container.rows[index];
+    def Get = fn(container: Grid, index: Int) -> Row => container.rows[index];
 };
 
 def first: Row = new Row([1, 2, 3]);

@@ -20,11 +20,11 @@ struct MapIter < K, V > {
     V >,
     index: Int
 };
-defun MapIterNew < K, V >(map: Map < K, V >) -> MapIter < K, V > => new MapIter < K, V >(map, 0);
+def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => new MapIter < K, V >(map, 0);
 instance Iterable < MapIter < K, V >> {
     type Item = Entry < K,
     V >;
-    defun Next(iter: MapIter < K, V >) -> Option < Entry < K,
+    def Next = fn(iter: MapIter < K, V >) -> Option < Entry < K,
     V >> => {
         loop {
             if iter.index >= iter.map.capacity then break new Option::None < Entry < K,
@@ -40,7 +40,7 @@ instance Iterable < MapIter < K, V >> {
         }
     };
 };
-defun MakeMapBuckets < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => {
+def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => {
     def buckets: Array < MapSlot < K,
     V >> =[];
     def i = 0;
@@ -52,13 +52,13 @@ defun MakeMapBuckets < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => {
     };
     buckets
 };
-defun MapNewWithCapacity < K, V >(capacity: Int) -> Map < K, V > => {
+def MapNewWithCapacity = fn < K, V >(capacity: Int) -> Map < K, V > => {
     def cap = if capacity < 16 then 16 else capacity;
     new Map < K,
     V >(MakeMapBuckets(cap), 0, cap)
 };
-defun MapNew < K, V >() -> Map < K, V > => MapNewWithCapacity(16);
-defun FindMapSlot < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
+def MapNew = fn < K, V >() -> Map < K, V > => MapNewWithCapacity(16);
+def FindMapSlot = fn < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
     def probe = OpenAddressing::ProbeStart(hash, map.capacity);
     loop {
         if OpenAddressing::ProbeHasNext(probe) then {
@@ -79,7 +79,7 @@ defun FindMapSlot < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Eq
         } else break- 1
     }
 };
-defun FindMapInsertSlot < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
+def FindMapInsertSlot = fn < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
     def probe = OpenAddressing::ProbeStart(hash, map.capacity);
     loop {
         if OpenAddressing::ProbeHasNext(probe) then {
@@ -104,7 +104,7 @@ defun FindMapInsertSlot < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int wh
         }
     }
 };
-defun MapInsertNoRehash < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
+def MapInsertNoRehash = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapInsertSlot(map, key, h);
     if slot < 0 then false else {
@@ -119,7 +119,7 @@ defun MapInsertNoRehash < K, V >(map: Map < K, V >, key: K, value: V) -> Bool wh
         }
     }
 };
-defun MapRehash < K, V >(map: Map < K, V >, new_capacity: Int) -> Unit where Hashable < K >, Equatable < K > => {
+def MapRehash = fn < K, V >(map: Map < K, V >, new_capacity: Int) -> Unit where Hashable < K >, Equatable < K > => {
     def old_buckets = map.buckets;
     def old_capacity = map.capacity;
     map.buckets = MakeMapBuckets(new_capacity);
@@ -140,12 +140,12 @@ defun MapRehash < K, V >(map: Map < K, V >, new_capacity: Int) -> Unit where Has
     };
     ()
 };
-defun MapInsert < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
+def MapInsert = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
     def projected = map.count + 1;
     if projected * 10 >= map.capacity * 7 then MapRehash(map, map.capacity * 2) else();
     MapInsertNoRehash(map, key, value)
 };
-defun MapGet < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > => {
+def MapGet = fn < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
     if slot < 0 then new Option::None < V >() else {
@@ -155,13 +155,13 @@ defun MapGet < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable 
             default => new Option::None < V >()
     }
 };
-defun MapGetOr < K, V >(map: Map < K, V >, key: K, default_value: V) -> V where Hashable < K >, Equatable < K > => {
+def MapGetOr = fn < K, V >(map: Map < K, V >, key: K, default_value: V) -> V where Hashable < K >, Equatable < K > => {
     def result = MapGet(map, key);
     match result with
         case Option::Some(value) => value
         case Option::None() => default_value
 };
-defun MapUpdate < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V > where Hashable < K >, Equatable < K > => {
+def MapUpdate = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V > where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
     if slot < 0 then new Option::None < V >() else {
@@ -174,7 +174,7 @@ defun MapUpdate < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V > wh
         old_value
     }
 };
-defun MapRemove < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
+def MapRemove = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
     if slot < 0 then false else {
@@ -184,18 +184,18 @@ defun MapRemove < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >
         true
     }
 };
-defun MapContains < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
+def MapContains = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
     slot >= 0
 };
-defun MapCount < K, V >(map: Map < K, V >) -> Int => map.count;
+def MapCount = fn < K, V >(map: Map < K, V >) -> Int => map.count;
 instance Countable < Map < K, V >> {
-    defun Count(value: Map < K, V >) -> Int => MapCount(value);
+    def Count = fn(value: Map < K, V >) -> Int => MapCount(value);
 };
-defun MapSize < K, V >(map: Map < K, V >) -> Int => MapCount(map);
-defun MapIsEmpty < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
-defun MapClear < K, V >(map: Map < K, V >) -> Unit => {
+def MapSize = fn < K, V >(map: Map < K, V >) -> Int => MapCount(map);
+def MapIsEmpty = fn < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
+def MapClear = fn < K, V >(map: Map < K, V >) -> Unit => {
     def i = 0;
     loop {
         if i >= map.capacity then break() else {
@@ -207,7 +207,7 @@ defun MapClear < K, V >(map: Map < K, V >) -> Unit => {
     map.count = 0;
     ()
 };
-defun MapKeys < K, V >(map: Map < K, V >) -> Array < K > => {
+def MapKeys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
     def keys: Array < K > =[];
     def i = 0;
     loop {
@@ -224,7 +224,7 @@ defun MapKeys < K, V >(map: Map < K, V >) -> Array < K > => {
     };
     keys
 };
-defun MapValues < K, V >(map: Map < K, V >) -> Array < V > => {
+def MapValues = fn < K, V >(map: Map < K, V >) -> Array < V > => {
     def values: Array < V > =[];
     def i = 0;
     loop {
@@ -241,7 +241,7 @@ defun MapValues < K, V >(map: Map < K, V >) -> Array < V > => {
     };
     values
 };
-defun MapEntries < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
+def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
     def entries: Array < Entry < K,
     V >> =[];
     def i = 0;

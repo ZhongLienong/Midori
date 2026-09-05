@@ -27,7 +27,7 @@ struct Counter
 instance Iterable<Counter>
 {
 	type Item = Int;
-	defun Next(counter: Counter) -> Option<Int> => {
+	def Next = fn(counter: Counter) -> Option<Int> => {
 		if counter.current >= counter.end
 		then new Option::None()
 		else {
@@ -43,7 +43,7 @@ type Ticker = Counter;
 instance Iterable<Ticker>
 {
 	type Item = Int;
-	defun Next(ticker: Ticker) -> Option<Int> => {
+	def Next = fn(ticker: Ticker) -> Option<Int> => {
 		def counter: Counter = ticker as Counter;
 		if counter.current >= counter.end
 		then new Option::None()
@@ -55,7 +55,7 @@ instance Iterable<Ticker>
 	};
 };
 
-defun TickerNew(end: Int) -> Ticker => {
+def TickerNew = fn(end: Int) -> Ticker => {
 	def counter: Counter = new Counter(0, end);
 	counter as Ticker
 };

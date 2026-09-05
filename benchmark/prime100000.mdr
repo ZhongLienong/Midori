@@ -6,9 +6,9 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-defun IsPrime(n : Int) -> Bool =>
+def IsPrime = fn(n : Int) -> Bool =>
 {
-	defun IsPrimeHelper(n : Int, divisor : Int) -> Bool =>
+	def IsPrimeHelper = fn(n : Int, divisor : Int) -> Bool =>
 	{
 		if divisor * divisor > n
 		then true

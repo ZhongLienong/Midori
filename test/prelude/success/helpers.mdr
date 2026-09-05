@@ -14,35 +14,35 @@ use Option.{Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, OptionOrE
 use Result.{Result, ResultMap, ResultBind, ResultMapError, ResultIsOk, ResultIsError, ResultUnwrap, ResultUnwrapOrElse, ResultUnwrapOrPanic}
 use List.{List, ListMap, ListLength, ListAppend, ListFilter, ListReverse, ListFold, ListFromArray, ListToArray}
 
-defun inc(x: Int) -> Int => x + 1;
+def inc = fn(x: Int) -> Int => x + 1;
 
-defun to_some(x: Int) -> Option<Int> => {
+def to_some = fn(x: Int) -> Option<Int> => {
     if x > 0
     then new Option::Some(x + 10)
     else new Option::None()
 };
 
-defun is_even(x: Int) -> Bool => x % 2 == 0;
+def is_even = fn(x: Int) -> Bool => x % 2 == 0;
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectSomeInt(option: Option<Int>, expected: Int, message: Text) -> Unit => {
+def ExpectSomeInt = fn(option: Option<Int>, expected: Int, message: Text) -> Unit => {
     match option with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)
 };
 
-defun ExpectOkInt(result: Result<Int, Text>, expected: Int, message: Text) -> Unit => {
+def ExpectOkInt = fn(result: Result<Int, Text>, expected: Int, message: Text) -> Unit => {
     match result with
         case Result::Ok(value) => Expect(value == expected, message)
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectErrText(result: Result<Int, Text>, expected: Text, message: Text) -> Unit => {
+def ExpectErrText = fn(result: Result<Int, Text>, expected: Text, message: Text) -> Unit => {
     match result with
         case Result::Ok(_) => Panic::Panic(message)
         case Result::Err(err) => Expect(err == expected, message)

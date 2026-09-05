@@ -7,12 +7,12 @@ import
 
 union Tree = Leaf(Int) | Node(Tree, Tree);
 
-defun TreeSum(tree : Tree) -> Int =>
+def TreeSum = fn(tree : Tree) -> Int =>
 	match tree with
 		case Tree::Leaf(value) => value
 		case Tree::Node(left, right) => TreeSum(left) + TreeSum(right)
 	;
-defun TreeHeight(tree : Tree) -> Int =>
+def TreeHeight = fn(tree : Tree) -> Int =>
 {
 	def max = fn(a : Int, b : Int) -> Int => if a > b then a else b;
 	match tree with

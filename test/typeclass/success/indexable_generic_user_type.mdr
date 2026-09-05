@@ -15,7 +15,7 @@ struct Bag < T > {
 
 instance Indexable < Bag < T >, Int > {
     type Element = T;
-    defun Get(container: Bag < T >, index: Int) -> T => container.items[index];
+    def Get = fn(container: Bag < T >, index: Int) -> T => container.items[index];
 };
 
 def ints: Bag < Int > = new Bag < Int >([10, 20, 30]);

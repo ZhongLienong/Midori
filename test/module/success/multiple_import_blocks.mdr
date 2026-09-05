@@ -6,7 +6,7 @@ import { <IO> }
 
 use IO.{PrintLine}
 
-defun first() -> Unit => {
+def first = fn() -> Unit => {
     PrintLine("First function");
 };
 
@@ -14,11 +14,11 @@ import { <Math> }
 
 use Math.{SquareRoot}
 
-defun second() -> Unit => {
+def second = fn() -> Unit => {
     PrintLine("SquareRoot(4) = " ++ (SquareRoot(4.0) as Text));
 };
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     first();
     second();
 };

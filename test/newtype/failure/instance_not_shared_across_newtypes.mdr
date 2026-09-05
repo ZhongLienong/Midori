@@ -9,7 +9,7 @@ class Describable<T> {
 };
 
 instance Describable<Meters> {
-	defun Describe(value: Meters) -> Int => value as Int;
+	def Describe = fn(value: Meters) -> Int => value as Int;
 };
 
 def elapsed: Seconds = 7 as Seconds;

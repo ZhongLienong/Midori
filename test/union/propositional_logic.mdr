@@ -12,7 +12,7 @@ union LogicExpr =
   | Not(LogicExpr)
 ;
 
-defun Evaluate(expr : LogicExpr, env : fn(Text) -> Bool) -> Bool =>
+def Evaluate = fn(expr : LogicExpr, env : fn(Text) -> Bool) -> Bool =>
     match expr with
         case LogicExpr::Var(name) => env(name)
         case LogicExpr::And(left, right) => Evaluate(left, env) && Evaluate(right, env)
@@ -21,7 +21,7 @@ defun Evaluate(expr : LogicExpr, env : fn(Text) -> Bool) -> Bool =>
 ;
 
 // Helper function to print axiom/fact description and its evaluation
-defun PrintAxiomEvaluation(axiom_description : Text, expr_obj : LogicExpr, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
+def PrintAxiomEvaluation = fn(axiom_description : Text, expr_obj : LogicExpr, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
@@ -29,7 +29,7 @@ defun PrintAxiomEvaluation(axiom_description : Text, expr_obj : LogicExpr, envir
 };
 
 // Helper function to print test case results
-defun PrintTestResult(case_name : Text, expr_as_string : Text, expr_obj : LogicExpr, expected_bool : Bool, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
+def PrintTestResult = fn(case_name : Text, expr_as_string : Text, expr_obj : LogicExpr, expected_bool : Bool, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
@@ -43,7 +43,7 @@ defun PrintTestResult(case_name : Text, expr_as_string : Text, expr_obj : LogicE
 };
 
 // Environment: mapping variables to boolean values
-defun env(name : Text) -> Bool =>
+def env = fn(name : Text) -> Bool =>
 {
     if name == "A" then true
     else if name == "B" then false

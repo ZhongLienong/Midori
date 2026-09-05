@@ -6,7 +6,7 @@ import
 	"../../MidoriPrelude/IO.mdr"
 }
 
-defun Main() -> Unit =>
+def Main = fn() -> Unit =>
 {
 	def seed = 0;
 	def counter = fn(delta : Int) -> Int => { seed = seed + delta; seed };

@@ -18,27 +18,27 @@ struct CollisionKey
 
 instance Equatable<CollisionKey>
 {
-    defun Equals(a: CollisionKey, b: CollisionKey) -> Bool => a.id == b.id;
+    def Equals = fn(a: CollisionKey, b: CollisionKey) -> Bool => a.id == b.id;
 };
 
 instance Hashable<CollisionKey>
 {
-    defun Hash(value: CollisionKey) -> Int => 1;
+    def Hash = fn(value: CollisionKey) -> Int => 1;
 };
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectSomeText(result: Option<Text>, expected: Text, message: Text) -> Unit => {
+def ExpectSomeText = fn(result: Option<Text>, expected: Text, message: Text) -> Unit => {
     match result with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)
 };
 
-defun ExpectNoneText(result: Option<Text>, message: Text) -> Unit => {
+def ExpectNoneText = fn(result: Option<Text>, message: Text) -> Unit => {
     match result with
         case Option::Some(_) => Panic::Panic(message)
         case Option::None() => ()

@@ -4,7 +4,7 @@ module ImportNonexistentFile
 
 import { "nonexistent_module.mdr" }
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     42.0
 };
 

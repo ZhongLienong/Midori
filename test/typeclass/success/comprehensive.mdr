@@ -13,30 +13,30 @@ class Debug<T> {
 
 // Multiple instances for Show
 instance Show<Int> {
-    defun show(value: Int) -> Text => {
+    def show = fn(value: Int) -> Text => {
         return "Int(" ++ (value as Text) ++ ")";
     };
 };
 
 instance Show<Float> {
-    defun show(value: Float) -> Text => {
+    def show = fn(value: Float) -> Text => {
         return "Float(" ++ (value as Text) ++ ")";
     };
 };
 
 // Instance for Debug
 instance Debug<Int> {
-    defun debug(value: Int) -> Text => {
+    def debug = fn(value: Int) -> Text => {
         return "[DEBUG] " ++ (value as Text);
     };
 };
 
 // Constrained generic functions
-defun print_value<T>(x: T) -> Text where Show<T> => {
+def print_value = fn<T>(x: T) -> Text where Show<T> => {
     return Show::show(x);
 };
 
-defun debug_value<T>(x: T) -> Text where Debug<T> => {
+def debug_value = fn<T>(x: T) -> Text where Debug<T> => {
     return Debug::debug(x);
 };
 

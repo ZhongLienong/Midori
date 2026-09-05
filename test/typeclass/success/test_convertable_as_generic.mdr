@@ -3,7 +3,7 @@ module TestConvertableAsGeneric
 // Test: generic `as` works with Convertable constraints.
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
-defun ToText<T>(value: T) -> Text where Convertable<T, Text> => {
+def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
     return value as Text;
 };
 

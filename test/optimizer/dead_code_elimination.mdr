@@ -2,7 +2,7 @@ module DeadCodeElimination
 
 import { "../../MidoriPrelude/IO.mdr" }
 
-defun print_and_return(value: Int) -> Int => {
+def print_and_return = fn(value: Int) -> Int => {
     IO::PrintLine("effect=" ++ (value as Text));
     value
 };

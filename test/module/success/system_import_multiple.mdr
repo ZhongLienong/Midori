@@ -7,7 +7,7 @@ import { <IO>, <Math> }
 use IO.{PrintLine}
 use Math.{SquareRoot}
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     PrintLine("sqrt(16) = " ++ (SquareRoot(16.0) as Text));
 };
 

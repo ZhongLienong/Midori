@@ -16,19 +16,19 @@ use Option.{Option}
 use Result.{Result}
 use System.{Platform}
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun ExpectOkUnit<T, E>(result: Result<T, E>, message: Text) -> Unit => {
+def ExpectOkUnit = fn<T, E>(result: Result<T, E>, message: Text) -> Unit => {
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun IgnoreIOResult<T>(result: Result<T, IOError>) -> Unit => {
+def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit => {
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => ()

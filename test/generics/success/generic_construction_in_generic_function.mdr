@@ -30,26 +30,26 @@ struct Pair<A, B>
 union Option<T> = Some(T) | None;
 
 // Expression body, no explicit type argument and no annotated local.
-defun MakeBag<T>(xs : Array<T>, t : Int) -> Bag<T> => new Bag(xs, t);
+def MakeBag = fn<T>(xs : Array<T>, t : Int) -> Bag<T> => new Bag(xs, t);
 
 // Block body.
-defun MakeBagBlock<T>(xs : Array<T>, t : Int) -> Bag<T> =>
+def MakeBagBlock = fn<T>(xs : Array<T>, t : Int) -> Bag<T> =>
 {
 	def b = new Bag(xs, t);
 	b
 };
 
 // Only one of the two type parameters comes from the enclosing function.
-defun TagWith<T>(value : T, label : Text) -> Pair<T, Text> => new Pair(value, label);
+def TagWith = fn<T>(value : T, label : Text) -> Pair<T, Text> => new Pair(value, label);
 
 // A generic union constructor whose payload pins the type parameter.
-defun Wrap<T>(value : T) -> Option<T> => new Option::Some(value);
+def Wrap = fn<T>(value : T) -> Option<T> => new Option::Some(value);
 
 // Constructing from a struct that is itself generic in T.
-defun Retag<T>(b : Bag<T>, t : Int) -> Bag<T> => new Bag(b.items, t);
+def Retag = fn<T>(b : Bag<T>, t : Int) -> Bag<T> => new Bag(b.items, t);
 
 // Nested: the type argument is itself a generic instantiation.
-defun Nest<T>(b : Bag<T>) -> Pair<Bag<T>, Int> => new Pair(b, b.tag);
+def Nest = fn<T>(b : Bag<T>) -> Pair<Bag<T>, Int> => new Pair(b, b.tag);
 
 def ints = MakeBag([1, 2, 3], 7);
 def texts = MakeBag(["a", "b"], 9);

@@ -3,7 +3,7 @@ module GenericRange
 // Test: Generic functions that create and use Range<T> internally
 // Expected: Each instantiation should get independent type variables for the range element type
 
-defun CountUp<T>(start: T, step: T, end: T) -> Unit =>
+def CountUp = fn<T>(start: T, step: T, end: T) -> Unit =>
 {
     for x in start..step..end
     {
@@ -15,7 +15,7 @@ defun CountUp<T>(start: T, step: T, end: T) -> Unit =>
 CountUp(0, 1, 10);
 CountUp(0.0, 0.5, 5.0);
 
-defun IterateTwice<T>(start: T, step: T, end: T) -> Unit =>
+def IterateTwice = fn<T>(start: T, step: T, end: T) -> Unit =>
 {
     for x in start..step..end
     {

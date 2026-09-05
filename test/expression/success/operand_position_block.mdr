@@ -10,7 +10,7 @@ def w = a + { def q = a + 1; q * 2 };
 def v = (a + { def q = a + 2; q }) * { def r = a - 8; r + 1 };
 def deep = a + (a * { def x = a + 1; def y = x + a; { def z = y - x; z + y } });
 
-defun Work(n : Int) -> Int =>
+def Work = fn(n : Int) -> Int =>
 {
 	def base = n * 2;
 	def w_local = base + { def q = n + 1; q * 2 };

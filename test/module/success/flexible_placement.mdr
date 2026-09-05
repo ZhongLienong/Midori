@@ -1,6 +1,6 @@
 module FlexiblePlacement
 
-defun greet(name: Text) -> Text => {
+def greet = fn(name: Text) -> Text => {
     "Hello, " ++ name
 };
 
@@ -9,13 +9,13 @@ import
     <IO>
 }
 
-defun calculate(x: Float) -> Float => {
+def calculate = fn(x: Float) -> Float => {
     x * 2.0
 };
 
 use IO.{PrintLine}
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     PrintLine(greet("World"));
     PrintLine(calculate(21.0) as Text);
 };

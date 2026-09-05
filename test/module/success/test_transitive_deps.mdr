@@ -7,4 +7,4 @@ import
     "math_ops.mdr"
 }
 
-defun main() -> Int => MathOps::compute(10);
+def main = fn() -> Int => MathOps::compute(10);

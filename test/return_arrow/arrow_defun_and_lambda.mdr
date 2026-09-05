@@ -3,7 +3,7 @@ module ArrowDefunAndLambda
 import { "../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-defun Twice(x: Int) -> Int => x * 2;
+def Twice = fn(x: Int) -> Int => x * 2;
 
 def Add = fn(a: Int, b: Int) -> Int => a + b;
 

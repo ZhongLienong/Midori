@@ -17,7 +17,7 @@ type Boxed<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
 type Tagged = { label: Int, weight: Int } deriving (Equatable, Hashable);
 
-defun HashValue<T>(value: T) -> Int where Hashable<T> => {
+def HashValue = fn<T>(value: T) -> Int where Hashable<T> => {
 	Hashable::Hash(value)
 };
 

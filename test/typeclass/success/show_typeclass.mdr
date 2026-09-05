@@ -7,7 +7,7 @@ class Show<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) -> Text => {
+    def show = fn(value: Int) -> Text => {
         return value as Text;
     };
 };

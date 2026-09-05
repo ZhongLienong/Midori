@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun make_parent() -> fn() -> Int =>
+def make_parent = fn() -> fn() -> Int =>
 {
 	def value = 0;
 	def child = fn() -> Int =>

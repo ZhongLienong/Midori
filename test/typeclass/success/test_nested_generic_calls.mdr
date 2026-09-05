@@ -3,16 +3,16 @@ module TestNestedGenericCalls
 // Test: Nested generic function calls with constraints
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
-defun ToText<T>(value: T) -> Text where Convertable<T, Text> => {
+def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
     return value as Text;
 };
 
-defun ToInt<T>(value: T) -> Int where Convertable<T, Int> => {
+def ToInt = fn<T>(value: T) -> Int where Convertable<T, Int> => {
     return value as Int;
 };
 
 // Function that uses other generic functions
-defun ProcessValue<T>(value: T) -> Text
+def ProcessValue = fn<T>(value: T) -> Text
     where Convertable<T, Text>, Convertable<T, Int> => {
     def text_repr = ToText(value);
     def int_repr = ToInt(value);

@@ -7,11 +7,11 @@ struct Marker<T>
 {
 };
 
-defun make_int_marker() -> Marker<Int> => new Marker<Int>();
+def make_int_marker = fn() -> Marker<Int> => new Marker<Int>();
 
-defun wants_text_marker(m: Marker<Text>) -> Int => 1;
+def wants_text_marker = fn(m: Marker<Text>) -> Int => 1;
 
-defun main() -> Int => 
+def main = fn() -> Int => 
 {
 	def m = make_int_marker();
 	return wants_text_marker(m);

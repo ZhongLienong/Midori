@@ -33,7 +33,7 @@ foreign "MIDORI_FFI_Hypot" Hypot: fn(Float, Float) -> Float;
 foreign "MIDORI_FFI_Random" Random: fn() -> Float;
 foreign "MIDORI_FFI_RandomInt" RandomIntRaw: fn(Int, Int) -> Int;
 foreign "MIDORI_FFI_RandomFloat" RandomFloat: fn(Float, Float) -> Float;
-defun RandomInt(minimum: Int, maximum: Int) -> Int => {
+def RandomInt = fn(minimum: Int, maximum: Int) -> Int => {
     if minimum > maximum then RandomInt(maximum, minimum) else if minimum == maximum then minimum else Floor(RandomFloat(minimum as Float, (maximum + 1) as Float)) as Int
 };
 foreign "MIDORI_FFI_ToRadians" ToRadians: fn(Float) -> Float;

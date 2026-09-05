@@ -24,7 +24,7 @@ defun Triple(n : Int) -> Int =>
 	n * 3
 };
 
-defun Main() -> Unit =>
+def Main = fn() -> Unit =>
 {
 	def piped = 1 |> spawn Compute(2);
 	IO::PrintLine("piped: " ++ (join piped as Text));

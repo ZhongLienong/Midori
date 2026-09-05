@@ -14,95 +14,95 @@ struct Point
 };
 
 // Basic arithmetic operations
-defun Add(a : Int, b : Int) -> Int =>
+def Add = fn(a : Int, b : Int) -> Int =>
 {
 	a + b
 };
 
-defun Multiply(a : Int, b : Int) -> Int =>
+def Multiply = fn(a : Int, b : Int) -> Int =>
 {
 	a * b
 };
 
-defun Subtract(a : Int, b : Int) -> Int =>
+def Subtract = fn(a : Int, b : Int) -> Int =>
 {
 	a - b
 };
 
-defun Divide(a : Int, b : Int) -> Int =>
+def Divide = fn(a : Int, b : Int) -> Int =>
 {
 	a / b
 };
 
-defun Square(n : Int) -> Int =>
+def Square = fn(n : Int) -> Int =>
 {
 	n * n
 };
 
-defun Cube(n : Int) -> Int =>
+def Cube = fn(n : Int) -> Int =>
 {
 	n * n * n
 };
 
-defun Negate(n : Int) -> Int =>
+def Negate = fn(n : Int) -> Int =>
 {
 	0 - n
 };
 
-defun Abs(n : Int) -> Int =>
+def Abs = fn(n : Int) -> Int =>
 {
 	if n < 0 then 0 - n else n
 };
 
-defun Mod(a : Int, b : Int) -> Int =>
+def Mod = fn(a : Int, b : Int) -> Int =>
 {
 	a % b
 };
 
 // Text operations
-defun IntToText(n : Int) -> Text =>
+def IntToText = fn(n : Int) -> Text =>
 {
 	n as Text
 };
 
-defun Concat(prefix : Text, suffix : Text) -> Text =>
+def Concat = fn(prefix : Text, suffix : Text) -> Text =>
 {
 	prefix ++ suffix
 };
 
-defun AddPrefix(n : Int, prefix : Text) -> Text =>
+def AddPrefix = fn(n : Int, prefix : Text) -> Text =>
 {
 	prefix ++ (n as Text)
 };
 
 // Point operations
-defun MakePoint(px : Int, py : Int) -> Point =>
+def MakePoint = fn(px : Int, py : Int) -> Point =>
 {
 	new Point(px, py)
 };
 
-defun GetX(p : Point) -> Int =>
+def GetX = fn(p : Point) -> Int =>
 {
 	p.x
 };
 
-defun GetY(p : Point) -> Int =>
+def GetY = fn(p : Point) -> Int =>
 {
 	p.y
 };
 
-defun ManhattanDistance(p : Point) -> Int =>
+def ManhattanDistance = fn(p : Point) -> Int =>
 {
 	Abs(p.x) + Abs(p.y)
 };
 
-defun ScalePoint(p : Point, factor : Int) -> Point =>
+def ScalePoint = fn(p : Point, factor : Int) -> Point =>
 {
 	new Point(p.x * factor, p.y * factor)
 };
 
 
-defun Main() -> Unit =>
+def Main = fn() -> Unit =>
 {
 	IO::PrintLine("=== Pipe Operator Comprehensive Test ===");
 	IO::PrintLine("");

@@ -2,7 +2,7 @@ module Panic
 public export { Panic }
 foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
 foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;
-defun Panic(message: Text) -> Never => {
+def Panic = fn(message: Text) -> Never => {
     PrintErrorRaw(message ++ "\n");
     loop {
         ExitRaw(1);

@@ -4,13 +4,13 @@ module FlexibleUseScattered
 
 import { <IO> }
 
-defun greet(name: Text) -> Text => { "Hello, " ++ name };
+def greet = fn(name: Text) -> Text => { "Hello, " ++ name };
 
 use IO.{PrintLine}
 
-defun calculate(x: Float) -> Float => { x * 2.0 + 10.0 };
+def calculate = fn(x: Float) -> Float => { x * 2.0 + 10.0 };
 
-defun main() -> Unit => {
+def main = fn() -> Unit => {
     PrintLine(greet("Alice"));
     PrintLine("Result: " ++ (calculate(15.0) as Text));
 };

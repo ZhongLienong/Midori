@@ -3,7 +3,7 @@ module ModuleUseAccess
 import { <IO> }
 use IO.{PrintLine}
 
-defun main() -> Int => {
+def main = fn() -> Int => {
     PrintLine("Hello");
     0
 };

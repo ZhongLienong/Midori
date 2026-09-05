@@ -1,5 +1,5 @@
 module ReadmeRecursiveFibonacci
 
-defun fib(n: Int) -> Int => {
+def fib = fn(n: Int) -> Int => {
     return if n <= 1 then n else fib(n - 1) + fib(n - 2);
 };

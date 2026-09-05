@@ -10,14 +10,14 @@ class Show<T> {
 struct Boxed<T> { item: T };
 
 instance Show<Int> {
-    defun show(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
+    def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
 };
 
 instance Show<Boxed<T>> where Show<T> {
-    defun show(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
-defun Length<T>(array: Array<T>) -> Int => #array;
+def Length = fn<T>(array: Array<T>) -> Int => #array;
 
 def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 

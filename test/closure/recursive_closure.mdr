@@ -5,7 +5,7 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-defun makeRecursive(n : Int) -> fn(Int) -> Int =>
+def makeRecursive = fn(n : Int) -> fn(Int) -> Int =>
 	if n == 0
 	then fn(x : Int) -> Int => 1
 	else fn(x : Int) -> Int => x * makeRecursive(n - 1)(x - 1)

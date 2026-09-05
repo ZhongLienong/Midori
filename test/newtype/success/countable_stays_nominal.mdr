@@ -17,7 +17,7 @@ import
 type Code = Text;
 
 instance Countable<Code> {
-	defun Count(value: Code) -> Int => (#(value as Text)) * 100;
+	def Count = fn(value: Code) -> Int => (#(value as Text)) * 100;
 };
 
 def id: Code = "ab" as Code;

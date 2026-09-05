@@ -13,37 +13,37 @@ use Option.{Option}
 use Result.{Result}
 use System.{Platform, ProcessResult, SystemError}
 
-defun Expect(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-defun IgnoreIOResult<T>(result: Result<T, IOError>) -> Unit => {
+def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit => {
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => ()
 };
 
-defun ExpectIOOkUnit(result: Result<Unit, IOError>, message: Text) -> Unit => {
+def ExpectIOOkUnit = fn(result: Result<Unit, IOError>, message: Text) -> Unit => {
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectIOOkText(result: Result<Text, IOError>, expected: Text, message: Text) -> Unit => {
+def ExpectIOOkText = fn(result: Result<Text, IOError>, expected: Text, message: Text) -> Unit => {
     match result with
         case Result::Ok(value) => Expect(value == expected, message)
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectIOOkInt(result: Result<Int, IOError>, expected: Int, message: Text) -> Unit => {
+def ExpectIOOkInt = fn(result: Result<Int, IOError>, expected: Int, message: Text) -> Unit => {
     match result with
         case Result::Ok(value) => Expect(value == expected, message)
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectIOErrNotFound<T>(result: Result<T, IOError>, message: Text) -> Unit => {
+def ExpectIOErrNotFound = fn<T>(result: Result<T, IOError>, message: Text) -> Unit => {
     match result with
         case Result::Err(err) => {
             match err with
@@ -54,19 +54,19 @@ defun ExpectIOErrNotFound<T>(result: Result<T, IOError>, message: Text) -> Unit 
         case Result::Ok(_) => Panic::Panic(message)
 };
 
-defun ExpectSystemOkUnit(result: Result<Unit, SystemError>, message: Text) -> Unit => {
+def ExpectSystemOkUnit = fn(result: Result<Unit, SystemError>, message: Text) -> Unit => {
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectSystemOkText(result: Result<Text, SystemError>, message: Text) -> Text => {
+def ExpectSystemOkText = fn(result: Result<Text, SystemError>, message: Text) -> Text => {
     match result with
         case Result::Ok(value) => value
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectSystemErrInvalidDirectory<T>(result: Result<T, SystemError>, message: Text) -> Unit => {
+def ExpectSystemErrInvalidDirectory = fn<T>(result: Result<T, SystemError>, message: Text) -> Unit => {
     match result with
         case Result::Err(err) => {
             match err with
@@ -77,13 +77,13 @@ defun ExpectSystemErrInvalidDirectory<T>(result: Result<T, SystemError>, message
         case Result::Ok(_) => Panic::Panic(message)
 };
 
-defun ExpectSystemRunOk(result: Result<ProcessResult, SystemError>, expected_exit_code: Int, message: Text) -> Unit => {
+def ExpectSystemRunOk = fn(result: Result<ProcessResult, SystemError>, expected_exit_code: Int, message: Text) -> Unit => {
     match result with
         case Result::Ok(process_result) => Expect(process_result.exit_code == expected_exit_code, message)
         case Result::Err(_) => Panic::Panic(message)
 };
 
-defun ExpectSystemCommandFailed(result: Result<ProcessResult, SystemError>, message: Text) -> Unit => {
+def ExpectSystemCommandFailed = fn(result: Result<ProcessResult, SystemError>, message: Text) -> Unit => {
     match result with
         case Result::Err(err) => {
             match err with
@@ -94,19 +94,19 @@ defun ExpectSystemCommandFailed(result: Result<ProcessResult, SystemError>, mess
         case Result::Ok(_) => Panic::Panic(message)
 };
 
-defun ExpectSomeText(result: Option<Text>, expected: Text, message: Text) -> Unit => {
+def ExpectSomeText = fn(result: Option<Text>, expected: Text, message: Text) -> Unit => {
     match result with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)
 };
 
-defun ExpectNoneText(result: Option<Text>, message: Text) -> Unit => {
+def ExpectNoneText = fn(result: Option<Text>, message: Text) -> Unit => {
     match result with
         case Option::Some(_) => Panic::Panic(message)
         case Option::None() => ()
 };
 
-defun SuccessCommand(platform: Platform) -> Text =>
+def SuccessCommand = fn(platform: Platform) -> Text =>
     match platform with
         case Platform::Windows() => "cmd /c exit 0"
         case Platform::MacOS() => "sh -c 'exit 0'"
@@ -115,7 +115,7 @@ defun SuccessCommand(platform: Platform) -> Text =>
         case Platform::Unknown(_) => ""
     ;
 
-defun FailureCommand(platform: Platform) -> Text =>
+def FailureCommand = fn(platform: Platform) -> Text =>
     match platform with
         case Platform::Windows() => "cmd /c exit 5"
         case Platform::MacOS() => "sh -c 'exit 5'"

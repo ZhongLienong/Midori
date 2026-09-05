@@ -15,12 +15,12 @@ struct Counter
     end: Int
 };
 
-defun CounterNew(end: Int) -> Counter => new Counter(0, end);
+def CounterNew = fn(end: Int) -> Counter => new Counter(0, end);
 
 instance Iterable<Counter>
 {
     type Item = Int;
-    defun Next(counter: Counter) -> Option<Int> => {
+    def Next = fn(counter: Counter) -> Option<Int> => {
         if counter.current >= counter.end
         then new Option::None()
         else {

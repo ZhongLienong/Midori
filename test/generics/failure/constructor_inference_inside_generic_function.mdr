@@ -12,7 +12,7 @@ struct Bag<T>
 
 union Option<T> = Some(T) | None;
 
-defun Hold<T>(xs : Array<T>) -> Bag<T> =>
+def Hold = fn<T>(xs : Array<T>) -> Bag<T> =>
 {
 	def owned = new Bag(xs, 0);
 	def unowned = new Option::None();
