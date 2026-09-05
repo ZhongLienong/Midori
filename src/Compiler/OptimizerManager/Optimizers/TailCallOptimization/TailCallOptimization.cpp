@@ -400,8 +400,8 @@ void TailCallOptimization::operator()(MidoriStatement::FunctionDefinition& defun
 
 void TailCallOptimization::operator()(MidoriStatement::VariableDefinition& def)
 {
-	// `def Name = fn(...)` names its own procedure just as `defun Name(...)` does, so
-	// a call to Name in tail position inside the lambda is the same self-recursion.
+	// `def Name = fn(...)` names its own procedure, so a call to Name in tail position
+	// inside the lambda is self-recursion.
 	if (def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
 	{
 		MarkTailRecursion(def.m_name.m_lexeme, def.m_value->GetExpression<MidoriExpression::Function>().m_body);

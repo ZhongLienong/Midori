@@ -145,7 +145,7 @@ Generic constructors accept explicit type arguments, but Midori can infer omitte
 def some_int = new Option::Some(42);
 def empty_int : Option<Int> = new Option::None();
 
-defun Wrap<T>(value: T) -> Option<T> => new Option::Some(value);
+def Wrap = fn<T>(value: T) -> Option<T> => new Option::Some(value);
 ```
 
 The explicit form remains available:
@@ -157,8 +157,8 @@ def exact = new Option::Some<Int>(42);
 Inference must resolve every omitted type parameter. If no argument or expected type pins it down, construction fails:
 
 ```midori-test name=type-system/unresolved_none kind=failure path=.doc_examples/type_system/unresolved_none.mdr module=TypeSystemUnresolvedNone
-union Option<T> = None | Some(T);
-def unresolved = new Option::None();  // error: missing type context
+type Option<T> = None | Some(T);
+def unresolved = Option::None();  // error: missing type context
 ```
 
 ### Deriving
@@ -224,7 +224,7 @@ Aliases can be imported and exported like other symbols. They are fully intercha
 Functions, structs, unions, and aliases can all be parameterized:
 
 ```midori
-defun identity<T>(value: T) -> T => value;
+def identity = fn<T>(value: T) -> T => value;
 
 struct Pair<A, B>
 {
@@ -240,7 +240,7 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-defun Display<T>(value: T) -> Text where Show<T> => {
+def Display = fn<T>(value: T) -> Text where Show<T> => {
     return Show::show(value);
 };
 ```
@@ -252,7 +252,7 @@ struct Box<T> where Show<T> {
     value: T
 };
 
-defun ShowBox<T>(box: Box<T>) -> Text => {
+def ShowBox = fn<T>(box: Box<T>) -> Text => {
     return Show::show(box.value);
 };
 ```
@@ -271,7 +271,7 @@ class Show<T> {
 };
 
 instance Show<Int> {
-    defun show(value: Int) -> Text => {
+    def show = fn(value: Int) -> Text => {
         return value as Text;
     };
 };
@@ -308,7 +308,7 @@ instance Iterable<Counter>
 {
     type Item = Int;
 
-    defun Next(counter: Counter) -> Option<Int> => {
+    def Next = fn(counter: Counter) -> Option<Int> => {
         if counter.current >= counter.end
         then new Option::None()
         else {
@@ -323,7 +323,7 @@ instance Iterable<Counter>
 Use projection syntax to refer to an associated type in other signatures:
 
 ```midori
-defun NextValue<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
+def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
     where Iterable<Iter> => {
     return Iterable::Next(iter);
 };
@@ -344,12 +344,12 @@ Several operators are wired into the type checker and code generator so they can
 Examples:
 
 ```midori
-defun ConvertIt<From, To>(value: From) -> To
+def ConvertIt = fn<From, To>(value: From) -> To
     where Convertable<From, To> => {
     value as To
 };
 
-defun Join<T>(left: T, right: T) -> T
+def Join = fn<T>(left: T, right: T) -> T
     where Concatenable<T> => {
     left ++ right
 };
@@ -389,7 +389,7 @@ These are currently defined for integer-style numeric types (`Int`, `Byte`, and 
 Pattern matching is expression-oriented:
 
 ```midori
-defun Unwrap(option: Option<Int>) -> Int => {
+def Unwrap = fn(option: Option<Int>) -> Int => {
     return match option with
         case Option::Some(value) => value
         case Option::None() => 0

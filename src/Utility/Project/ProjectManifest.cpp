@@ -704,7 +704,7 @@ namespace MidoriProject
 		const std::string main_contents =
 			"module Main\n"
 			"\n"
-			"defun main(): Int => 0;\n";
+			"def main = fn() -> Int => 0;\n";
 
 		if (!WriteFile(main_path, main_contents, error_message))
 		{
@@ -912,7 +912,7 @@ namespace MidoriPackage
 			"module {}\n"
 			"public export {{ Hello }}\n"
 			"\n"
-			"defun Hello(): Text => \"Hello from {}\";\n",
+			"def Hello = fn() -> Text => \"Hello from {}\";\n",
 			module_name,
 			module_name
 		);

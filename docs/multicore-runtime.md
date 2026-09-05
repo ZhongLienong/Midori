@@ -68,7 +68,7 @@ ch -> 42;                             // send: Bool (false if closed)
 def val = <- ch;                      // receive: Int (blocks if empty)
 ```
 
-- `spawn` resolves the callee at compile time (must be a named `defun`, not a closure)
+- `spawn` resolves the callee at compile time (must be a named `def Name = fn(...)`, not a closure)
 - `join` blocks and returns the typed result (not text)
 - `channel<T>(capacity)` creates a typed bounded channel
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators

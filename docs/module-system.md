@@ -93,7 +93,7 @@ Only `module` is fixed in position. Other module statements can be scattered:
 ```midori-test name=module-system/flexible_placement path=.doc_examples/module_system/flexible_placement.mdr
 module Example
 
-defun LocalHelper(x: Int): Int => x + 1;
+def LocalHelper = fn(x: Int) -> Int => x + 1;
 
 import { <IO> }
 
@@ -101,7 +101,7 @@ public export { main }
 
 use IO.{PrintLine}
 
-defun main(): Int => {
+def main = fn() -> Int => {
     PrintLine((LocalHelper(41)) as Text);
     0
 };
@@ -156,7 +156,7 @@ Cross-module names use `::`:
 ```midori-test name=module-system/qualified_access path=.doc_examples/module_system/qualified_access.mdr module=ModuleQualifiedAccess
 import { <IO> }
 
-defun main(): Int => {
+def main = fn() -> Int => {
     IO::PrintLine("Hello");
     0
 };
@@ -168,7 +168,7 @@ defun main(): Int => {
 import { <IO> }
 use IO.{PrintLine}
 
-defun main(): Int => {
+def main = fn() -> Int => {
     PrintLine("Hello");
     0
 };

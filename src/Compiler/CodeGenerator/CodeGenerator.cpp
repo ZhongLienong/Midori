@@ -2225,8 +2225,8 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 	}
 
 	// A generic lambda bound to a name is a template, not a value: register it for
-	// specialization keyed on the bound name and emit nothing here, exactly as a
-	// generic defun does. Each call site drives SpecializeGenericFunction instead.
+	// specialization keyed on the bound name and emit nothing here. Each call site
+	// drives SpecializeGenericFunction instead.
 	if (def.m_value != nullptr && def.m_value->IsExpression<MidoriExpression::Function>())
 	{
 		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();

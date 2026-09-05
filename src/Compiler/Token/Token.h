@@ -85,7 +85,6 @@ struct Token
 		RETURN,
 		TRUE,
 		DEF,
-		DEFUN,
 		BREAK,
 		CONTINUE,
 		IMPORT,

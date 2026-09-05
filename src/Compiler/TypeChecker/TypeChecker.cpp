@@ -3048,8 +3048,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStat
 
 MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function)
 {
-	// v1 targets parity with defun. A generic lambda is specialized by name at each
-	// call site, so it must be a named binding at the top level.
+	// A generic lambda is specialized by name at each call site, so it must be a
+	// named binding at the top level.
 	if (def.m_local_index.has_value())
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda must be bound at the top level, because it is specialized by name at each call site", function.m_function_keyword, m_file_name, m_source_lines));
@@ -3913,7 +3913,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	}
 
 	// AppendUniqueConstraint does NOT make this append idempotent: on a second visit the stored
-	// constraint has been freshened in place by the defun path while the incoming one has not,
+	// constraint has been freshened in place by the function-definition path while the incoming one has not,
 	// so they compare unequal and a duplicate would accumulate. Safety comes instead from this
 	// statement being visited at most once - TypeCheck traverses m_program_tree in a single pass,
 	// the duplicate-instance guard above rejects a repeated instance key before reaching here,
@@ -6086,7 +6086,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 
 		// A return inside the body is validated against this, and only types itself as
 		// Never once it is set. Leaving it unset made `{ return 1; }` type as Int, which
-		// broke every enclosing unification the defun path handles correctly.
+		// broke every enclosing unification the function-definition path handles correctly.
 		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = function.m_return_type;
 
@@ -6218,7 +6218,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	if (HasTypeVariables(construct.m_type_data))
 	{
 		// Inside a generic definition the declared types have already been freshened, so
-		// `new Bag(xs, t)` in `defun MakeBag<T>(xs : Array<T>, t : Int) -> Bag<T>` infers
+		// `new Bag(xs, t)` in `def MakeBag = fn<T>(xs : Array<T>, t : Int) -> Bag<T>` infers
 		// Bag<T0> for a type variable T0 that stands for T. That is fully inferred, not
 		// ambiguous - the enclosing definition owns T0 and monomorphisation decides it at
 		// each call site. Only a variable that no enclosing definition owns is ambiguous.
@@ -6322,7 +6322,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 	// The result is the source's own already-resolved type, so no inference is needed here
 	// at all. Construct instead looks the constructor function up by name, freshens it and
 	// infers the type arguments from the supplied members; that also works inside a generic
-	// function - `new Bag(b.items, t)` in `defun Retag<T>(b : Bag<T>, t : Int) -> Bag<T>`
+	// function - `new Bag(b.items, t)` in `def Retag = fn<T>(b : Bag<T>, t : Int) -> Bag<T>`
 	// infers Bag<T0>, a type variable the enclosing function owns. See
 	// test/generics/success/generic_construction_in_generic_function.mdr.
 	record_update.m_type_data = source_type;

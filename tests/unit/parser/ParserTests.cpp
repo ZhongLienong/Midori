@@ -47,6 +47,15 @@ namespace
 		return expression->template GetExpression<ExpressionType>();
 	}
 
+	// `def Name = fn(...)` parses as a variable definition whose value is a lambda; the
+	// FunctionDefinition node is now only produced by instance methods, deriving and
+	// closure lifting.
+	const MidoriExpression::Function& RequireFunctionBinding(const MidoriProgramTree& program, size_t index, std::string_view expected_name)
+	{
+		const MidoriStatement::VariableDefinition& definition = RequireVariableDefinition(program, index, expected_name);
+		return RequireExpression<MidoriExpression::Function>(definition.m_value);
+	}
+
 	template<typename PatternType>
 	const PatternType& RequirePattern(const std::unique_ptr<MidoriPattern>& pattern)
 	{
@@ -178,12 +187,12 @@ struct Box<T> where Show<T> {
 };
 
 instance Show<Array<Array<Text>>> {
-    defun show(value: Array<Array<Text>>) : Text => "nested";
+    def show = fn(value: Array<Array<Text>>) : Text => "nested";
 };
 
 def nested : Array<Array<Text>> = [["hello"]];
 def boxed = new Box<Array<Array<Text>>>(nested);
-defun shift(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<Text>>> => value >> 1;
+def shift = fn(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<Text>>> => value >> 1;
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mdr");
@@ -198,10 +207,7 @@ defun shift(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<T
 	const MidoriExpression::Construct& boxed_construct = RequireExpression<MidoriExpression::Construct>(boxed_definition.m_value);
 	REQUIRE(boxed_construct.m_has_explicit_type_args);
 
-	REQUIRE(parse_result->m_program[5] != nullptr);
-	REQUIRE(parse_result->m_program[5]->IsStatement<MidoriStatement::FunctionDefinition>());
-
-	const MidoriStatement::FunctionDefinition& shift_definition = parse_result->m_program[5]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Function& shift_definition = RequireFunctionBinding(parse_result->m_program, 5u, "shift");
 	const MidoriExpression::Binary& shift_expr = RequireExpression<MidoriExpression::Binary>(shift_definition.m_body);
 	REQUIRE(shift_expr.m_op.m_token_name == Token::Name::RIGHT_SHIFT);
 }
@@ -215,7 +221,7 @@ class Iterable<Iter> {
     next: fn(iter: Iter) -> Iterable::Item<Iter>;
 };
 
-defun NextValue(iter: Array<Array<Int>>) : Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
+def NextValue = fn(iter: Array<Array<Int>>) : Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mdr");
@@ -393,9 +399,9 @@ TEST_CASE("Parser synchronizes consume failures to every top-level declaration s
 
 	const std::vector<SyncCase> cases =
 	{
-		{ "defun", "defun next(): Int => 0;\n", Token::Name::DEFUN },
+		{ "def", "def next = fn(): Int => 0;\n", Token::Name::DEF },
 		{ "class", "class Next<T> {\n\tproject: fn(value: T) -> T;\n};\n", Token::Name::CLASS },
-		{ "instance", "instance Next<Int> {\n\tdefun project(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
+		{ "instance", "instance Next<Int> {\n\tdef project = fn(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
 		{ "foreign", "foreign \"MIDORI_FFI_Next\" NextForeign : fn() -> Int;\n", Token::Name::FOREIGN },
 		{ "type", "type Nominal = Int;\n", Token::Name::TYPE },
 		{ "alias", "alias Shorthand = Int;\n", Token::Name::ALIAS },
@@ -432,7 +438,7 @@ TEST_CASE("Parser recovers limited helper failures at the top-level parse bounda
 {
 	const std::string source_code =
 		R"(module ParserRecoveryLimited
-defun broken(value next): Int => value;
+def broken = fn(value next): Int => value;
 class Next<T> {
 	project: fn(value: T) -> T;
 };
@@ -447,7 +453,7 @@ class Next<T> {
 	PreparedParser& prepared = *prepared_result.value();
 	MidoriResult::ParserResult parse_result = prepared.m_parser.Parse();
 	REQUIRE_FALSE(parse_result.has_value());
-	CHECK(parse_result.error().First().m_message.find("Expected ':' after parameter name.") != std::string::npos);
+	CHECK(parse_result.error().First().m_message.find("Expected ',' after function parameter.") != std::string::npos);
 	CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == Token::Name::CLASS);
 }
 
@@ -466,7 +472,7 @@ def hidden = 7;
 			R"(module Main
 import { "./Secrets.mdr" }
 def value = Secrets::hidden;
-defun main(): Int => value;
+def main = fn(): Int => value;
 )")
 	});
 
@@ -475,7 +481,7 @@ defun main(): Int => value;
 		R"(module Main
 import { "./Secrets.mdr" }
 def value = Secrets::hidden;
-defun main(): Int => value;
+def main = fn(): Int => value;
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -495,7 +501,7 @@ TEST_CASE("Parser resolves dotted use imports against the full module name", "[p
 			"MathVector.mdr",
 			R"(module Math.Vector
 public export { add }
-defun add(): Int => 41;
+def add = fn(): Int => 41;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -504,7 +510,7 @@ defun add(): Int => 41;
 			R"(module Main
 import { "./MathVector.mdr" }
 use Math.Vector.{add}
-defun main(): Int => add();
+def main = fn(): Int => add();
 )"
 		)
 	});
@@ -514,7 +520,7 @@ defun main(): Int => add();
 		R"(module Main
 import { "./MathVector.mdr" }
 use Math.Vector.{add}
-defun main(): Int => add();
+def main = fn(): Int => add();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -530,7 +536,7 @@ TEST_CASE("Parser rejects ambiguous use imports from different modules", "[parse
 			"Left.mdr",
 			R"(module Left
 public export { value }
-defun value(): Int => 1;
+def value = fn(): Int => 1;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -538,7 +544,7 @@ defun value(): Int => 1;
 			"Right.mdr",
 			R"(module Right
 public export { value }
-defun value(): Int => 2;
+def value = fn(): Int => 2;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -548,7 +554,7 @@ defun value(): Int => 2;
 import { "./Left.mdr", "./Right.mdr" }
 use Left.{value}
 use Right.{value}
-defun main(): Int => value();
+def main = fn(): Int => value();
 )"
 		)
 	});
@@ -559,7 +565,7 @@ defun main(): Int => value();
 import { "./Left.mdr", "./Right.mdr" }
 use Left.{value}
 use Right.{value}
-defun main(): Int => value();
+def main = fn(): Int => value();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -579,7 +585,7 @@ TEST_CASE("Parser treats duplicate same-module use imports as idempotent", "[par
 			"Helper.mdr",
 			R"(module Helper
 public export { value }
-defun value(): Int => 7;
+def value = fn(): Int => 7;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -589,7 +595,7 @@ defun value(): Int => 7;
 import { "./Helper.mdr" }
 use Helper.{value}
 use Helper.{value}
-defun main(): Int => value();
+def main = fn(): Int => value();
 )"
 		)
 	});
@@ -600,7 +606,7 @@ defun main(): Int => value();
 import { "./Helper.mdr" }
 use Helper.{value}
 use Helper.{value}
-defun main(): Int => value();
+def main = fn(): Int => value();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -611,7 +617,7 @@ TEST_CASE("Compiler uses the declared entry module name for linked executable me
 {
 	const std::string source_code =
 		R"(module App.Main
-defun main(): Int => 0;
+def main = fn(): Int => 0;
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "EntryPoint.mdr");
@@ -721,7 +727,7 @@ def projected = { p with x = 9 }.x;
 TEST_CASE("Parser keeps a record update in function body position out of the block path", "[parser]")
 {
 	// The function-body brace is a second, separate '{' dispatch site that bypasses
-	// ParsePrimary. Patching only ParsePrimary would leave `defun ... => { c with ... }`
+	// ParsePrimary. Patching only ParsePrimary would leave `fn ... => { c with ... }`
 	// parsing as a block, which is precisely the builder-style form record update exists
 	// for. A record update there also continues through the postfix chain; a block
 	// deliberately does not, so that `fn() => {}()` still parses its call separately.
@@ -732,9 +738,9 @@ struct Config
 	host : Text,
 	port : Int
 };
-defun WithPort(c : Config, p : Int) : Config => { c with port = p };
-defun PortOf(c : Config) : Int => { c with port = 1 }.port;
-defun BlockBodied() : Int => { def local = 2; local };
+def WithPort = fn(c : Config, p : Int) : Config => { c with port = p };
+def PortOf = fn(c : Config) : Int => { c with port = 1 }.port;
+def BlockBodied = fn() : Int => { def local = 2; local };
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mdr");
@@ -746,22 +752,16 @@ defun BlockBodied() : Int => { def local = 2; local };
 	const MidoriProgramTree& program = parse_result->m_program;
 
 	REQUIRE(program.size() >= 4u);
-	REQUIRE(program[1u] != nullptr);
-	REQUIRE(program[1u]->IsStatement<MidoriStatement::FunctionDefinition>());
-	const MidoriStatement::FunctionDefinition& with_port = program[1u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Function& with_port = RequireFunctionBinding(program, 1u, "WithPort");
 	const MidoriExpression::RecordUpdate& with_port_body = RequireExpression<MidoriExpression::RecordUpdate>(with_port.m_body);
 	REQUIRE(with_port_body.m_updates.size() == 1u);
 	REQUIRE(with_port_body.m_updates[0u].m_name.m_lexeme == "port");
 
-	REQUIRE(program[2u] != nullptr);
-	REQUIRE(program[2u]->IsStatement<MidoriStatement::FunctionDefinition>());
-	const MidoriStatement::FunctionDefinition& port_of = program[2u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Function& port_of = RequireFunctionBinding(program, 2u, "PortOf");
 	const MidoriExpression::MemberAccess& port_of_body = RequireExpression<MidoriExpression::MemberAccess>(port_of.m_body);
 	static_cast<void>(RequireExpression<MidoriExpression::RecordUpdate>(port_of_body.m_struct));
 
-	REQUIRE(program[3u] != nullptr);
-	REQUIRE(program[3u]->IsStatement<MidoriStatement::FunctionDefinition>());
-	const MidoriStatement::FunctionDefinition& block_bodied = program[3u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Function& block_bodied = RequireFunctionBinding(program, 3u, "BlockBodied");
 	static_cast<void>(RequireExpression<MidoriExpression::Block>(block_bodied.m_body));
 }
 
@@ -977,7 +977,7 @@ class Container<T> {
 instance Container<Int> {
 	type Item = Int;
 
-	defun First(value: Int) : Int => value;
+	def First = fn(value: Int) : Int => value;
 };
 type Meters = Int;
 )";
@@ -1147,8 +1147,8 @@ TEST_CASE("Parser accepts '->' and ':' interchangeably in return position", "[pa
 {
 	const std::string source_code =
 		R"(module ReturnSeparator
-defun ArrowDefun(x: Int) -> Int => x;
-defun ColonDefun(x: Int) : Int => x;
+def ArrowNamed = fn(x: Int) -> Int => x;
+def ColonNamed = fn(x: Int) : Int => x;
 def arrow_lambda = fn(x: Int) -> Int => x;
 def colon_lambda = fn(x: Int) : Int => x;
 )";
@@ -1162,13 +1162,10 @@ def colon_lambda = fn(x: Int) : Int => x;
 	const MidoriProgramTree& program = parse_result->m_program;
 	REQUIRE(program.size() == 4u);
 
-	REQUIRE(program[0u]->IsStatement<MidoriStatement::FunctionDefinition>());
-	REQUIRE(program[1u]->IsStatement<MidoriStatement::FunctionDefinition>());
-
-	const MidoriStatement::FunctionDefinition& arrow_defun = program[0u]->GetStatement<MidoriStatement::FunctionDefinition>();
-	const MidoriStatement::FunctionDefinition& colon_defun = program[1u]->GetStatement<MidoriStatement::FunctionDefinition>();
-	REQUIRE(arrow_defun.m_return_type->ToString() == colon_defun.m_return_type->ToString());
-	REQUIRE(arrow_defun.m_return_type->ToString() == "Int");
+	const MidoriExpression::Function& arrow_named = RequireFunctionBinding(program, 0u, "ArrowNamed");
+	const MidoriExpression::Function& colon_named = RequireFunctionBinding(program, 1u, "ColonNamed");
+	REQUIRE(arrow_named.m_return_type->ToString() == colon_named.m_return_type->ToString());
+	REQUIRE(arrow_named.m_return_type->ToString() == "Int");
 
 	const MidoriStatement::VariableDefinition& arrow_binding = RequireVariableDefinition(program, 2u, "arrow_lambda");
 	const MidoriStatement::VariableDefinition& colon_binding = RequireVariableDefinition(program, 3u, "colon_lambda");
@@ -1206,7 +1203,7 @@ TEST_CASE("Parser keeps '->' available as the channel send operator", "[parser]"
 {
 	const std::string source_code =
 		R"(module ArrowSend
-defun Send(c: Channel<Text>) -> Int => { c -> "value"; 0 };
+def Send = fn(c: Channel<Text>) -> Int => { c -> "value"; 0 };
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowSend.mdr");
@@ -1217,9 +1214,8 @@ defun Send(c: Channel<Text>) -> Int => { c -> "value"; 0 };
 
 	const MidoriProgramTree& program = parse_result->m_program;
 	REQUIRE(program.size() == 1u);
-	REQUIRE(program[0u]->IsStatement<MidoriStatement::FunctionDefinition>());
 
-	const MidoriStatement::FunctionDefinition& send_definition = program[0u]->GetStatement<MidoriStatement::FunctionDefinition>();
+	const MidoriExpression::Function& send_definition = RequireFunctionBinding(program, 0u, "Send");
 	REQUIRE(send_definition.m_return_type->ToString() == "Int");
 
 	const MidoriExpression::Block& body = RequireExpression<MidoriExpression::Block>(send_definition.m_body);

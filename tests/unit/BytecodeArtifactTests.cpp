@@ -65,7 +65,7 @@ TEST_CASE("BinaryArtifact round-trip produces byte-equal second serialization", 
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string first_blob = Serialize(executable);
@@ -81,8 +81,8 @@ TEST_CASE("BinaryArtifact round-trip preserves procedure count and names", "[byt
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun helper(): Int => 42;\n"
-		"defun main(): Int => helper();\n";
+		"def helper = fn(): Int => 42;\n"
+		"def main = fn(): Int => helper();\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
@@ -102,7 +102,7 @@ TEST_CASE("BinaryArtifact round-trip preserves global count and string pool", "[
 		"module Main\n"
 		"\n"
 		"def greeting = \"hello\";\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
@@ -117,7 +117,7 @@ TEST_CASE("BinaryArtifact round-trip preserves bytecode and line info", "[byteco
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
@@ -149,7 +149,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects version mismatch", "[bytecode-a
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	std::string blob = Serialize(executable);
@@ -175,7 +175,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects corrupt payload (CRC mismatch)"
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	std::string blob = Serialize(executable);
@@ -198,7 +198,7 @@ TEST_CASE("BinaryArtifact round-trip with embed-sources flag", "[bytecode-artifa
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const MidoriExecutable executable = CompileOrFail(source);
 
@@ -226,7 +226,7 @@ TEST_CASE("BinaryArtifact round-trip run produces identical exit code to direct 
 	const std::string source =
 		"module Main\n"
 		"\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const auto [direct_exit, direct_stdout] = RunArtifact(CompileOrFail(source));
 	const auto [artifact_exit, artifact_stdout] = RunArtifact(Deserialize(Serialize(CompileOrFail(source))));
@@ -241,7 +241,7 @@ TEST_CASE("BinaryArtifact run without embedded sources degrades runtime error gr
 		"module Main\n"
 		"\n"
 		"def value = [1, 2][4];\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const std::string blob = Serialize(CompileOrFail(source), false);
 	const auto [exit_code, stdout_output] = RunArtifact(Deserialize(blob));
@@ -257,7 +257,7 @@ TEST_CASE("BinaryArtifact run with embedded sources preserves runtime error sour
 		"module Main\n"
 		"\n"
 		"def value = [1, 2][4];\n"
-		"defun main(): Int => 0;\n";
+		"def main = fn(): Int => 0;\n";
 
 	const std::string blob = Serialize(CompileOrFail(source), true);
 	const auto [exit_code, stdout_output] = RunArtifact(Deserialize(blob));

@@ -656,8 +656,6 @@ private:
 
 	MidoriResult::StatementResult ParseDefineStatement();
 
-	MidoriResult::StatementResult ParseDefineFunctionStatement();
-
 	std::expected<TypeDeclarationHeader, CompilerError> ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun);
 
 	MidoriResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header);

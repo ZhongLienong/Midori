@@ -76,7 +76,7 @@
       "patterns": [
         {
           "name": "keyword.control.midori",
-          "match": "\\b(?:else|fn|loop|for|in|if|return|def|defun|break|continue|import|struct|union|new|as|foreign|case|default|match|then|with|module|export|public|private|use|class|instance|where|type|deriving)\\b"
+          "match": "\\b(?:else|fn|loop|for|in|if|return|def|break|continue|import|struct|union|new|as|foreign|case|default|match|then|with|module|export|public|private|use|class|instance|where|type|deriving)\\b"
         }
       ]
     },
@@ -100,7 +100,7 @@
       "patterns": [
         {
           "name": "entity.name.function.midori",
-          "match": "(?<=\\bdefun\\s)([A-Za-z_][A-Za-z0-9_]*)"
+          "match": "(?<=\\bdef\\s)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=\\s*fn\\b)"
         },
         {
           "name": "entity.name.function.call.midori",

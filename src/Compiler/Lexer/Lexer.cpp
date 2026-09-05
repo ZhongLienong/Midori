@@ -29,7 +29,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"return"s, Token::Name::RETURN},
 	{"true"s, Token::Name::TRUE},
 	{"def"s, Token::Name::DEF},
-	{"defun"s, Token::Name::DEFUN},
 	{"fn"s, Token::Name::FUNCTION},
 	{"as"s, Token::Name::AS},
 	{"break"s, Token::Name::BREAK},

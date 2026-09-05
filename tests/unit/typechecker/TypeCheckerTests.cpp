@@ -118,7 +118,7 @@ struct Hidden
 {
 	value: Int
 };
-defun Display<T>(value: T) : Text where Show<T> => {
+def Display = fn<T>(value: T) : Text where Show<T> => {
 	return Show::show(value);
 };
 def rendered = Display(new Hidden(1));
@@ -237,7 +237,7 @@ TEST_CASE("TypeChecker tags incorrect arity with a stable diagnostic code", "[ty
 {
 	const std::string source_code =
 		R"(module IncorrectArity
-defun id(value: Int): Int => value;
+def id = fn(value: Int): Int => value;
 def result = id();
 )";
 

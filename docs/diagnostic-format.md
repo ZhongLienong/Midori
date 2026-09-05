@@ -126,7 +126,7 @@ but the diagnostic object includes runtime-specific fields:
       "column": null,
       "endLine": 2,
       "endColumn": null,
-      "sourceLine": "defun recurse(n : Int): Int => recurse(n + 1) + 1;",
+      "sourceLine": "def recurse = fn(n : Int): Int => recurse(n + 1) + 1;",
       "recursiveCount": 12
     }
   ]

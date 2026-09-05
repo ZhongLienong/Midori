@@ -78,18 +78,18 @@ def (count, label) = pair;
 ### Functions
 ```midori
 // Simple function
-defun square(x: Int) : Int => {
+def square = fn(x: Int) : Int => {
     return x * x;
 };
 
 // Function with type inference
-defun add(a: Int, b: Int) : Int => a + b;
+def add = fn(a: Int, b: Int) : Int => a + b;
 
 // Generic function
-defun identity<T>(value: T) : T => value;
+def identity = fn<T>(value: T) : T => value;
 
 // Higher-order function
-defun apply<T, R>(fn: fn(T) -> R, value: T) : R => {
+def apply = fn<T, R>(fn: fn(T) -> R, value: T) : R => {
     return fn(value);
 };
 ```
@@ -175,7 +175,7 @@ def coords: IntPair = new Pair(1, 2);
 ```midori
 union Result<T, E> = Ok(T) | Err(E);
 
-defun handle_result<T>(result: Result<T, Text>) : Text => {
+def handle_result = fn<T>(result: Result<T, Text>) : Text => {
     return match result with
         case Result::Ok(value) => "Success: " ++ (value as Text)
         case Result::Err(msg) => "Error: " ++ msg
@@ -192,13 +192,13 @@ class Show<T> {
 
 // Implement for Int
 instance Show<Int> {
-    defun show(value: Int) : Text => {
+    def show = fn(value: Int) : Text => {
         return value as Text;
     };
 };
 
 // Use with constraints
-defun display<T>(value: T) : Text where Show<T> => {
+def display = fn<T>(value: T) : Text where Show<T> => {
     return Show::show(value);
 };
 
@@ -214,7 +214,7 @@ class Iterable<Iter> {
     Next: fn(iter: Iter) -> Option<Item>;
 };
 
-defun NextValue<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
+def NextValue = fn<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
     where Iterable<Iter> => {
     return Iterable::Next(iter);
 };
@@ -236,9 +236,9 @@ union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 module MyModule
 public export { add, multiply }
 
-defun add(a: Int, b: Int) : Int => a + b;
-defun multiply(a: Int, b: Int) : Int => a * b;
-defun internal() : Int => 100;  // Not exported
+def add = fn(a: Int, b: Int) : Int => a + b;
+def multiply = fn(a: Int, b: Int) : Int => a * b;
+def internal = fn() : Int => 100;  // Not exported
 
 // Use in another file
 // Path import (relative or absolute)
@@ -282,10 +282,10 @@ See [Package System](docs/package-system.md) for the current manifest fields, dy
 
 ### Pipe Operator
 ```midori
-defun double(x: Int) : Int => x * 2;
+def double = fn(x: Int) : Int => x * 2;
 union Result<T, E> = Ok(T) | Err(E);
 
-defun transform(value: Int) : Result<Int, Text> => {
+def transform = fn(value: Int) : Result<Int, Text> => {
     if value > 10
     then new Result::Ok(value + 1)
     else new Result::Err("too small")
@@ -305,7 +305,7 @@ In pattern position, `_` is a wildcard that ignores the matched value and does n
 
 ### Closures
 ```midori
-defun make_counter() : fn() -> Int => {
+def make_counter = fn() : fn() -> Int => {
     def count = 0;
     return fn() : Int => {
         count = count + 1;
@@ -651,7 +651,7 @@ Test fixtures are file-based:
 
 ### Recursive Fibonacci
 ```midori-test name=readme/recursive_fibonacci path=.doc_examples/readme/recursive_fibonacci.mdr module=ReadmeRecursiveFibonacci
-defun fib(n: Int) : Int => {
+def fib = fn(n: Int) -> Int => {
     return if n <= 1 then n else fib(n - 1) + fib(n - 2);
 };
 ```
@@ -660,7 +660,7 @@ defun fib(n: Int) : Int => {
 ```midori
 union Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
-defun height<T>(tree: Tree<T>) : Int => {
+def height = fn<T>(tree: Tree<T>) : Int => {
     return match tree with
         case Tree::Leaf(_) => 1
         case Tree::Node(left, right) => {
@@ -678,14 +678,14 @@ defun height<T>(tree: Tree<T>) : Int => {
 ```midori
 union List<T> = Cons(T, List<T>) | Nil;
 
-defun length<T>(list: List<T>) : Int => {
+def length = fn<T>(list: List<T>) : Int => {
     return match list with
         case List::Cons(head, tail) => 1 + length(tail)
         case List::Nil => 0
     ;
 };
 
-defun map<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
+def map = fn<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
     return match list with
         case List::Cons(head, tail) =>
             new List::Cons(f(head), map(tail, f))

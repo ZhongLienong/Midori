@@ -68,7 +68,7 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 			2,
 			6,
 			3u,
-			std::string("defun run(): Int => 1;")));
+			std::string("def run = fn(): Int => 1;")));
 
 	BytecodeModule second_module("Shared", "SharedB.mdr");
 	second_module.m_exports.emplace_back(
@@ -80,7 +80,7 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 			5,
 			6,
 			3u,
-			std::string("defun run(): Int => 2;")));
+			std::string("def run = fn(): Int => 2;")));
 
 	std::vector<BytecodeModule> modules;
 	modules.emplace_back(std::move(first_module));
@@ -94,6 +94,6 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 	expectation.m_code = CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol;
 	expectation.m_line = 5;
 	expectation.m_message_substrings = { "Duplicate symbol export: run from module Shared.", "SharedA.mdr:2" };
-	expectation.m_rendered_substrings = { "Bytecode Linker Error", "SharedB.mdr:5", "defun run(): Int => 2;" };
+	expectation.m_rendered_substrings = { "Bytecode Linker Error", "SharedB.mdr:5", "def run = fn(): Int => 2;" };
 	RequireErrorMatches(link_result.error(), expectation);
 }

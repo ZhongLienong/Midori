@@ -25,7 +25,7 @@ struct Pair
 };
 foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
 foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
-defun main(): Int => {
+def main = fn(): Int => {
 	ReadPairA();
 	ReadPairB();
 	return 0;

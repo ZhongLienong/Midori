@@ -2934,160 +2934,6 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 		);
 }
 
-MidoriResult::StatementResult Parser::ParseDefineFunctionStatement()
-{
-	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected function name.")
-		.and_then
-		(
-			[this](Token&& func_name) -> MidoriResult::StatementResult
-			{
-				constexpr bool is_variable = true;
-				return DefineName(func_name, is_variable)
-					.and_then
-					(
-						[this](Token&& func_name) -> MidoriResult::StatementResult
-						{
-							std::optional<int> local_index = RegisterOrUpdateLocalVariable(func_name.m_lexeme);
-
-							// Parse optional generic parameters <T, U, ...>
-							// Create scope BEFORE parsing so DefineName() in ParseGenericParameters adds them to this scope
-							std::vector<Token> generic_params;
-							std::vector<std::shared_ptr<MidoriType>> generic_param_types;
-							bool has_generic_params = false;
-
-							if (Match(Token::Name::LEFT_ANGLE))
-							{
-								has_generic_params = true;
-								BeginScope();  // Create scope for generic parameters
-
-								MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
-								if (!generic_parse_result.has_value())
-								{
-									EndScope();  // Clean up scope on error
-									return std::unexpected(generic_parse_result.error());
-								}
-
-								generic_params = std::move(generic_parse_result.value());
-							}
-
-							return Consume(Token::Name::LEFT_PAREN, "Expected '(' before function parameters.")
-								.and_then
-								(
-									[&func_name, &generic_params, &generic_param_types, &local_index, has_generic_params, this](Token&&) -> MidoriResult::StatementResult
-									{
-										m_state.m_function_depth += 1;
-										m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
-										int prev_total_locals = m_state.m_total_locals_in_curr_scope;
-										m_state.m_total_locals_in_curr_scope = 0;
-										BeginScope();
-
-										MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
-
-										if (!params_parse_result.has_value())
-										{
-											EndScope();
-											m_state.m_total_locals_in_curr_scope = prev_total_locals;
-											m_state.m_function_base_variable_index.pop_back();
-											m_state.m_function_depth -= 1;
-
-											// Close the generic parameter scope if it was created
-											if (has_generic_params)
-											{
-												EndScope();
-											}
-
-											return std::unexpected(params_parse_result.error());
-										}
-
-										std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
-										ParamSplit split = SplitParamTuples(std::move(param_tuples));
-										std::vector<Token> params = std::move(split.m_params);
-										std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
-
-										return ConsumeReturnTypeSeparator("Expected '->' or ':' before return type.")
-											.and_then
-											(
-												[&func_name, &generic_params, &generic_param_types, &params, &param_types, &local_index, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-												{
-													return ParseType()
-														.and_then
-														(
-															[&func_name, &generic_params, &generic_param_types, &params, &param_types, &local_index, has_generic_params, prev_total_locals, this](std::shared_ptr<MidoriType>&& return_type) -> MidoriResult::StatementResult
-															{
-																std::vector<MidoriType::ClassConstraint> constraints;
-																size_t prev_constraints_size = m_state.m_active_constraints.size();
-																if (Match(Token::Name::WHERE))
-																{
-																std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(func_name);
-																	if (!constraints_result.has_value())
-																	{
-																		return std::unexpected(constraints_result.error());
-																	}
-
-																	constraints = std::move(constraints_result.value());
-																}
-
-																std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
-																for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
-																{
-																	AppendUniqueConstraint(constraints, std::move(propagated_constraint));
-																}
-
-																PushActiveConstraints(constraints);
-
-																ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
-
-																return Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.")
-																	.and_then
-																	(
-																		[&func_name, &generic_params, &generic_param_types, &params, &param_types, &return_type, &constraints, &local_index, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-																		{
-																			return ParseExpression()
-																				.and_then
-																				(
-																					[&func_name, &generic_params, &generic_param_types, &params, &param_types, &return_type, &constraints, &local_index, has_generic_params, prev_total_locals, this](std::unique_ptr<MidoriExpression>&& body) -> MidoriResult::StatementResult
-																					{
-																						return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after function body.")
-																							.and_then
-																							(
-																								[&func_name, &generic_params, &generic_param_types, &params, &param_types, &return_type, &constraints, &body, &local_index, has_generic_params, prev_total_locals, this](Token&&) -> MidoriResult::StatementResult
-																								{
-																									EndScope();
-																									m_state.m_total_locals_in_curr_scope = prev_total_locals;
-
-																									// Calculate captured_count before popping function state
-																									int func_base = m_state.m_function_base_variable_index.back();
-																									int parent_base = (m_state.m_function_depth >= 2) ? m_state.m_function_base_variable_index[static_cast<size_t>(m_state.m_function_depth - 2)] : 0;
-																									int captured_count = func_base - parent_base;
-
-																									m_state.m_function_base_variable_index.pop_back();
-																									m_state.m_function_depth -= 1;
-
-																									if (has_generic_params)
-																									{
-																										EndScope();
-																									}
-
-																									std::vector<MidoriType::ClassConstraint> constraints_copy = constraints;
-																									return std::make_unique<MidoriStatement>(MidoriStatement::FunctionDefinition(func_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body), std::move(local_index), captured_count, std::move(constraints_copy)));
-																								}
-																							);
-																					}
-																				);
-																		}
-																	);
-															}
-														);
-												}
-											);
-									}
-								);
-						}
-					);
-			}
-		);
-}
-
 std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun)
 {
 	MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected "s + std::string(noun) + " name."s);
@@ -4044,13 +3890,11 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			continue;
 		}
 
-		// An instance method may be spelled either `defun show(...) -> R => body;` or
-		// `def show = fn(...) -> R => body;`. Both continue into the single parse below,
-		// so the two spellings build the very same FunctionDefinition node.
-		const bool is_def_binding_form = Check(Token::Name::DEF, 0);
-		if (!Match(Token::Name::DEFUN, Token::Name::DEF))
+		// An instance method is spelled `def show = fn(...) -> R => body;`, the same
+		// binding form a module-level function uses.
+		if (!Match(Token::Name::DEF))
 		{
-			return std::unexpected(GenerateParserError("Expected 'defun', 'def' or associated type binding in instance body.", Peek(0)));
+			return std::unexpected(GenerateParserError("Expected 'def' or associated type binding in instance body.", Peek(0)));
 		}
 
 		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
@@ -4060,19 +3904,16 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		}
 		Token method_name = std::move(method_name_result.value());
 
-		if (is_def_binding_form)
+		MidoriResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
+		if (!method_equal_result.has_value())
 		{
-			MidoriResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
-			if (!method_equal_result.has_value())
-			{
-				return std::unexpected(method_equal_result.error());
-			}
+			return std::unexpected(method_equal_result.error());
+		}
 
-			MidoriResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
-			if (!method_function_result.has_value())
-			{
-				return std::unexpected(method_function_result.error());
-			}
+		MidoriResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
+		if (!method_function_result.has_value())
+		{
+			return std::unexpected(method_function_result.error());
 		}
 
 		std::vector<Token> generic_params;
@@ -5677,6 +5518,14 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 		return NoMatch<std::unique_ptr<MidoriStatement>>();
 	}
 
+	// `defun` is no longer a keyword, so it now lexes as an ordinary identifier and a
+	// file still using it would fail with a bare "Undefined name." Name the removal
+	// instead, but only for `defun Name`, so an identifier spelled `defun` is untouched.
+	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "defun" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
+	{
+		return std::unexpected(GenerateParserError("'defun' is no longer supported. Write 'def Name = fn(params) -> Type => body;' instead.", Peek(0)));
+	}
+
 	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
 		[this]() -> MidoriResult::StatementResult
 		{
@@ -5685,16 +5534,6 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 				[this](Token&&) -> MidoriResult::StatementResult
 				{
 					return ParseDefineStatement();
-				}
-			);
-		},
-		[this]() -> MidoriResult::StatementResult
-		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
-				Token::Name::DEFUN,
-				[this](Token&&) -> MidoriResult::StatementResult
-				{
-					return ParseDefineFunctionStatement();
 				}
 			);
 		},
@@ -6725,7 +6564,6 @@ Parser& Parser::Synchronize() &
 		switch (Peek(0).m_token_name)
 		{
 			case Token::Name::DEF:
-			case Token::Name::DEFUN:
 			case Token::Name::STRUCT:
 			case Token::Name::UNION:
 			case Token::Name::CLASS:

@@ -50,7 +50,7 @@ with the line that owns the brace.
 
 | Construct  | Form                                                           |
 |------------|----------------------------------------------------------------|
-| `defun`    | `defun name(args) -> Type => { ... };`                            |
+| `def` (function) | `def name = fn(args) -> Type => { ... };`                  |
 | `def`      | `def name = expr;` or `def name = { ... };`                     |
 | `if`       | `if(cond) then { ... } else { ... };`                           |
 | `for`      | `for x in iter { ... };`                                        |
@@ -58,8 +58,8 @@ with the line that owns the brace.
 | `match`    | `match value with case <pattern> => expr default => expr;`      |
 | `struct`   | `struct Name { field: Type, ... };`                             |
 | `union`    | `union Name { case Variant(Type), ... };`                       |
-| `class`    | `class Name a where { defun method(): a; ... };`                |
-| `instance` | `instance Name Type where { defun method() -> Type => ...; };`    |
+| `class`    | `class Name a where { def method = fn(): a; ... };`                |
+| `instance` | `instance Name Type where { def method = fn() -> Type => ...; };`    |
 
 `import { ... }` and `export { ... }` use a single-line *inline brace*: the
 opening and closing braces stay on the same line as the directive even when the
@@ -127,8 +127,8 @@ long as they sit between the pattern and the arrow.
 
 ### Blank lines
 
-- exactly one blank line between top-level declarations (`def`, `defun`,
-  `struct`, `union`, `class`, `instance`, `type`, `foreign`)
+- exactly one blank line between top-level declarations (`def`, `struct`,
+  `union`, `class`, `instance`, `type`, `foreign`)
 - consecutive `module`, `import`, `use`, `public`, and `private` directives
   receive **no** blank line between them; they form a header block
 - the formatter collapses runs of blank lines down to at most one

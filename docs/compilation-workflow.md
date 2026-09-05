@@ -39,7 +39,7 @@ Current lexer behavior:
 
 Current token inventory includes:
 
-- Keywords such as `def`, `defun`, `fn`, `if`, `then`, `else`, `match`, `struct`, `union`, `class`, `instance`, `type`, `deriving`, `module`, `import`, `use`, `public`, `private`, and `foreign`.
+- Keywords such as `def`, `fn`, `if`, `then`, `else`, `match`, `struct`, `union`, `class`, `instance`, `type`, `deriving`, `module`, `import`, `use`, `public`, `private`, and `foreign`.
 - Type keywords such as `Int`, `Float`, `Byte`, `Word`, `Text`, `Bool`, `Unit`, `Array`, and `Never`.
 - Operators such as `++`, `|>`, `::`, `as`, `==`, `!=`, `<=`, `>=`, `<<`, `>>`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`.
 

@@ -24,7 +24,7 @@ TEST_CASE("StaticAnalyzer reports unread locals with source context", "[static-a
 {
 	const std::string source_code =
 		R"(module AnalyzerUnused
-defun Compute() : Int => {
+def Compute = fn() : Int => {
 	def used = 1;
 	def unused = 2;
 	used
@@ -55,7 +55,7 @@ TEST_CASE("StaticAnalyzer flags unreachable final expressions after an early ret
 {
 	const std::string source_code =
 		R"(module AnalyzerUnreachable
-defun Compute() : Int => {
+def Compute = fn() : Int => {
 	return 1;
 	2
 };
@@ -85,7 +85,7 @@ TEST_CASE("StaticAnalyzer warns when an inner scope shadows an outer binding", "
 {
 	const std::string source_code =
 		R"(module AnalyzerShadowing
-defun Compute(value : Int) : Int => {
+def Compute = fn(value : Int) : Int => {
 	{
 		def value = 2;
 		value
@@ -118,7 +118,7 @@ TEST_CASE("StaticAnalyzer reports captured closures that escape as return values
 {
 	const std::string source_code =
 		R"(module AnalyzerCapture
-defun MakeCounter() : fn() -> Int => {
+def MakeCounter = fn() : fn() -> Int => {
 	def value = 1;
 	def next = fn() : Int => value;
 	return next;
@@ -151,7 +151,7 @@ TEST_CASE("StaticAnalyzer warns on literal integer overflow patterns", "[static-
 		R"(module AnalyzerOverflow
 def too_big = 9223372036854775807 + 1;
 def shifted = 1 << 63;
-defun main(): Int => too_big + shifted;
+def main = fn(): Int => too_big + shifted;
 )";
 
 	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mdr");
@@ -178,7 +178,7 @@ TEST_CASE("StaticAnalyzer does not warn on non-literal integer arithmetic", "[st
 {
 	const std::string source_code =
 		R"(module AnalyzerOverflowSafe
-defun Compute(x : Int) : Int => {
+def Compute = fn(x : Int) : Int => {
 	x + 1
 };
 )";

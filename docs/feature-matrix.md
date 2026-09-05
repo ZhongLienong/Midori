@@ -98,13 +98,13 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` returns the typed result. Callee must be a named `defun`. |
+| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` returns the typed result. Callee must be a named `def Name = fn(...)`. |
 | `channel<T>(cap)` keyword | Stable | `test/concurrency/` | Creates a typed bounded channel. `T` must satisfy `Transferable`. |
 | `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
 | `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |
 | Constrained instances | Stable | `test/typeclass/` | `instance C<T> where D<T>` — an instance may require constraints on its own type parameters, resolved recursively and across module boundaries. |
 | `Indexable<C, I>` typeclass | Stable | `test/typeclass/` | `x[i]` resolves through `Indexable` for any type with an instance, arrays included. Two type parameters, so a container may be indexed by something other than `Int`. |
-| Generic lambdas | Stable | `test/generics/` | `fn<T>(x: T) : T where C<T> => e`, bound to a top-level `def`. Anonymous, capturing and nested generic lambdas are rejected with a diagnostic — the supported envelope matches `defun`. |
+| Generic lambdas | Stable | `test/generics/` | `fn<T>(x: T) : T where C<T> => e`, bound to a top-level `def`. Anonymous, capturing and nested generic lambdas are rejected with a diagnostic — only a module-level binding is supported. |
 | `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, and `Channel<T>`. Derivable for structs and unions. |
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |

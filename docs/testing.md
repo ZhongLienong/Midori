@@ -137,7 +137,7 @@ REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token
 ```cpp
 const MidoriTest::TempProject project
 ({
-	MidoriTest::TempProjectFile("Main.mdr", "module Main\nimport { \"./Lib.mdr\" }\ndefun main(): Int => 0;\n"),
+	MidoriTest::TempProjectFile("Main.mdr", "module Main\nimport { \"./Lib.mdr\" }\ndef main = fn() -> Int => 0;\n"),
 	MidoriTest::TempProjectFile("Lib.mdr", "module Lib\ndef value = 1;\n")
 });
 ```

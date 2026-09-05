@@ -130,14 +130,14 @@ def scenario_check_json_success_uses_project_manifest(runner: TestRunner) -> Non
             source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "defun Value(): Int => 41;\n",
+            "def Value = fn(): Int => 41;\n",
         )
         main_path = source_dir / "Main.mdr"
         write_text(
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "defun main(): Int => {\n"
+            "def main = fn(): Int => {\n"
             "    def unused = 1;\n"
             "    Support::Value()\n"
             "};\n",
@@ -228,14 +228,14 @@ def scenario_package_manifest_project_fallback(runner: TestRunner) -> None:
             source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "defun Value(): Int => 99;\n",
+            "def Value = fn(): Int => 99;\n",
         )
         main_path = source_dir / "Main.mdr"
         write_text(
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "defun main(): Int => Support::Value();\n",
+            "def main = fn(): Int => Support::Value();\n",
         )
 
         completed = run_midori(
@@ -278,7 +278,7 @@ def scenario_project_manifest_takes_precedence_over_package_fallback(runner: Tes
             preferred_source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "defun Value(): Int => 5;\n",
+            "def Value = fn(): Int => 5;\n",
         )
         write_text(
             package_source_dir / "Support.mdr",
@@ -291,7 +291,7 @@ def scenario_project_manifest_takes_precedence_over_package_fallback(runner: Tes
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "defun main(): Int => Support::Value();\n",
+            "def main = fn(): Int => Support::Value();\n",
         )
 
         completed = run_midori(
@@ -388,7 +388,7 @@ def scenario_run_command_executes_program(runner: TestRunner) -> None:
         write_text(
             source_path,
             "module Main\n"
-            "defun main(): Int => 0;\n",
+            "def main = fn(): Int => 0;\n",
         )
 
         completed = run_midori(
@@ -412,7 +412,7 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         write_text(
             source_path,
             "module Main\n"
-            "defun main(): Int => 13;\n",
+            "def main = fn(): Int => 13;\n",
         )
 
         completed = run_midori(
@@ -447,7 +447,7 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
             source_path,
             "module Main\n"
             "// comment\n"
-            "defun main():Int=>0; // trailing\n",
+            "def main = fn():Int=>0; // trailing\n",
         )
 
         check_before = run_midori(runner, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MIDORI_PATH": None})
@@ -489,7 +489,7 @@ def scenario_test_command_discovers_project_tests(runner: TestRunner) -> None:
         write_text(
             test_dir / "smoke.mdr",
             "module Smoke\n"
-            "defun main(): Int => 0;\n",
+            "def main = fn(): Int => 0;\n",
         )
 
         completed = run_midori(
