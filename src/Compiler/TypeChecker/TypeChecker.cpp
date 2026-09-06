@@ -5215,6 +5215,65 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Receive& rece
 		);
 }
 
+std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string& class_name, const ClassInfo& class_info, const std::shared_ptr<MidoriType>& declared_method_type, const std::vector<std::shared_ptr<MidoriType>>& known_arg_types, size_t arity)
+{
+	std::shared_ptr<MidoriType> narrowed_method_type;
+
+	for (const std::pair<const InstanceKey, InstanceInfo>& instance_entry : m_instances)
+	{
+		const InstanceInfo& instance_info = instance_entry.second;
+		if (instance_info.m_class_name != class_name || instance_info.m_type_args.size() != class_info.m_type_param_names.size())
+		{
+			continue;
+		}
+
+		TypeEnvironment class_substitutions;
+		for (size_t idx : std::views::iota(0u, class_info.m_type_param_names.size()))
+		{
+			class_substitutions.emplace(class_info.m_type_param_names[idx], instance_info.m_type_args[idx]);
+		}
+
+		std::shared_ptr<MidoriType> candidate_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(declared_method_type, class_substitutions));
+		if (!candidate_method_type->IsType<MidoriType::FunctionType>())
+		{
+			continue;
+		}
+
+		const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
+		if (candidate_function_type.m_param_types.size() != arity)
+		{
+			continue;
+		}
+
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		bool matched = std::ranges::all_of
+		(
+			std::views::iota(0u, known_arg_types.size()),
+			[&candidate_function_type, &known_arg_types, &substitutions, &visited, this](size_t idx) -> bool
+			{
+				return MatchInstanceTypeArg(candidate_function_type.m_param_types[idx], ApplySubstitution(known_arg_types[idx]), substitutions, visited);
+			}
+		);
+
+		if (!matched)
+		{
+			continue;
+		}
+
+		if (narrowed_method_type != nullptr)
+		{
+			return std::shared_ptr<MidoriType>{};
+		}
+
+		// SubstituteTypeParams with an empty map is not the identity - it rebuilds a struct with
+		// its generic parameters cleared - so a match that derived no bindings keeps the candidate.
+		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
+	}
+
+	return narrowed_method_type;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
 	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
@@ -5411,9 +5470,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				{
 					std::vector<std::shared_ptr<MidoriType>> arg_results;
 					arg_results.reserve(call.m_arguments.size());
-					for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+					for (size_t idx : std::views::iota(0u, call.m_arguments.size()))
 					{
-						MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+						// Instance selection is argument-directed, so no parameter type is known before the
+						// arguments are checked. Narrowing against the arguments already settled recovers one
+						// as soon as a single instance still matches, which is what lets
+						// `Appendable::Append(buckets, Slot::Empty())` infer the construction from the
+						// container it is appended to. A prefix that picks out no single instance leaves the
+						// argument checked with no expected type, as before. Selection below is unchanged and
+						// still consults every argument.
+						std::shared_ptr<MidoriType> narrowed_method_type = NarrowClassMethodType(qualifier, tc_info, method_it->second, arg_results, call.m_arguments.size());
+						std::shared_ptr<MidoriType> expected_param_type = narrowed_method_type != nullptr ? narrowed_method_type->GetType<MidoriType::FunctionType>().m_param_types[idx] : std::shared_ptr<MidoriType>{};
+						ExpectedTypeGuard guard(*this, std::move(expected_param_type));
+
+						MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
 						if (!arg_result.has_value())
 						{
 							return arg_result;
@@ -5621,10 +5691,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
 				}
 
-				std::vector<std::shared_ptr<MidoriType>> arg_results;
-				for (size_t idx = 0u; idx < call.m_arguments.size(); idx += 1u)
+				for (size_t idx : std::views::iota(0u, call.m_arguments.size()))
 				{
-					// Propagate expected type from parameter type
+					// Each argument is unified against its parameter before the next one is checked, so a
+					// parameter type that an earlier argument decides is already resolved by the time it
+					// becomes the expected type. Deferring every unification to a second pass left the
+					// callee's freshened variables unbound, so `Append(buckets, Slot::Empty())` on
+					// `fn<T>(Array<T>, T) -> Unit` checked the construction against a bare T and rejected it.
 					ExpectedTypeGuard guard(*this, function_type.m_param_types[idx]);
 
 					MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
@@ -5633,19 +5706,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 						return arg_result;
 					}
 
-					arg_results.emplace_back(std::move(arg_result.value()));
-				}
-
-				std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
-					for (size_t idx : std::views::iota(0u, arg_results.size()))
+					MidoriResult::TypeResult unify_result = Unify(call.m_paren, arg_result.value(), function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+					if (!unify_result.has_value())
 					{
-						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
-						std::shared_ptr<MidoriType>& param_type = param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
-						if (!result.has_value())
-						{
-							return result;
-						}
+						return unify_result;
+					}
 				}
 
 				MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);

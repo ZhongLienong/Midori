@@ -1,0 +1,64 @@
+module GenericConstructionInCallArgument
+
+// A generic construction passed as a call argument infers its type arguments from the
+// callee's parameter types, with no `new X<T>(...)` to state them.
+//
+// The callee's type parameters are freshened at the call site, so the parameter type an
+// argument is checked against is only decided once an earlier argument has been unified
+// against its own parameter. Each argument is therefore unified before the next one is
+// checked - see TypeChecker::operator()(MidoriExpression::Call&). Deferring every
+// unification to a second pass left `Slot::Empty()` below checked against a bare type
+// variable, which the Construct visitor rightly rejects as uninferred.
+//
+// This is the shape the prelude's bucket tables use - MidoriPrelude/Collections/Map.mdr
+// and Set.mdr both append a fresh empty slot to an array of slots.
+//
+// A construction that nothing decides is still an error, and a later argument does not
+// decide an earlier one - see
+// test/generics/failure/constructor_inference_unowned_type_var.mdr and
+// test/generics/failure/constructor_inference_from_later_argument.mdr.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+	"../../../MidoriPrelude/ArrayUtil.mdr",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+type Bag<T> =
+{
+	items : Array<T>
+};
+
+def AppendTo = fn<T>(items : Array<T>, value : T) -> Unit => ArrayUtil::Append(items, value);
+
+// The deciding argument comes first and is concrete.
+def slots : Array<Slot<Int, Text>> = [];
+AppendTo(slots, Slot::Empty());
+AppendTo(slots, Slot::Occupied(1, "one"));
+
+IO::PrintLine("slots: " ++ (#slots as Text));
+
+// The same call inside a generic function, where the deciding argument is generic in the
+// enclosing definition rather than concrete.
+def FillGeneric = fn<K, V>(bucket : Array<Slot<K, V>>) -> Int =>
+{
+	AppendTo(bucket, Slot::Empty());
+	#bucket
+};
+
+def texts : Array<Slot<Text, Int>> = [];
+IO::PrintLine("generic: " ++ (FillGeneric(texts) as Text));
+IO::PrintLine("generic again: " ++ (FillGeneric(texts) as Text));
+
+// The construction is nested inside another generic instantiation in argument position.
+def bags : Array<Bag<Slot<Int, Text>>> = [];
+AppendTo(bags, Bag([Slot::Empty()]));
+
+IO::PrintLine("bags: " ++ (#bags as Text) ++ " inner " ++ (#(bags[0].items) as Text));
+
+match slots[1] with
+	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
+	case Slot::Empty => IO::PrintLine("empty")
+;

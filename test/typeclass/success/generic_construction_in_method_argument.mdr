@@ -1,0 +1,37 @@
+module GenericConstructionInMethodArgument
+
+// The same inference as test/generics/success/generic_construction_in_call_argument.mdr,
+// but the callee is a class method rather than an ordinary generic function. The two
+// travel different paths in TypeChecker::operator()(MidoriExpression::Call&) and failed
+// for different reasons, so they are pinned separately.
+//
+// Instance selection is argument-directed: `Appendable` has an Array instance and a Text
+// instance, so no parameter type is known until the arguments have been checked, and the
+// arguments were therefore checked with no expected type at all. NarrowClassMethodType
+// narrows the instances against the arguments already settled - once the container has
+// fixed the instance, the element parameter is known and the construction infers from it.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+	"../../../MidoriPrelude/Appendable.mdr",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+def slots : Array<Slot<Int, Text>> = [];
+Appendable::Append(slots, Slot::Empty());
+Appendable::Append(slots, Slot::Occupied(2, "two"));
+
+IO::PrintLine("slots: " ++ (#slots as Text));
+
+// The Text instance of the same class still selects on its own arguments.
+def greeting = "hello";
+Appendable::Append(greeting, " world");
+
+IO::PrintLine("text: " ++ greeting);
+
+match slots[1] with
+	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
+	case Slot::Empty => IO::PrintLine("empty")
+;

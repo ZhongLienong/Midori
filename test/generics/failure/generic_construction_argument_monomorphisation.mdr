@@ -1,0 +1,37 @@
+module GenericConstructionArgumentMonomorphisation
+
+// Pinned limitation, not desired behaviour.
+// The caret below points at a comment line: the code generator loses the call's position
+// and reports an early line. That misattribution is pinned here along with the error.
+//
+// A construction in argument position infers inside a generic function, but the type it
+// infers holds the enclosing definition's freshened type variables rather than its generic
+// parameters. Monomorphisation cannot always resolve those: the second generic call over
+// the same array below leaves the element type of `Appendable::Append` unresolved.
+//
+// Spelling the construction `new Slot::Empty<K, V>()`, or binding it to an annotated local
+// first, both compile and run - those land on the generic parameters instead. So this is a
+// monomorphisation gap rather than an inference one, and `new` is still the workaround for
+// it. See test/generics/success/generic_construction_in_call_argument.mdr for the shapes
+// that do work end to end.
+
+import
+{
+	"../../../MidoriPrelude/ArrayUtil.mdr",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+def AppendTo = fn<T>(items : Array<T>, value : T) -> Unit => ArrayUtil::Append(items, value);
+
+def CountSlots = fn<K, V>(slots : Array<Slot<K, V>>) -> Int => #slots;
+
+def FillGeneric = fn<K, V>(slots : Array<Slot<K, V>>) -> Int =>
+{
+	AppendTo(slots, Slot::Empty());
+	CountSlots(slots)
+};
+
+def texts : Array<Slot<Text, Int>> = [];
+
+def count = FillGeneric(texts);
