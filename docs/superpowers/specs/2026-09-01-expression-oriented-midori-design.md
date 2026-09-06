@@ -112,16 +112,44 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 ### Counts
 
-| | before | after |
-|---|---|---|
-| Expression nodes | 41 | 18 |
-| Statement nodes | 11 | 5 |
-| Built-in type kinds | 17 | 8 |
-| Reserved words | 37 | ~25 |
-| Callable concepts | 7 | 1 |
+| | before | target | **actual, 2026-09-06** |
+|---|---|---|---|
+| Expression nodes | 41 | 18 | **42** |
+| Statement nodes | 11 | 5 | **11** |
+| Built-in type kinds | 17 | 8 | **17** |
+| Reserved words | 37 | ~25 | **34** |
+| Callable concepts | 7 | 1 | **7** |
 
 Statements remaining: `ExpressionStatement`, `VariableDefinition`,
 `TypeDefinition`, `Class`, `Instance`. Only the first two appear inside a block.
+
+**Measured status — read this before trusting the target column.** Five keyword
+deletions have landed and are verified green (`defun` `4065330`, `struct`/`union`
+`565beae`, `new` `cba4b3d`, `:` in return position `ca0572e`). Exactly one row
+moved: reserved words, 37 → 34, and that is net of `alias` being *added*.
+
+Every structural row is untouched, and the expression count went **up** by one
+when `RecordUpdate` landed. This is not a shortfall in execution — the deletions
+removed *spellings*, which is all a keyword deletion can remove. The nodes behind
+them survive: `struct` and `union` are gone as syntax while `Struct`, `Union` and
+`TypeAlias` remain three distinct statement nodes, and `new` is gone as syntax
+while `Construct` remains a distinct expression node.
+
+Two rows also need their targets corrected rather than merely being unmet:
+
+- **Callable concepts 7 → 1 is not reachable under the design as chosen**, and
+  §7b already records why without drawing the conclusion. A construction cannot
+  appear in a pipeline and a bare constructor name is a deliberate diagnostic,
+  because a constructor is monomorphised per site and has no single procedure to
+  pass around. So constructors are unified with functions *at the surface* —
+  one spelling, `Name(args)` — and remain a separate concept underneath. The
+  honest target is **1 surface form, 2 concepts**. Restoring the literal 7 → 1
+  would require erasure or reified type arguments, which §8 has not opened.
+- **Built-in type kinds 17 → 8** is gated on the library rewrite, which is gated
+  on the §13 `Iter` decision. It cannot move before that.
+
+Statement nodes 11 → 5 is the one structural row that is both reachable and
+unblocked today, and it is a pure refactor with no user-visible effect.
 
 `def` is not itself an expression and should not be — a binding's value is the
 scope it opens, not the thing bound. The containing block is the expression.
