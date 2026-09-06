@@ -296,6 +296,69 @@ exist to pin an old form still parsing, each paired with its new-form equivalent
 Two `.expected` snapshots needed caret columns shifted, since `type` is one
 character wider than `union` and two wider than `struct`.
 
+---
+
+## 7d. Deletions — 2026-09-02
+
+| Keyword | Status | Commit |
+|---|---|---|
+| `defun` | **deleted** | `4065330` |
+| `struct` | **deleted** | `565beae` |
+| `union` | **deleted** | `565beae` |
+| `new` | **blocked** — see below | — |
+| assignment, `:` returns | not started | — |
+
+Suite **361/361**, unit tests **1004 assertions / 174 cases**. Each removed keyword
+now gives a diagnostic naming its replacement rather than falling through to a bare
+`Undefined name.` — which is what `defun` did on first attempt, and is worth
+building in from the start for the remaining deletions.
+
+### `new` is blocked on inference, not on migration
+
+Fifty-two construction sites could not migrate, several in the prelude
+(`Collections/Map.mdr:47`, `Set.mdr:38`, `Prelude/List.mdr:54`). Every one is the
+same shape — a generic construction in **argument** position:
+
+```
+Appendable::Append(buckets, Slot::Empty())
+   -> could not infer all type arguments for 'Slot'
+```
+
+Written `new Slot::Empty<K, V>()` it compiles. Since `new X<T>(...)` is the
+language's only explicit-type-argument syntax — `Id<Int>(3)` on an ordinary call is
+a parse error — deleting `new` removes the escape hatch these sites depend on.
+
+The information is available: `buckets : Array<Slot<K,V>>` is known and
+`Append`'s second parameter is its element type. The expected type simply does not
+reach the `Construct` checker. A likely complication is that `Append` is a
+typeclass method, so its parameter types may only become concrete *after* the
+argument is checked — an ordering problem rather than a missing-information one.
+Tracked separately.
+
+### Three divergences found by migrating, not by design
+
+The `defun` migration was expected to be mechanical. It surfaced three places where
+`defun` and `def = fn` behaved differently, all since fixed:
+
+- a **segfault** whose root cause was tokens moving in memory when `>>` is split
+  during generic parsing (`d228563`) — nothing to do with lambdas, which is why a
+  hand-minimised repro did not reproduce
+- **missing tail-call optimisation** in a `def`-bound lambda: 2,499 frames instead
+  of unbounded (`0ad4e26`)
+- `return` validated against the wrong enclosing scope (`2b92f96`)
+
+### Two things worth carrying forward
+
+**Keyword deletion reaches further than the compiler.** `defun` lived in
+`ProjectManifest.cpp`, where `midori init` scaffolds a new project — a newly
+created project would have contained a keyword the compiler rejects. Grep, do not
+work from a list.
+
+**The installed prelude is a separate copy.** At
+`%LOCALAPPDATA%\Midori\MidoriPrelude`, it was six months stale and twenty
+system-import tests failed the moment `defun` died. It is current now, but nothing
+surfaced the drift until a deletion forced it.
+
 ## 8. Open calls — pin while writing, not blockers
 
 - **`Bool` as a library union.** Deletes four things for the price of one
