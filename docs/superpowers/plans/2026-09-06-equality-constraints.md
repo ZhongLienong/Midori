@@ -573,3 +573,71 @@ maybe 25 and the rest are guards. Codegen ~15 lines of guards. Tests ~150 lines 
 constructor are unchanged by the trace. Task 4's step 2 is now concrete — add the
 `AssociatedType` branch to `Unify` — and should be rewritten from "seed the
 equation where active constraints are consulted" to that.
+
+---
+
+## Complete — 2026-09-06, `62c1b5a`..`8033dd2`
+
+All seven acceptance criteria met. Suite **371/371**, unit tests **1024 assertions
+/ 176 cases**.
+
+### Reduction went in the wrong place first
+
+Task 4 was written around a `Unify` branch, on the Task 1 finding that `Unify` had
+no `AssociatedType` case. That finding was correct and the conclusion drawn from it
+was not. A `Unify` branch fixes only consumers that unify; `v * 2` checks
+numeric-ness directly and still failed. Moving the reduction into
+`ResolveAssociatedType` — the chokepoint `ApplySubstitution` already calls — fixed
+every consumer at once. The `Unify` branch was then measured to be dead (suite
+still 370/370 with it disabled) and removed rather than kept as a "backstop", which
+is what the commit had called it on no evidence.
+
+### Widening in place had eighteen rebuild sites, not zero
+
+The plan's hazard was "an equality constraint reaching code that assumes a
+typeclass". The real hazard was constraints being **rebuilt** and silently
+downgraded to class-kind with an empty name:
+
+| where | how many | shape |
+|---|---|---|
+| `Type.cpp` substitution visitor | 4 | two-arg constructor |
+| `Parser.cpp` / `TypeChecker.cpp` collectors | 7 | two-arg constructor |
+| `TypeChecker.cpp` `Freshen` | 3 | default-construct, copy two fields |
+| `TypeChecker.cpp` `ApplySubstitution` | 3 | default-construct, copy two fields |
+| `TypeChecker.cpp` arity checks | 4 | `m_classes.at(m_class_name)` on `""` |
+
+The last group is worth remembering: `.at("")` throws `std::out_of_range`, the
+exception is never caught, and MSVC's `__fastfail` surfaces it as
+`STATUS_STACK_BUFFER_OVERRUN` (`0xC0000409`). That is indistinguishable at a glance
+from a stack overflow, and cost a debug build and a bisect before the real cause
+turned up. **An unexplained `0xC0000409` in this codebase is worth checking for an
+uncaught exception before assuming runaway recursion.**
+
+The general lesson for any future in-place widening of a variant-like struct: count
+the *reconstruction* sites, not the *reference* sites. Field-by-field rebuilds are
+invisible to the compiler and to grep for the constructor.
+
+### The non-projection diagnostic cannot be specific
+
+`where T ~ Int` is rejected, but by the caller's "Expected '{'" rather than the rule
+it breaks. `ParseDelimitedZeroOrMoreUnlimited` (`Parser.h:380-386`) swallows a
+failed element and returns the accumulated list — inherent to zero-or-more, not a
+bug. Surfacing the specific message needs sticky parser state that `TryParser` does
+not restore, which risks spurious diagnostics from speculative parses. Left as-is
+deliberately; Task 3 Step 3's acceptance criterion is met in substance (the input
+is rejected) but not in wording.
+
+### Adjacent gap found, not fixed
+
+`Option::Some((a, b))` collapses to a two-argument call, so a union variant cannot
+carry a tuple payload. That blocks the real `Iterable::Next : fn(Iter) -> Option<(Item, Iter)>`
+signature from spec §4. The `Map`/`Filter` test indexes rather than threads state to
+work around it. Pre-existing and unrelated to constraints, but it now sits directly
+on the library rewrite's path and should be the next thing looked at.
+
+### Deliberately not done
+
+Equality constraints are accepted in all three constraint positions, including type
+declaration headers, because all three route through one `ParseClassConstraints` and
+restricting would need a mode flag. Only the instance and function positions are
+exercised by tests.

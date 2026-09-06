@@ -599,3 +599,44 @@ today. Add `* 2` to the body and it does not.
 
 This does not affect the settled decisions in sections 1–10. It sits squarely on
 section 11's library rewrite and on the `Iterable` signature change in section 4.
+
+### Resolved — option A implemented 2026-09-06, `62c1b5a`..`8033dd2`
+
+`where Stepper::Item<S> ~ Int` parses, constrains and discharges. The program
+above — the one with `* 2` — compiles and runs, and `Map` composed over `Filter`
+resolves the constraint through two layers. Suite **371/371**, unit tests
+**1024 assertions / 176 cases**. Plan and full findings:
+`docs/superpowers/plans/2026-09-06-equality-constraints.md`.
+
+Three things the design work did not anticipate, all found by probe:
+
+- **Reduction belongs in `ResolveAssociatedType`, not `Unify`.** `Unify` was the
+  obvious site and had no `AssociatedType` case at all, which made it look like
+  the gap. But it only serves consumers that unify: `v * 2` checks numeric-ness
+  directly and still failed. `ResolveAssociatedType` is the chokepoint
+  `ApplySubstitution` already calls, so reducing there reaches every consumer. The
+  `Unify` branch was written first, then measured to be dead and removed.
+- **Widening `ClassConstraint` in place cost more than the site count suggested.**
+  The plan predicted equality constraints reaching code that assumes a class name.
+  What it missed is that **eighteen** sites *rebuild* a constraint — four
+  substitutions, seven copies, six field-by-field reconstructions in `Freshen` and
+  `ApplySubstitution`, and one arity check — each silently producing a class-kind
+  constraint with an empty name. The failure mode was not a wrong answer but
+  `m_classes.at("")` throwing `std::out_of_range`, which MSVC turns into
+  `__fastfail` and Windows reports as `STATUS_STACK_BUFFER_OVERRUN` (`0xC0000409`).
+  That reads exactly like a stack overflow and is not one.
+- **A non-projection left-hand side cannot get a specific message.**
+  `ParseDelimitedZeroOrMoreUnlimited` swallows a failed element and returns the
+  accumulated list, which is inherent to zero-or-more. `where T ~ Int` is still
+  rejected, by the caller's generic message. Surfacing the specific one needs
+  sticky parser state that `TryParser` does not restore.
+
+**What this unblocks:** section 11's library rewrite, and behind it the removal of
+assignment — the last deletion and the only semantic one.
+
+**Adjacent gap found, not fixed.** A state-threading stepper wants
+`Step : fn(S) -> Option<(Item, S)>`, but `Option::Some((a, b))` currently collapses
+to a two-argument call, so a tuple payload cannot be constructed. Pre-existing and
+unrelated to constraints; the `Map`/`Filter` test indexes instead of threading
+state to avoid it. This needs fixing before the real `Iterable::Next` signature in
+section 4 can be written.
