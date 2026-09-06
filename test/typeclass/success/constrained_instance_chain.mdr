@@ -33,5 +33,5 @@ instance Show<Boxed<T>> where Show<T> {
 def deep = Boxed(Boxed(Wrapped(5)));
 
 IO::PrintLine(Show::show(deep));
-IO::PrintLine(Show::show(new Boxed<Int>(1)));
-IO::PrintLine(Show::show(new Wrapped<Int>(2)));
+IO::PrintLine(Show::show(Boxed(1)));
+IO::PrintLine(Show::show(Wrapped(2)));

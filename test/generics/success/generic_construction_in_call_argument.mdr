@@ -1,7 +1,7 @@
 module GenericConstructionInCallArgument
 
 // A generic construction passed as a call argument infers its type arguments from the
-// callee's parameter types, with no `new X<T>(...)` to state them.
+// callee's parameter types; the language has no form for stating them explicitly.
 //
 // The callee's type parameters are freshened at the call site, so the parameter type an
 // argument is checked against is only decided once an earlier argument has been unified

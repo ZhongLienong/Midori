@@ -51,7 +51,7 @@ def ListReverseInto = fn < T >(list: List < T >, reversed: List < T >) -> List <
         case List::Cons(head, tail) => ListReverseInto(tail, List::Cons (head, reversed))
         case List::Nil => reversed
 };
-def ListReverse = fn < T >(list: List < T >) -> List < T > => ListReverseInto(list, new List::Nil < T >());
+def ListReverse = fn < T >(list: List < T >) -> List < T > => ListReverseInto(list, List::Nil ());
 def ListFold = fn < T, A >(list: List < T >, initial: A, f: fn(A, T) -> A) -> A => {
     match list with
         case List::Cons(head, tail) => ListFold(tail, f(initial, head), f)

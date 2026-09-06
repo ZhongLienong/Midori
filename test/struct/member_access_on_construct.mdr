@@ -4,7 +4,7 @@ module MemberAccessOnConstruct
 // surrounding context is asking about: `.x` decides the type that flows outward, the struct
 // does not. Call arguments are where this used to break, because the parameter type was
 // pushed down through the member access and unified with the struct's own type, so
-// `IO::PrintLine((new Point(7, 8)).x as Text)` was rejected with "Expected type 'Text' but
+// `IO::PrintLine(Point(7, 8).x as Text)` was rejected with "Expected type 'Text' but
 // got 'Point'" anchored on `Point`.
 
 import

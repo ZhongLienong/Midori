@@ -1,11 +1,6 @@
 bare_some: some 5
-keyword_some: some 5
 bare_none: none
-keyword_none: none
 circle: 12
 rect: 12
-mixed: 30
 digits: 6
-mixed_digits: 30
 wrapped: some 42
-explicit: none

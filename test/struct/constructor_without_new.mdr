@@ -1,8 +1,8 @@
 module ConstructorWithoutNew
 
-// A struct constructor is callable without `new`: `Point(1, 2)` parses into the same
-// MidoriExpression::Construct node `new Point(1, 2)` produces. `new` still works, so both
-// spellings appear side by side below and must agree.
+// Calling the constructor is how a struct is built: `Point(1, 2)` parses to a
+// MidoriExpression::Construct node. This was one of two spellings, pinned here against a
+// `new Point(1, 2)` that had to agree with it; `new` is gone and this is the only form.
 
 import
 {
@@ -47,19 +47,15 @@ def ShowPoint = fn(p : Point) -> Text =>
 };
 
 def bare = Point(1, 2);
-def keyword = new Point(1, 2);
 IO::PrintLine("bare: " ++ ShowPoint(bare));
-IO::PrintLine("keyword: " ++ ShowPoint(keyword));
 
 // A construction is an ordinary primary expression, so postfix chains follow it.
 def projected = Point(7, 8).x;
 IO::PrintLine("projected: " ++ (projected as Text));
 
-// Nesting, in both spellings and mixed.
+// Nesting: a construction is an ordinary argument to another construction.
 def nested = Wrapper(Point(3, 4), "bare");
-def nested_mixed = Wrapper(new Point(5, 6), "mixed");
 IO::PrintLine("nested: " ++ ShowPoint(nested.inner) ++ " " ++ nested.label);
-IO::PrintLine("nested_mixed: " ++ ShowPoint(nested_mixed.inner) ++ " " ++ nested_mixed.label);
 
 // Generic inference is unchanged: the bare spelling inside a generic function still binds
 // T from the arguments rather than needing an explicit type argument.
@@ -69,8 +65,9 @@ IO::PrintLine("bag: " ++ (bag.extra as Text) ++ " " ++ (bag.items[0] as Text) ++
 def text_bag = MakeBag(["a", "b"], "z");
 IO::PrintLine("text_bag: " ++ text_bag.extra ++ " " ++ text_bag.items[1]);
 
-// `new` keeps its explicit type arguments; the bare spelling has no such form.
-def explicit = new Bag<Int>([9], 10);
+// Nothing states type arguments explicitly any more, so a generic construction at an
+// un-annotated binding has to take them from the constructor's own arguments.
+def explicit = Bag([9], 10);
 IO::PrintLine("explicit: " ++ (explicit.extra as Text));
 
 def through_lambda = make(11, 12);

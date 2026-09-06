@@ -44,7 +44,7 @@ def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => 
     def i = 0;
     loop {
         if i >= capacity then break() else {
-            ArrayUtil::Append(buckets, new MapSlot::Empty < K, V >());
+            ArrayUtil::Append(buckets, MapSlot::Empty ());
             i = i + 1;
         }
     };
@@ -162,9 +162,9 @@ def MapUpdate = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V >
     def slot = FindMapSlot(map, key, h);
     if slot < 0 then Option::None () else {
         def entry = map.buckets[slot];
-        def old_value = match entry with
+        def old_value: Option < V > = match entry with
             case MapSlot::Occupied(_key, existing_value) => Option::Some (existing_value)
-            default => new Option::None < V >();
+            default => Option::None ();
         map.buckets[slot] = MapSlot::Occupied (key, value);
         old_value
     }
@@ -173,8 +173,8 @@ def MapRemove = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < 
     def h = Hashable::Hash(key);
     def slot = FindMapSlot(map, key, h);
     if slot < 0 then false else {
-        map.buckets[slot] = new MapSlot::Deleted < K,
-        V >();
+        def deleted: MapSlot < K, V > = MapSlot::Deleted ();
+        map.buckets[slot] = deleted;
         map.count = map.count - 1;
         true
     }
@@ -194,8 +194,8 @@ def MapClear = fn < K, V >(map: Map < K, V >) -> Unit => {
     def i = 0;
     loop {
         if i >= map.capacity then break() else {
-            map.buckets[i] = new MapSlot::Empty < K,
-            V >();
+            def empty: MapSlot < K, V > = MapSlot::Empty ();
+            map.buckets[i] = empty;
             i = i + 1;
         }
     };

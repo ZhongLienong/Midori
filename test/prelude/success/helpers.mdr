@@ -133,7 +133,10 @@ def reversed_values = ListToArray(ListReverse(list1));
 Expect(#reversed_values == 3 && reversed_values[0] == 3 && reversed_values[1] == 2 && reversed_values[2] == 1, "ListReverse should invert element order");
 
 Expect(ListFold(list1, 0, fn(total: Int, value: Int) -> Int => total + value) == 6, "ListFold should accumulate values from left to right");
-Expect(ListFold(new List::Nil<Int>(), 5, fn(total: Int, value: Int) -> Int => total + value) == 5, "ListFold should return the initial value for an empty list");
+// Arguments are unified left to right, so a construction in the first argument is checked
+// while the callee's own type parameter is still free. Bind it under an annotation instead.
+def empty_list : List<Int> = List::Nil();
+Expect(ListFold(empty_list, 5, fn(total: Int, value: Int) -> Int => total + value) == 5, "ListFold should return the initial value for an empty list");
 
 def from_array_values = ListFromArray([4, 5, 6]);
 def from_array_roundtrip = ListToArray(from_array_values);

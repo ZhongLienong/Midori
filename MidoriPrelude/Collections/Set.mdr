@@ -35,7 +35,7 @@ def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => {
     def i = 0;
     loop {
         if i >= capacity then break() else {
-            ArrayUtil::Append(buckets, new SetSlot::Empty < T >());
+            ArrayUtil::Append(buckets, SetSlot::Empty ());
             i = i + 1;
         }
     };
@@ -142,7 +142,8 @@ def SetRemove = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, 
     def h = Hashable::Hash(elem);
     def slot = FindSetSlot(set, elem, h);
     if slot < 0 then false else {
-        set.buckets[slot] = new SetSlot::Deleted < T >();
+        def deleted: SetSlot < T > = SetSlot::Deleted ();
+        set.buckets[slot] = deleted;
         set.count = set.count - 1;
         true
     }
@@ -157,7 +158,8 @@ def SetClear = fn < T >(set: Set < T >) -> Unit => {
     def i = 0;
     loop {
         if i >= set.capacity then break() else {
-            set.buckets[i] = new SetSlot::Empty < T >();
+            def empty: SetSlot < T > = SetSlot::Empty ();
+            set.buckets[i] = empty;
             i = i + 1;
         }
     };

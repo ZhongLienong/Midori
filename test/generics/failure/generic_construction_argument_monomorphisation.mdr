@@ -9,11 +9,12 @@ module GenericConstructionArgumentMonomorphisation
 // parameters. Monomorphisation cannot always resolve those: the second generic call over
 // the same array below leaves the element type of `Appendable::Append` unresolved.
 //
-// Spelling the construction `new Slot::Empty<K, V>()`, or binding it to an annotated local
-// first, both compile and run - those land on the generic parameters instead. So this is a
-// monomorphisation gap rather than an inference one, and `new` is still the workaround for
-// it. See test/generics/success/generic_construction_in_call_argument.mdr for the shapes
-// that do work end to end.
+// Binding the construction to an annotated local first compiles and runs - that lands on
+// the generic parameters instead. So this is a monomorphisation gap rather than an
+// inference one. `new Slot::Empty<K, V>()` was the other workaround until the keyword was
+// removed, so the annotated local is now the only one. See
+// test/generics/success/generic_construction_in_call_argument.mdr for the shapes that do
+// work end to end.
 
 import
 {

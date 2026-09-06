@@ -4,8 +4,6 @@ module PipeIntoConstruct
 // piped value into the construction's own argument list. Wrapping it as `Construct(...)(x)`
 // instead reported an arity error at the construction site, which made a struct or a union
 // variant the one shape that could not appear in a pipeline.
-//
-// Both spellings are covered, because `Point(...)` and `new Point(...)` build the same node.
 
 import
 {
@@ -125,7 +123,7 @@ def WrapIt = fn<T>(v : T) -> Cell<T> =>
 IO::PrintLine("wrapped text: " ++ WrapIt("abc").value);
 IO::PrintLine("wrapped int: " ++ (WrapIt(3).value as Text));
 
-// `new Name<T>(...)` carries explicit type arguments on the node, and prepending must not
-// disturb them either.
+// A generic construction as the pipe target still infers its type argument after the piped
+// value has been prepended, so prepending must run before the arguments are unified.
 def explicit = 5 |> Cell(1);
 IO::PrintLine("explicit: " ++ (explicit.value as Text) ++ " tagged " ++ (explicit.tag as Text));

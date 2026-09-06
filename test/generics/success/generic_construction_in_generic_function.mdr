@@ -1,6 +1,6 @@
 module GenericConstructionInGenericFunction
 
-// `new` on a generic struct or union works inside a generic function.
+// Constructing a generic struct or union works inside a generic function.
 //
 // Inside a generic definition the declared types have already been freshened, so the
 // constructor's return type infers as Bag<T0> for a type variable T0 standing for T.

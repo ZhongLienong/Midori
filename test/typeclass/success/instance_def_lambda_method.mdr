@@ -26,8 +26,8 @@ instance Describable<Name> {
     def Label = fn(value: Name) -> Text => value.text;
 };
 
-def origin = new Point(3, 4);
-def caller = new Name("midori");
+def origin = Point(3, 4);
+def caller = Name("midori");
 
 IO::PrintLine(Describable::Describe(origin));
 IO::PrintLine(Describable::Label(origin) as Text);
