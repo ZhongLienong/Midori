@@ -76,7 +76,7 @@
       "patterns": [
         {
           "name": "keyword.control.midori",
-          "match": "\\b(?:else|fn|loop|for|in|if|return|def|break|continue|import|new|as|foreign|case|default|match|then|with|module|export|public|private|use|class|instance|where|type|deriving)\\b"
+          "match": "\\b(?:else|fn|loop|for|in|if|return|def|break|continue|import|as|foreign|case|default|match|then|with|module|export|public|private|use|class|instance|where|type|deriving)\\b"
         }
       ]
     },

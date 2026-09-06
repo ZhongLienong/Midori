@@ -1584,97 +1584,17 @@ MidoriResult::ExpressionResult Parser::ParseCall()
 
 MidoriResult::ExpressionResult Parser::ParseConstruct()
 {
-	if (Match(Token::Name::NEW))
+	// `new` was the second spelling of a construction and is gone: `Point(1, 2)` is the only
+	// form, and it is told from an ordinary call by the constructor lookup in ParseCall. The
+	// word lexes as an ordinary identifier now, so name the removal here rather than let it
+	// fall through to a bare "Undefined name.". Guarded on a following identifier, so a value
+	// named `new` is left alone.
+	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "new" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
 	{
-		if (Match(Token::Name::IDENTIFIER_LITERAL))
-		{
-			Token base_name_token = Previous();
-			MidoriResult::TokenResult data_name_token = MatchNameResolution();
-			if (!data_name_token.has_value())
-			{
-				return std::unexpected(data_name_token.error());
-			}
-			std::vector<std::shared_ptr<MidoriType>> type_args;
-			if (Match(Token::Name::LEFT_ANGLE))
-			{
-				MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
-					(
-						[this]() { return ParseType(); },
-						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
-						[this]() { return ConsumeTypeRightAngle("Expected '>' after type arguments."); }
-					);
-
-				if (!type_args_result.has_value())
-				{
-					return std::unexpected(type_args_result.error());
-				}
-
-				type_args = std::move(type_args_result.value());
-			}
-
-			std::string constructor_name = Mangle(data_name_token.value().m_lexeme);
-
-			Token data_name_token_value = base_name_token;
-			data_name_token_value.m_lexeme = constructor_name;
-
-			ConstructorResolutionResult resolution = ResolveConstructorName(base_name_token, constructor_name);
-			if (!resolution.has_value())
-			{
-				return std::unexpected(std::move(resolution.error()));
-			}
-
-			if (!resolution.value().has_value())
-			{
-				return std::unexpected(GenerateParserError("Undefined struct.", data_name_token_value));
-			}
-
-			ConstructorResolution& constructor = resolution.value().value();
-			data_name_token_value.m_lexeme = constructor.m_constructor_name;
-			std::shared_ptr<MidoriType> defined_type = std::move(constructor.m_type);
-
-			if (!type_args.empty())
-			{
-				std::vector<std::string> generic_params;
-				if (defined_type->IsType<MidoriType::StructType>())
-				{
-					generic_params = defined_type->GetType<MidoriType::StructType>().m_generic_params;
-				}
-				else if (defined_type->IsType<MidoriType::UnionType>())
-				{
-					generic_params = defined_type->GetType<MidoriType::UnionType>().m_generic_params;
-				}
-
-				if (type_args.size() != generic_params.size())
-				{
-					return std::unexpected
-						(
-							GenerateParserError
-							(
-								"Type argument count mismatch: expected " + std::to_string(generic_params.size()) + ", got " + std::to_string(type_args.size()), data_name_token_value
-							)
-						);
-				}
-
-				std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-				for (size_t i = 0u; i < generic_params.size(); i += 1u)
-				{
-					substitutions[generic_params[i]] = type_args[i];
-				}
-
-				defined_type = MidoriType::SubstituteTypeParams(defined_type, substitutions);
-			}
-
-			return FinishConstruct(std::move(data_name_token_value), std::move(defined_type), constructor.m_is_struct, !type_args.empty());
-		}
-		else
-		{
-			return std::unexpected(GenerateParserError("Expected struct name after 'new'.", Previous()));
-		}
+		return std::unexpected(GenerateParserError("'new' is no longer supported. Write 'Name(args)' instead.", Peek(0)));
 	}
-	else
-	{
-		return ParseCall();
-	}
+
+	return ParseCall();
 }
 
 MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpression>&& callee)
@@ -1694,7 +1614,7 @@ MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpressi
 		);
 }
 
-MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct, bool has_explicit_type_args)
+MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct)
 {
 	MidoriResult::TokenResult left_paren = Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.");
 	if (!left_paren.has_value())
@@ -1715,11 +1635,11 @@ MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 
 	if (is_struct)
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), has_explicit_type_args, MidoriExpression::Construct::Struct{}));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MidoriExpression::Construct::Struct{}));
 	}
 
 	const int tag = constructed_type->GetType<MidoriType::UnionType>().m_member_info.at(constructor_token.m_lexeme).m_tag;
-	return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), has_explicit_type_args, MidoriExpression::Construct::Union(tag)));
+	return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MidoriExpression::Construct::Union(tag)));
 }
 
 MidoriResult::ExpressionResult Parser::ParsePrimary()
@@ -1862,7 +1782,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								);
 							}
 
-							return FinishConstruct(std::move(constructor_token), std::move(constructor.m_type), constructor.m_is_struct, false);
+							return FinishConstruct(std::move(constructor_token), std::move(constructor.m_type), constructor.m_is_struct);
 						}
 					}
 

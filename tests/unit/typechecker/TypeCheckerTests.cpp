@@ -78,7 +78,7 @@ type Pair<A, B> =
 	second: B
 };
 alias IntPair = Pair<Int, Int>;
-def pair : IntPair = new Pair(1, 2);
+def pair : IntPair = Pair(1, 2);
 )";
 
 	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "AliasTypes.mdr");
@@ -121,7 +121,7 @@ type Hidden =
 def Display = fn<T>(value: T) : Text where Show<T> => {
 	return Show::show(value);
 };
-def rendered = Display(new Hidden(1));
+def rendered = Display(Hidden(1));
 )";
 
 	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "ConstraintFailure.mdr");
@@ -131,7 +131,7 @@ def rendered = Display(new Hidden(1));
 	expectation.m_stage = CompilerStage::TypeChecker;
 	expectation.m_code = CompilerErrorCode::TypeUnsatisfiedConstraint;
 	expectation.m_message_substrings = { "Type Hidden does not satisfy constraint Show<Hidden>", "no matching instance found" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mdr:13", "Display(new Hidden(1))" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mdr:13", "Display(Hidden(1))" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
@@ -258,7 +258,7 @@ TEST_CASE("TypeChecker tags non-exhaustive matches with a stable diagnostic code
 	const std::string source_code =
 		R"(module NonExhaustiveMatch
 type Option = None | Some(Int);
-def value = new Option::Some(1);
+def value = Option::Some(1);
 def result = match value with
     case Option::Some(x) => x
 ;

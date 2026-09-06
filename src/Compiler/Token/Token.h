@@ -88,7 +88,6 @@ struct Token
 		BREAK,
 		CONTINUE,
 		IMPORT,
-		NEW,
 		AS,
 		FOREIGN,
 		CASE,

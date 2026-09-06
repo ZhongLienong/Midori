@@ -139,20 +139,19 @@ type Result<T, E> = Ok(T) | Err(E);
 
 ### Constructor Type Argument Inference
 
-Generic constructors accept explicit type arguments, but Midori can infer omitted arguments from constructor arguments and the surrounding expected type:
+A generic constructor takes its type arguments from the constructor arguments and the
+surrounding expected type. There is no form for stating them, so every type parameter has
+to be reachable from one of those two:
 
 ```midori
-def some_int = new Option::Some(42);
-def empty_int : Option<Int> = new Option::None();
+def some_int = Option::Some(42);
+def empty_int : Option<Int> = Option::None();
 
-def Wrap = fn<T>(value: T) -> Option<T> => new Option::Some(value);
+def Wrap = fn<T>(value: T) -> Option<T> => Option::Some(value);
 ```
 
-The explicit form remains available:
-
-```midori
-def exact = new Option::Some<Int>(42);
-```
+A zero-arity variant has no argument to infer from, so it needs an expected type. An
+annotation on the binding is the usual way to supply one, as `empty_int` does above.
 
 Inference must resolve every omitted type parameter. If no argument or expected type pins it down, construction fails:
 
@@ -180,7 +179,7 @@ Container deriving on unions:
 ```midori
 type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
-def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
+def mapped = OptionBoxMap(OptionBox::Full(5), fn(x) => { x + 1 });
 ```
 
 Transferable deriving for concurrency:
@@ -310,11 +309,11 @@ instance Iterable<Counter>
 
     def Next = fn(counter: Counter) -> Option<Int> => {
         if counter.current >= counter.end
-        then new Option::None()
+        then Option::None()
         else {
             def value = counter.current;
             counter.current = counter.current + 1;
-            new Option::Some(value)
+            Option::Some(value)
         }
     };
 };
@@ -446,7 +445,7 @@ Examples:
 
 ```midori
 def doubler : fn(Int) -> Int = fn(x) => { x * 2 };
-def mapped = OptionMap(new Option::Some(1), fn(x) => { x + 1 });
+def mapped = OptionMap(Option::Some(1), fn(x) => { x + 1 });
 ```
 
 Lambdas still need a surrounding function type when annotations are omitted:

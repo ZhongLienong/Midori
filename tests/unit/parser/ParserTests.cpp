@@ -191,7 +191,7 @@ instance Show<Array<Array<Text>>> {
 };
 
 def nested : Array<Array<Text>> = [["hello"]];
-def boxed = new Box<Array<Array<Text>>>(nested);
+def boxed : Box<Array<Array<Text>>> = Box(nested);
 def shift = fn(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<Text>>> => value >> 1;
 )";
 
@@ -205,7 +205,10 @@ def shift = fn(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Arra
 
 	const MidoriStatement::VariableDefinition& boxed_definition = RequireVariableDefinition(parse_result->m_program, 4u, "boxed");
 	const MidoriExpression::Construct& boxed_construct = RequireExpression<MidoriExpression::Construct>(boxed_definition.m_value);
-	REQUIRE(boxed_construct.m_has_explicit_type_args);
+	// `new Box<...>(...)` used to carry the closers on the expression itself. With `new` gone
+	// the annotation is where they sit, so the construction is only checked for its shape.
+	REQUIRE(boxed_construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>());
+	REQUIRE(boxed_construct.m_params.size() == 1u);
 
 	const MidoriExpression::Function& shift_definition = RequireFunctionBinding(parse_result->m_program, 5u, "shift");
 	const MidoriExpression::Binary& shift_expr = RequireExpression<MidoriExpression::Binary>(shift_definition.m_body);
@@ -634,7 +637,7 @@ TEST_CASE("Parser builds constructor and wildcard match patterns without brittle
 	const std::string source_code =
 		R"(module ParserMatch
 type Option = None | Some(Int);
-def result = match new Option::Some(7) with
+def result = match Option::Some(7) with
 	case Option::Some(_) => 1
 	case Option::None() => 0
 ;
@@ -679,7 +682,7 @@ type Point =
 	x : Int,
 	y : Int
 };
-def p = new Point(1, 2);
+def p = Point(1, 2);
 def updated = { p with x = 5, y = 6 };
 def block_with_match = { match p.x with case _ => 1 };
 def plain_block = { def local = 1; local };
@@ -1002,7 +1005,7 @@ type Pair<A, B> =
 	second: B
 };
 alias IntKeyed<V> = Pair<Int, V>;
-def keyed : IntKeyed<Text> = new Pair(1, "one");
+def keyed : IntKeyed<Text> = Pair(1, "one");
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mdr");
@@ -1047,7 +1050,7 @@ type Pair<A, B> =
 	second: B
 };
 alias Swapped<A, B> = Pair<B, A>;
-def swapped : Swapped<Int, Text> = new Pair("one", 2);
+def swapped : Swapped<Int, Text> = Pair("one", 2);
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SwappedAlias.mdr");
@@ -1108,7 +1111,7 @@ type Box<T> =
 	item: T
 };
 alias IntBox = Box<Int>;
-def boxed : IntBox = new Box(1);
+def boxed : IntBox = Box(1);
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstantiatedAlias.mdr");

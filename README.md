@@ -133,8 +133,8 @@ type Box<T> = {
     value: T,
 };
 
-def origin = new Point(0.0, 0.0);
-def boxed = new Box(42);
+def origin = Point(0.0, 0.0);
+def boxed = Box(42);
 def x_coord = origin.x;
 ```
 
@@ -144,9 +144,9 @@ type Option<T> = None | Some(T);
 
 type List<T> = Cons(T, List<T>) | Nil;
 
-def maybe_value = new Option::Some(42);
-def empty_value : Option<Int> = new Option::None();
-def empty_list = new List::Nil();
+def maybe_value = Option::Some(42);
+def empty_value : Option<Int> = Option::None();
+def empty_list : List<Int> = List::Nil();
 ```
 
 ### Type Aliases
@@ -162,13 +162,13 @@ def user_name: Name = "Alice";
 type Point = { x: Float, y: Float };
 type Position = Point;
 
-def pos: Position = new Point(10.0, 20.0);
+def pos: Position = Point(10.0, 20.0);
 
 // Generic type alias
 type Pair<A, B> = { first: A, second: B };
 type IntPair = Pair<Int, Int>;
 
-def coords: IntPair = new Pair(1, 2);
+def coords: IntPair = Pair(1, 2);
 ```
 
 ### Pattern Matching
@@ -287,8 +287,8 @@ type Result<T, E> = Ok(T) | Err(E);
 
 def transform = fn(value: Int) : Result<Int, Text> => {
     if value > 10
-    then new Result::Ok(value + 1)
-    else new Result::Err("too small")
+    then Result::Ok(value + 1)
+    else Result::Err("too small")
 };
 
 def result =
@@ -688,9 +688,9 @@ def length = fn<T>(list: List<T>) : Int => {
 def map = fn<A, B>(list: List<A>, f: fn(A) -> B) : List<B> => {
     return match list with
         case List::Cons(head, tail) =>
-            new List::Cons(f(head), map(tail, f))
+            List::Cons(f(head), map(tail, f))
         case List::Nil =>
-            new List::Nil()
+            List::Nil()
     ;
 };
 ```

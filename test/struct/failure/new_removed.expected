@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/struct/failure/new_removed.mdr:9
+  |
+9 | def origin = new Point(1, 2);
+  |              ^^^ 'new' is no longer supported. Write 'Name(args)' instead.
+  |

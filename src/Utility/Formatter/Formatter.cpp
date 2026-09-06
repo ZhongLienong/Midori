@@ -262,7 +262,6 @@ namespace
 		case TokenName::BREAK:
 		case TokenName::CONTINUE:
 		case TokenName::IMPORT:
-		case TokenName::NEW:
 		case TokenName::AS:
 		case TokenName::FOREIGN:
 		case TokenName::CASE:

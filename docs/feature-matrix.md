@@ -33,7 +33,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
 | Pattern guards | Stable | `test/match/`, `tests/unit/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
-| Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions where `new` cannot infer type arguments. |
+| Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions, taking its type from the already-resolved source record. |
 | `if`, block expressions, `return`, `loop`, `break`, `continue` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | The language remains expression-oriented even for most control-flow forms. |
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `tests/unit/runtime/` | Both `start..end` and `start..step..end` are implemented. |

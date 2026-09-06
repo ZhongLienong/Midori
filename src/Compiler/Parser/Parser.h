@@ -68,8 +68,8 @@ private:
 	};
 
 	// The result of matching a name against the struct and union constructor tables.
-	// `new Point(...)` and `Point(...)` resolve through the same lookup and build the
-	// same MidoriExpression::Construct node, so the lookup lives on its own.
+	// A construction and an ordinary call are told apart by this lookup rather than by a
+	// leading keyword, so the lookup lives on its own.
 	struct ConstructorResolution
 	{
 		std::shared_ptr<MidoriType> m_type;
@@ -602,7 +602,10 @@ private:
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
 
-	MidoriResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct, bool has_explicit_type_args);
+	// A parsed construction never carries explicit type arguments: `new Name<T>(...)` was the
+	// only form that could state them and it is gone. The AST node keeps the flag, because the
+	// deriving synthesiser builds Construct nodes directly with an already-resolved return type.
+	MidoriResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct);
 
 	MidoriResult::ExpressionResult ParsePrimary();
 
