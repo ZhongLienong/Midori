@@ -427,6 +427,20 @@ namespace
 		return ContainsAssociatedTypes(type, visited);
 	}
 
+	// A class constraint names its class directly; an equality constraint names it
+	// through the projection on its left side. Both must refer to a declared class,
+	// so validation sites ask for the name rather than reading m_class_name, which
+	// is empty for an equality.
+	const std::string& ConstrainedClassName(const MidoriType::ClassConstraint& constraint)
+	{
+		if (constraint.IsEquality() && constraint.m_equality_lhs->IsType<MidoriType::AssociatedType>())
+		{
+			return constraint.m_equality_lhs->GetType<MidoriType::AssociatedType>().m_class_name;
+		}
+
+		return constraint.m_class_name;
+	}
+
 	bool ContainsConstraint(const std::vector<MidoriType::ClassConstraint>& constraints, const MidoriType::ClassConstraint& constraint)
 	{
 		return std::ranges::any_of
@@ -489,7 +503,7 @@ namespace
 			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
 			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			return;
 		}
@@ -499,7 +513,7 @@ namespace
 			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
 			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
 			{
@@ -513,7 +527,7 @@ namespace
 			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			for (const auto& [_, member_ctx] : union_type.m_member_info)
 			{
@@ -3087,9 +3101,16 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 
 	for (const MidoriType::ClassConstraint& constraint : function.m_constraints)
 	{
-		if (!m_classes.contains(constraint.m_class_name))
+		if (!m_classes.contains(ConstrainedClassName(constraint)))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: undefined class '" + constraint.m_class_name + "' in constraint", function.m_function_keyword, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", function.m_function_keyword, m_file_name, m_source_lines));
+		}
+
+		// An equality constraint names no class of its own, so the arity check
+		// below does not apply to it.
+		if (constraint.IsEquality())
+		{
+			continue;
 		}
 
 		const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
@@ -3438,9 +3459,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
 	{
-		if (!m_classes.contains(constraint.m_class_name))
+		if (!m_classes.contains(ConstrainedClassName(constraint)))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + constraint.m_class_name + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+		}
+
+		// An equality constraint names no class of its own, so the arity check
+		// below does not apply to it.
+		if (constraint.IsEquality())
+		{
+			continue;
 		}
 
 		const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
@@ -3586,9 +3614,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 
 		for (const MidoriType::ClassConstraint& constraint : struct_stmt.m_constraints)
 		{
-			if (!m_classes.contains(constraint.m_class_name))
+			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + constraint.m_class_name + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+			}
+
+			// An equality constraint names no class of its own, so the arity check
+			// below does not apply to it.
+			if (constraint.IsEquality())
+			{
+				continue;
 			}
 
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
@@ -3633,9 +3668,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 
 		for (const MidoriType::ClassConstraint& constraint : union_stmt.m_constraints)
 		{
-			if (!m_classes.contains(constraint.m_class_name))
+			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + constraint.m_class_name + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+			}
+
+			// An equality constraint names no class of its own, so the arity check
+			// below does not apply to it.
+			if (constraint.IsEquality())
+			{
+				continue;
 			}
 
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
@@ -3924,7 +3966,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
 		for (const MidoriType::ClassConstraint& constraint : instance_stmt.m_constraints)
 		{
-			AppendUniqueConstraint(defun.m_constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+			AppendUniqueConstraint(defun.m_constraints, MidoriType::ClassConstraint(constraint));
 		}
 
 		MidoriResult::TypeResult result = Evaluate(method);

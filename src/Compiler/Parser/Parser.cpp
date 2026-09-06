@@ -136,7 +136,7 @@ namespace
 			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
 			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			return;
 		}
@@ -146,7 +146,7 @@ namespace
 			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
 			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
 			{
@@ -160,7 +160,7 @@ namespace
 			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint.m_class_name, std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
 			}
 			for (const auto& [_, member_ctx] : union_type.m_member_info)
 			{
