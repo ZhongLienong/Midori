@@ -5624,8 +5624,50 @@ void Parser::PushActiveConstraints(const std::vector<MidoriType::ClassConstraint
 
 std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)
 {
-	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
+	// An equality constraint reads 'Class::Assoc<S> ~ Type'. The '::' one token
+	// past the leading identifier is what distinguishes it from a class
+	// constraint, which reads 'Class<Type,...>'.
+	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_equality_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
 		{
+			Token projection_token = Peek(0);
+			return ParseType()
+				.and_then
+				(
+					[&projection_token, this](std::shared_ptr<MidoriType>&& equality_lhs) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+					{
+						if (!equality_lhs->IsType<MidoriType::AssociatedType>())
+						{
+							return std::unexpected(GenerateParserError("The left side of a '~' constraint must be an associated type projection, such as 'Stepper::Item<S>'.", projection_token));
+						}
+
+						return Consume(Token::Name::TILDE, "Expected '~' after the associated type projection in an equality constraint.")
+							.and_then
+							(
+								[&equality_lhs, this](Token&&) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+								{
+									return ParseType()
+										.and_then
+										(
+											[&equality_lhs](std::shared_ptr<MidoriType>&& equality_rhs) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+											{
+												return MidoriType::ClassConstraint{ std::move(equality_lhs), std::move(equality_rhs) };
+											}
+										);
+								}
+							);
+					}
+				);
+		};
+
+	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_constraint = [&parse_equality_constraint, this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
+		{
+			// A leading '~' after the identifier routes here too, so that 'T ~ Int'
+			// is rejected by the rule it actually breaks rather than by a missing '<'.
+			if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && (Check(Token::Name::DOUBLE_COLON, 1) || Check(Token::Name::TILDE, 1)))
+			{
+				return parse_equality_constraint();
+			}
+
 			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
 				.and_then
 				(
