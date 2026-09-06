@@ -863,6 +863,11 @@ const std::array<Token::Name, 5u> TypeChecker::kBinaryBitwiseOperators{
 
 std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& constraint) const
 {
+	if (constraint.IsEquality())
+	{
+		return constraint.m_equality_lhs->ToString() + " ~ "s + constraint.m_equality_rhs->ToString();
+	}
+
 	if (constraint.m_type_args.empty())
 	{
 		return constraint.m_class_name;
@@ -1200,6 +1205,19 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 {
 	for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
 	{
+		// An equality constraint is discharged by reduction, not by instance
+		// selection: resolve both sides at the call site and compare them.
+		if (constraint.IsEquality())
+		{
+			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(constraint.m_equality_lhs);
+			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(constraint.m_equality_rhs);
+			if (*resolved_equality_lhs == *resolved_equality_rhs)
+			{
+				continue;
+			}
+
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_equality_lhs->ToString(), resolved_equality_rhs->ToString()), token, m_file_name, m_source_lines));
+		}
 		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());
 		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
@@ -1233,6 +1251,19 @@ MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 
 	for (const MidoriType::ClassConstraint& constraint : instance_info.m_constraints)
 	{
+		// An equality constraint is discharged by reduction, not by instance
+		// selection: resolve both sides at the call site and compare them.
+		if (constraint.IsEquality())
+		{
+			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_lhs, substitutions));
+			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_rhs, substitutions));
+			if (*resolved_equality_lhs == *resolved_equality_rhs)
+			{
+				continue;
+			}
+
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_equality_lhs->ToString(), resolved_equality_rhs->ToString()), token, m_file_name, m_source_lines));
+		}
 		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());
 		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
@@ -1274,23 +1305,52 @@ std::shared_ptr<MidoriType> TypeChecker::ResolveAssociatedType(const MidoriType:
 	std::unordered_map<std::string, ClassInfo>::const_iterator class_it = m_classes.find(associated_type.m_class_name);
 	if (class_it == m_classes.cend() || !class_it->second.m_associated_types.contains(associated_type.m_name))
 	{
-		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
 	std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(associated_type.m_class_name, resolved_type_args);
 	if (!resolved_match.has_value())
 	{
-		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
 	AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(associated_type.m_name);
 	if (binding_it == resolved_match->m_instance->m_associated_type_bindings.cend())
 	{
-		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
 	std::shared_ptr<MidoriType> concrete_binding = MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions);
 	return ApplySubstitution(concrete_binding);
+}
+
+// An associated-type projection over an abstract type argument cannot be reduced
+// by instance selection, because there is no instance to select yet. A where
+// clause of the form 'Class::Assoc<S> ~ Type' states the answer directly, so a
+// projection that matches one is replaced by the type it was equated to.
+std::shared_ptr<MidoriType> TypeChecker::ReduceProjectionByEqualityConstraint(const std::shared_ptr<MidoriType>& type) const
+{
+	if (!type->IsType<MidoriType::AssociatedType>())
+	{
+		return nullptr;
+	}
+
+	std::vector<MidoriType::ClassConstraint>::const_iterator match = std::ranges::find_if
+	(
+		m_active_constraints,
+		[&type](const MidoriType::ClassConstraint& constraint)
+		{
+			return constraint.IsEquality() && *constraint.m_equality_lhs == *type;
+		}
+	);
+
+	return match != m_active_constraints.cend() ? match->m_equality_rhs : nullptr;
 }
 
 std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const
@@ -1716,6 +1776,19 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		}
 
 		return left;
+	}
+	else if (left_subst->IsType<MidoriType::AssociatedType>() || right_subst->IsType<MidoriType::AssociatedType>())
+	{
+		std::shared_ptr<MidoriType> reduced_left = ReduceProjectionByEqualityConstraint(left_subst);
+		std::shared_ptr<MidoriType> reduced_right = ReduceProjectionByEqualityConstraint(right_subst);
+		if (reduced_left == nullptr && reduced_right == nullptr)
+		{
+			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
+		}
+
+		std::shared_ptr<MidoriType> equated_left = reduced_left != nullptr ? reduced_left : left_subst;
+		std::shared_ptr<MidoriType> equated_right = reduced_right != nullptr ? reduced_right : right_subst;
+		return Unify(token, equated_left, equated_right, diagnostic_mode);
 	}
 	else
 	{
@@ -2160,11 +2233,17 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		fresh_constraints.reserve(func_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
 		{
-			MidoriType::ClassConstraint fresh_constraint;
-			fresh_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint fresh_constraint(constraint);
+			fresh_constraint.m_type_args.clear();
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+
+			if (fresh_constraint.IsEquality())
+			{
+				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
+				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
 			}
 			fresh_constraints.push_back(std::move(fresh_constraint));
 		}
@@ -2210,11 +2289,17 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		fresh_constraints.reserve(struct_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
 		{
-			MidoriType::ClassConstraint fresh_constraint;
-			fresh_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint fresh_constraint(constraint);
+			fresh_constraint.m_type_args.clear();
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+
+			if (fresh_constraint.IsEquality())
+			{
+				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
+				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
 			}
 			fresh_constraints.push_back(std::move(fresh_constraint));
 		}
@@ -2247,11 +2332,17 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		fresh_constraints.reserve(union_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
 		{
-			MidoriType::ClassConstraint fresh_constraint;
-			fresh_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint fresh_constraint(constraint);
+			fresh_constraint.m_type_args.clear();
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
+			}
+
+			if (fresh_constraint.IsEquality())
+			{
+				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
+				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
 			}
 			fresh_constraints.push_back(std::move(fresh_constraint));
 		}
@@ -2503,8 +2594,18 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		new_constraints.reserve(func_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
 		{
-			MidoriType::ClassConstraint substituted_constraint;
-			substituted_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint substituted_constraint(constraint);
+			substituted_constraint.m_type_args.clear();
+			if (substituted_constraint.IsEquality())
+			{
+				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
+				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
+				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
+				{
+					changed = true;
+				}
+			}
+
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
@@ -2553,8 +2654,18 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		new_constraints.reserve(struct_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
 		{
-			MidoriType::ClassConstraint substituted_constraint;
-			substituted_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint substituted_constraint(constraint);
+			substituted_constraint.m_type_args.clear();
+			if (substituted_constraint.IsEquality())
+			{
+				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
+				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
+				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
+				{
+					changed = true;
+				}
+			}
+
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
@@ -2609,8 +2720,18 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		new_constraints.reserve(union_type.m_constraints.size());
 		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
 		{
-			MidoriType::ClassConstraint substituted_constraint;
-			substituted_constraint.m_class_name = constraint.m_class_name;
+			MidoriType::ClassConstraint substituted_constraint(constraint);
+			substituted_constraint.m_type_args.clear();
+			if (substituted_constraint.IsEquality())
+			{
+				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
+				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
+				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
+				{
+					changed = true;
+				}
+			}
+
 			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 			{
 				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
@@ -3133,6 +3254,15 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 		{
 			type_arg = Freshen(type_arg, freshening_context);
 		}
+
+		// An equality constraint carries its types in its operands rather than in
+		// m_type_args, and they must be freshened alongside the signature or the
+		// projection will never match the one built at the use site.
+		if (constraint.IsEquality())
+		{
+			constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, freshening_context);
+			constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, freshening_context);
+		}
 	}
 
 	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
@@ -3490,6 +3620,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 		{
 			type_arg = Freshen(type_arg, freshening_context);
+		}
+
+		// An equality constraint carries its types in its operands rather than in
+		// m_type_args, and they must be freshened alongside the signature or the
+		// projection will never match the one built at the use site.
+		if (constraint.IsEquality())
+		{
+			constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, freshening_context);
+			constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, freshening_context);
 		}
 	}
 

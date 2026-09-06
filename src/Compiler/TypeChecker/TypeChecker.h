@@ -186,6 +186,8 @@ private:
 
 	std::shared_ptr<MidoriType> ResolveAssociatedType(const MidoriType::AssociatedType& associated_type);
 
+	std::shared_ptr<MidoriType> ReduceProjectionByEqualityConstraint(const std::shared_ptr<MidoriType>& type) const;
+
 	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
 
 	void RegisterIdentityConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type);
