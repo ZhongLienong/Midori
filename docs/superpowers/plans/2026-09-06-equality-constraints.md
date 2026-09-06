@@ -627,13 +627,28 @@ not restore, which risks spurious diagnostics from speculative parses. Left as-i
 deliberately; Task 3 Step 3's acceptance criterion is met in substance (the input
 is rejected) but not in wording.
 
-### Adjacent gap found, not fixed
+### Adjacent gap found — misdiagnosed, then fixed in `f45b410`
 
-`Option::Some((a, b))` collapses to a two-argument call, so a union variant cannot
-carry a tuple payload. That blocks the real `Iterable::Next : fn(Iter) -> Option<(Item, Iter)>`
-signature from spec §4. The `Map`/`Filter` test indexes rather than threads state to
-work around it. Pre-existing and unrelated to constraints, but it now sits directly
-on the library rewrite's path and should be the next thing looked at.
+This section originally read: "`Option::Some((a, b))` collapses to a two-argument
+call, so a union variant cannot carry a tuple payload." **That was wrong**, and it
+was wrong in the same way the `Unify` conclusion was wrong: a symptom seen only
+inside a generic instance was attributed to the most complex thing in view.
+
+Reducing it removed the union, the constructor and the function entirely:
+
+```
+def P : (Int, Counter) = (1, Counter(2, 5));   // fails
+def Q = (1, Counter(2, 5));                    // compiles
+```
+
+An annotation plus a construction in element position is the whole reproduction.
+`TypeChecker::operator()(MidoriExpression::Tuple&)` evaluated elements without an
+`ExpectedTypeGuard`, so the ambient expected type — the whole tuple — leaked into
+each element. Fixed by giving each element its own slot, and clearing the expected
+type when the expected shape does not match; the clear is as important as the set.
+
+`Iterable::Next : fn(Iter) -> Option<(Item, Iter)>` now works, covered by
+`test/typeclass/success/stepper_threads_state_through_tuple.mdr`.
 
 ### Deliberately not done
 

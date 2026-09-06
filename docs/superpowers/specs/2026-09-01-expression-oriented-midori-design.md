@@ -634,9 +634,33 @@ Three things the design work did not anticipate, all found by probe:
 **What this unblocks:** section 11's library rewrite, and behind it the removal of
 assignment — the last deletion and the only semantic one.
 
-**Adjacent gap found, not fixed.** A state-threading stepper wants
-`Step : fn(S) -> Option<(Item, S)>`, but `Option::Some((a, b))` currently collapses
-to a two-argument call, so a tuple payload cannot be constructed. Pre-existing and
-unrelated to constraints; the `Map`/`Filter` test indexes instead of threading
-state to avoid it. This needs fixing before the real `Iterable::Next` signature in
-section 4 can be written.
+**Adjacent gap found — diagnosed wrongly at first, then fixed (`f45b410`).**
+
+A state-threading stepper wants `Next : fn(S) -> Option<(Item, S)>`, and it did not
+compile. The first diagnosis recorded here was that `Option::Some((a, b))`
+collapses to a two-argument call. **That was wrong.** Reduction showed no union, no
+constructor and no function is required:
+
+```
+def P : (Int, Counter) = (1, Counter(2, 5));
+  -> Expected type '(Int, Counter)' but got 'Counter'
+```
+
+The same expression *without* the annotation compiled, which is what made the
+symptom look like an argument-passing problem. The real defect was in
+`TypeChecker::operator()(MidoriExpression::Tuple&)`: it evaluated each element
+with the ambient `m_expected_expr_type` left in place, so the whole tuple type
+reached every element and a construction there inferred against it. Each element
+now takes its own slot from the expected tuple, and a *cleared* expected type when
+the shape does not match — clearing matters as much as setting, since the stale
+ambient type is the bug.
+
+`Iterable::Next : fn(Iter) -> Option<(Item, Iter)>` is therefore writable now, and
+`test/typeclass/success/stepper_threads_state_through_tuple.mdr` threads state
+through a tuple payload beneath an equality-constrained `Map`. Section 4's
+signature change is unblocked.
+
+The wider lesson is the one this section keeps producing: **a symptom observed only
+in a complex program will be attributed to the complex part.** Both wrong
+diagnoses here — the `Unify` site and this one — came from reasoning about where
+the failure appeared rather than reducing until it could not be reduced further.
