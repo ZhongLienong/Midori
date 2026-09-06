@@ -9,11 +9,11 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-union Opt<T> = Some(T) | None;
+type Opt<T> = Some(T) | None;
 
-union Shape = Circle(Int) | Rect(Int, Int);
+type Shape = Circle(Int) | Rect(Int, Int);
 
-union List = Nil | Cons(Int, List);
+type List = Nil | Cons(Int, List);
 
 def ShowOpt = fn(o : Opt<Int>) -> Text =>
 {

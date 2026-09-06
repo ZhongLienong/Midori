@@ -1,0 +1,56 @@
+module TypeDeclarationCoexistence
+
+// Test: every declaration form the language still has, side by side in one file.
+// Expected: `type` dispatches on what follows the `=` - a `{` opens a record, a
+// depth-0 `|` opens a sum, and anything else is a newtype - and `alias` sits
+// alongside all three without the four spellings interfering. A record, a sum, a
+// newtype and an alias are declared here in one module, and values flow between
+// them: the nominal three stay distinct types while `alias` stays transparent.
+//
+// This file replaces additive.mdr, which pinned `struct` and `union` coexisting
+// with `type`. Those keywords are gone, so what survives of that purpose is the
+// disambiguation among the forms that remain.
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr"
+}
+
+type Point = { x: Int, y: Int };
+
+type Flag = Off | On(Int);
+
+// No `{` and no depth-0 `|`, so this is a newtype: nominal, and convertible to
+// and from its representation only through `as`.
+type Meters = Int;
+
+// `alias` is transparent instead: Feet and Int are the same type, so a raw Int is
+// accepted where Feet is declared.
+alias Feet = Int;
+
+def SumPoint = fn(p: Point) -> Int => p.x + p.y;
+
+def Describe = fn(f: Flag) -> Int =>
+	match f with
+		case Flag::Off => 0
+		case Flag::On(n) => n
+;
+
+def TakesFeet = fn(f: Feet) -> Int => f;
+
+// A record carrying the other two nominal forms as members, to show the forms
+// compose rather than merely coexist.
+type Reading = { where_taken: Point, state: Flag, depth: Meters };
+
+def DescribeReading = fn(r: Reading) -> Int =>
+	SumPoint(r.where_taken) + Describe(r.state) + (r.depth as Int);
+
+def raw: Int = 12;
+def distance: Meters = 30 as Meters;
+def reading = Reading(Point(1, 2), Flag::On(5), 30 as Meters);
+
+IO::PrintLine("record=" ++ (SumPoint(Point(3, 4)) as Text));
+IO::PrintLine("sum=" ++ (Describe(Flag::On(9)) as Text));
+IO::PrintLine("newtype=" ++ ((distance as Int) as Text));
+IO::PrintLine("alias_transparent=" ++ (TakesFeet(raw) as Text));
+IO::PrintLine("composed=" ++ (DescribeReading(reading) as Text));

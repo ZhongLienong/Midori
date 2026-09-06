@@ -4,6 +4,6 @@ module UnionConstructorAsValue
 // position, not a construction, and the diagnostic says so instead of resolving the
 // qualifier as a module that does not exist.
 
-union Opt<T> = Some(T) | None;
+type Opt<T> = Some(T) | None;
 
 def bad = Opt::None;

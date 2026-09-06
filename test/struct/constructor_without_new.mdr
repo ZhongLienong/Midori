@@ -9,19 +9,19 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int
 };
 
-struct Bag<T>
+type Bag<T> =
 {
 	items : Array<T>,
 	extra : T
 };
 
-struct Wrapper
+type Wrapper =
 {
 	inner : Point,
 	label : Text

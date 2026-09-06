@@ -4,7 +4,7 @@ module StructConstructorAsValue
 // procedure behind the name. Writing it bare in value position is a parser diagnostic
 // rather than a silent lookup that would emit a global slot the name never had.
 
-struct Point
+type Point =
 {
 	x : Int,
 	y : Int

@@ -8,8 +8,8 @@ class Describable<T> {
     Label: fn(value: T) -> Tag;
 };
 
-struct Point { x: Int, y: Int };
-struct Name { text: Text };
+type Point = { x: Int, y: Int };
+type Name = { text: Text };
 
 // Every method spelled with the `def x = fn(...)` binding form.
 instance Describable<Point> {
