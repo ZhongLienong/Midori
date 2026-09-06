@@ -458,3 +458,118 @@ git commit -m "docs(spec): record equality constraints as implemented"
 6. `Map`, `Filter`, and `Map` composed over `Filter` all work.
 7. Both suites green: **367/367** plus new cases, and **1024 assertions / 176
    cases** plus any added.
+
+---
+
+## Trace findings — 2026-09-06
+
+Measured, not reasoned. Run inline rather than by subagent (the dispatched one
+died on a rate limit before doing any work).
+
+### The premise holds, and the error is exactly as §13 predicted
+
+The pass-through case already passes — it is
+`test/typeclass/success/constrained_instance_assoc_type.mdr`, live in the green
+suite. Adding `* 2` and `type Item = Int` gives:
+
+```
+Type mismatch between 'Stepper::Item<T2>' and 'Int'
+```
+
+at the `* 2` site, plus the known cascade at the use site
+(`no matching concrete instance for 'Stepper::Step'`). Emitted from
+`TypeChecker::MakeUnificationError` (`TypeChecker.cpp:1387`, message at `:1411`).
+
+### This plan's own code samples were written in the wrong syntax
+
+Corrected below; **do not copy the samples from the earlier sections of this
+plan**. An instance member is a `def` binding, not a signature:
+
+```
+type Counter = { current: Int, limit: Int };
+type Doubled<S> = { inner: S };
+
+instance Stepper<Doubled<S>> where Stepper<S>, Stepper::Item<S> ~ Int {
+    type Item = Int;
+    def Step = fn(state: Doubled<S>) -> Option<Int> =>
+        match Stepper::Step(state.inner) with
+            case Option::Some(v) => Option::Some(v * 2)
+            case Option::None() => Option::None();
+};
+```
+
+A class body still uses the `Name: fn(...) -> T;` signature form. Record types are
+`type N = { field: T };`. Model probes on
+`test/typeclass/success/constrained_instance_assoc_type.mdr`.
+
+### `Unify` has no `AssociatedType` case at all — this is the insertion point
+
+`TypeChecker::Unify` spans `:1437-1711` and contains **zero** occurrences of
+`AssociatedType`. A projection meeting a concrete type therefore falls straight
+through to the error path. Task 4 does not need a new equation map seeded
+somewhere subtle; it needs an `AssociatedType` branch in `Unify` that consults the
+active equality constraints before failing.
+
+`ResolveAssociatedType` (`:1251`) is the right reducer and already degrades
+correctly: when `FindMatchingInstance` cannot resolve — which is exactly the
+abstract-`S` case — it returns the projection unchanged rather than erroring. So
+the branch is "reduce, and if still a projection, look for a stated equality".
+
+### Widening in place needs no plumbing, which settles the representation
+
+`m_active_constraints` is declared `std::vector<MidoriType::ClassConstraint>`
+(`TypeChecker.h:105`). Widening `ClassConstraint` therefore makes equality
+constraints visible inside `Unify` with no new member, no new parameter, and no
+threading. This is a stronger argument for widening in place than the
+196-call-site one the plan opened with.
+
+### The three parse callers
+
+| line | function | verdict |
+|---|---|---|
+| `:2923` | `ParseTypeDeclarationHeader` (`:2873`) | allow |
+| `:3720` | `ParseInstanceDeclaration` (`:3630`) | **required** |
+| `:4351` | `ParseFunctionExpression` (`:4258`) | allow — generic functions consuming a stepper need it |
+
+All three route through the one `ParseClassConstraints`, so allowing everywhere is
+zero extra work while restricting would need a mode flag. Allow all three.
+
+### Task 5's list, enumerated
+
+Every site iterating `m_active_constraints` treats `m_class_name` as a real
+typeclass. Each needs an `IsEquality()` skip.
+
+`TypeChecker.cpp` — **16 read sites**: `:894`, `:1165`, `:2338`, `:3157`, `:3506`,
+`:4306`, `:4507`, `:4623`, `:4771`, `:4825`, `:4865`, `:4976`, `:5337`, `:5816`,
+`:5842`, `:5875`, `:6146`. Plus the free function `ContainsConstraint` (`:430`),
+which `:3157`, `:3506` and `:6146` call.
+
+`CodeGenerator.cpp` — constraint substitution loops at `:5866`, `:6389`, `:6433`,
+`:6457`, `:6508`, and three `MidoriType` visitor overloads for `ClassConstraint`
+at `:5621`, `:5786`, `:6542` that already no-op.
+
+Roughly 22 guards, each one line. Tractable, but this is the bulk of the work and
+the plan's warning was justified.
+
+### Trap 4 probably does not apply — still verify
+
+`ClosureLifting` early-returns before lifting in both shapes that can carry a
+constraint: a top-level `def` bound to a lambda (`ClosureLifting.cpp:171-175`) and
+any lambda with generic parameters (`:181-187`). Both carry comments explaining
+why. So the defaulted-empty-`constraints` construction is likely unreachable for
+constraint-bearing lambdas. **This was read, not probed** — Task 5 Step 3 still
+runs the probe.
+
+### Sizing
+
+Parser ~40 lines (one dispatch in `parse_constraint`, one error). Type
+representation ~35 lines. Type checker ~60 lines, of which the `Unify` branch is
+maybe 25 and the rest are guards. Codegen ~15 lines of guards. Tests ~150 lines of
+`.mdr`. No lexer work, no VM work, no new opcode.
+
+### Verdict
+
+**Task 2 proceeds as written.** The `Kind` discriminator and the second
+constructor are unchanged by the trace. Task 4's step 2 is now concrete — add the
+`AssociatedType` branch to `Unify` — and should be rewritten from "seed the
+equation where active constraints are consulted" to that.
