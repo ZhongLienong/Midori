@@ -66,12 +66,27 @@ public:
 
 	struct ClassConstraint
 	{
+		// A where clause states one of two things: that a type belongs to a class,
+		// or that an associated-type projection equals a type. The second form is
+		// what lets a combinator transform element types, because it constrains
+		// the projection while its type argument is still abstract.
+		enum class Kind
+		{
+			Class,
+			Equality
+		};
+
 		std::string m_class_name;
 		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+		Kind m_kind = Kind::Class;
+		std::shared_ptr<MidoriType> m_equality_lhs;
+		std::shared_ptr<MidoriType> m_equality_rhs;
 
 		ClassConstraint() = default;
 		ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+		ClassConstraint(std::shared_ptr<MidoriType>&& equality_lhs, std::shared_ptr<MidoriType>&& equality_rhs);
 		bool operator==(const ClassConstraint& other) const;
+		bool IsEquality() const;
 	};
 
 	struct AssociatedType

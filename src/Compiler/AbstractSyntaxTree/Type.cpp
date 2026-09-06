@@ -581,8 +581,31 @@ MidoriType::ClassConstraint::ClassConstraint(const std::string& typeclass_name, 
 {
 }
 
+MidoriType::ClassConstraint::ClassConstraint(std::shared_ptr<MidoriType>&& equality_lhs, std::shared_ptr<MidoriType>&& equality_rhs)
+	: m_kind(Kind::Equality),
+	m_equality_lhs(std::move(equality_lhs)),
+	m_equality_rhs(std::move(equality_rhs))
+{
+}
+
+bool MidoriType::ClassConstraint::IsEquality() const
+{
+	return m_kind == Kind::Equality;
+}
+
 bool MidoriType::ClassConstraint::operator==(const ClassConstraint& other) const
 {
+	if (m_kind != other.m_kind)
+	{
+		return false;
+	}
+
+	if (m_kind == Kind::Equality)
+	{
+		return *m_equality_lhs == *other.m_equality_lhs
+			&& *m_equality_rhs == *other.m_equality_rhs;
+	}
+
 	if (m_class_name != other.m_class_name || m_type_args.size() != other.m_type_args.size())
 	{
 		return false;
