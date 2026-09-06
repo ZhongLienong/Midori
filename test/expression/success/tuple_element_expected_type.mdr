@@ -15,9 +15,13 @@ def (label, corner) = Returned();
 def (first, inner) = Nested;
 def (n, deep) = inner;
 
+def InArray : Array<(Int, Point)> = [(11, Point(12, 13))];
+def (idx, boxed) = InArray[0];
+
 def (one, pt) = Annotated;
 IO::PrintLine(pt.y as Text);
 IO::PrintLine(label);
 IO::PrintLine(corner.x as Text);
 IO::PrintLine(first.x as Text);
 IO::PrintLine(deep.y as Text);
+IO::PrintLine(boxed.x as Text);
