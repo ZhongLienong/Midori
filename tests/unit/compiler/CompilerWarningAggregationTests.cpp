@@ -29,7 +29,7 @@ TEST_CASE("CompileFileWithReport preserves aggregated warning order without rend
 			"Alpha.mdr",
 			R"(module Alpha
 public export { Value }
-def Value = fn(): Int => {
+def Value = fn() -> Int => {
 	def used = 1;
 	def unusedAlpha = 2;
 	used
@@ -41,7 +41,7 @@ def Value = fn(): Int => {
 			"Zulu.mdr",
 			R"(module Zulu
 public export { Value }
-def Value = fn(): Int => {
+def Value = fn() -> Int => {
 	def used = 3;
 	def unusedZulu = 4;
 	used
@@ -53,7 +53,7 @@ def Value = fn(): Int => {
 			"Main.mdr",
 			R"(module Main
 import { "Alpha.mdr", "Zulu.mdr" }
-def main = fn(): Int => Alpha::Value() + Zulu::Value();
+def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 )"
 		)
 	});
@@ -92,7 +92,7 @@ type Pair =
 };
 foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
 foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
-def main = fn(): Int => {
+def main = fn() -> Int => {
 	def used = 1;
 	def unused = 2;
 	ReadPairA();
@@ -134,7 +134,7 @@ TEST_CASE("CompileAndRunFile renders successful warnings from the final report",
 		(
 			"Main.mdr",
 			R"(module Main
-def main = fn(): Int => {
+def main = fn() -> Int => {
 	def used = 1;
 	def unused = 2;
 	used

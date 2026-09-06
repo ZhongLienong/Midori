@@ -61,12 +61,12 @@ TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory
 import {{ "{}", "{}" }}
 use IO.{{IOError}}
 use Result.{{Result}}
-def DescribeWrite = fn(result: Result<Unit, IOError>): Text => {{
+def DescribeWrite = fn(result: Result<Unit, IOError>) -> Text => {{
     match result with
         case Result::Ok(_) => "wrote"
         case Result::Err(_) => "failed"
 }};
-def DescribeRead = fn(result: Result<Text, IOError>): Text => {{
+def DescribeRead = fn(result: Result<Text, IOError>) -> Text => {{
     match result with
         case Result::Ok(value) => value
         case Result::Err(_) => "unreadable"
@@ -77,7 +77,7 @@ def contents = IO::TryReadFile("{}");
 IO::PrintLine(DescribeWrite(wrote));
 IO::PrintLine(if exists then "exists" else "missing");
 IO::PrintLine(DescribeRead(contents));
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(io_module_path),
 		MidoriPathLiteral(result_module_path),
@@ -104,7 +104,7 @@ TEST_CASE("VM captures stderr emitted by runtime code", "[runtime][vm][stderr]")
 		R"(module RuntimeStderr
 import {{ "{}" }}
 IO::PrintErrorLine("panic on stderr");
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(io_module_path));
 
@@ -126,7 +126,7 @@ TEST_CASE("VM preserves mutable closure state across repeated calls inside one s
 import {{ "{}" }}
 def values = {{
 	def y = 5;
-	def f = fn(z : Int) : Int => {{ y = y - 1; y + z }};
+	def f = fn(z : Int) -> Int => {{ y = y - 1; y + z }};
 	def first = f(2);
 	def second = f(2);
 	(first, second)
@@ -137,7 +137,7 @@ match values with
 		IO::PrintLine(second as Text)
 	}}
 ;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(io_module_path));
 
@@ -168,7 +168,7 @@ for i in backward {{
 }};
 IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
 IO::PrintLine("range_sum=" ++ (total as Text));
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(io_module_path));
 
@@ -188,7 +188,7 @@ TEST_CASE("VM reports deterministic runtime errors for invalid array access", "[
 	const std::string source_code =
 		R"(module RuntimeError
 def value = [1, 2][4];
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
@@ -214,9 +214,9 @@ TEST_CASE("VM collapses recursive frames for stack overflow diagnostics", "[runt
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflow.mdr";
 	const std::string source_code =
 		R"(module RuntimeStackOverflow
-def recurse = fn(n : Int): Int => recurse(n + 1) + 1;
+def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;
 def value = recurse(0);
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
@@ -230,7 +230,7 @@ def main = fn(): Int => 0;
 	REQUIRE(executed.m_output.m_stdout.find("Stack overflow - exceeded maximum call depth.") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("stack trace:") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("[module RuntimeStackOverflow]") != std::string::npos);
-	REQUIRE(executed.m_output.m_stdout.find("def recurse = fn(n : Int): Int => recurse(n + 1) + 1;") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("recursive calls]") != std::string::npos);
 }
 
@@ -239,7 +239,7 @@ TEST_CASE("VM renders runtime source context from embedded executable metadata",
 	const std::string source_code =
 		R"(module EmbeddedRuntimeError
 def value = [1, 2][4];
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
@@ -256,7 +256,7 @@ TEST_CASE("VM reports division by zero as a structured runtime error", "[runtime
 	const std::string source_code =
 		R"(module RuntimeDivision
 def value = 10 / 0;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =

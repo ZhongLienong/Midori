@@ -357,7 +357,7 @@ TEST_CASE("Machine-readable runtime errors serialize runtime code and stack meta
 				{
 					.m_file_name = "Runtime.mdr",
 					.m_line = 2,
-					.m_source_line = "def recurse = fn(n : Int): Int => recurse(n + 1) + 1;"
+					.m_source_line = "def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;"
 				},
 				.m_recursive_call_count = 12
 			}
@@ -377,7 +377,7 @@ TEST_CASE("Compiler report preserves static-analyzer warning metadata on success
 {
 	const std::string source_code =
 		R"(module CompileWarning
-def Compute = fn() : Int => {
+def Compute = fn() -> Int => {
 	def used = 1;
 	def unused = 2;
 	used

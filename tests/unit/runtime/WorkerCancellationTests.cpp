@@ -49,7 +49,7 @@ TEST_CASE("Joining a cancelled spinning worker reports a cancellation error", "[
 	const std::string source_code = std::format(
 		R"(module WorkerCancelJoin
 import {{ "{}" }}
-def Spin = fn(dummy: Int) : Int => {{
+def Spin = fn(dummy: Int) -> Int => {{
     def i = 0;
     loop
     {{
@@ -62,7 +62,7 @@ def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(system_module_path));
 
@@ -83,12 +83,12 @@ TEST_CASE("Joining a cancelled tail-recursive worker reports a cancellation erro
 	const std::string source_code = std::format(
 		R"(module WorkerCancelTailJoin
 import {{ "{}" }}
-def SpinTail = fn(i: Int) : Int => SpinTail(i + 1);
+def SpinTail = fn(i: Int) -> Int => SpinTail(i + 1);
 def w = spawn SpinTail(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(system_module_path));
 
@@ -109,7 +109,7 @@ TEST_CASE("Joining a cancelled worker preserves the WorkerCancelled error code",
 	const std::string source_code = std::format(
 		R"(module WorkerCancelCode
 import {{ "{}" }}
-def Spin = fn(_dummy: Int) : Int => {{
+def Spin = fn(_dummy: Int) -> Int => {{
     def i = 0;
     loop
     {{
@@ -122,7 +122,7 @@ def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(system_module_path));
 
@@ -144,7 +144,7 @@ TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime]
 	const std::string source_code = std::format(
 		R"(module WorkerCancelSleep
 import {{ "{}" }}
-def SleepLong = fn(_dummy: Int) : Int => {{
+def SleepLong = fn(_dummy: Int) -> Int => {{
     System::Sleep(30000);
     0
 }};
@@ -152,7 +152,7 @@ def w = spawn SleepLong(0);
 System::Sleep(300);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )",
 		MidoriPathLiteral(system_module_path));
 

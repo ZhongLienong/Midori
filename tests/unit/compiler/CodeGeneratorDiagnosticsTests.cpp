@@ -25,7 +25,7 @@ type Pair =
 };
 foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
 foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
-def main = fn(): Int => {
+def main = fn() -> Int => {
 	ReadPairA();
 	ReadPairB();
 	return 0;

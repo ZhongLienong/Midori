@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/return_arrow/failure/colon_return_position_removed_instance.mdr:12
+   |
+12 |     def show = fn(value: Int) : Text => value as Text;
+   |                               ^ ':' is no longer supported in return position. Write '-> Type' instead.
+   |

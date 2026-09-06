@@ -32,7 +32,7 @@ TEST_CASE("Formatter preserves comments while normalizing spacing", "[formatter]
 	const std::string source_code =
 		"module Main\n"
 		"// heading\n"
-		"def main = fn():Int=>{\n"
+		"def main = fn()->Int=>{\n"
 		"def value=/*inline*/1; // trailing\n"
 		"value\n"
 		"};\n";
@@ -42,7 +42,7 @@ TEST_CASE("Formatter preserves comments while normalizing spacing", "[formatter]
 	const std::string expected =
 		"module Main\n"
 		"// heading\n"
-		"def main = fn(): Int => {\n"
+		"def main = fn() -> Int => {\n"
 		"    def value = /*inline*/ 1;  // trailing\n"
 		"    value\n"
 		"};\n";
@@ -54,7 +54,7 @@ TEST_CASE("Formatter is idempotent for comment-bearing files", "[formatter]")
 {
 	const std::string source_code =
 		"module Main\n"
-		"/* banner */ def main = fn():Int=>0;\n";
+		"/* banner */ def main = fn()->Int=>0;\n";
 
 	RequireIdempotent(source_code, "FormatterIdempotent.mdr");
 }
@@ -93,7 +93,7 @@ TEST_CASE("Formatter is idempotent for deeply nested expressions", "[formatter][
 {
 	const std::string source_code =
 		"module DeepNest\n"
-		"def deep = fn(): Int => ((((((((((1 + 2))))))))));\n";
+		"def deep = fn() -> Int => ((((((((((1 + 2))))))))));\n";
 
 	const std::string formatted = FormatOrFail(source_code, "DeepNest.mdr");
 	CHECK(formatted.find("(((((((((1 + 2))))))))") != std::string::npos);

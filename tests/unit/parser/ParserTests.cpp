@@ -187,12 +187,12 @@ type Box<T> where Show<T> = {
 };
 
 instance Show<Array<Array<Text>>> {
-    def show = fn(value: Array<Array<Text>>) : Text => "nested";
+    def show = fn(value: Array<Array<Text>>) -> Text => "nested";
 };
 
 def nested : Array<Array<Text>> = [["hello"]];
 def boxed : Box<Array<Array<Text>>> = Box(nested);
-def shift = fn(value: Int, data: Array<Array<Text>>) : Int where Show<Array<Array<Text>>> => value >> 1;
+def shift = fn(value: Int, data: Array<Array<Text>>) -> Int where Show<Array<Array<Text>>> => value >> 1;
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mdr");
@@ -224,7 +224,7 @@ class Iterable<Iter> {
     next: fn(iter: Iter) -> Iterable::Item<Iter>;
 };
 
-def NextValue = fn(iter: Array<Array<Int>>) : Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
+def NextValue = fn(iter: Array<Array<Int>>) -> Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mdr");
@@ -402,9 +402,9 @@ TEST_CASE("Parser synchronizes consume failures to every top-level declaration s
 
 	const std::vector<SyncCase> cases =
 	{
-		{ "def", "def next = fn(): Int => 0;\n", Token::Name::DEF },
+		{ "def", "def next = fn() -> Int => 0;\n", Token::Name::DEF },
 		{ "class", "class Next<T> {\n\tproject: fn(value: T) -> T;\n};\n", Token::Name::CLASS },
-		{ "instance", "instance Next<Int> {\n\tdef project = fn(value: Int): Int => value;\n};\n", Token::Name::INSTANCE },
+		{ "instance", "instance Next<Int> {\n\tdef project = fn(value: Int) -> Int => value;\n};\n", Token::Name::INSTANCE },
 		{ "foreign", "foreign \"MIDORI_FFI_Next\" NextForeign : fn() -> Int;\n", Token::Name::FOREIGN },
 		{ "type", "type Nominal = Int;\n", Token::Name::TYPE },
 		{ "alias", "alias Shorthand = Int;\n", Token::Name::ALIAS },
@@ -441,7 +441,7 @@ TEST_CASE("Parser recovers limited helper failures at the top-level parse bounda
 {
 	const std::string source_code =
 		R"(module ParserRecoveryLimited
-def broken = fn(value next): Int => value;
+def broken = fn(value next) -> Int => value;
 class Next<T> {
 	project: fn(value: T) -> T;
 };
@@ -475,7 +475,7 @@ def hidden = 7;
 			R"(module Main
 import { "./Secrets.mdr" }
 def value = Secrets::hidden;
-def main = fn(): Int => value;
+def main = fn() -> Int => value;
 )")
 	});
 
@@ -484,7 +484,7 @@ def main = fn(): Int => value;
 		R"(module Main
 import { "./Secrets.mdr" }
 def value = Secrets::hidden;
-def main = fn(): Int => value;
+def main = fn() -> Int => value;
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -504,7 +504,7 @@ TEST_CASE("Parser resolves dotted use imports against the full module name", "[p
 			"MathVector.mdr",
 			R"(module Math.Vector
 public export { add }
-def add = fn(): Int => 41;
+def add = fn() -> Int => 41;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -513,7 +513,7 @@ def add = fn(): Int => 41;
 			R"(module Main
 import { "./MathVector.mdr" }
 use Math.Vector.{add}
-def main = fn(): Int => add();
+def main = fn() -> Int => add();
 )"
 		)
 	});
@@ -523,7 +523,7 @@ def main = fn(): Int => add();
 		R"(module Main
 import { "./MathVector.mdr" }
 use Math.Vector.{add}
-def main = fn(): Int => add();
+def main = fn() -> Int => add();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -539,7 +539,7 @@ TEST_CASE("Parser rejects ambiguous use imports from different modules", "[parse
 			"Left.mdr",
 			R"(module Left
 public export { value }
-def value = fn(): Int => 1;
+def value = fn() -> Int => 1;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -547,7 +547,7 @@ def value = fn(): Int => 1;
 			"Right.mdr",
 			R"(module Right
 public export { value }
-def value = fn(): Int => 2;
+def value = fn() -> Int => 2;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -557,7 +557,7 @@ def value = fn(): Int => 2;
 import { "./Left.mdr", "./Right.mdr" }
 use Left.{value}
 use Right.{value}
-def main = fn(): Int => value();
+def main = fn() -> Int => value();
 )"
 		)
 	});
@@ -568,7 +568,7 @@ def main = fn(): Int => value();
 import { "./Left.mdr", "./Right.mdr" }
 use Left.{value}
 use Right.{value}
-def main = fn(): Int => value();
+def main = fn() -> Int => value();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -588,7 +588,7 @@ TEST_CASE("Parser treats duplicate same-module use imports as idempotent", "[par
 			"Helper.mdr",
 			R"(module Helper
 public export { value }
-def value = fn(): Int => 7;
+def value = fn() -> Int => 7;
 )"
 		),
 		MidoriTest::TempProjectFile
@@ -598,7 +598,7 @@ def value = fn(): Int => 7;
 import { "./Helper.mdr" }
 use Helper.{value}
 use Helper.{value}
-def main = fn(): Int => value();
+def main = fn() -> Int => value();
 )"
 		)
 	});
@@ -609,7 +609,7 @@ def main = fn(): Int => value();
 import { "./Helper.mdr" }
 use Helper.{value}
 use Helper.{value}
-def main = fn(): Int => value();
+def main = fn() -> Int => value();
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(main_source_code, main_path.string());
@@ -620,7 +620,7 @@ TEST_CASE("Compiler uses the declared entry module name for linked executable me
 {
 	const std::string source_code =
 		R"(module App.Main
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "EntryPoint.mdr");
@@ -741,9 +741,9 @@ type Config =
 	host : Text,
 	port : Int
 };
-def WithPort = fn(c : Config, p : Int) : Config => { c with port = p };
-def PortOf = fn(c : Config) : Int => { c with port = 1 }.port;
-def BlockBodied = fn() : Int => { def local = 2; local };
+def WithPort = fn(c : Config, p : Int) -> Config => { c with port = p };
+def PortOf = fn(c : Config) -> Int => { c with port = 1 }.port;
+def BlockBodied = fn() -> Int => { def local = 2; local };
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mdr");
@@ -965,7 +965,7 @@ class Container<T> {
 instance Container<Int> {
 	type Item = Int;
 
-	def First = fn(value: Int) : Int => value;
+	def First = fn(value: Int) -> Int => value;
 };
 type Meters = Int;
 )";
@@ -1131,14 +1131,13 @@ def boxed : IntBox = Box(1);
 	REQUIRE(alias.m_aliased_type->IsType<MidoriType::StructType>());
 }
 
-TEST_CASE("Parser accepts '->' and ':' interchangeably in return position", "[parser]")
+TEST_CASE("Parser accepts only '->' in return position", "[parser]")
 {
 	const std::string source_code =
 		R"(module ReturnSeparator
-def ArrowNamed = fn(x: Int) -> Int => x;
-def ColonNamed = fn(x: Int) : Int => x;
-def arrow_lambda = fn(x: Int) -> Int => x;
-def colon_lambda = fn(x: Int) : Int => x;
+def Named = fn(x: Int) -> Int => x;
+def lambda = fn(x: Int) -> Int => x;
+def inferred = fn(x) => x;
 )";
 
 	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ReturnSeparator.mdr");
@@ -1148,19 +1147,117 @@ def colon_lambda = fn(x: Int) : Int => x;
 	}
 
 	const MidoriProgramTree& program = parse_result->m_program;
-	REQUIRE(program.size() == 4u);
+	REQUIRE(program.size() == 3u);
 
-	const MidoriExpression::Function& arrow_named = RequireFunctionBinding(program, 0u, "ArrowNamed");
-	const MidoriExpression::Function& colon_named = RequireFunctionBinding(program, 1u, "ColonNamed");
-	REQUIRE(arrow_named.m_return_type->ToString() == colon_named.m_return_type->ToString());
-	REQUIRE(arrow_named.m_return_type->ToString() == "Int");
+	const MidoriExpression::Function& named = RequireFunctionBinding(program, 0u, "Named");
+	REQUIRE(named.m_return_type->ToString() == "Int");
 
-	const MidoriStatement::VariableDefinition& arrow_binding = RequireVariableDefinition(program, 2u, "arrow_lambda");
-	const MidoriStatement::VariableDefinition& colon_binding = RequireVariableDefinition(program, 3u, "colon_lambda");
-	const MidoriExpression::Function& arrow_lambda = RequireExpression<MidoriExpression::Function>(arrow_binding.m_value);
-	const MidoriExpression::Function& colon_lambda = RequireExpression<MidoriExpression::Function>(colon_binding.m_value);
-	REQUIRE(arrow_lambda.m_return_type->ToString() == colon_lambda.m_return_type->ToString());
-	REQUIRE(arrow_lambda.m_return_type->ToString() == "Int");
+	const MidoriStatement::VariableDefinition& binding = RequireVariableDefinition(program, 1u, "lambda");
+	const MidoriExpression::Function& lambda = RequireExpression<MidoriExpression::Function>(binding.m_value);
+	REQUIRE(lambda.m_return_type->ToString() == "Int");
+
+	// The return type is still optional. Only its ':' spelling went.
+	const MidoriStatement::VariableDefinition& inferred_binding = RequireVariableDefinition(program, 2u, "inferred");
+	const MidoriExpression::Function& inferred = RequireExpression<MidoriExpression::Function>(inferred_binding.m_value);
+	REQUIRE(inferred.m_params.size() == 1u);
+	REQUIRE(inferred.m_return_type->ToString() != "Int");
+}
+
+TEST_CASE("Parser names the removal for ':' in return position", "[parser][diagnostic]")
+{
+	SECTION("function expression")
+	{
+		const std::string source_code =
+			R"(module ColonReturnRemoved
+def Twice = fn(x: Int) : Int => x * 2;
+)";
+
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemoved.mdr");
+		REQUIRE_FALSE(parse_result.has_value());
+
+		const CompilerError& error = parse_result.error();
+		RequireErrorMatches(
+			error,
+			MidoriTest::ErrorExpectation
+			{
+				.m_stage = CompilerStage::Parser,
+				.m_line = 2,
+				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
+				.m_rendered_substrings = { "ColonReturnRemoved.mdr:2" }
+			});
+
+		// The old spelling must not degrade into a report about the missing body.
+		CHECK(error.m_message.find("Expected '=>'") == std::string::npos);
+	}
+
+	SECTION("instance method definition")
+	{
+		const std::string source_code =
+			R"(module ColonReturnRemovedInstance
+class Show<T> {
+	show: fn(value: T) -> Text;
+};
+instance Show<Int> {
+	def show = fn(value: Int) : Text => value as Text;
+};
+)";
+
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemovedInstance.mdr");
+		REQUIRE_FALSE(parse_result.has_value());
+
+		const CompilerError& error = parse_result.error();
+		RequireErrorMatches(
+			error,
+			MidoriTest::ErrorExpectation
+			{
+				.m_stage = CompilerStage::Parser,
+				.m_line = 6,
+				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
+				.m_rendered_substrings = { "ColonReturnRemovedInstance.mdr:6" }
+			});
+	}
+}
+
+TEST_CASE("Parser leaves ':' alone wherever it ascribes a type to a name", "[parser]")
+{
+	// The removal diagnostic fires on a ':' that follows a parameter list. Every other
+	// ':' in the language ascribes a type to a name and is consumed by a different site,
+	// so none of these may reach it. This test fails if that diagnostic over-fires.
+	const std::string source_code =
+		R"(module ColonAscription
+type Config =
+{
+	host: Text,
+	port: Int
+};
+class Show<T> {
+	show: fn(value: T) -> Text;
+};
+foreign "MIDORI_FFI_Now" Now : fn() -> Int;
+def count : Int = 5;
+def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
+def Describe = fn(config: Config, label: Text) -> Text => label ++ config.host;
+)";
+
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonAscription.mdr");
+	if (!parse_result.has_value())
+	{
+		FAIL(std::string(parse_result.error().Rendered()));
+	}
+
+	const MidoriProgramTree& program = parse_result->m_program;
+
+	const MidoriStatement::VariableDefinition& count = RequireVariableDefinition(program, 3u, "count");
+	REQUIRE(count.m_annotated_type.has_value());
+	REQUIRE(count.m_annotated_type.value()->ToString() == "Int");
+
+	const MidoriStatement::VariableDefinition& predicate = RequireVariableDefinition(program, 4u, "predicate");
+	REQUIRE(predicate.m_annotated_type.has_value());
+	REQUIRE(predicate.m_annotated_type.value()->IsType<MidoriType::FunctionType>());
+
+	const MidoriExpression::Function& describe = RequireFunctionBinding(program, 5u, "Describe");
+	REQUIRE(describe.m_params.size() == 2u);
+	REQUIRE(describe.m_return_type->ToString() == "Text");
 }
 
 TEST_CASE("Parser separates a function-type annotation from an arrow return type", "[parser]")

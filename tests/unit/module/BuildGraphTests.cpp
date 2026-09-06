@@ -99,15 +99,15 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 			"module Main\n"
 			"import { \"./Lib.mdr\", \"./Util.mdr\" }\n"
 			"use Lib.{PrintLine, Parse}\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
 			"Lib.mdr",
 			"module Lib\n"
 			"public export { PrintLine, Parse }\n"
-			"def PrintLine = fn(): Int => 0;\n"
-			"def Parse = fn(): Int => 0;\n"
+			"def PrintLine = fn() -> Int => 0;\n"
+			"def Parse = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
@@ -172,7 +172,7 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 			"module Main\n"
 			"import { \"./MathVector.mdr\" }\n"
 			"use Math.Vector.{add, sub}\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
@@ -349,7 +349,7 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 			"Main.mdr",
 			"module Main\n"
 			"import { \"./Parent.mdr\" }\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
@@ -390,7 +390,7 @@ TEST_CASE("ModuleManager preserves imported child module diagnostics across recu
 			"Main.mdr",
 			"module Main\n"
 			"import { \"./Parent.mdr\" }\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
@@ -434,7 +434,7 @@ TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code",
 			"Main.mdr",
 			"module Main\n"
 			"import { \"./Missing.mdr\" }\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		)
 	});
 
@@ -458,7 +458,7 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 			"Main.mdr",
 			"module Main\n"
 			"import { \"./Library\" }\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		)
 	});
 
@@ -484,7 +484,7 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 			"Main.mdr",
 			"module Main\n"
 			"import { \"./A.mdr\" }\n"
-			"def main = fn(): Int => 0;\n"
+			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
@@ -517,7 +517,7 @@ TEST_CASE("Compiler tags missing exported symbols with a stable module diagnosti
 	const std::string source_code =
 		R"(module MissingExport
 public export { missing }
-def main = fn(): Int => 0;
+def main = fn() -> Int => 0;
 )";
 
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "MissingExport.mdr");

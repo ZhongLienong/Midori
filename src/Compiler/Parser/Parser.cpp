@@ -1102,11 +1102,27 @@ MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 }
 
+CompilerError Parser::GenerateRemovedReturnTypeColonError()
+{
+	return GenerateParserError("':' is no longer supported in return position. Write '-> Type' instead.", Peek(0));
+}
+
 MidoriResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
 {
-	if (Check(Token::Name::THIN_ARROW, 0) || Check(Token::Name::SINGLE_COLON, 0))
+	if (Check(Token::Name::THIN_ARROW, 0))
 	{
 		return Advance();
+	}
+
+	// ':' used to be accepted here as well. It now has the one job of ascribing a type
+	// to a name, so name the removal rather than report a missing '->'. Every caller
+	// reaches this immediately after a parameter list, where only '->', 'where' or '=>'
+	// is legal, so a ':' at this point can only ever be the old return spelling - it can
+	// never be the ascription in `def x : Int`, a record field, or a parameter, each of
+	// which is consumed by a different site well before this one.
+	if (Check(Token::Name::SINGLE_COLON, 0))
+	{
+		return std::unexpected(GenerateRemovedReturnTypeColonError());
 	}
 
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
@@ -3860,7 +3876,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		std::vector<Token> params = std::move(split.m_params);
 		std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
-		MidoriResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' or ':' before return type.");
+		MidoriResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
 		if (!return_colon_result.has_value())
 		{
 			EndScope();
@@ -4305,8 +4321,17 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	std::vector<Token> params = std::move(split.m_params);
 	std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
+	// The return type stays optional - `fn(x) => e` is still a whole function. Only the
+	// ':' spelling of the separator goes. It is checked before the '->' match rather than
+	// left to fall through to the '=>' consume below, which would report a missing body.
 	std::shared_ptr<MidoriType> return_type = MidoriType::MakeUndecidedType();
-	if (Match(Token::Name::SINGLE_COLON, Token::Name::THIN_ARROW))
+	if (Check(Token::Name::SINGLE_COLON, 0))
+	{
+		unwind_function_state();
+		return std::unexpected(GenerateRemovedReturnTypeColonError());
+	}
+
+	if (Match(Token::Name::THIN_ARROW))
 	{
 		MidoriResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())

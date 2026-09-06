@@ -45,7 +45,7 @@ namespace
 		"\n"
 		"type Meters = Int;\n"
 		"\n"
-		"def main = fn(): Int => {\n"
+		"def main = fn() -> Int => {\n"
 		"    def a: Meters = 3 as Meters;\n"
 		"    def b: Meters = 4 as Meters;\n"
 		"    def sum: Int = (a as Int) + (b as Int);\n"
@@ -56,7 +56,7 @@ namespace
 	const std::string REPRESENTATION_SOURCE =
 		"module Main\n"
 		"\n"
-		"def main = fn(): Int => {\n"
+		"def main = fn() -> Int => {\n"
 		"    def a: Int = 3 as Int;\n"
 		"    def b: Int = 4 as Int;\n"
 		"    def sum: Int = (a as Int) + (b as Int);\n"

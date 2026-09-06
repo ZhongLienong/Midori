@@ -538,6 +538,8 @@ private:
 
 	MidoriResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
 
+	CompilerError GenerateRemovedReturnTypeColonError();
+
 	MidoriResult::TokenResult ConsumeReturnTypeSeparator(std::string_view message);
 
 	MidoriResult::TokenResult MatchNameResolution();

@@ -305,15 +305,16 @@ character wider than `union` and two wider than `struct`.
 | `defun` | **deleted** | `4065330` |
 | `struct` | **deleted** | `565beae` |
 | `union` | **deleted** | `565beae` |
-| `new` | **blocked** — see below | — |
-| assignment, `:` returns | not started | — |
+| `new` | **deleted** | `cba4b3d` — the inference gap below was closed first by `a284fd3` |
+| `:` in return position | **deleted** | `c2077d4` (corpus), this commit (parser) |
+| assignment | not started | — |
 
-Suite **361/361**, unit tests **1004 assertions / 174 cases**. Each removed keyword
+Suite **367/367**, unit tests **1024 assertions / 176 cases**. Each removed keyword
 now gives a diagnostic naming its replacement rather than falling through to a bare
 `Undefined name.` — which is what `defun` did on first attempt, and is worth
 building in from the start for the remaining deletions.
 
-### `new` is blocked on inference, not on migration
+### `new` was blocked on inference, not on migration
 
 Fifty-two construction sites could not migrate, several in the prelude
 (`Collections/Map.mdr:47`, `Set.mdr:38`, `Prelude/List.mdr:54`). Every one is the

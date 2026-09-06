@@ -58,8 +58,8 @@ with the line that owns the brace.
 | `match`    | `match value with case <pattern> => expr default => expr;`      |
 | `type` (record) | `type Name = { field: Type, ... };`                        |
 | `type` (sum) | `type Name = Variant \| Variant(Type) \| ...;`                |
-| `class`    | `class Name a where { def method = fn(): a; ... };`                |
-| `instance` | `instance Name Type where { def method = fn() -> Type => ...; };`    |
+| `class`    | `class Name<T> { method: fn(value: T) -> Type; ... };`           |
+| `instance` | `instance Name<Type> { def method = fn(value: Type) -> Type => ...; };` |
 
 `import { ... }` and `export { ... }` use a single-line *inline brace*: the
 opening and closing braces stay on the same line as the directive even when the

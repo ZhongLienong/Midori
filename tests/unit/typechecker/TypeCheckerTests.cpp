@@ -118,7 +118,7 @@ type Hidden =
 {
 	value: Int
 };
-def Display = fn<T>(value: T) : Text where Show<T> => {
+def Display = fn<T>(value: T) -> Text where Show<T> => {
 	return Show::show(value);
 };
 def rendered = Display(Hidden(1));
@@ -237,7 +237,7 @@ TEST_CASE("TypeChecker tags incorrect arity with a stable diagnostic code", "[ty
 {
 	const std::string source_code =
 		R"(module IncorrectArity
-def id = fn(value: Int): Int => value;
+def id = fn(value: Int) -> Int => value;
 def result = id();
 )";
 
