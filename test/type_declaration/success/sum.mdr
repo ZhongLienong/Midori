@@ -1,8 +1,8 @@
 module TypeDeclarationSum
 
 // Test: `type X = A | B(T)` declares a sum.
-// Expected: identical to the `union X = A | B(T)` it lowers to - variants are
-// namespaced under the type name, and recursive variants can name the type.
+// Expected: it lowers onto the Union node - variants are namespaced under the
+// type name, and recursive variants can name the type.
 
 import
 {

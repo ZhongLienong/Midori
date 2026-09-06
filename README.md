@@ -122,14 +122,14 @@ def sum = loop {
 };
 ```
 
-### Structs (Product Types)
+### Records (Product Types)
 ```midori
-struct Point {
+type Point = {
     x: Float,
     y: Float,
 };
 
-struct Box<T> {
+type Box<T> = {
     value: T,
 };
 
@@ -138,11 +138,11 @@ def boxed = new Box(42);
 def x_coord = origin.x;
 ```
 
-### Unions (Sum Types)
+### Sums (Union Types)
 ```midori
-union Option<T> = None | Some(T);
+type Option<T> = None | Some(T);
 
-union List<T> = Cons(T, List<T>) | Nil;
+type List<T> = Cons(T, List<T>) | Nil;
 
 def maybe_value = new Option::Some(42);
 def empty_value : Option<Int> = new Option::None();
@@ -158,14 +158,14 @@ type Name = Text;
 def user_id: UserId = 42;
 def user_name: Name = "Alice";
 
-// Type alias for struct
-struct Point { x: Float, y: Float };
+// Type alias for a record
+type Point = { x: Float, y: Float };
 type Position = Point;
 
 def pos: Position = new Point(10.0, 20.0);
 
 // Generic type alias
-struct Pair<A, B> { first: A, second: B };
+type Pair<A, B> = { first: A, second: B };
 type IntPair = Pair<Int, Int>;
 
 def coords: IntPair = new Pair(1, 2);
@@ -173,7 +173,7 @@ def coords: IntPair = new Pair(1, 2);
 
 ### Pattern Matching
 ```midori
-union Result<T, E> = Ok(T) | Err(E);
+type Result<T, E> = Ok(T) | Err(E);
 
 def handle_result = fn<T>(result: Result<T, Text>) : Text => {
     return match result with
@@ -207,7 +207,7 @@ def message = display(42);  // "42"
 
 ### Associated Types
 ```midori
-union Option<T> = None | Some(T);
+type Option<T> = None | Some(T);
 
 class Iterable<Iter> {
     type Item;
@@ -222,12 +222,12 @@ def NextValue = fn<Iter>(iter: Iter) : Option<Iterable::Item<Iter>>
 
 ### Deriving
 ```midori
-struct Point {
+type Point = {
     x: Int,
     y: Int
 } deriving (Equatable, Hashable);
 
-union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 ```
 
 ### Module System
@@ -283,7 +283,7 @@ See [Package System](docs/package-system.md) for the current manifest fields, dy
 ### Pipe Operator
 ```midori
 def double = fn(x: Int) : Int => x * 2;
-union Result<T, E> = Ok(T) | Err(E);
+type Result<T, E> = Ok(T) | Err(E);
 
 def transform = fn(value: Int) : Result<Int, Text> => {
     if value > 10
@@ -658,7 +658,7 @@ def fib = fn(n: Int) -> Int => {
 
 ### Binary Tree
 ```midori
-union Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
+type Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
 def height = fn<T>(tree: Tree<T>) : Int => {
     return match tree with
@@ -676,7 +676,7 @@ def height = fn<T>(tree: Tree<T>) : Int => {
 
 ### Generic Linked List
 ```midori
-union List<T> = Cons(T, List<T>) | Nil;
+type List<T> = Cons(T, List<T>) | Nil;
 
 def length = fn<T>(list: List<T>) : Int => {
     return match list with

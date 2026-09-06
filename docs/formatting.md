@@ -56,8 +56,8 @@ with the line that owns the brace.
 | `for`      | `for x in iter { ... };`                                        |
 | `loop`     | `loop { ... };`                                                 |
 | `match`    | `match value with case <pattern> => expr default => expr;`      |
-| `struct`   | `struct Name { field: Type, ... };`                             |
-| `union`    | `union Name { case Variant(Type), ... };`                       |
+| `type` (record) | `type Name = { field: Type, ... };`                        |
+| `type` (sum) | `type Name = Variant \| Variant(Type) \| ...;`                |
 | `class`    | `class Name a where { def method = fn(): a; ... };`                |
 | `instance` | `instance Name Type where { def method = fn() -> Type => ...; };`    |
 
@@ -77,7 +77,7 @@ The line width is a guideline, not a hard limit. CI does not fail on long lines.
 
 ### Trailing commas
 
-- multi-line argument, parameter, struct field, and array literal lists may end
+- multi-line argument, parameter, record field, and array literal lists may end
   with a trailing comma
 - the formatter preserves an existing trailing comma and does not add one when
   it is missing
@@ -127,8 +127,8 @@ long as they sit between the pattern and the arrow.
 
 ### Blank lines
 
-- exactly one blank line between top-level declarations (`def`, `struct`,
-  `union`, `class`, `instance`, `type`, `foreign`)
+- exactly one blank line between top-level declarations (`def`, `class`,
+  `instance`, `type`, `alias`, `foreign`)
 - consecutive `module`, `import`, `use`, `public`, and `private` directives
   receive **no** blank line between them; they form a header block
 - the formatter collapses runs of blank lines down to at most one

@@ -1,8 +1,8 @@
 module TypeDeclarationGenericParity
 
 // Test: generic parameters, `where` constraints and `deriving` behave identically
-// on the `type` forms and on `struct` / `union`, because all four share one
-// prologue parser and differ only in the body that follows it.
+// across the record, sum and newtype bodies of `type`, because all three share one
+// prologue parser and differ only in the body that follows the `=`.
 
 import
 {

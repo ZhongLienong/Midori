@@ -191,12 +191,12 @@ Types must be exported to be used from another module through qualified access.
 module MyLib
 public export { PublicType, GetValue }
 
-struct PublicType
+type PublicType =
 {
     value: Int
 };
 
-struct InternalType
+type InternalType =
 {
     value: Int
 };

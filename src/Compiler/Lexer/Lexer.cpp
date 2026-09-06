@@ -34,8 +34,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"break"s, Token::Name::BREAK},
 	{"continue"s, Token::Name::CONTINUE},
 	{"import"s, Token::Name::IMPORT},
-	{"struct"s, Token::Name::STRUCT},
-	{"union"s, Token::Name::UNION},
 	{"new"s, Token::Name::NEW},
 	{"foreign"s, Token::Name::FOREIGN},
 	{"case"s, Token::Name::CASE},

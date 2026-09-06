@@ -148,8 +148,6 @@ namespace
 		case TokenName::PUBLIC:
 		case TokenName::PRIVATE:
 		case TokenName::DEF:
-		case TokenName::STRUCT:
-		case TokenName::UNION:
 		case TokenName::CLASS:
 		case TokenName::INSTANCE:
 		case TokenName::TYPE:
@@ -264,8 +262,6 @@ namespace
 		case TokenName::BREAK:
 		case TokenName::CONTINUE:
 		case TokenName::IMPORT:
-		case TokenName::STRUCT:
-		case TokenName::UNION:
 		case TokenName::NEW:
 		case TokenName::AS:
 		case TokenName::FOREIGN:
@@ -766,8 +762,6 @@ namespace
 			case TokenName::PUBLIC:
 			case TokenName::PRIVATE:
 			case TokenName::DEF:
-			case TokenName::STRUCT:
-			case TokenName::UNION:
 			case TokenName::CLASS:
 			case TokenName::INSTANCE:
 			case TokenName::TYPE:

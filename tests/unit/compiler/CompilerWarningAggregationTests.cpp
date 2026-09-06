@@ -86,7 +86,7 @@ TEST_CASE("Compiler report preserves warnings when a later compilation stage fai
 {
 	const std::string source_code =
 		R"(module WarningWithCodegenFailure
-struct Pair
+type Pair =
 {
 	value: Int
 };

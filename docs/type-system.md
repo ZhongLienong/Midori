@@ -111,18 +111,18 @@ Custom iteration is expressed through the `Iterable` type class and its associat
 
 ## Algebraic Data Types
 
-### Structs
+### Records
 
-Structs are nominal product types:
+Records are nominal product types:
 
 ```midori
-struct Point
+type Point =
 {
     x: Int,
     y: Int
 };
 
-struct Box<T>
+type Box<T> =
 {
     value: T
 };
@@ -133,8 +133,8 @@ struct Box<T>
 Unions are nominal tagged sums:
 
 ```midori
-union Option<T> = None | Some(T);
-union Result<T, E> = Ok(T) | Err(E);
+type Option<T> = None | Some(T);
+type Result<T, E> = Ok(T) | Err(E);
 ```
 
 ### Constructor Type Argument Inference
@@ -168,7 +168,7 @@ Midori supports `deriving` on structs and unions for a focused set of generated 
 Structural deriving:
 
 ```midori
-struct Point
+type Point =
 {
     x: Int,
     y: Int
@@ -178,7 +178,7 @@ struct Point
 Container deriving on unions:
 
 ```midori
-union OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
 def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
 ```
@@ -186,13 +186,13 @@ def mapped = OptionBoxMap(new OptionBox::Full(5), fn(x) => { x + 1 });
 Transferable deriving for concurrency:
 
 ```midori
-struct Point
+type Point =
 {
     x: Float,
     y: Float
 } deriving (Transferable);
 
-union Result = Ok(Int) | Err(Text) deriving (Transferable);
+type Result = Ok(Int) | Err(Text) deriving (Transferable);
 ```
 
 `Transferable` generates field-by-field serialization for structs and tag+payload serialization for unions. All fields/variants must themselves satisfy `Transferable`. Types that cannot be transferable (closures, ranges, `Worker<T>`) produce a compile-time constraint-failure error.
@@ -226,7 +226,7 @@ Functions, structs, unions, and aliases can all be parameterized:
 ```midori
 def identity = fn<T>(value: T) -> T => value;
 
-struct Pair<A, B>
+type Pair<A, B> =
 {
     first: A,
     second: B
@@ -248,7 +248,7 @@ def Display = fn<T>(value: T) -> Text where Show<T> => {
 Type definitions can also carry constraints:
 
 ```midori
-struct Box<T> where Show<T> {
+type Box<T> where Show<T> = {
     value: T
 };
 
@@ -298,7 +298,7 @@ class Iterable<Iter>
 Instances bind the associated type:
 
 ```midori
-struct Counter
+type Counter =
 {
     current: Int,
     end: Int

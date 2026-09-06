@@ -1,7 +1,7 @@
 module TypeDeclarationRecord
 
 // Test: `type X = { ... }` declares a record.
-// Expected: identical in every respect to the `struct X { ... }` it lowers to -
+// Expected: it lowers onto the Struct node the rest of the pipeline already knew -
 // same constructor name, same member access, same record-update support.
 
 import

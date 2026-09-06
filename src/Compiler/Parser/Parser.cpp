@@ -3088,8 +3088,8 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 
 MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 {
-	// The caller has already consumed the '=': `union` spells it directly, and
-	// `type` consumes it before dispatching on the shape of the body.
+	// The caller has already consumed the '=': ParseTypeDeclaration takes it before
+	// dispatching on the shape of the body that follows.
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
@@ -3098,7 +3098,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	union_type_ref.m_constraints = header.m_constraints;
 
 	// Registered before the body is parsed so that a variant can name the union it
-	// belongs to, as `union List = Nil | Cons(Int, List)` does.
+	// belongs to, as `type List = Nil | Cons(Int, List)` does.
 	size_t type_scope_idx = header.m_has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
 	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = union_type;
 	m_state.m_namespaces.emplace_back(header.m_name_before_mangle);
@@ -3357,34 +3357,6 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = new_type;
 
 	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(new_type)));
-}
-
-MidoriResult::StatementResult Parser::ParseStructDeclaration()
-{
-	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("struct", "Struct");
-	if (!header_result.has_value())
-	{
-		return std::unexpected(header_result.error());
-	}
-
-	return ParseStructBody(std::move(header_result.value()));
-}
-
-MidoriResult::StatementResult Parser::ParseUnionDeclaration()
-{
-	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("union", "Union");
-	if (!header_result.has_value())
-	{
-		return std::unexpected(header_result.error());
-	}
-
-	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' before union body.");
-	if (!equal_result.has_value())
-	{
-		return std::unexpected(equal_result.error());
-	}
-
-	return ParseUnionBody(std::move(header_result.value()));
 }
 
 MidoriResult::StatementResult Parser::ParseTypeDeclaration()
@@ -5526,6 +5498,20 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 		return std::unexpected(GenerateParserError("'defun' is no longer supported. Write 'def Name = fn(params) -> Type => body;' instead.", Peek(0)));
 	}
 
+	// `struct` and `union` went the same way, replaced by the one `type` keyword. Both
+	// now lex as ordinary identifiers, so name the removal here rather than let the
+	// declaration fall through to a bare "Undefined name." Guarded on a following
+	// identifier, so a value named `struct` or `union` is left alone.
+	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "struct" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
+	{
+		return std::unexpected(GenerateParserError("'struct' is no longer supported. Write 'type Name = { field: Type, ... };' instead.", Peek(0)));
+	}
+
+	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "union" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
+	{
+		return std::unexpected(GenerateParserError("'union' is no longer supported. Write 'type Name = A | B(Type);' instead.", Peek(0)));
+	}
+
 	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
 		[this]() -> MidoriResult::StatementResult
 		{
@@ -5534,26 +5520,6 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 				[this](Token&&) -> MidoriResult::StatementResult
 				{
 					return ParseDefineStatement();
-				}
-			);
-		},
-		[this]() -> MidoriResult::StatementResult
-		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
-				Token::Name::STRUCT,
-				[this](Token&&) -> MidoriResult::StatementResult
-				{
-					return ParseStructDeclaration();
-				}
-			);
-		},
-		[this]() -> MidoriResult::StatementResult
-		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
-				Token::Name::UNION,
-				[this](Token&&) -> MidoriResult::StatementResult
-				{
-					return ParseUnionDeclaration();
 				}
 			);
 		},
@@ -6564,8 +6530,6 @@ Parser& Parser::Synchronize() &
 		switch (Peek(0).m_token_name)
 		{
 			case Token::Name::DEF:
-			case Token::Name::STRUCT:
-			case Token::Name::UNION:
 			case Token::Name::CLASS:
 			case Token::Name::INSTANCE:
 			case Token::Name::FOREIGN:

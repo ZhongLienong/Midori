@@ -88,8 +88,6 @@ struct Token
 		BREAK,
 		CONTINUE,
 		IMPORT,
-		STRUCT,
-		UNION,
 		NEW,
 		AS,
 		FOREIGN,

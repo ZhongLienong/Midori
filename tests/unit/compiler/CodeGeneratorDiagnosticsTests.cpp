@@ -19,7 +19,7 @@ namespace
 	{
 		return
 			R"(module ForeignDiagnostics
-struct Pair
+type Pair =
 {
 	value: Int
 };

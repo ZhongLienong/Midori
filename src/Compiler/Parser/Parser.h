@@ -49,9 +49,9 @@ private:
 	};
 
 	// The prologue every nominal type declaration shares: name, optional generic
-	// parameters, optional 'where' constraints. `struct`, `union` and `type` differ
-	// only in what follows it, so they parse the prologue through one function and
-	// hand the result to a body parser.
+	// parameters, optional 'where' constraints. `type` and `alias` differ only in what
+	// follows it, and `type` dispatches further on the shape of its body, so all of
+	// them parse the prologue through one function and hand the result to a body parser.
 	struct TypeDeclarationHeader
 	{
 		Token m_name;
@@ -665,10 +665,6 @@ private:
 	bool TypeBodyHasTopLevelBar();
 
 	MidoriResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header);
-
-	MidoriResult::StatementResult ParseStructDeclaration();
-
-	MidoriResult::StatementResult ParseUnionDeclaration();
 
 	MidoriResult::StatementResult ParseClassDeclaration();
 

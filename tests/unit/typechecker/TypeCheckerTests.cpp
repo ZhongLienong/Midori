@@ -72,7 +72,7 @@ TEST_CASE("TypeChecker resolves aliases of instantiated generic types to their u
 {
 	const std::string source_code =
 		R"(module AliasTypes
-struct Pair<A, B>
+type Pair<A, B> =
 {
 	first: A,
 	second: B
@@ -114,7 +114,7 @@ class Show<T>
 {
 	show: fn(value: T) -> Text;
 };
-struct Hidden
+type Hidden =
 {
 	value: Int
 };
@@ -257,7 +257,7 @@ TEST_CASE("TypeChecker tags non-exhaustive matches with a stable diagnostic code
 {
 	const std::string source_code =
 		R"(module NonExhaustiveMatch
-union Option = None | Some(Int);
+type Option = None | Some(Int);
 def value = new Option::Some(1);
 def result = match value with
     case Option::Some(x) => x

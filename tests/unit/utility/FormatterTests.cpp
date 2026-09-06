@@ -111,14 +111,14 @@ TEST_CASE("Formatter preserves long expression lines without wrapping", "[format
 	RequireIdempotent(source_code, "Long.mdr");
 }
 
-TEST_CASE("Formatter normalizes struct field spacing and is idempotent", "[formatter][edge]")
+TEST_CASE("Formatter normalizes record field spacing and is idempotent", "[formatter][edge]")
 {
 	const std::string source_code =
 		"module Shapes\n"
-		"struct Point{x:Int,y:Int};\n";
+		"type Point={x:Int,y:Int};\n";
 
 	const std::string formatted = FormatOrFail(source_code, "Shapes.mdr");
-	CHECK(formatted.find("struct Point {") != std::string::npos);
+	CHECK(formatted.find("type Point = {") != std::string::npos);
 	CHECK(formatted.find("x: Int,") != std::string::npos);
 	RequireIdempotent(source_code, "Shapes.mdr");
 }
