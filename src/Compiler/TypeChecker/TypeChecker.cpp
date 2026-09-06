@@ -1777,19 +1777,6 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::AssociatedType>() || right_subst->IsType<MidoriType::AssociatedType>())
-	{
-		std::shared_ptr<MidoriType> reduced_left = ReduceProjectionByEqualityConstraint(left_subst);
-		std::shared_ptr<MidoriType> reduced_right = ReduceProjectionByEqualityConstraint(right_subst);
-		if (reduced_left == nullptr && reduced_right == nullptr)
-		{
-			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
-		}
-
-		std::shared_ptr<MidoriType> equated_left = reduced_left != nullptr ? reduced_left : left_subst;
-		std::shared_ptr<MidoriType> equated_right = reduced_right != nullptr ? reduced_right : right_subst;
-		return Unify(token, equated_left, equated_right, diagnostic_mode);
-	}
 	else
 	{
 		return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));

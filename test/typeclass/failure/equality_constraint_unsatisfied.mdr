@@ -1,0 +1,24 @@
+module EqualityConstraintUnsatisfied
+
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Prelude/Option.mdr" }
+
+use Option.{ Option }
+
+class Stepper<S> {
+    type Item;
+    Step: fn(state: S) -> Option<Item>;
+};
+
+type Words = { w: Text };
+
+instance Stepper<Words> {
+    type Item = Text;
+    def Step = fn(state: Words) -> Option<Text> => Option::Some(state.w);
+};
+
+def Twice = fn<S>(s: S) -> Int where Stepper<S>, Stepper::Item<S> ~ Int =>
+    match Stepper::Step(s) with
+        case Option::Some(v) => v * 2
+        case Option::None() => 0;
+
+IO::PrintLine(Twice(Words("hi")) as Text);
