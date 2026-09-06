@@ -5084,9 +5084,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
 	std::vector<std::shared_ptr<MidoriType>> element_types;
 	element_types.reserve(tuple.m_elements.size());
 
-	for (std::unique_ptr<MidoriExpression>& element : tuple.m_elements)
+	const std::shared_ptr<MidoriType> ambient_expected_type = m_expected_expr_type;
+	const bool expected_tuple_matches = ambient_expected_type != nullptr
+		&& ambient_expected_type->IsType<MidoriType::TupleType>()
+		&& ambient_expected_type->GetType<MidoriType::TupleType>().m_element_types.size() == tuple.m_elements.size();
+
+	for (size_t index : std::views::iota(0u, tuple.m_elements.size()))
 	{
-		MidoriResult::TypeResult result = Evaluate(element);
+		// An element's expected type is its own slot in the expected tuple, never
+		// the whole tuple. Leaving the ambient type in place leaks it into the
+		// element, so a construction there would infer against the tuple type.
+		ExpectedTypeGuard element_guard(*this, expected_tuple_matches ? ambient_expected_type->GetType<MidoriType::TupleType>().m_element_types[index] : std::shared_ptr<MidoriType>{});
+
+		MidoriResult::TypeResult result = Evaluate(tuple.m_elements[index]);
 		if (!result.has_value())
 		{
 			return result;
