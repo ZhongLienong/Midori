@@ -99,25 +99,24 @@ def MapInsertNoRehash = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool
         }
     }
 };
+def MapReinsertAll = fn < K, V >(map: Map < K, V >, old_buckets: Array < MapSlot < K, V > >, old_capacity: Int, index: Int) -> Unit where Hashable < K >, Equatable < K > => {
+    if index >= old_capacity then () else {
+        match old_buckets[index] with
+            case MapSlot::Occupied(key, value) => {
+                MapInsertNoRehash(map, key, value);
+                ()
+            }
+            default =>();
+        MapReinsertAll(map, old_buckets, old_capacity, index + 1)
+    }
+};
 def MapRehash = fn < K, V >(map: Map < K, V >, new_capacity: Int) -> Unit where Hashable < K >, Equatable < K > => {
     def old_buckets = map.buckets;
     def old_capacity = map.capacity;
     map.buckets = MakeMapBuckets(new_capacity);
     map.capacity = new_capacity;
     map.count = 0;
-    def i = 0;
-    loop {
-        if i >= old_capacity then break() else {
-            def entry = old_buckets[i];
-            match entry with
-                case MapSlot::Occupied(key, value) => {
-                MapInsertNoRehash(map, key, value);
-                ()
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
+    MapReinsertAll(map, old_buckets, old_capacity, 0);
     ()
 };
 def MapInsert = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
@@ -179,38 +178,36 @@ def MapClear = fn < K, V >(map: Map < K, V >) -> Unit => {
     map.count = 0;
     ()
 };
-def MapKeys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
-    def keys: Array < K > =[];
-    def i = 0;
-    loop {
-        if i >= map.capacity then break() else {
-            def entry = map.buckets[i];
-            match entry with
-                case MapSlot::Occupied(key, _value) => {
+def MapAppendKeys = fn < K, V >(keys: Array < K >, map: Map < K, V >, index: Int) -> Unit => {
+    if index >= map.capacity then () else {
+        match map.buckets[index] with
+            case MapSlot::Occupied(key, _) => {
                 ArrayUtil::Append(keys, key);
                 ()
             }
-                default =>();
-            i = i + 1;
-        }
-    };
+            default =>();
+        MapAppendKeys(keys, map, index + 1)
+    }
+};
+def MapKeys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
+    def keys: Array < K > =[];
+    MapAppendKeys(keys, map, 0);
     keys
 };
-def MapValues = fn < K, V >(map: Map < K, V >) -> Array < V > => {
-    def values: Array < V > =[];
-    def i = 0;
-    loop {
-        if i >= map.capacity then break() else {
-            def entry = map.buckets[i];
-            match entry with
-                case MapSlot::Occupied(_key, value) => {
+def MapAppendValues = fn < K, V >(values: Array < V >, map: Map < K, V >, index: Int) -> Unit => {
+    if index >= map.capacity then () else {
+        match map.buckets[index] with
+            case MapSlot::Occupied(_, value) => {
                 ArrayUtil::Append(values, value);
                 ()
             }
-                default =>();
-            i = i + 1;
-        }
-    };
+            default =>();
+        MapAppendValues(values, map, index + 1)
+    }
+};
+def MapValues = fn < K, V >(map: Map < K, V >) -> Array < V > => {
+    def values: Array < V > =[];
+    MapAppendValues(values, map, 0);
     values
 };
 def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
