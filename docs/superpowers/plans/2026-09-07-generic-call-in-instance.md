@@ -163,3 +163,38 @@ observed**. Confirm it — printing the global's value at each define, or tracin
 execution — before changing emission. The fix is presumably to stop emitting the
 duplicate rather than to reorder anything, but which of the two sites is the
 spurious one has not been established.
+
+
+---
+
+## Ruled out — 2026-09-07
+
+Read from source, each one a hypothesis that looked right and is not. Recorded so
+the next attempt does not re-walk them.
+
+- **`PatchBootstrapOffsets` failing to shift references.** It does shift, by +1,
+  over `MAKE_CLOSURE`, `MAKE_FUNCTION` and every `CALL_PROC*` in procedures
+  `1..n`, which is correct for a bootstrap inserted at index 0.
+- **`PatchProcedure` failing to add the module base offset.** It adds
+  `proc_base_offset` to the same opcode set, so a module-local procedure index is
+  rebased before the +1 is applied.
+- **`BuildInstanceGlobalInits` using pre-insert indices.** It is called from
+  `BuildBootstrapProcedure`, which runs *after*
+  `m_global_procedure_names.insert(begin, bootstrap_name)`, so its `proc_idx` is
+  already the final index.
+
+### The one solid observation
+
+The instance method's global is written twice: once by the defining module's own
+`$main$` (`CodeGenerator.cpp:2364-2367`, the ordinary `is_global` path in
+`operator()(MidoriStatement::FunctionDefinition&)`) and once by the bootstrap
+(`BuildInstanceGlobalInits`). One of those two is redundant by construction. The
+next step is to establish **which of them writes the wrong procedure**, and that
+must be *observed* — a trace on `DEFINE_GLOBAL` in the VM, or a print of the
+resolved procedure at each site — not read off the disassembly, whose procedure
+labels are offset from the bodies they print.
+
+A generic call is required to trigger it, so the specialization procedure that
+codegen appends for `GenericT<Int,Int>` is the remaining suspect: something about
+where a specialization lands in the module's procedure list relative to the
+instance method. That is a **suspicion, not a finding**.
