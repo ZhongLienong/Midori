@@ -93,25 +93,24 @@ def SetInsertNoRehash = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable
         was_new
     }
 };
+def SetReinsertAll = fn < T >(set: Set < T >, old_buckets: Array < SetSlot < T > >, old_capacity: Int, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
+    if index >= old_capacity then () else {
+        match old_buckets[index] with
+            case SetSlot::Occupied(elem) => {
+                SetInsertNoRehash(set, elem);
+                ()
+            }
+            default =>();
+        SetReinsertAll(set, old_buckets, old_capacity, index + 1)
+    }
+};
 def SetRehash = fn < T >(set: Set < T >, new_capacity: Int) -> Unit where Hashable < T >, Equatable < T > => {
     def old_buckets = set.buckets;
     def old_capacity = set.capacity;
     set.buckets = MakeSetBuckets(new_capacity);
     set.capacity = new_capacity;
     set.count = 0;
-    def i = 0;
-    loop {
-        if i >= old_capacity then break() else {
-            def entry = old_buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
-                SetInsertNoRehash(set, elem);
-                ()
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
+    SetReinsertAll(set, old_buckets, old_capacity, 0);
     ()
 };
 def SetInsert = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
