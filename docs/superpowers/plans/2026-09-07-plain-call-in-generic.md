@@ -191,3 +191,50 @@ symbol failed and where.
 ### Current state
 
 `ArrayUtil::Clamp` stays exported. Suite **381/381**.
+
+
+---
+
+## Root cause of the private-helper case, proven — 2026-09-07
+
+### The two resolution paths disagree
+
+`BytecodeLinker::ResolveImports` tries exports first, then falls back to a search
+over all of the module's globals:
+
+- `FindSymbolInExports` returns `base_offset + it->m_global_index` — the index
+  **recorded** on the export record.
+- `FindSymbolInGlobals` returns `base_offset + local_index` — the symbol's
+  **position** in `module.m_global_variables`.
+
+These are not the same number. Instrumented on `ArrayUtil::Clamp` with both paths
+computed for the same symbol:
+
+```
+INDEX-MISMATCH Clamp export=19 globals=26
+```
+
+An exported symbol takes the first path and is correct. A **private** symbol has
+no export record, falls to the second, and gets an index seven slots off — which
+is then called, and panics. That is the whole private-helper defect.
+
+This is the same class as `d0d0cf4`: a **recorded** index and a **positional**
+index that agree until something inserts entries, and then silently do not.
+
+### Not an unresolved-import problem
+
+`6167a86` turned the `value_or(0uz)` fallback into a diagnostic, and it does
+**not** fire for `Clamp`. The import resolves; it resolves to the wrong slot. The
+diagnostic is still worth having — it is why this family kept surfacing as
+`MemoryAccessViolation` — but it was not the cause here.
+
+### The fix, not yet made
+
+`FindSymbolInGlobals` must return the symbol's real global index rather than its
+position. Establish first **why** `m_global_variables` is not index-aligned — the
+seven-slot gap is a fact to explain, not to paper over with an offset. Whatever is
+in those seven entries (imported placeholders, most likely) determines whether the
+right fix is a name-to-index map carried on `BytecodeModule`, or making the vector
+index-aligned at construction.
+
+Until then `ArrayUtil::Clamp` stays exported, which is why the suite is green.
