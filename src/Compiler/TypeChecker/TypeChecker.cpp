@@ -2806,6 +2806,16 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 
 bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
 {
+	// Guard on the incoming node before substituting. ApplySubstitution rebuilds any
+	// type that still carries type variables, so it hands back a fresh pointer on
+	// every call; keying the guard only on that result means a cyclic generic type
+	// is never recognised as already visited and the walk does not terminate.
+	if (visited.contains(type.get()))
+	{
+		return false;
+	}
+	visited.insert(type.get());
+
 	std::shared_ptr<MidoriType> subst_type = ApplySubstitution(type);
 
 	if (visited.contains(subst_type.get()))
