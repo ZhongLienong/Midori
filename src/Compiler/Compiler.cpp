@@ -822,6 +822,15 @@ namespace
 	private:
 		using Stage = CompileStateResult(*)(CompileState);
 
+		static std::string MakeStageFailureMessage(std::string_view stage_name, const std::string& detail)
+		{
+			std::string message = "internal failure in the ";
+			message += stage_name;
+			message += " stage: ";
+			message += detail;
+			return message;
+		}
+
 		static CompileStateResult RunStages(CompileState state)
 		{
 			static const std::array<Stage, 7u> stages =
@@ -835,9 +844,38 @@ namespace
 				StageBytecode
 			};
 
-			for (Stage stage : stages)
+			static const std::array<std::string_view, 7u> stage_names =
 			{
-				CompileStateResult result = stage(std::move(state));
+				"import context",
+				"source lines",
+				"parser",
+				"type checker",
+				"static analyzer",
+				"optimizer",
+				"code generator"
+			};
+
+			for (size_t stage_index = 0u; stage_index < stages.size(); stage_index += 1u)
+			{
+				// An exception escaping a stage reaches a worker thread with no
+				// handler, so it must be turned into a diagnostic here while the
+				// stage that produced it is still known.
+				CompileStateResult result = [&]() -> CompileStateResult
+				{
+					try
+					{
+						return stages[stage_index](std::move(state));
+					}
+					catch (const std::exception& e)
+					{
+						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage_names[stage_index], e.what()), CompilerErrorCode::CompilerInternalError)));
+					}
+					catch (...)
+					{
+						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage_names[stage_index], "unknown exception"), CompilerErrorCode::CompilerInternalError)));
+					}
+				}();
+
 				if (!result.has_value())
 				{
 					return std::unexpected(std::move(result.error()));
