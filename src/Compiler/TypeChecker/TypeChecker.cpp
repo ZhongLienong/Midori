@@ -4792,6 +4792,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 				std::string var_name(comp.m_loop_variable.m_lexeme);
 				m_name_type_table.back()[var_name] = element_type;
 
+				// The transform expression produces one element, so its expected type is
+				// the expected array's element type, never the array type itself. Leaving
+				// the ambient type in place pushes Array<T> into a construction here,
+				// which then cannot infer its own arguments.
+				const std::shared_ptr<MidoriType> ambient_expected_type = m_expected_expr_type;
+				ExpectedTypeGuard transform_guard(*this, (ambient_expected_type != nullptr && ambient_expected_type->IsType<MidoriType::ArrayType>()) ? ambient_expected_type->GetType<MidoriType::ArrayType>().m_element_type : std::shared_ptr<MidoriType>{});
+
 				// Type check the transform expression
 				return std::visit
 				(

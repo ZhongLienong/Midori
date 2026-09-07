@@ -33,18 +33,7 @@ instance Iterable < MapIter < K, V >> {
     V >;
     def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > => MapIterStep(iter.map, iter.index);
 };
-def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => {
-    def buckets: Array < MapSlot < K,
-    V >> =[];
-    def i = 0;
-    loop {
-        if i >= capacity then break() else {
-            ArrayUtil::Append(buckets, MapSlot::Empty ());
-            i = i + 1;
-        }
-    };
-    buckets
-};
+def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => [MapSlot::Empty () for slot in 0..1..capacity];
 def MapNewWithCapacity = fn < K, V >(capacity: Int) -> Map < K, V > => {
     def cap = if capacity < 16 then 16 else capacity;
     Map (MakeMapBuckets(cap), 0, cap)
@@ -186,14 +175,7 @@ instance Countable < Map < K, V >> {
 def MapSize = fn < K, V >(map: Map < K, V >) -> Int => MapCount(map);
 def MapIsEmpty = fn < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
 def MapClear = fn < K, V >(map: Map < K, V >) -> Unit => {
-    def i = 0;
-    loop {
-        if i >= map.capacity then break() else {
-            def empty: MapSlot < K, V > = MapSlot::Empty ();
-            map.buckets[i] = empty;
-            i = i + 1;
-        }
-    };
+    map.buckets = MakeMapBuckets(map.capacity);
     map.count = 0;
     ()
 };

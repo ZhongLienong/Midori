@@ -26,17 +26,7 @@ instance Iterable < SetIter < T >> {
     type Item = T;
     def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > => SetIterStep(iter.set, iter.index);
 };
-def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => {
-    def buckets: Array < SetSlot < T >> =[];
-    def i = 0;
-    loop {
-        if i >= capacity then break() else {
-            ArrayUtil::Append(buckets, SetSlot::Empty ());
-            i = i + 1;
-        }
-    };
-    buckets
-};
+def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => [SetSlot::Empty () for slot in 0..1..capacity];
 def SetNewWithCapacity = fn < T >(capacity: Int) -> Set < T > => {
     def cap = if capacity < 16 then 16 else capacity;
     Set (MakeSetBuckets(cap), 0, cap)
@@ -151,14 +141,7 @@ instance Countable < Set < T >> {
 def SetSize = fn < T >(set: Set < T >) -> Int => SetCount(set);
 def SetIsEmpty = fn < T >(set: Set < T >) -> Bool => set.count == 0;
 def SetClear = fn < T >(set: Set < T >) -> Unit => {
-    def i = 0;
-    loop {
-        if i >= set.capacity then break() else {
-            def empty: SetSlot < T > = SetSlot::Empty ();
-            set.buckets[i] = empty;
-            i = i + 1;
-        }
-    };
+    set.buckets = MakeSetBuckets(set.capacity);
     set.count = 0;
     ()
 };
