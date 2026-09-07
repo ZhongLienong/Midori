@@ -145,88 +145,74 @@ def SetClear = fn < T >(set: Set < T >) -> Unit => {
     set.count = 0;
     ()
 };
+def SetInsertAllFrom = fn < T >(target: Set < T >, source: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
+    if index >= source.capacity then () else {
+        match source.buckets[index] with
+            case SetSlot::Occupied(elem) => {
+                SetInsert(target, elem);
+                ()
+            }
+            default =>();
+        SetInsertAllFrom(target, source, index + 1)
+    }
+};
 def SetUnion = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
-    def i = 0;
-    loop {
-        if i >= set1.capacity then break() else {
-            def entry = set1.buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
-                SetInsert(result, elem);
-                ()
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
-    i = 0;
-    loop {
-        if i >= set2.capacity then break() else {
-            def entry = set2.buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
-                SetInsert(result, elem);
-                ()
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
+    SetInsertAllFrom(result, set1, 0);
+    SetInsertAllFrom(result, set2, 0);
     result
+};
+def SetInsertShared = fn < T >(target: Set < T >, source: Set < T >, other: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
+    if index >= source.capacity then () else {
+        match source.buckets[index] with
+            case SetSlot::Occupied(elem) => {
+                if SetContains(other, elem) then {
+                    SetInsert(target, elem);
+                    ()
+                } else();
+                ()
+            }
+            default =>();
+        SetInsertShared(target, source, other, index + 1)
+    }
 };
 def SetIntersection = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
-    def i = 0;
-    loop {
-        if i >= set1.capacity then break() else {
-            def entry = set1.buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
-                if SetContains(set2, elem) then {
-                    SetInsert(result, elem);
-                    ()
-                } else()
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
+    SetInsertShared(result, set1, set2, 0);
     result
+};
+def SetInsertMissing = fn < T >(target: Set < T >, source: Set < T >, other: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
+    if index >= source.capacity then () else {
+        match source.buckets[index] with
+            case SetSlot::Occupied(elem) => {
+                if SetContains(other, elem) then() else {
+                    SetInsert(target, elem);
+                    ()
+                };
+                ()
+            }
+            default =>();
+        SetInsertMissing(target, source, other, index + 1)
+    }
 };
 def SetDifference = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
     def result: Set < T > = SetNew();
-    def i = 0;
-    loop {
-        if i >= set1.capacity then break() else {
-            def entry = set1.buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
-                if SetContains(set2, elem) then() else {
-                    SetInsert(result, elem);
-                    ()
-                }
-            }
-                default =>();
-            i = i + 1;
-        }
-    };
+    SetInsertMissing(result, set1, set2, 0);
     result
 };
-def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
-    def values: Array < T > =[];
-    def i = 0;
-    loop {
-        if i >= set.capacity then break() else {
-            def entry = set.buckets[i];
-            match entry with
-                case SetSlot::Occupied(elem) => {
+def SetAppendFrom = fn < T >(values: Array < T >, set: Set < T >, index: Int) -> Unit => {
+    if index >= set.capacity then () else {
+        match set.buckets[index] with
+            case SetSlot::Occupied(elem) => {
                 ArrayUtil::Append(values, elem);
                 ()
             }
-                default =>();
-            i = i + 1;
-        }
-    };
+            default =>();
+        SetAppendFrom(values, set, index + 1)
+    }
+};
+def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
+    def values: Array < T > =[];
+    SetAppendFrom(values, set, 0);
     values
 };
