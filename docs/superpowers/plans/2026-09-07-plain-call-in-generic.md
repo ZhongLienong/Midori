@@ -86,3 +86,55 @@ Reach for those before reasoning.
 1. The repro prints `42`.
 2. `ArrayUtil::Slice` reads through a `Clamp` helper again.
 3. Covered by tests that bite; suite green at 379/379 plus the new cases.
+
+
+---
+
+## Mostly fixed — 2026-09-07, `47275f9`
+
+Suite **381/381**, unit tests **1024 assertions / 176 cases**. Tasks 1-4 done;
+the defect is **not fully closed** — see the limitation below.
+
+### The cause
+
+A generic function is specialized into the module that *calls* it, but its body
+still names globals from the module that *declared* it. The `NameAccess` emitter
+sends a qualified name (`Mod::sym`) through `GetImportPlaceholder` and an
+unqualified one to the local global table — and in a foreign body every name is
+unqualified. So `Plain(41)` became a `GET_GLOBAL` against a slot in the caller's
+table that nothing ever defines.
+
+The disassembly showed it plainly once dumped: the library emits
+`DEFINE_GLOBAL 3 // Plain`, the specialization emits `GET_GLOBAL 45 // Plain`.
+Two slots, one name, and 45 is never written. Calling it panics.
+
+`GenericFunctionInfo` now carries the declaring module, and
+`SpecializeGenericFunction` sets `m_specialization_source_module` while generating
+a foreign body, which routes those names through `GetImportPlaceholder` against
+the declaring module.
+
+### Limitation: the helper must be exported
+
+The guard is `m_specialization_source_module.has_value() && !m_global_variables.contains(name)`.
+The second half is load-bearing — dropping it makes a **private** helper work but
+breaks two tests, so some names legitimately resolve locally and the condition
+does not yet distinguish them.
+
+Consequence: `ArrayUtil::Clamp` is exported, which it should not need to be, and a
+private helper called from an exported generic **still panics**. That is the same
+crash, narrowed rather than eliminated.
+
+Worth noting the minimal repro passes *without* exporting `Plain` while
+`ArrayUtil` needed the export — an unexplained asymmetry, and the thread to pull
+next. The difference is probably that `Slice` also calls the generic `Length`,
+nesting one specialization inside another.
+
+### Next
+
+- [ ] Find a discriminator that admits private helpers without breaking the two
+  tests the relaxed guard fails. Identify those two first; they say exactly which
+  names must stay local.
+- [ ] Make an unresolvable specialization reference a clean diagnostic rather than
+  a crash, so this class of bug can never again present as
+  `MemoryAccessViolation`.
+- [ ] Un-export `ArrayUtil::Clamp` once private helpers work.
