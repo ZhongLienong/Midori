@@ -222,3 +222,78 @@ works from outside the prelude. Snapshot verified to bite.
 3. `for` loops and array comprehensions work unchanged from the user's side.
 4. A user-defined iterable works in a `for` loop, covered by a biting snapshot.
 5. Suite **373/373** plus new cases, unit tests **1024 assertions / 176 cases**.
+
+---
+
+## BLOCKED — 2026-09-06, on a pre-existing compiler bug
+
+Tasks 1 and 2 were executed. The prelude changes were written, reverted, and are
+**not** committed; the tree is back at 373/373. Task 3 was never reached.
+
+### What happened
+
+With `Iterable::Next` returning `Option<(Item, Iter)>`, `Set.mdr` compiled fine and
+`List.mdr` crashed the compiler with `STATUS_STACK_OVERFLOW` (`0xC00000FD` /
+exit `-1073741571`) — a real stack overflow, unlike the `0xC0000409` recorded in
+the equality-constraint plan.
+
+### The bug, reduced to its minimum
+
+Reduction removed the tuple, the associated type, the instance, and finally the
+typeclass entirely. **No typeclass is involved.** This is the whole reproduction:
+
+```
+type Lst < T > = Nil | Cons(T, Lst);
+def f = fn < T >(l: Lst < T >) -> Option < Lst < T > > => Option::Some (l);
+```
+
+A generic function whose signature mentions a **generic union parameterised by a
+generic recursive union**. Every factor was isolated by probe:
+
+| probe | shape | result |
+|---|---|---|
+| `-> Lst<T>` | recursive generic union, bare | passes |
+| `-> Array<Lst<T>>` | wrapped in an array | passes |
+| `-> Option<T>` | generic union, non-recursive argument | passes |
+| `-> Option<Lst<T>>` | **generic union over generic recursive union** | **crashes** |
+| `def v : Option<Lst<Int>> = …` | same nesting, but concrete | passes |
+| `type Chain = End \| Link(Chain)` | recursive but **not** generic | passes |
+
+So all three are required: the outer type must be a union, the inner union must be
+recursive, and it must be generic and still abstract. An array wrapper does not
+trigger it, which points at union member-type instantiation rather than at type
+traversal generally.
+
+### It is pre-existing, established rather than assumed
+
+`src/` was reverted to `e854ea2` — before the first compiler change in this
+session's equality-constraint work — rebuilt, and the reproduction crashes
+identically there. **Nothing in the equality-constraint or tuple work caused it.**
+It has simply never been exercised, because the old `Iterable::Next` returns
+`Option<Item>` and `Item` is the element type, never the recursive iterator.
+
+### Where it is not
+
+- `Freshen`'s union branch (`TypeChecker.cpp:2297`) caches into
+  `context.m_type_cache` **before** recursing, and so does its struct branch.
+- `Type.cpp`'s substitution visitor caches `cache[current_type.get()]` before
+  processing members for both `StructType` and `UnionType`.
+
+Both guards are keyed on the `MidoriType*` pointer. The working hypothesis — **not
+yet confirmed** — is that instantiating `Option<Lst<T>>` re-instantiates `Lst<T>`
+for the member `Some(T)`, whose own `Cons(T, Lst)` member re-references `Lst`, and
+each instantiation allocates a fresh `MidoriType`, so a pointer-keyed guard never
+fires. If that is right, the guard needs keying on (name, type arguments) rather
+than identity. **Confirm before changing anything** — that hypothesis is the sort
+this project has repeatedly disproved by tracing.
+
+### What this blocks
+
+`Iterable::Next` cannot thread state while `List` is in the prelude, so spec §11's
+library rewrite and the removal of assignment both sit behind fixing this. It
+should be its own plan.
+
+`Set` and `Map` would convert cleanly today — their slot unions
+(`SetSlot<T>`, `MapSlot<K,V>`) are generic but not recursive. Landing them alone
+would leave the class signature inconsistent with `List`, so it is not worth doing
+piecemeal.
