@@ -138,3 +138,56 @@ nesting one specialization inside another.
   a crash, so this class of bug can never again present as
   `MemoryAccessViolation`.
 - [ ] Un-export `ArrayUtil::Clamp` once private helpers work.
+
+
+---
+
+## Correction and sharper findings — 2026-09-07
+
+### The "relaxed guard breaks two tests" claim above is wrong
+
+Recorded in the previous section and disproved on the next attempt. The two
+failures were `prelude/success/array_util.mdr` and
+`prelude/success/documentation_examples.mdr` — **both of which are the private
+`Clamp` case itself**, not unrelated collateral. The earlier measurement changed
+two things at once (relaxing the guard *and* un-exporting `Clamp`) and attributed
+the result to the wrong one.
+
+With `Clamp` exported, the relaxed guard passes **381/381**. With `Clamp` private,
+both guards fail identically. So:
+
+- The `!m_global_variables.contains(name)` half is **not** load-bearing for
+  correctness on the current suite.
+- Relaxing it does **not** fix private helpers either.
+
+The real constraint is elsewhere: the import cannot be resolved to a non-exported
+global.
+
+### Why it presents as a crash rather than an error
+
+`BytecodeLinker::ResolveImports` (`:660`) falls back to `0uz` when a symbol
+resolves to nothing:
+
+```cpp
+const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+return global_result.value_or(0uz);
+```
+
+An unresolved import therefore silently becomes global index 0, and calling it
+panics with `MemoryAccessViolation`. **This is the single highest-value thing to
+fix next**: every defect in this family has cost hours precisely because it
+presents as memory corruption rather than as a message.
+
+### The remaining puzzle
+
+`FindSymbolInGlobals` searches `module.m_global_variables` by name, not just
+exports, so a private `Clamp` *should* resolve through it. It does not. Something
+upstream — `ValidateImport`, or the earlier `ResolveImportsAndPatch` pass, which
+runs before `ConcatenateBytecode` and is a separate path — either rejects or
+bypasses the import first. **Not reduced.** Do not guess: the `0uz` fallback
+should be turned into a diagnostic first, and it will then say plainly which
+symbol failed and where.
+
+### Current state
+
+`ArrayUtil::Clamp` stays exported. Suite **381/381**.
