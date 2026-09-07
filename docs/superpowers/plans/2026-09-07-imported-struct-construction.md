@@ -91,3 +91,54 @@ Compare against the union path, which works, and against
 2. The generic case `Wrap<Int>` works too.
 3. Cross-module struct construction is covered by tests that bite.
 4. Suite still green at 374/374 plus the new cases.
+
+
+---
+
+## Complete — 2026-09-07, `a281843`
+
+Suite **376/376**, unit tests **1024 assertions / 176 cases**.
+
+### The cause
+
+A struct's name carries two meanings — the type and the constructor — and the
+declaring module keeps them in different places: the name table holds the
+constructor's `FunctionType`, `m_struct_type_definitions` holds the struct type.
+The import path put the **struct type into both**, so
+`TypeChecker::operator()(MidoriExpression::Construct&)` read it as a function and
+`std::get` threw. Unions escaped because a union's constructors are separate
+names, which `ExtractTypeSignatures` already synthesizes — that asymmetry is the
+whole bug.
+
+### Located by instrumentation, not by guessing
+
+Task 1 said not to guess, and that was right. A temporary `catch` in the type
+checker's expression and statement dispatch printed the node type it died on
+(`MidoriExpression::Construct`, propagating through `VariableDefinition`), which
+pointed at one unguarded `GetType<FunctionType>()`. Guarding it turned the crash
+into a message that named what the symbol had actually resolved to — `'Flat'
+resolved to 'Flat'` — and that message *was* the diagnosis.
+
+### The first fix was wrong, and the suite said so
+
+Synthesizing the constructor in `ExtractTypeSignatures` broke **18 tests**: type
+annotations resolve through the same entry, so `def f : Flat` then saw
+`fn(Int, Int) -> Flat`. The split has to happen *after* the type registration in
+the `TypeChecker` constructor, where the type has already been recorded in
+`m_struct_type_definitions` and the name table can take the constructor.
+
+### The coverage hole is closed
+
+`test/module/success/imported_struct_construction.mdr` covers a plain struct, a
+one-parameter generic, a two-parameter generic, and generic construction inside a
+generic function. Snapshot verified to bite.
+
+### Still open, and unrelated
+
+Restoring `Set.mdr`'s `SetIterStep` helper — a generic free function in the same
+module as the instance, called from `Iterable::Next` — still makes iteration
+return `None`, silently. It is **not** this bug. A standalone replica of that
+exact shape works, so something about the prelude context differs and it has not
+been reduced. `Map` and `Set` recurse through `Iterable::Next` instead, which is
+why the suite is green. This remains the most dangerous known defect, because it
+is a wrong answer rather than a crash.

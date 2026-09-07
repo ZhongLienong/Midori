@@ -9,4 +9,4 @@ These are **not** part of the test suite. They fail by design.
 
 | files | defect | status |
 |---|---|---|
-| `imported-struct-construction*.mdr` | constructing a struct imported from another module crashes the type checker | open |
+| `imported-struct-construction*.mdr` | constructing a struct imported from another module crashes the type checker | **fixed** `a281843`; kept as the reduction record |
