@@ -6,5 +6,5 @@ use Option.{
 }
 class Iterable < Iter > {
     type Item;
-    Next: fn(iter: Iter) -> Option < Item >;
+    Next: fn(iter: Iter) -> Option < (Item, Iter) >;
 };

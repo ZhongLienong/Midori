@@ -24,17 +24,11 @@ def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (
 instance Iterable < MapIter < K, V >> {
     type Item = Entry < K,
     V >;
-    def Next = fn(iter: MapIter < K, V >) -> Option < Entry < K,
-    V >> => {
-        loop {
-            if iter.index >= iter.map.capacity then break Option::None () else {
-                def idx = iter.index;
-                iter.index = iter.index + 1;
-                def entry = iter.map.buckets[idx];
-                match entry with
-                    case MapSlot::Occupied(key, value) => break Option::Some (Entry (key, value))
-                    default =>()
-            }
+    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > => {
+        if iter.index >= iter.map.capacity then Option::None () else {
+            match iter.map.buckets[iter.index] with
+                case MapSlot::Occupied(key, value) => Option::Some ((Entry (key, value), MapIter (iter.map, iter.index + 1)))
+                default => Iterable::Next(MapIter (iter.map, iter.index + 1))
         }
     };
 };

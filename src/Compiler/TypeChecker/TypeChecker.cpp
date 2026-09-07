@@ -4547,7 +4547,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next 'Some' constructor must contain exactly one value", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
-					iterable_item_type = ApplySubstitution(some_ctx.m_member_types[0u]);
+					// Next returns Option<(Item, Iter)>. The payload is a pair whose first
+					// element is the item and whose second is the advanced iterator, so the
+					// loop variable takes element 0 rather than the payload itself.
+					std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
+					if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must return Option<(Item, Iter)>", for_expr.m_in_keyword, m_file_name, m_source_lines, some_payload));
+					}
+
+					iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
 					element_type = iterable_item_type;
 					for_expr.m_is_array_iteration = false;
 					for_expr.m_is_iterable_iteration = true;
@@ -4748,7 +4757,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next 'Some' constructor must contain exactly one value", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
 					}
 
-					iterable_item_type = ApplySubstitution(some_ctx.m_member_types[0u]);
+					// Next returns Option<(Item, Iter)>. The payload is a pair whose first
+					// element is the item and whose second is the advanced iterator, so the
+					// loop variable takes element 0 rather than the payload itself.
+					std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
+					if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must return Option<(Item, Iter)>", comp.m_in_keyword, m_file_name, m_source_lines, some_payload));
+					}
+
+					iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
 					element_type = iterable_item_type;
 					comp.m_is_array_iteration = false;
 					comp.m_is_iterable_iteration = true;
@@ -4781,6 +4799,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 {
+	// A cast's operand is typed on its own terms. The ambient expected type
+	// describes the result of the cast, not its source, so leaving it in place
+	// pushes the target type into a construction on the left of 'as'.
+	ExpectedTypeGuard operand_guard(*this, std::shared_ptr<MidoriType>{});
+
 	return Evaluate(as.m_expr)
 		.and_then
 		(

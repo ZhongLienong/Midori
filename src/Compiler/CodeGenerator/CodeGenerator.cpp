@@ -4968,6 +4968,11 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 
 		EmitByte(OpCode::LOAD_TAG, line);
 		EmitByte(OpCode::POP, line);
+		// The payload is a (item, next iterator) pair. UNPACK_TUPLE pushes elements
+		// in index order, so the advanced iterator lands on top and is stored first.
+		EmitByte(OpCode::UNPACK_TUPLE, line);
+		EmitVariable(for_expr.m_hidden_array_index, OpCode::SET_LOCAL, line);
+		EmitByte(OpCode::POP, line);
 		EmitVariable(for_expr.m_loop_variable_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 
@@ -5235,6 +5240,11 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 		int exit_jump = EmitJump(OpCode::IF_INTEGER_EQUAL, line);
 
 		EmitByte(OpCode::LOAD_TAG, line);
+		EmitByte(OpCode::POP, line);
+		// The payload is a (item, next iterator) pair. UNPACK_TUPLE pushes elements
+		// in index order, so the advanced iterator lands on top and is stored first.
+		EmitByte(OpCode::UNPACK_TUPLE, line);
+		EmitVariable(comp.m_hidden_array_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);
 		EmitVariable(comp.m_loop_variable_index, OpCode::SET_LOCAL, line);
 		EmitByte(OpCode::POP, line);

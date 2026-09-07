@@ -20,14 +20,10 @@ def CounterNew = fn(end: Int) -> Counter => Counter(0, end);
 instance Iterable<Counter>
 {
     type Item = Int;
-    def Next = fn(counter: Counter) -> Option<Int> => {
+    def Next = fn(counter: Counter) -> Option<(Int, Counter)> => {
         if counter.current >= counter.end
         then Option::None()
-        else {
-            def value = counter.current;
-            counter.current = counter.current + 1;
-            Option::Some(value)
-        }
+        else Option::Some((counter.current, Counter(counter.current + 1, counter.end)))
     };
 };
 

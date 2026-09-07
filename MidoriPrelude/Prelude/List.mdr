@@ -11,12 +11,9 @@ type ListIter < T > = {
 def ListIterNew = fn < T >(list: List < T >) -> ListIter < T > => ListIter (list);
 instance Iterable < ListIter < T >> {
     type Item = T;
-    def Next = fn(iter: ListIter < T >) -> Option < T > => {
+    def Next = fn(iter: ListIter < T >) -> Option < (T, ListIter < T >) > => {
         match iter.current with
-            case List::Cons(head, tail) => {
-            iter.current = tail;
-            Option::Some (head)
-        }
+            case List::Cons(head, tail) => Option::Some ((head, ListIter (tail)))
             case List::Nil => Option::None ()
     };
 };

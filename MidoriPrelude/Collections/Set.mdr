@@ -17,16 +17,11 @@ type SetIter < T > = {
 def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (set, 0);
 instance Iterable < SetIter < T >> {
     type Item = T;
-    def Next = fn(iter: SetIter < T >) -> Option < T > => {
-        loop {
-            if iter.index >= iter.set.capacity then break Option::None () else {
-                def idx = iter.index;
-                iter.index = iter.index + 1;
-                def entry = iter.set.buckets[idx];
-                match entry with
-                    case SetSlot::Occupied(elem) => break Option::Some (elem)
-                    default =>()
-            }
+    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > => {
+        if iter.index >= iter.set.capacity then Option::None () else {
+            match iter.set.buckets[iter.index] with
+                case SetSlot::Occupied(elem) => Option::Some ((elem, SetIter (iter.set, iter.index + 1)))
+                default => Iterable::Next(SetIter (iter.set, iter.index + 1))
         }
     };
 };
