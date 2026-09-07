@@ -1,0 +1,5 @@
+module ImportedStructLib
+public export { Flat, Wrap, Pair }
+type Flat = { a: Int, b: Int };
+type Wrap < T > = { v: T };
+type Pair < A, B > = { left: A, right: B };

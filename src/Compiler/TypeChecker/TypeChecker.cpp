@@ -2979,6 +2979,7 @@ TypeChecker::TypeChecker(
 	// Pre-populate type environment with imported types
 	if (!imported_types.empty())
 	{
+		TypeEnvironment imported_names;
 		for (const auto& [name, type] : imported_types)
 		{
 			if (type->IsType<MidoriType::StructType>())
@@ -2989,8 +2990,17 @@ TypeChecker::TypeChecker(
 				{
 					m_generic_structs.insert(struct_type.m_name);
 				}
+
+				// The declaring module binds a struct's name to its constructor's
+				// function type, not to the struct type, so an importing module must
+				// bind the same thing or there is nothing callable under the name.
+				// The type itself is still reachable through m_struct_type_definitions,
+				// registered just above.
+				imported_names[name] = MidoriType::MakeFunctionType(struct_type.m_member_types, std::shared_ptr<MidoriType>(type));
+				continue;
 			}
-			else if (type->IsType<MidoriType::UnionType>())
+
+			if (type->IsType<MidoriType::UnionType>())
 			{
 				const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 				m_union_type_definitions[union_type.m_name] = type;
@@ -2999,9 +3009,11 @@ TypeChecker::TypeChecker(
 					m_generic_unions.insert(union_type.m_name);
 				}
 			}
+
+			imported_names[name] = type;
 		}
 
-		m_name_type_table.push_back(std::move(imported_types));
+		m_name_type_table.push_back(std::move(imported_names));
 	}
 
 	if (!imported_instance_types.empty())
@@ -6437,6 +6449,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	}
 
 	std::shared_ptr<MidoriType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
+
+	// The name must resolve to the constructor's function type. It does not when a
+	// struct is imported into another module, where the name binds to the type
+	// itself, and reading it as a function would be undefined rather than an error.
+	if (!constructor_type_shared->IsType<MidoriType::FunctionType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: '" + constructor_name + "' does not name a constructor here (it resolved to '" + constructor_type_shared->ToString() + "')", construct.m_data_name, m_file_name, m_source_lines));
+	}
 
 	MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();
 
