@@ -225,7 +225,7 @@ works from outside the prelude. Snapshot verified to bite.
 
 ---
 
-## BLOCKED — 2026-09-06, on a pre-existing compiler bug
+## Blocked, then unblocked and completed — 2026-09-06
 
 Tasks 1 and 2 were executed. The prelude changes were written, reverted, and are
 **not** committed; the tree is back at 373/373. Task 3 was never reached.
@@ -297,3 +297,55 @@ should be its own plan.
 (`SetSlot<T>`, `MapSlot<K,V>`) are generic but not recursive. Landing them alone
 would leave the class signature inconsistent with `List`, so it is not worth doing
 piecemeal.
+
+
+---
+
+## Complete — 2026-09-06, `318cdeb`
+
+The blocker above was fixed in `1dc8ef7` and this plan then ran to completion.
+Suite **374/374**, unit tests **1024 assertions / 176 cases**.
+
+### The blocker was `OccursCheck`, not the instantiation machinery
+
+The hypothesis recorded above — a pointer-keyed cache in `Freshen` or
+`SubstituteTypeParams` — was **wrong**, and was disproved rather than argued away.
+Depth probes were installed in six recursive type walkers; the ones in `Freshen`,
+`ApplySubstitution` and `SubstituteTypeParams` never fired, and `OccursCheck` did.
+
+`OccursCheck` substituted *before* guarding and keyed the guard on the substituted
+pointer. `ApplySubstitution` rebuilds any type still carrying type variables, so it
+returns a fresh allocation every call and the visited set never recognised a node
+it had already walked. That is exactly why only *generic* recursive unions were
+affected: a non-generic one has no type variables, `ApplySubstitution` returns the
+same pointer through its early-out, and the guard worked. The fix inserts the
+incoming node into the visited set before substituting.
+
+### The predicted opcode sequence was right
+
+Unusually for this project, the traced sequence worked first time. `LOAD_TAG`,
+`POP`, `UNPACK_TUPLE`, store iterator, `POP`, store loop variable, `POP` — the
+iterator on top because `UNPACK_TUPLE` pushes in index order. Reading the VM before
+writing the emitter is what made the difference.
+
+### Two further defects surfaced on the way
+
+- **`As` leaked its expected type into its operand.** Once the tuple fix
+  (`f45b410`) correctly pushed a per-element expected type,
+  `(Counter(...) as Ticker)` in a tuple slot pushed `Ticker` into the construction
+  on the *left* of the cast. A cast's operand is typed on its own terms; the `As`
+  visitor now clears the expected type, mirroring `MemberAccess`. Fixed here.
+- **A generic free function called from an instance body mis-specializes.**
+  `SetIterStep(set, index)` returned the right answer when called directly and
+  `None` when called as `SetIterStep(iter.set, iter.index)` from inside
+  `Iterable::Next`. Worked around by recursing through `Iterable::Next` itself in
+  both `Map` and `Set`. **Not fixed, and not diagnosed beyond the symptom** — it is
+  pre-existing, unrelated to state threading, and deserves its own reduction.
+
+### Assignments: 62 → 59
+
+`List.mdr` is now entirely free of them. The remaining 59 sit in `ArrayUtil.mdr`,
+`Collections/Map.mdr`, `Collections/Set.mdr` and `Collections/OpenAddressing.mdr`
+— open-addressed hash-table internals, which spec §11 already marks for the HAMT
+redesign. Iteration no longer requires mutation; the collections themselves still
+do.
