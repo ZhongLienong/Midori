@@ -5,54 +5,18 @@ def Length = fn < T >(array: Array < T >) -> Int =>#array;
 def Append = fn < T >(array: Array < T >, value: T) -> Unit => Appendable::Append(array, value);
 def Prepend = fn < T >(array: Array < T >, value: T) -> Unit => Prependable::Prepend(array, value);
 def Extend = fn < T >(array: Array < T >, other: Array < T >) -> Unit => Extendable::Extend(array, other);
-def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => {
-    def index = 0;
-    loop {
-        if index >= Length(array) then break false else {
-            if Equatable::Equals(array[index], value) then break true else {
-                index = index + 1;
-            }
-        }
-    }
-};
+def ContainsFrom = fn < T >(array: Array < T >, value: T, index: Int) -> Bool where Equatable < T > =>
+    if index >= Length(array)
+    then false
+    else if Equatable::Equals(array[index], value) then true else ContainsFrom(array, value, index + 1);
+def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => ContainsFrom(array, value, 0);
 def Slice = fn < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => {
-    def slice_start = start;
-    def slice_end = end;
     def array_length = Length(array);
-    def result: Array < T > =[];
-    if slice_start < 0 then {
-        slice_start = 0;
-        ()
-    } else();
-    if slice_end < 0 then {
-        slice_end = 0;
-        ()
-    } else();
-    if slice_start > array_length then {
-        slice_start = array_length;
-        ()
-    } else();
-    if slice_end > array_length then {
-        slice_end = array_length;
-        ()
-    } else();
-    if slice_end <= slice_start then result else {
-        def index = slice_start;
-        loop {
-            if index >= slice_end then break result else {
-                Append(result, array[index]);
-                index = index + 1;
-            }
-        }
-    }
+    def slice_start = if start < 0 then 0 else if start > array_length then array_length else start;
+    def slice_end = if end < 0 then 0 else if end > array_length then array_length else end;
+    [array[index] for index in slice_start..1..slice_end]
 };
 def Reverse = fn < T >(array: Array < T >) -> Array < T > => {
-    def result: Array < T > =[];
-    def index = Length(array) - 1;
-    loop {
-        if index < 0 then break result else {
-            Append(result, array[index]);
-            index = index - 1;
-        }
-    }
+    def last_index = Length(array) - 1;
+    [array[last_index - offset] for offset in 0..1..Length(array)]
 };
