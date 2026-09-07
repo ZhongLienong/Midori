@@ -273,6 +273,20 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 	ConcatenateBytecode();
 
+	if (!m_unresolved_imports.empty())
+	{
+		std::string message = "Unresolved import(s) during linking:";
+		for (const std::string& unresolved : m_unresolved_imports)
+		{
+			message.push_back(static_cast<char>(10));
+			message += "  ";
+			message += unresolved;
+		}
+		message.push_back(static_cast<char>(10));
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+	}
+
+
 	m_global_procedures.insert(m_global_procedures.begin(), BytecodeStream());
 	m_global_procedure_source_paths.insert(m_global_procedure_source_paths.begin(), EntrySourcePathForModule(m_modules, m_entry_module_name));
 
@@ -666,11 +680,12 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 	(
 		module.m_imports,
 		std::back_inserter(import_resolved_indices),
-		[this](const BytecodeModule::ImportedSymbol& import)
+		[this, &module](const BytecodeModule::ImportedSymbol& import)
 		{
 			const BytecodeModule* imported_module = FindModule(import.m_from_module);
 			if (imported_module == nullptr)
 			{
+				m_unresolved_imports.emplace_back(std::format("'{}' from unknown module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));
 				return 0uz;
 			}
 
@@ -682,8 +697,13 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 
 			const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
 			const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
+			if (!global_result.has_value())
+			{
+				m_unresolved_imports.emplace_back(std::format("'{}' from module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));
+				return 0uz;
+			}
 
-			return global_result.value_or(0uz);
+			return global_result.value();
 		}
 	);
 
