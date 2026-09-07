@@ -238,3 +238,67 @@ right fix is a name-to-index map carried on `BytecodeModule`, or making the vect
 index-aligned at construction.
 
 Until then `ArrayUtil::Clamp` stays exported, which is why the suite is green.
+
+
+---
+
+## The seven-slot gap, explained — 2026-09-07
+
+The previous section asked why `m_global_variables` is not index-aligned and said
+to explain the gap before correcting it. Measured, and the answer is worse than a
+gap.
+
+### Every global in `ArrayUtil` is recorded with index 0
+
+`BytecodeModule::m_global_variables` is built by sorting the codegen map
+`m_global_variables` (`unordered_map<string,int>`) by value and emitting names in
+that order (`CodeGenerator.cpp:2192-2199`). Instrumenting that loop for
+`ArrayUtil`:
+
+```
+rank=0 index=0 name=Reverse    rank=4 index=0 name=Append
+rank=1 index=0 name=Length     rank=5 index=0 name=Prepend
+rank=2 index=0 name=Slice      rank=6 index=0 name=Contains
+rank=3 index=0 name=Extend     rank=7 index=0 name=Clamp
+```
+
+**All eight are index 0.** The sort is therefore arbitrary and the resulting
+positions are meaningless, which is why `FindSymbolInGlobals` returned
+`base + 7 = 26` for `Clamp` while its export record said `base + 0 = 19`. There is
+no seven-slot gap to explain; the ranks are noise.
+
+### Where the zeros come from
+
+`m_global_variables` is read with `operator[]` in three places — 
+`CodeGenerator.cpp:2078`, `:2121`, `:2138` — and `operator[]` **inserts a
+default-constructed 0** when the key is absent. `:2078` is the export-tracking
+path:
+
+```cpp
+const size_t global_index = static_cast<size_t>(m_self->m_global_variables[function_name]);
+m_self->m_tracked_exports.emplace_back(function_name, procedure_index, global_index, ...);
+```
+
+Every function in `ArrayUtil` is generic, so none of them owns a global. Recording
+their exports therefore inserts a bogus zero into the map *and* stamps
+`m_global_index = 0` onto the export record. Both sides of the later comparison
+are built on that.
+
+### Why this is not a two-line fix
+
+Replacing `operator[]` with `find()` only moves the question: what *should* a
+generic function's export record say? It has no global of its own — it is
+specialized per consumer, which is the whole reason this plan exists. The honest
+options are to give generic exports an explicit "no global" marker that
+`FindSymbolInGlobals` and `FindSymbolInExports` both respect, or to stop routing
+specialization references through the global table at all.
+
+That is a design decision about how a generic crosses a module boundary, not a
+patch. It should be made deliberately, with the `operator[]` insertions fixed at
+the same time so the map stops accumulating phantom zero entries.
+
+### Current state
+
+`ArrayUtil::Clamp` stays exported; suite **381/381**. The unresolved-import
+diagnostic from `6167a86` stands and is unrelated to this — it correctly does not
+fire, because the import resolves, just against meaningless indices.
