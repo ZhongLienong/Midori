@@ -10,4 +10,4 @@ These are **not** part of the test suite. They fail by design.
 | files | defect | status |
 |---|---|---|
 | `imported-struct-construction*.mdr` | constructing a struct imported from another module crashes the type checker | **fixed** `a281843`; kept as the reduction record |
-| `generic-call-in-instance*.mdr` | a generic function called from an instance method returns 0 for its parameters, across three modules | **open** — silent wrong answer |
+| `generic-call-in-instance*.mdr` | a generic function called from an instance method returns 0 for its parameters, across three modules | **fixed** `d0d0cf4`; kept as the reduction record |

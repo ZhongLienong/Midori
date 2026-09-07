@@ -198,3 +198,53 @@ A generic call is required to trigger it, so the specialization procedure that
 codegen appends for `GenericT<Int,Int>` is the remaining suspect: something about
 where a specialization lands in the module's procedure list relative to the
 instance method. That is a **suspicion, not a finding**.
+
+
+---
+
+## Complete — 2026-09-07, `d0d0cf4`
+
+Suite **379/379**, unit tests **1024 assertions / 176 cases**.
+
+### The cause
+
+`CodeGenerator` reserves a procedure slot with `m_procedures.emplace_back()`
+*before* generating the body, then appended the name with `emplace_back()`
+*after*. Procedures were ordered by **entry**, names by **completion**. Those
+agree until generation nests, and specializing a generic function while
+generating another procedure's body nests exactly this way — so the
+specialization's name landed on the instance method's slot and vice versa.
+
+The linker resolves an instance method's procedure by looking its name up in that
+array (`BuildInstanceGlobalInits`), so the instance global was bound to the
+specialization's body. Calling it with one argument landed in a body expecting
+two: it read an unpushed local as zero *and* left the operand stack short, which
+is why several calls in one expression all came back wrong.
+
+Both name slots are now reserved alongside the procedure slot and assigned at the
+end.
+
+### How it was actually pinned down
+
+Two experiments, after five hypotheses had been read out of the source and
+discarded:
+
+1. **Suppress each of the two `DEFINE_GLOBAL` writes in turn.** Removing the
+   module's own write left the repro at `0`; removing the bootstrap's produced
+   `4` but broke five tests. That proved the bootstrap's write is both necessary
+   and, here, wrong — narrowing the fault to its `proc_idx`.
+2. **Print each module's procedure names against its procedure sizes.** The
+   specialization of `fn<T>(x: T, n: Int) -> Int => n` is 3 bytes and the instance
+   method is 5. Before the fix, `names[2]=GenericT` carried size 5 and
+   `names[3]=$Gg` carried size 3 — the swap, in a form that cannot be argued with.
+
+**The earlier "the disassembler's labels are offset" note was wrong**, and is
+corrected here: the labels were accurate and the bodies really were swapped. That
+mistaken reading was recorded in this plan as a trap for others, and it very
+nearly buried the real defect. Sizes settled what labels could not.
+
+### Follow-on
+
+`Map.mdr` and `Set.mdr` are back on `MapIterStep` and `SetIterStep`. They had been
+rewritten to recurse through `Iterable::Next` on 2026-09-06 purely to dodge this
+bug; the helper form is clearer and now works.
