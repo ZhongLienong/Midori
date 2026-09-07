@@ -104,3 +104,62 @@ reproduces it immediately — iteration silently visits nothing.
 2. Several calls combined in one expression all give correct values.
 3. `Set.mdr` works with the `SetIterStep` helper restored.
 4. Covered by tests that bite. Suite green at 376/376 plus the new cases.
+
+
+---
+
+## Task 1 findings — 2026-09-07, instrumented
+
+Disassembly is already built into `x64-development` (`MIDORI_DEBUG_LEVEL 2`), but
+`HandleRun` installs a `ScopedTestModeOverride(true)` that suppresses it
+(`CLI.cpp:1626`). Flipping that to `false`, rebuilding, and running the repro
+dumps every procedure. Flip it back afterwards.
+
+### The instance-method global is defined twice, from two different procedures
+
+Broken (three modules):
+
+```
+$main$@GenericCallInInstanceLib
+  MAKE_FUNCTION 7   DEFINE_GLOBAL 11  // MakeH
+  MAKE_FUNCTION 8   DEFINE_GLOBAL 12  // $Gg_G_H_Int_
+
+$module_bootstrap$@GenericCallInInstance
+  MAKE_FUNCTION 9   DEFINE_GLOBAL 12  // $Gg_G_H_Int_
+```
+
+Working (one module) has the identical shape, with procedures 28 and 29:
+
+```
+$main$@DisSingle          MAKE_FUNCTION 28  DEFINE_GLOBAL 43  // $Gg_G_H_Int_
+$module_bootstrap$        MAKE_FUNCTION 29  DEFINE_GLOBAL 43  // $Gg_G_H_Int_
+```
+
+So **both** builds bind one global to two different procedures. The difference is
+which definition executes last: in the single-module build the correct one wins,
+and across modules the module `$main$` and the bootstrap run in the other order,
+so the global ends up holding the wrong procedure. Calling it with one argument
+then lands in a body that reads local 1, which was never pushed — hence `0`, and
+hence the operand-stack corruption when several calls share an expression.
+
+### Two traps for whoever picks this up
+
+- **The disassembler's procedure names are offset from the bodies they label.**
+  `GenericT<Int,Int>` prints the body `INT_1; INT_4; CALL_PROC_2` — which is
+  `Gg`'s body — and `$Gg_G_H_Int_` prints `GET_LOCAL 1; RETURN`, which is
+  `GenericT`'s. This looks exactly like the bug and **is not**: the working build
+  shows the same offset. Diff working against broken before concluding anything
+  from a single dump. This nearly became the fourth wrong mechanism guess in this
+  project.
+- **Procedure indices are positional.** `DisassembleBytecodeStream` is called in
+  a loop over `m_procedure_names`, so the Nth printed procedure is index N-1,
+  ignoring the `=== Optimization Pass ===` lines.
+
+### What is still unconfirmed
+
+That the *ordering* of the two definitions is what differs, rather than one of
+the two procedures itself being wrong, is **inferred from the two dumps, not
+observed**. Confirm it — printing the global's value at each define, or tracing
+execution — before changing emission. The fix is presumably to stop emitting the
+duplicate rather than to reorder anything, but which of the two sites is the
+spurious one has not been established.
