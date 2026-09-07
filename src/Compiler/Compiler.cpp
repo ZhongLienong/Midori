@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <mutex>
 #include <sstream>
+#include <exception>
 #include <thread>
 
 using namespace std::string_literals;
@@ -944,6 +945,29 @@ namespace
 		}
 
 	private:
+		MidoriResult::CompiledModuleReportResult CompileModuleGuarded(const QueuedModule& queued_module) const
+		{
+			try
+			{
+				return m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx);
+			}
+			catch (const std::exception& e)
+			{
+				return MakeInternalErrorResult(queued_module.m_file_path, e.what());
+			}
+			catch (...)
+			{
+				return MakeInternalErrorResult(queued_module.m_file_path, "unknown exception");
+			}
+		}
+
+		static MidoriResult::CompiledModuleReportResult MakeInternalErrorResult(const std::string& file_path, const std::string& detail)
+		{
+			std::string message = "Internal compiler error while compiling '" + file_path + "': " + detail;
+			message.push_back(static_cast<char>(10));
+			return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, message, CompilerErrorCode::CompilerInternalError)));
+		}
+
 		void WorkerLoop()
 		{
 			while (true)
@@ -969,11 +993,13 @@ namespace
 					m_ready.pop_front();
 				}
 
-				CompletedModule completed_module
-				{
-					queued_module.m_file_path,
-					m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx)
-				};
+				// A worker thread has no handler of its own, so an escaping exception
+				// would call std::terminate and the process would die by __fastfail
+				// with no diagnostic at all -- reported by Windows as
+				// STATUS_STACK_BUFFER_OVERRUN, which reads like a stack overflow and
+				// is not one. Catching here turns an internal failure into an error
+				// that names the module it came from.
+				CompletedModule completed_module{ queued_module.m_file_path, CompileModuleGuarded(queued_module) };
 
 				{
 					std::lock_guard<std::mutex> lock(m_mutex);

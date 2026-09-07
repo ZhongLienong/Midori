@@ -50,7 +50,8 @@ enum class CompilerErrorCode
 	BytecodeLinkerUnresolvedImport,
 	CompilerNoModulesReadyToCompile,
 	CompilerIncompleteCompilationSchedule,
-	CompilerMissingCompiledModule
+	CompilerMissingCompiledModule,
+	CompilerInternalError
 };
 
 enum class CompilerWarningCode
