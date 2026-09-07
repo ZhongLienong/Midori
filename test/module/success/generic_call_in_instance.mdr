@@ -1,0 +1,6 @@
+module GenericCallInInstance
+
+import { "generic_call_in_instance_lib.mdr", "generic_call_in_instance_class.mdr", "../../../MidoriPrelude/IO.mdr" }
+
+def h = GenericCallInInstanceImplLib::MakeHolder();
+IO::PrintLine(Sized::Size(h) as Text);

@@ -15,15 +15,16 @@ type SetIter < T > = {
     index: Int
 };
 def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (set, 0);
+def SetIterStep = fn < T >(set: Set < T >, index: Int) -> Option < (T, SetIter < T >) > => {
+    if index >= set.capacity then Option::None () else {
+        match set.buckets[index] with
+            case SetSlot::Occupied(elem) => Option::Some ((elem, SetIter (set, index + 1)))
+            default => SetIterStep(set, index + 1)
+    }
+};
 instance Iterable < SetIter < T >> {
     type Item = T;
-    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > => {
-        if iter.index >= iter.set.capacity then Option::None () else {
-            match iter.set.buckets[iter.index] with
-                case SetSlot::Occupied(elem) => Option::Some ((elem, SetIter (iter.set, iter.index + 1)))
-                default => Iterable::Next(SetIter (iter.set, iter.index + 1))
-        }
-    };
+    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > => SetIterStep(iter.set, iter.index);
 };
 def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => {
     def buckets: Array < SetSlot < T >> =[];

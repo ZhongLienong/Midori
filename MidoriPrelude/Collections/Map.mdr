@@ -21,16 +21,17 @@ type MapIter < K, V > = {
     index: Int
 };
 def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (map, 0);
+def MapIterStep = fn < K, V >(map: Map < K, V >, index: Int) -> Option < (Entry < K, V >, MapIter < K, V >) > => {
+    if index >= map.capacity then Option::None () else {
+        match map.buckets[index] with
+            case MapSlot::Occupied(key, value) => Option::Some ((Entry (key, value), MapIter (map, index + 1)))
+            default => MapIterStep(map, index + 1)
+    }
+};
 instance Iterable < MapIter < K, V >> {
     type Item = Entry < K,
     V >;
-    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > => {
-        if iter.index >= iter.map.capacity then Option::None () else {
-            match iter.map.buckets[iter.index] with
-                case MapSlot::Occupied(key, value) => Option::Some ((Entry (key, value), MapIter (iter.map, iter.index + 1)))
-                default => Iterable::Next(MapIter (iter.map, iter.index + 1))
-        }
-    };
+    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > => MapIterStep(iter.map, iter.index);
 };
 def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => {
     def buckets: Array < MapSlot < K,

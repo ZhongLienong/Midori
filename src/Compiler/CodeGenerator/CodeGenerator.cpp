@@ -5926,6 +5926,11 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	const size_t specialized_proc_index = m_builder.m_procedures.size();
 	m_builder.m_current_procedure_index = specialized_proc_index;
 	m_builder.m_procedures.emplace_back();
+	// The name slot is reserved with the procedure slot and filled in at the end.
+	// Appending the name after the body would order names by completion while the
+	// procedures are ordered by entry, and a specialization generated inside
+	// another procedure's body would swap the two.
+	m_builder.m_procedure_names.emplace_back();
 	EnsureProcedureMetadataSize(specialized_proc_index);
 	m_procedure_capture_counts[specialized_proc_index] = generic_info.m_captured_count;
 	m_specialized_functions[signature] = static_cast<int>(specialized_proc_index);
@@ -5943,7 +5948,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
-	m_builder.m_procedure_names.emplace_back(full_specialized_name.c_str());
+	m_builder.m_procedure_names[specialized_proc_index] = full_specialized_name;
 
 	m_builder.m_current_procedure_index = prev_index;
 
@@ -6600,6 +6605,7 @@ int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_pt
 	const size_t closure_proc_index = m_builder.m_procedures.size();
 	m_builder.m_current_procedure_index = closure_proc_index;
 	m_builder.m_procedures.emplace_back();
+	m_builder.m_procedure_names.emplace_back();
 	EnsureProcedureMetadataSize(closure_proc_index);
 	m_procedure_capture_counts[closure_proc_index] = captured_count;
 	if (direct_proc_global_index >= 0 && captured_count == 0)
@@ -6620,7 +6626,7 @@ int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_pt
 	EmitByte(OpCode::RETURN, line);
 
 	std::string full_name = debug_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
-	m_builder.m_procedure_names.emplace_back(full_name.c_str());
+	m_builder.m_procedure_names[closure_proc_index] = full_name;
 
 	m_builder.m_current_procedure_index = prev_index;
 
