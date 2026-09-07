@@ -79,6 +79,9 @@ private:
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::optional<std::string> m_module_name;
+	// While specializing a generic declared in another module, the body's
+	// unqualified global references belong to that module, not this one.
+	std::optional<std::string> m_specialization_source_module;
 	std::unordered_set<std::string> m_export_symbols;
 
 	BytecodeBuilder m_builder;

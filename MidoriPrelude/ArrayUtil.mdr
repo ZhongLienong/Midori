@@ -1,6 +1,6 @@
 module ArrayUtil
 import { "./Appendable.mdr", "./Equatable.mdr", "./Extendable.mdr", "./Prependable.mdr" }
-public export { Length, Append, Prepend, Extend, Contains, Slice, Reverse }
+public export { Length, Append, Prepend, Extend, Contains, Slice, Reverse, Clamp }
 def Length = fn < T >(array: Array < T >) -> Int =>#array;
 def Append = fn < T >(array: Array < T >, value: T) -> Unit => Appendable::Append(array, value);
 def Prepend = fn < T >(array: Array < T >, value: T) -> Unit => Prependable::Prepend(array, value);
@@ -10,10 +10,11 @@ def ContainsFrom = fn < T >(array: Array < T >, value: T, index: Int) -> Bool wh
     then false
     else if Equatable::Equals(array[index], value) then true else ContainsFrom(array, value, index + 1);
 def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => ContainsFrom(array, value, 0);
+def Clamp = fn(value: Int, low: Int, high: Int) -> Int => if value < low then low else if value > high then high else value;
 def Slice = fn < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => {
     def array_length = Length(array);
-    def slice_start = if start < 0 then 0 else if start > array_length then array_length else start;
-    def slice_end = if end < 0 then 0 else if end > array_length then array_length else end;
+    def slice_start = Clamp(start, 0, array_length);
+    def slice_end = Clamp(end, 0, array_length);
     [array[index] for index in slice_start..1..slice_end]
 };
 def Reverse = fn < T >(array: Array < T >) -> Array < T > => {

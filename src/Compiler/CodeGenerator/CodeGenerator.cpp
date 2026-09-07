@@ -2232,7 +2232,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
 		if (!function.m_generic_params.empty() && is_global)
 		{
-			m_generic_functions.emplace(def.m_name.m_lexeme, GenericFunctionInfo(def.m_name.m_lexeme, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, std::shared_ptr<MidoriExpression>(std::move(function.m_body)), function.m_captured_count));
+			m_generic_functions.emplace(def.m_name.m_lexeme, GenericFunctionInfo(def.m_name.m_lexeme, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, std::shared_ptr<MidoriExpression>(std::move(function.m_body)), function.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string()));
 			return;
 		}
 	}
@@ -2344,7 +2344,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 
 	if (is_generic && is_global)
 	{
-		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, std::shared_ptr<MidoriExpression>(std::move(defun.m_body)), defun.m_captured_count));
+		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, std::shared_ptr<MidoriExpression>(std::move(defun.m_body)), defun.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string()));
 		return;
 	}
 
@@ -4033,6 +4033,18 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 			}
 			else
 			{
+				if (m_self->m_specialization_source_module.has_value() && !m_self->m_global_variables.contains(name))
+				{
+					const int foreign_placeholder = m_self->GetImportPlaceholder(m_self->m_specialization_source_module.value(), name, line, m_self->MakeSourceProvenance(m_variable->m_name));
+					if (foreign_placeholder < 0)
+					{
+						return;
+					}
+
+					m_self->EmitVariable(foreign_placeholder, OpCode::GET_GLOBAL, line);
+					return;
+				}
+
 				m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, line);
 			}
 		}
@@ -5923,6 +5935,12 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 
 	size_t prev_index = m_builder.m_current_procedure_index;
+	// A generic declared elsewhere carries that module's globals in its body.
+	const std::optional<std::string> prev_specialization_module = m_specialization_source_module;
+	m_specialization_source_module = (!generic_info.m_defining_module.empty() && (!m_module_name.has_value() || generic_info.m_defining_module != m_module_name.value()))
+		? std::optional<std::string>(generic_info.m_defining_module)
+		: std::nullopt;
+
 	const size_t specialized_proc_index = m_builder.m_procedures.size();
 	m_builder.m_current_procedure_index = specialized_proc_index;
 	m_builder.m_procedures.emplace_back();
@@ -5951,6 +5969,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_builder.m_procedure_names[specialized_proc_index] = full_specialized_name;
 
 	m_builder.m_current_procedure_index = prev_index;
+	m_specialization_source_module = prev_specialization_module;
 
 	m_param_type_map = std::move(prev_param_map);
 	m_method_resolution_map = std::move(prev_resolution_map);
