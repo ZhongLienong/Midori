@@ -143,3 +143,63 @@ anything.
 
 Option 1 is the real fix if the mechanism above holds; option 2 is a contained
 workaround. Establish the mechanism first.
+
+
+---
+
+## The `Unify` clobber hypothesis is disproved — 2026-09-10
+
+The previous section proposed that per-use `Freshen` plus `Unify` writing through
+a shared pointer (`*left = *right_subst;`) lets a call-site unification overwrite a
+type object the body shares. **It does not.**
+
+Both in-place writes in `Unify` were instrumented to report the kind of the object
+being overwritten. Over the failing program:
+
+| write | count |
+|---|---|
+| `left was=TypeVariable now=TypeVariable` | 27 |
+| `left was=other now=other` | 24 |
+| `right was=TypeVariable now=other` | 14 |
+| `left was=TypeVariable now=GenericParam` | 3 |
+| `right was=TypeVariable now=GenericParam` | 3 |
+| `right was=TypeVariable now=StructType` | 1 |
+
+Every target is a `TypeVariable` or an `UndecidedType`. **No `GenericParam` and no
+`StructType` is ever overwritten**, so the body's `Pair<K, V>` node is not being
+clobbered. Cross that hypothesis off.
+
+## The refined mechanism
+
+The node is not *rewritten* to carry type variables; it is *created* that way.
+
+- Without recursion, the body's `Construct` records `Pair<K, V>` over **generic
+  params**, and codegen's name-keyed `SubstituteGenericTypes` turns it into
+  `Pair<Int, Text>`. Confirmed: the codegen probe printed the already-substituted
+  `Pair<Int, Text>`.
+- With recursion, it records `Pair<T5, T6>` over **type variables**, which that
+  substitution cannot touch.
+
+The likely reason is the recursion support itself: a `def`-bound lambda has its
+name bound *before* its body is evaluated (`TypeChecker.cpp:2968-3078`, the binding
+at `:3028`), which is what lets a recursive call resolve. If that pre-binding uses
+a variable-based signature, the body is then checked against type variables rather
+than the declared generic params, and every node inside records variables.
+
+**Still unconfirmed**, but it is now a claim about where the body's types are
+*created*, which is a narrower and more checkable question than the one it
+replaced. The next probe is to print the kind of `AppendRecStruct`'s parameter
+types as the body is entered, recursive versus not.
+
+## Consequence for the fix
+
+Option 1 in the section above — "keep the body's types in terms of generic params"
+— is still the right shape, but it is now clearly a change to how a *recursive*
+generic's body is type-checked, not a matter of stopping a stray write. That is a
+real change to inference for recursive generics, and it should not be attempted
+without first confirming the pre-binding claim.
+
+Option 2 remains available as a contained workaround, and its limit is now
+explicit: rebuilding a `Construct`'s type from its arguments works when those
+arguments are parameters (`m_param_type_map` has them), and does nothing for a
+nested or computed element expression.
