@@ -2068,13 +2068,22 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 	{
 		CodeGenerator* m_self = nullptr;
 
+		// operator[] would insert a default 0 for a name that owns no global -- a
+		// generic function, for instance -- which both pollutes the map and stamps a
+		// bogus index onto the export record.
+		static size_t GlobalIndexOf(const CodeGenerator* self, const std::string& name)
+		{
+			std::unordered_map<std::string, int>::const_iterator it = self->m_global_variables.find(name);
+			return it == self->m_global_variables.cend() ? 0uz : static_cast<size_t>(it->second);
+		}
+
 		void operator()(const MidoriStatement::FunctionDefinition& stmt) const
 		{
 			const std::string& function_name = stmt.m_name.m_lexeme;
 			if (m_self->m_export_symbols.contains(function_name))
 			{
 				const size_t procedure_index = m_self->m_builder.m_procedures.size() - 1u;
-				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[function_name]);
+				const size_t global_index = GlobalIndexOf(m_self, function_name);
 
 				m_self->m_tracked_exports.emplace_back(function_name, procedure_index, global_index, BytecodeModule::SymbolType::FUNCTION, m_self->MakeSourceProvenance(stmt.m_name));
 			}
@@ -2117,7 +2126,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 			const std::string& foreign_name = stmt.m_function_name.m_lexeme;
 			if (m_self->m_export_symbols.contains(foreign_name))
 			{
-				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[foreign_name]);
+				const size_t global_index = GlobalIndexOf(m_self, foreign_name);
 				m_self->m_tracked_exports.emplace_back
 				(
 					foreign_name,
@@ -2134,7 +2143,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 			const std::string& var_name = stmt.m_name.m_lexeme;
 			if (m_self->m_export_symbols.contains(var_name))
 			{
-				const size_t global_index = static_cast<size_t>(m_self->m_global_variables[var_name]);
+				const size_t global_index = GlobalIndexOf(m_self, var_name);
 				m_self->m_tracked_exports.emplace_back
 				(
 					var_name,

@@ -1,6 +1,6 @@
 module ArrayUtil
 import { "./Appendable.mdr", "./Equatable.mdr", "./Extendable.mdr", "./Prependable.mdr" }
-public export { Length, Append, Prepend, Extend, Contains, Slice, Reverse, Clamp }
+public export { Length, Append, Prepend, Extend, Contains, Slice, Reverse }
 def Length = fn < T >(array: Array < T >) -> Int =>#array;
 def Append = fn < T >(array: Array < T >, value: T) -> Unit => Appendable::Append(array, value);
 def Prepend = fn < T >(array: Array < T >, value: T) -> Unit => Prependable::Prepend(array, value);
