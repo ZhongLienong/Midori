@@ -318,3 +318,64 @@ instrument `m_type_substitution` insertions and report the one that binds a
 body variable to another variable, with the token that caused it. If that lands
 inside the recursive call's unification, the mechanism is established and option 1
 becomes actionable.
+
+
+---
+
+## Complete — 2026-09-11, `eb05275`
+
+Suite **384/384**, unit tests **1024 assertions / 176 cases**. All four tasks done.
+
+### The cause, measured at the binding site
+
+Logging every variable-to-variable binding with the token that caused it, over the
+failing library:
+
+```
+T3 -> T0  at line 7  tok=Pair      <- the construction; fine
+T4 -> T1  at line 7  tok=Pair
+T0 -> T5  at line 8  tok=)         <- the recursive call
+T1 -> T6  at line 8  tok=)
+```
+
+Line 8 is `AppendRecur(out, key, value, n - 1)`. A call to a generic function from
+inside its own body was freshened like any other use, and unification then bound
+the body's **own** parameter variables to the call's fresh ones. Every node in the
+body was left pointing at variables that belong to a *call* and are never bound to
+anything concrete.
+
+Codegen's `SubstituteGenericTypes` is keyed by name and deduces against the
+function's own variables, so it found nothing to substitute, and instance
+selection went looking for `Appendable<Pair<T5, T6>>`.
+
+### The fix
+
+Within its own body a recursive function is treated monomorphically — a
+`DefiningGenericGuard` records the definition being checked, and the `NameAccess`
+path skips freshening for it. That is the standard Hindley-Milner reading, and it
+matches what monomorphisation can terminate on; `2026-09-02-generic-lambdas.md`
+had already flagged per-use freshening of a recursive generic as an inherited
+hazard permitting polymorphic recursion. Every other call site is unchanged.
+
+### Four hypotheses, three wrong
+
+Recorded because the pattern is the lesson:
+
+1. `Unify` clobbering a shared node in place — **disproved**, every in-place write
+   targets a `TypeVariable` or `UndecidedType`.
+2. A recursive body checked against a variable-based pre-binding while a
+   non-recursive one keeps generic params — **disproved**, both are freshened.
+3. The enclosing specialization's bindings missing from the substitution map —
+   **disproved**, absent by design in the working case too.
+4. The recursive call binding the body's variables to call-local ones — **correct**,
+   and the only one arrived at by instrumenting rather than reading.
+
+Each of the first three was plausible from the source and wrong. The measurement
+that settled it took one probe.
+
+### Follow-on
+
+`MapEntries` is back on `MapAppendEntries`. No prelude function walks a bucket
+array with a counter any more. Prelude assignments **22 -> 21**, loops **6 -> 5**;
+what is left is the open-addressing probe and the structural bucket and count
+writes, which need the HAMT redesign.
