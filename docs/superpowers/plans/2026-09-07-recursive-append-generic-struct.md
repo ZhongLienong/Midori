@@ -76,3 +76,70 @@ about them.
 1. The repro prints `2` then `2`.
 2. `MapEntries` is a recursive helper like its neighbours.
 3. Covered by a test that bites; suite green at 382/382 plus the new case.
+
+
+---
+
+## Task 1 findings — 2026-09-10, instrumented
+
+### The argument's type still carries type variables
+
+`CodeGenerator::ResolveConcreteTypeclassMethodName` (`:5980`) matches the call's
+actual argument types against the registered instance type arguments. Printing
+the actual types on every `Appendable::Append` call, for the working and failing
+programs:
+
+```
+non-recursive (works):  [Array<Pair<Int, Text>>]  [Pair<Int, Text>]
+recursive    (fails):   [Array<Pair<Int, Text>>]  [Pair<T5, T6>]
+recursive, plain (ok):  [Array<Int>]              [Int]
+```
+
+Argument 0 is concrete in every case. Argument 1 — the constructed
+`Pair(key, value)` — is concrete without recursion and carries **type variables**
+with it.
+
+### Why that argument is the one that breaks
+
+`GetConcreteTypeForExpression` (`:6273`) has two paths:
+
+- a `NameAccess` whose name is in `m_param_type_map` returns the parameter's
+  concrete type — this is why argument 0, the `out` parameter, is always right;
+- anything else takes the node's recorded type and runs
+  `SubstituteGenericTypes(type, m_generic_type_substitution)`.
+
+That substitution is keyed by **generic parameter name** (`K`, `V`). After the
+recursive call freshens the signature, the body's `Construct` node records
+`Pair<T5, T6>` — **type variables**, not named generic params — so the map matches
+nothing and the type passes through unchanged. Instance selection then looks for
+`Appendable<Pair<T5, T6>>` and finds none.
+
+This also explains the whole table in the section above: an element that is a bare
+type parameter reaches instance selection through a `NameAccess` and the
+`m_param_type_map` path, so it is concrete regardless of recursion. Only a
+*constructed* element goes through the substitution path, and only recursion puts
+type variables there.
+
+### Candidate mechanism, unconfirmed
+
+Why recursion leaves type variables in a body node has **not** been established.
+The plausible route is per-use `Freshen` of the recursive callee's signature —
+noted as an inherited hazard in `2026-09-02-generic-lambdas.md` — combined with
+`Unify` writing through the shared pointer (`*left = *right_subst;`), which would
+let a call-site unification overwrite a type node the body shares.
+
+**Do not act on that paragraph.** Instrument whether the `Construct` node's
+`m_type_data` is the same object the call-site unification touches before changing
+anything.
+
+### Two shapes of fix, to choose between
+
+1. **Keep the body's types in terms of generic params**, so the existing
+   name-keyed substitution keeps working. Correct if the freshening is the defect.
+2. **Make `GetConcreteTypeForExpression` handle a `Construct` by rebuilding its
+   type from its arguments' concrete types.** Narrower and local, but it special-
+   cases one node kind and leaves the underlying type variables in place for
+   anything else that reads them.
+
+Option 1 is the real fix if the mechanism above holds; option 2 is a contained
+workaround. Establish the mechanism first.
