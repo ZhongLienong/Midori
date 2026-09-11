@@ -203,3 +203,69 @@ Option 2 remains available as a contained workaround, and its limit is now
 explicit: rebuilding a `Construct`'s type from its arguments works when those
 arguments are parameters (`m_param_type_map` has them), and does nothing for a
 nested or computed element expression.
+
+
+---
+
+## The pre-binding hypothesis is disproved too — 2026-09-10
+
+The previous section proposed that a recursive generic's body is type-checked
+against a variable-based signature while a non-recursive one keeps its generic
+params. **Both are variable-based.**
+
+`TypeCheckGenericLambdaDefinition` (`TypeChecker.cpp:3193`) freshens every
+parameter type in place before binding the parameters and evaluating the body:
+
+```cpp
+for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
+{
+    param_type = Freshen(param_type, freshening_context);
+}
+```
+
+Probing the parameter types at body entry confirms it applies to both shapes:
+
+```
+AppendOnce  params: Array<Pair<T0, T1>>  T0   T1          <- non-recursive, works
+AppendRecur params: Array<Pair<T9, T10>> T9   T10  Int    <- recursive, fails
+```
+
+So recursion is not what puts type variables in the body. That is now the **third**
+disproved mechanism for this defect, after the `Unify` clobber and this one.
+
+## What the substitution map actually shows
+
+Printing `m_generic_type_substitution` at the failing call, alongside the
+resolved argument types:
+
+```
+non-recursive:  T1=Pair<Int, Text>   | args: [Array<Pair<Int, Text>>] [Pair<Int, Text>]
+recursive:      T1=Pair<T5, T6>      | args: [Array<Pair<Int, Text>>] [Pair<T5, T6>]
+```
+
+Two things follow:
+
+1. The map holds a **single** entry in both cases — the binding for
+   `ArrayUtil::Append`'s own type parameter. The enclosing function's bindings
+   (`T5`, `T6` to `Int`, `Text`) are **not** in scope at that point, in either
+   case. So the fix is not "the enclosing map is missing"; it is absent by design
+   in the working case too.
+2. The map's *value* is already wrong in the recursive case: `T1=Pair<T5, T6>`.
+   Whatever deduced `Append`'s type argument was handed a non-concrete element
+   type, which is the same defect one level up rather than a separate one.
+
+So the question reduces to: **why is the `Construct` node's recorded type concrete
+for the non-recursive helper and variable for the recursive one, when both bodies
+are checked with freshened variables?** Something resolves `T0`/`T1` to `Int`/`Text`
+for the non-recursive helper and does not for the recursive one.
+
+## Where to look next
+
+In the type checker's final substitution, not in codegen. Both bodies start with
+variables; only one ends with them bound. Instrument whether `T0`/`T1` are present
+in `m_type_substitution` at the end of type checking, for each helper, and whether
+`ApplySubstitution` is reaching the `Construct` node's `m_type_data` in both cases.
+
+**Three hypotheses have now been formed and disproved here.** Do not add a fourth
+without a measurement that distinguishes it. The two contained-fix options in the
+earlier sections remain available and are unaffected by any of this.
