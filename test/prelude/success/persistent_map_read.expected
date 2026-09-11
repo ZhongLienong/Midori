@@ -1,0 +1,7 @@
+[33m[warning] [37m1 warning(s) in PersistentMap.mdr
+[0m[1m[93mStatic Analyzer Warning[0m at [96mC:\Users\jk381\source\repos\ZhongLienong\Midori\MidoriPrelude\Collections\PersistentMap.mdr:47[0m
+[34m   |
+47 |[0m         case Option::Some(found) => true
+[34m   |[93m                           ^^^^^ Binding 'found' is never read.[0m
+[34m   |[0m
+persistent_map_read: PASS

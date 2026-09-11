@@ -1,0 +1,33 @@
+module PreludePersistentMapRead
+
+import { "../../../MidoriPrelude/Collections/PersistentMap.mdr", "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Prelude/Panic.mdr" }
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+// Built by hand: read paths are exercised before anything can construct a trie.
+def empty : PersistentMap::PMap < Int, Text > = PersistentMap::Empty();
+Expect(PersistentMap::Count(empty) == 0, "Empty has no entries");
+Expect(PersistentMap::IsEmpty(empty), "Empty is empty");
+Expect(!PersistentMap::ContainsKey(empty, 1), "Empty contains nothing");
+
+def leaf : PersistentMap::Node < Int, Text > = PersistentMap::MakeLeaf(5, 5, "five");
+def one : PersistentMap::PMap < Int, Text > = PersistentMap::MakeMap(leaf, 1);
+Expect(PersistentMap::Count(one) == 1, "Count reads the stored count");
+Expect(PersistentMap::ContainsKey(one, 5), "Contains finds the leaf");
+Expect(!PersistentMap::ContainsKey(one, 6), "Contains rejects a missing key");
+Expect(PersistentMap::GetOr(one, 5, "?") == "five", "GetOr returns the value");
+Expect(PersistentMap::GetOr(one, 6, "?") == "?", "GetOr falls back");
+
+// A branch holding two leaves, whose hashes differ in the low five bits.
+def leafA : PersistentMap::Node < Int, Text > = PersistentMap::MakeLeaf(1, 1, "one");
+def leafB : PersistentMap::Node < Int, Text > = PersistentMap::MakeLeaf(2, 2, "two");
+def branch : PersistentMap::Node < Int, Text > = PersistentMap::MakeBranch(6, [leafA, leafB]);
+def two : PersistentMap::PMap < Int, Text > = PersistentMap::MakeMap(branch, 2);
+Expect(PersistentMap::GetOr(two, 1, "?") == "one", "Branch resolves the first child");
+Expect(PersistentMap::GetOr(two, 2, "?") == "two", "Branch resolves the second child");
+Expect(PersistentMap::GetOr(two, 3, "?") == "?", "Branch rejects an absent chunk");
+
+def words : PersistentMap::PMap < Text, Int > = PersistentMap::Empty();
+Expect(!PersistentMap::ContainsKey(words, "k"), "Empty works at another instantiation");
+
+IO::PrintLine("persistent_map_read: PASS");

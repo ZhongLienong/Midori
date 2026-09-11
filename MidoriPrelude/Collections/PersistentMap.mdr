@@ -1,0 +1,48 @@
+module PersistentMap
+import { "./Bits.mdr", "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Prelude/Option.mdr" }
+public export { Entry, Node, PMap, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap }
+use Option.{
+    Option
+}
+type Entry < K, V > = {
+    key: K,
+    value: V
+};
+type Node < K, V > = Nothing | Leaf(Int, K, V) | Collision(Int, Array < Entry < K, V > >) | Branch(Int, Array < Node >);
+type PMap < K, V > = {
+    root: Node < K, V >,
+    count: Int
+};
+def MakeLeaf = fn < K, V >(hash: Int, key: K, value: V) -> Node < K, V > => Node::Leaf (hash, key, value);
+def MakeBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >) -> Node < K, V > => Node::Branch (bitmap, children);
+def MakeMap = fn < K, V >(root: Node < K, V >, count: Int) -> PMap < K, V > => PMap (root, count);
+def Empty = fn < K, V >() -> PMap < K, V > => PMap (Node::Nothing (), 0);
+def Count = fn < K, V >(map: PMap < K, V >) -> Int => map.count;
+def IsEmpty = fn < K, V >(map: PMap < K, V >) -> Bool => map.count == 0;
+def CollisionGet = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Option < V > where Equatable < K > =>
+    if index >= ArrayUtil::Length(entries)
+    then Option::None ()
+    else if Equatable::Equals(entries[index].key, key) then Option::Some (entries[index].value) else CollisionGet(entries, key, index + 1);
+def NodeGet = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> Option < V > where Equatable < K > =>
+    match node with
+        case Node::Nothing() => Option::None ()
+        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
+            if leaf_hash == hash && Equatable::Equals(leaf_key, key) then Option::Some (leaf_value) else Option::None ()
+        case Node::Collision(collision_hash, entries) =>
+            if collision_hash == hash then CollisionGet(entries, key, 0) else Option::None ()
+        case Node::Branch(bitmap, children) => {
+            def chunk = Bits::HashChunk(hash, depth);
+            if Bits::HasBit(bitmap, chunk)
+            then NodeGet(children[Bits::SparseIndex(bitmap, chunk)], hash, key, depth + 1)
+            else Option::None ()
+        };
+def Get = fn < K, V >(map: PMap < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > =>
+    NodeGet(map.root, Hashable::Hash(key), key, 0);
+def GetOr = fn < K, V >(map: PMap < K, V >, key: K, fallback: V) -> V where Hashable < K >, Equatable < K > =>
+    match Get(map, key) with
+        case Option::Some(found) => found
+        case Option::None() => fallback;
+def ContainsKey = fn < K, V >(map: PMap < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > =>
+    match Get(map, key) with
+        case Option::Some(found) => true
+        case Option::None() => false;
