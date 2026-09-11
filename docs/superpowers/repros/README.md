@@ -11,5 +11,5 @@ These are **not** part of the test suite. They fail by design.
 |---|---|---|
 | `imported-struct-construction*.mdr` | constructing a struct imported from another module crashes the type checker | **fixed** `a281843`; kept as the reduction record |
 | `generic-call-in-instance*.mdr` | a generic function called from an instance method returns 0 for its parameters, across three modules | **fixed** `d0d0cf4`; kept as the reduction record |
-| `plain-call-in-generic*.mdr` | a generic function calling a non-generic helper crashes the VM when the caller is in a third module | **fixed** `47275f9` for exported helpers; a *private* helper still crashes |
+| `plain-call-in-generic*.mdr` | a generic function calling a non-generic helper crashes the VM when the caller is in a third module | **fixed** — `47275f9` for exported helpers, `0871c4b` for private ones |
 | `recursive-append-generic-struct*.mdr` | a recursive generic helper appending a constructed generic struct fails to resolve its typeclass instance across modules | **fixed** `eb05275`; kept as the reduction record |

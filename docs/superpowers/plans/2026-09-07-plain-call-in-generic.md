@@ -302,3 +302,44 @@ the same time so the map stops accumulating phantom zero entries.
 `ArrayUtil::Clamp` stays exported; suite **381/381**. The unresolved-import
 diagnostic from `6167a86` stands and is unrelated to this — it correctly does not
 fire, because the import resolves, just against meaningless indices.
+
+
+---
+
+## Complete — 2026-09-11, `0871c4b`
+
+Suite **386/386**, unit tests **1024 assertions / 176 cases**. The private-helper
+case is closed and `ArrayUtil::Clamp` is private again.
+
+### The fix follows directly from the measured cause
+
+Three export-tracking sites read `m_global_variables` with `operator[]`
+(`CodeGenerator.cpp`, the `FunctionDefinition`, `ForeignDefinition` and
+`VariableDefinition` visitors). `operator[]` inserts a default `0` for an absent
+key, and every function in a module of generics owns no global — so each got a
+phantom zero entry, and its export record was stamped `m_global_index = 0`.
+
+`BytecodeModule::m_global_variables` is that map sorted by index. With every value
+zero the sort was arbitrary and the resulting positions meaningless, which is
+exactly why `FindSymbolInGlobals` (`base + position`) returned 26 for `Clamp`
+while its export record said `base + 0 = 19`.
+
+Replacing the three reads with a non-inserting lookup leaves the map holding only
+real globals at their true indices. The positional lookup is then valid, and the
+two resolution paths agree.
+
+### Both halves of this defect were index bookkeeping
+
+Worth noting alongside `d0d0cf4` and `eb05275`: four separate defects in this area
+all reduced to the same shape — a **recorded** index and a **derived** one that
+agree until something perturbs the sequence. Procedure names ordered by completion
+versus slots ordered by entry; a bootstrap inserted at index 0; a global map
+polluted with zeros; type variables renamed by a recursive call. None was visible
+by reading the code, and each was found by printing the compiler's own tables.
+
+### Not needed after all
+
+The earlier sections proposed a design decision about what a generic function's
+export record should say, and whether generics should route through the global
+table at all. Neither is required: the export record's index is simply never
+consulted for a symbol that has no global, once the map stops claiming it has one.
