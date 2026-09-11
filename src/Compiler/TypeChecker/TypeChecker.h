@@ -18,6 +18,7 @@ struct TypePairHash
 class TypeChecker
 {
 	friend class ExpectedTypeGuard;
+	friend class NominalUnifyGuard;
 	friend class DefiningGenericGuard;
 
 public:
@@ -98,6 +99,11 @@ private:
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
 	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> m_unify_visited;
+	// Names of the nominal types whose members are currently being unified. The
+	// pointer guard above cannot catch a type that reaches itself through a fresh
+	// node -- Fork(Array<Tree>) rebuilds the Array each descent -- so recursion
+	// through a nominal type is tracked by name as well.
+	std::unordered_set<std::string> m_unify_nominal_active;
 	GenericFunctionNames m_generic_functions;
 	GenericStructNames m_generic_structs;
 	GenericUnionNames m_generic_unions;

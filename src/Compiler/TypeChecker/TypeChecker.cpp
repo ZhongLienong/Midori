@@ -822,6 +822,33 @@ public:
 	DefiningGenericGuard& operator=(const DefiningGenericGuard&) = delete;
 };
 
+class NominalUnifyGuard
+{
+private:
+	TypeChecker& m_type_checker;
+	std::string m_name;
+	bool m_entered;
+
+public:
+	NominalUnifyGuard(TypeChecker& tc, const std::string& name)
+		: m_type_checker(tc), m_name(name), m_entered(tc.m_unify_nominal_active.insert(name).second)
+	{
+	}
+
+	~NominalUnifyGuard()
+	{
+		if (m_entered)
+		{
+			m_type_checker.m_unify_nominal_active.erase(m_name);
+		}
+	}
+
+	bool Entered() const { return m_entered; }
+
+	NominalUnifyGuard(const NominalUnifyGuard&) = delete;
+	NominalUnifyGuard& operator=(const NominalUnifyGuard&) = delete;
+};
+
 class ExpectedTypeGuard
 {
 private:
@@ -1746,6 +1773,16 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		if (!type_argument_result.has_value())
 		{
 			return type_argument_result;
+		}
+
+		// The members of a nominal generic type are determined by its type
+		// arguments, which have just been unified. Descending again is redundant,
+		// and does not terminate when a member reaches the type through a fresh
+		// node such as Array<Self>.
+		NominalUnifyGuard nominal_guard(*this, left_union.m_name);
+		if (!nominal_guard.Entered())
+		{
+			return left;
 		}
 
 		for (auto& [member_name, left_ctx] : left_union.m_member_info)
