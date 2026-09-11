@@ -18,6 +18,7 @@ struct TypePairHash
 class TypeChecker
 {
 	friend class ExpectedTypeGuard;
+	friend class DefiningGenericGuard;
 
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
@@ -103,6 +104,10 @@ private:
 	TypeDefinitionMap m_struct_type_definitions;
 	TypeDefinitionMap m_union_type_definitions;
 	std::vector<MidoriType::ClassConstraint> m_active_constraints;
+	// Names of the generic definitions whose bodies are currently being checked.
+	// A call to one of these from inside its own body must not be freshened: it is
+	// recursion, not a fresh instantiation.
+	std::vector<std::string> m_defining_generic_names;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;

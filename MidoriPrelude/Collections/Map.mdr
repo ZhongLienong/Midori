@@ -210,21 +210,19 @@ def MapValues = fn < K, V >(map: Map < K, V >) -> Array < V > => {
     MapAppendValues(values, map, 0);
     values
 };
-def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
-    def entries: Array < Entry < K,
-    V >> =[];
-    def i = 0;
-    loop {
-        if i >= map.capacity then break() else {
-            def entry = map.buckets[i];
-            match entry with
-                case MapSlot::Occupied(key, value) => {
+def MapAppendEntries = fn < K, V >(entries: Array < Entry < K, V > >, map: Map < K, V >, index: Int) -> Unit => {
+    if index >= map.capacity then () else {
+        match map.buckets[index] with
+            case MapSlot::Occupied(key, value) => {
                 ArrayUtil::Append(entries, Entry (key, value));
                 ()
             }
-                default =>();
-            i = i + 1;
-        }
-    };
+            default =>();
+        MapAppendEntries(entries, map, index + 1)
+    }
+};
+def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
+    def entries: Array < Entry < K, V >> =[];
+    MapAppendEntries(entries, map, 0);
     entries
 };

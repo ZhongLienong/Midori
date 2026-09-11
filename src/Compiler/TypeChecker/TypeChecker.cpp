@@ -802,6 +802,26 @@ private:
 	TypeChecker* m_checker;
 };
 
+class DefiningGenericGuard
+{
+private:
+	TypeChecker& m_type_checker;
+
+public:
+	DefiningGenericGuard(TypeChecker& tc, const std::string& name) : m_type_checker(tc)
+	{
+		m_type_checker.m_defining_generic_names.push_back(name);
+	}
+
+	~DefiningGenericGuard()
+	{
+		m_type_checker.m_defining_generic_names.pop_back();
+	}
+
+	DefiningGenericGuard(const DefiningGenericGuard&) = delete;
+	DefiningGenericGuard& operator=(const DefiningGenericGuard&) = delete;
+};
+
 class ExpectedTypeGuard
 {
 private:
@@ -3320,6 +3340,8 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 			}
 		}
 
+		// Inside its own body, a recursive call is not a fresh instantiation.
+		DefiningGenericGuard defining_guard(*this, def.m_name.m_lexeme);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
@@ -6086,6 +6108,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	{
 		const bool binding_is_generic_function =
 			m_generic_functions.contains(variable.m_name.m_lexeme)
+			&& std::ranges::find(m_defining_generic_names, variable.m_name.m_lexeme) == m_defining_generic_names.cend()
 			&& binding->get()->IsType<MidoriType::FunctionType>();
 		if (binding_is_generic_function
 			|| variable.m_name.m_lexeme.find("::") != std::string::npos
