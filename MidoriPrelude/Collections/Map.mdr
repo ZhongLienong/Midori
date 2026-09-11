@@ -1,228 +1,185 @@
 module Map
-public export { Map, Entry, MapIter, MapIterNew, MapNew, MapInsert, MapGet, MapGetOr, MapUpdate, MapRemove, MapContains, MapCount, MapSize, MapIsEmpty, MapClear, MapKeys, MapValues, MapEntries }
-import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
+import { "./Bits.mdr", "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+public export { Entry, Node, Map, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap, With, Without, Entries, Keys, Values, MapIter, IterNew }
 use Option.{
     Option
 }
-type MapSlot < K, V > = Empty | Deleted | Occupied(K, V);
 type Entry < K, V > = {
     key: K,
     value: V
 };
+type Node < K, V > = Nothing | Leaf(Int, K, V) | Collision(Int, Array < Entry < K, V > >) | Branch(Int, Array < Node >);
 type Map < K, V > = {
-    buckets: Array < MapSlot < K,
-    V >>,
-    count: Int,
-    capacity: Int
+    root: Node < K, V >,
+    count: Int
+};
+def MakeLeaf = fn < K, V >(hash: Int, key: K, value: V) -> Node < K, V > => Node::Leaf (hash, key, value);
+def MakeBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >) -> Node < K, V > => Node::Branch (bitmap, children);
+def MakeMap = fn < K, V >(root: Node < K, V >, count: Int) -> Map < K, V > => Map (root, count);
+def Empty = fn < K, V >() -> Map < K, V > => Map (Node::Nothing (), 0);
+def Count = fn < K, V >(map: Map < K, V >) -> Int => map.count;
+def IsEmpty = fn < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
+def CollisionGet = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Option < V > where Equatable < K > =>
+    if index >= ArrayUtil::Length(entries)
+    then Option::None ()
+    else if Equatable::Equals(entries[index].key, key) then Option::Some (entries[index].value) else CollisionGet(entries, key, index + 1);
+def NodeGet = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> Option < V > where Equatable < K > =>
+    match node with
+        case Node::Nothing() => Option::None ()
+        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
+            if leaf_hash == hash && Equatable::Equals(leaf_key, key) then Option::Some (leaf_value) else Option::None ()
+        case Node::Collision(collision_hash, entries) =>
+            if collision_hash == hash then CollisionGet(entries, key, 0) else Option::None ()
+        case Node::Branch(bitmap, children) => {
+            def chunk = Bits::HashChunk(hash, depth);
+            if Bits::HasBit(bitmap, chunk)
+            then NodeGet(children[Bits::SparseIndex(bitmap, chunk)], hash, key, depth + 1)
+            else Option::None ()
+        };
+def MergeNodes = fn < K, V >(node_a: Node < K, V >, hash_a: Int, node_b: Node < K, V >, hash_b: Int, depth: Int) -> Node < K, V > =>
+    if depth >= Bits::MaxDepth
+    then Node::Branch (Bits::BitAt(Bits::HashChunk(hash_a, depth)), [node_a, node_b])
+    else {
+        def chunk_a = Bits::HashChunk(hash_a, depth);
+        def chunk_b = Bits::HashChunk(hash_b, depth);
+        if chunk_a == chunk_b
+        then Node::Branch (Bits::BitAt(chunk_a), [MergeNodes(node_a, hash_a, node_b, hash_b, depth + 1)])
+        else {
+            def bitmap = Bits::BitAt(chunk_a) | Bits::BitAt(chunk_b);
+            if chunk_a < chunk_b then Node::Branch (bitmap, [node_a, node_b]) else Node::Branch (bitmap, [node_b, node_a])
+        }
+    };
+def EntryIndexOf = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Int where Equatable < K > =>
+    if index >= ArrayUtil::Length(entries)
+    then - 1
+    else if Equatable::Equals(entries[index].key, key) then index else EntryIndexOf(entries, key, index + 1);
+def NodeWith = fn < K, V >(node: Node < K, V >, hash: Int, key: K, value: V, depth: Int) -> (Node < K, V >, Int) where Equatable < K > =>
+    match node with
+        case Node::Nothing() => (Node::Leaf (hash, key, value), 1)
+        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
+            if leaf_hash == hash && Equatable::Equals(leaf_key, key)
+            then (Node::Leaf (hash, key, value), 0)
+            else if leaf_hash == hash
+            then (Node::Collision (hash, [Entry (leaf_key, leaf_value), Entry (key, value)]), 1)
+            else (MergeNodes(Node::Leaf (leaf_hash, leaf_key, leaf_value), leaf_hash, Node::Leaf (hash, key, value), hash, depth), 1)
+        case Node::Collision(collision_hash, entries) =>
+            if collision_hash == hash
+            then {
+                def existing = EntryIndexOf(entries, key, 0);
+                if existing < 0
+                then (Node::Collision (hash, ArrayUtil::WithAppended(entries, Entry (key, value))), 1)
+                else (Node::Collision (hash, ArrayUtil::WithReplaced(entries, existing, Entry (key, value))), 0)
+            }
+            else (MergeNodes(Node::Collision (collision_hash, entries), collision_hash, Node::Leaf (hash, key, value), hash, depth), 1)
+        case Node::Branch(bitmap, children) => {
+            def chunk = Bits::HashChunk(hash, depth);
+            def slot = Bits::SparseIndex(bitmap, chunk);
+            if Bits::HasBit(bitmap, chunk)
+            then {
+                def (child, delta) = NodeWith(children[slot], hash, key, value, depth + 1);
+                (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
+            }
+            else (Node::Branch (bitmap | Bits::BitAt(chunk), ArrayUtil::WithInserted(children, slot, Node::Leaf (hash, key, value))), 1)
+        };
+def With = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Map < K, V > where Hashable < K >, Equatable < K > => {
+    def (root, delta) = NodeWith(map.root, Hashable::Hash(key), key, value, 0);
+    Map (root, map.count + delta)
+};
+def CollapseBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >) -> Node < K, V > =>
+    if ArrayUtil::Length(children) == 0
+    then Node::Nothing ()
+    else if ArrayUtil::Length(children) == 1
+    then {
+        match children[0] with
+            case Node::Leaf(leaf_hash, leaf_key, leaf_value) => Node::Leaf (leaf_hash, leaf_key, leaf_value)
+            case Node::Collision(collision_hash, entries) => Node::Collision (collision_hash, entries)
+            default => Node::Branch (bitmap, children)
+    }
+    else Node::Branch (bitmap, children);
+def NodeWithout = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> (Node < K, V >, Int) where Equatable < K > =>
+    match node with
+        case Node::Nothing() => (Node::Nothing (), 0)
+        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
+            if leaf_hash == hash && Equatable::Equals(leaf_key, key)
+            then (Node::Nothing (), - 1)
+            else (Node::Leaf (leaf_hash, leaf_key, leaf_value), 0)
+        case Node::Collision(collision_hash, entries) =>
+            if collision_hash == hash
+            then {
+                def found = EntryIndexOf(entries, key, 0);
+                if found < 0
+                then (Node::Collision (collision_hash, entries), 0)
+                else {
+                    def rest = ArrayUtil::WithRemoved(entries, found);
+                    if ArrayUtil::Length(rest) == 1
+                    then (Node::Leaf (collision_hash, rest[0].key, rest[0].value), - 1)
+                    else (Node::Collision (collision_hash, rest), - 1)
+                }
+            }
+            else (Node::Collision (collision_hash, entries), 0)
+        case Node::Branch(bitmap, children) => {
+            def chunk = Bits::HashChunk(hash, depth);
+            if Bits::HasBit(bitmap, chunk)
+            then {
+                def slot = Bits::SparseIndex(bitmap, chunk);
+                def (child, delta) = NodeWithout(children[slot], hash, key, depth + 1);
+                match child with
+                    case Node::Nothing() => (CollapseBranch(bitmap ^ Bits::BitAt(chunk), ArrayUtil::WithRemoved(children, slot)), delta)
+                    default => (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
+            }
+            else (Node::Branch (bitmap, children), 0)
+        };
+def Without = fn < K, V >(map: Map < K, V >, key: K) -> Map < K, V > where Hashable < K >, Equatable < K > => {
+    def (root, delta) = NodeWithout(map.root, Hashable::Hash(key), key, 0);
+    Map (root, map.count + delta)
+};
+def Get = fn < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > =>
+    NodeGet(map.root, Hashable::Hash(key), key, 0);
+def GetOr = fn < K, V >(map: Map < K, V >, key: K, fallback: V) -> V where Hashable < K >, Equatable < K > =>
+    match Get(map, key) with
+        case Option::Some(found) => found
+        case Option::None() => fallback;
+def ContainsKey = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > =>
+    match Get(map, key) with
+        case Option::Some(_) => true
+        case Option::None() => false;
+// One self-recursive walk over an explicit worklist: Midori has no mutual
+// recursion, so a node function and a children function could not call each
+// other.
+def CollectFrom = fn < K, V >(pending: Array < Node < K, V > >, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
+    if ArrayUtil::Length(pending) == 0
+    then collected
+    else {
+        def head = pending[0];
+        def rest = ArrayUtil::WithRemoved(pending, 0);
+        match head with
+            case Node::Nothing() => CollectFrom(rest, collected)
+            case Node::Leaf(_, leaf_key, leaf_value) => CollectFrom(rest, ArrayUtil::WithAppended(collected, Entry (leaf_key, leaf_value)))
+            case Node::Collision(_, entries) => CollectFrom(rest, ArrayUtil::Concat(collected, entries))
+            case Node::Branch(_, children) => CollectFrom(ArrayUtil::Concat(rest, children), collected)
+    };
+def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => CollectFrom([map.root], []);
+def Keys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
+    def pairs = Entries(map);
+    [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]
+};
+def Values = fn < K, V >(map: Map < K, V >) -> Array < V > => {
+    def pairs = Entries(map);
+    [pairs[slot].value for slot in 0..1..ArrayUtil::Length(pairs)]
 };
 type MapIter < K, V > = {
-    map: Map < K,
-    V >,
+    entries: Array < Entry < K, V > >,
     index: Int
 };
-def MapIterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (map, 0);
-def MapIterStep = fn < K, V >(map: Map < K, V >, index: Int) -> Option < (Entry < K, V >, MapIter < K, V >) > => {
-    if index >= map.capacity then Option::None () else {
-        match map.buckets[index] with
-            case MapSlot::Occupied(key, value) => Option::Some ((Entry (key, value), MapIter (map, index + 1)))
-            default => MapIterStep(map, index + 1)
-    }
-};
+def IterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (Entries(map), 0);
 instance Iterable < MapIter < K, V >> {
     type Item = Entry < K,
     V >;
-    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > => MapIterStep(iter.map, iter.index);
+    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > =>
+        if iter.index >= ArrayUtil::Length(iter.entries)
+        then Option::None ()
+        else Option::Some ((iter.entries[iter.index], MapIter (iter.entries, iter.index + 1)));
 };
-def MakeMapBuckets = fn < K, V >(capacity: Int) -> Array < MapSlot < K, V >> => [MapSlot::Empty () for slot in 0..1..capacity];
-def MapNewWithCapacity = fn < K, V >(capacity: Int) -> Map < K, V > => {
-    def cap = if capacity < 16 then 16 else capacity;
-    Map (MakeMapBuckets(cap), 0, cap)
-};
-def MapNew = fn < K, V >() -> Map < K, V > => MapNewWithCapacity(16);
-def FindMapSlot = fn < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
-    def probe = OpenAddressing::ProbeStart(hash, map.capacity);
-    loop {
-        if OpenAddressing::ProbeHasNext(probe) then {
-            def probe_idx = OpenAddressing::ProbeIndex(probe);
-            def entry = map.buckets[probe_idx];
-            match entry with
-                case MapSlot::Empty() => break- 1
-                case MapSlot::Deleted() => {
-                OpenAddressing::ProbeAdvance(probe);
-                ()
-            }
-                case MapSlot::Occupied(existing_key, _value) => {
-                if Equatable::Equals(existing_key, key) then break probe_idx else {
-                    OpenAddressing::ProbeAdvance(probe);
-                    ()
-                }
-            }
-        } else break- 1
-    }
-};
-def FindMapInsertSlot = fn < K, V >(map: Map < K, V >, key: K, hash: Int) -> Int where Equatable < K > => {
-    def probe = OpenAddressing::ProbeStart(hash, map.capacity);
-    loop {
-        if OpenAddressing::ProbeHasNext(probe) then {
-            def probe_idx = OpenAddressing::ProbeIndex(probe);
-            def entry = map.buckets[probe_idx];
-            match entry with
-                case MapSlot::Empty() => break OpenAddressing::ProbeResolveInsertIndex(probe, probe_idx)
-                case MapSlot::Deleted() => {
-                OpenAddressing::ProbeRememberDeleted(probe, probe_idx);
-                OpenAddressing::ProbeAdvance(probe);
-                ()
-            }
-                case MapSlot::Occupied(existing_key, _value) => {
-                if Equatable::Equals(existing_key, key) then break probe_idx else {
-                    OpenAddressing::ProbeAdvance(probe);
-                    ()
-                }
-            }
-        } else {
-            def deleted_idx = OpenAddressing::ProbeDeletedIndex(probe);
-            if deleted_idx >= 0 then break deleted_idx else break- 1
-        }
-    }
-};
-def MapInsertNoRehash = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
-    def h = Hashable::Hash(key);
-    def slot = FindMapInsertSlot(map, key, h);
-    if slot < 0 then false else {
-        def existing = map.buckets[slot];
-        match existing with
-            case MapSlot::Occupied(_key, _value) => false
-            default => {
-            map.buckets[slot] = MapSlot::Occupied (key, value);
-            map.count = map.count + 1;
-            true
-        }
-    }
-};
-def MapReinsertAll = fn < K, V >(map: Map < K, V >, old_buckets: Array < MapSlot < K, V > >, old_capacity: Int, index: Int) -> Unit where Hashable < K >, Equatable < K > => {
-    if index >= old_capacity then () else {
-        match old_buckets[index] with
-            case MapSlot::Occupied(key, value) => {
-                MapInsertNoRehash(map, key, value);
-                ()
-            }
-            default =>();
-        MapReinsertAll(map, old_buckets, old_capacity, index + 1)
-    }
-};
-def MapRehash = fn < K, V >(map: Map < K, V >, new_capacity: Int) -> Unit where Hashable < K >, Equatable < K > => {
-    def old_buckets = map.buckets;
-    def old_capacity = map.capacity;
-    map.buckets = MakeMapBuckets(new_capacity);
-    map.capacity = new_capacity;
-    map.count = 0;
-    MapReinsertAll(map, old_buckets, old_capacity, 0);
-    ()
-};
-def MapInsert = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Bool where Hashable < K >, Equatable < K > => {
-    def projected = map.count + 1;
-    if projected * 10 >= map.capacity * 7 then MapRehash(map, map.capacity * 2) else();
-    MapInsertNoRehash(map, key, value)
-};
-def MapGet = fn < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > => {
-    def h = Hashable::Hash(key);
-    def slot = FindMapSlot(map, key, h);
-    if slot < 0 then Option::None () else {
-        def entry = map.buckets[slot];
-        match entry with
-            case MapSlot::Occupied(_key, value) => Option::Some (value)
-            default => Option::None ()
-    }
-};
-def MapGetOr = fn < K, V >(map: Map < K, V >, key: K, default_value: V) -> V where Hashable < K >, Equatable < K > => {
-    def result = MapGet(map, key);
-    match result with
-        case Option::Some(value) => value
-        case Option::None() => default_value
-};
-def MapUpdate = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Option < V > where Hashable < K >, Equatable < K > => {
-    def h = Hashable::Hash(key);
-    def slot = FindMapSlot(map, key, h);
-    if slot < 0 then Option::None () else {
-        def entry = map.buckets[slot];
-        def old_value: Option < V > = match entry with
-            case MapSlot::Occupied(_key, existing_value) => Option::Some (existing_value)
-            default => Option::None ();
-        map.buckets[slot] = MapSlot::Occupied (key, value);
-        old_value
-    }
-};
-def MapRemove = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
-    def h = Hashable::Hash(key);
-    def slot = FindMapSlot(map, key, h);
-    if slot < 0 then false else {
-        def deleted: MapSlot < K, V > = MapSlot::Deleted ();
-        map.buckets[slot] = deleted;
-        map.count = map.count - 1;
-        true
-    }
-};
-def MapContains = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > => {
-    def h = Hashable::Hash(key);
-    def slot = FindMapSlot(map, key, h);
-    slot >= 0
-};
-def MapCount = fn < K, V >(map: Map < K, V >) -> Int => map.count;
 instance Countable < Map < K, V >> {
-    def Count = fn(value: Map < K, V >) -> Int => MapCount(value);
-};
-def MapSize = fn < K, V >(map: Map < K, V >) -> Int => MapCount(map);
-def MapIsEmpty = fn < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
-def MapClear = fn < K, V >(map: Map < K, V >) -> Unit => {
-    map.buckets = MakeMapBuckets(map.capacity);
-    map.count = 0;
-    ()
-};
-def MapAppendKeys = fn < K, V >(keys: Array < K >, map: Map < K, V >, index: Int) -> Unit => {
-    if index >= map.capacity then () else {
-        match map.buckets[index] with
-            case MapSlot::Occupied(key, _) => {
-                ArrayUtil::Append(keys, key);
-                ()
-            }
-            default =>();
-        MapAppendKeys(keys, map, index + 1)
-    }
-};
-def MapKeys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
-    def keys: Array < K > =[];
-    MapAppendKeys(keys, map, 0);
-    keys
-};
-def MapAppendValues = fn < K, V >(values: Array < V >, map: Map < K, V >, index: Int) -> Unit => {
-    if index >= map.capacity then () else {
-        match map.buckets[index] with
-            case MapSlot::Occupied(_, value) => {
-                ArrayUtil::Append(values, value);
-                ()
-            }
-            default =>();
-        MapAppendValues(values, map, index + 1)
-    }
-};
-def MapValues = fn < K, V >(map: Map < K, V >) -> Array < V > => {
-    def values: Array < V > =[];
-    MapAppendValues(values, map, 0);
-    values
-};
-def MapAppendEntries = fn < K, V >(entries: Array < Entry < K, V > >, map: Map < K, V >, index: Int) -> Unit => {
-    if index >= map.capacity then () else {
-        match map.buckets[index] with
-            case MapSlot::Occupied(key, value) => {
-                ArrayUtil::Append(entries, Entry (key, value));
-                ()
-            }
-            default =>();
-        MapAppendEntries(entries, map, index + 1)
-    }
-};
-def MapEntries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V >> => {
-    def entries: Array < Entry < K, V >> =[];
-    MapAppendEntries(entries, map, 0);
-    entries
+    def Count = fn(map: Map < K, V >) -> Int => map.count;
 };

@@ -1,217 +1,44 @@
 module Set
-public export { Set, SetIter, SetIterNew, SetNew, SetInsert, SetContains, SetRemove, SetCount, SetSize, SetIsEmpty, SetClear, SetUnion, SetIntersection, SetDifference, SetToArray }
-import { "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr", "./OpenAddressing.mdr" }
+import { "./Map.mdr", "../ArrayUtil.mdr", "../Countable.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+public export { Set, SetEmpty, SetCount, SetIsEmpty, SetWith, SetWithout, SetHas, SetToArray, SetIter, SetIterNew }
 use Option.{
     Option
 }
-type SetSlot < T > = Empty | Deleted | Occupied(T);
+// Its own type rather than an alias for Map<T, Unit>: spec section 5 wants a
+// Set's Hashable instance not to collapse into the map's.
+//
+// The operations are prefixed rather than named Empty, Count and so on. This
+// module imports Map, which exports those names, and a definition
+// that collides with an import silently loses to it -- see
+// docs/superpowers/repros/shadowed-generic-*.mdr.
 type Set < T > = {
-    buckets: Array < SetSlot < T >>,
-    count: Int,
-    capacity: Int
+    entries: Map::Map < T, Unit >
+};
+def SetEmpty = fn < T >() -> Set < T > => Set (Map::Empty());
+def SetCount = fn < T >(set: Set < T >) -> Int => Map::Count(set.entries);
+def SetIsEmpty = fn < T >(set: Set < T >) -> Bool => Map::IsEmpty(set.entries);
+def SetWith = fn < T >(set: Set < T >, value: T) -> Set < T > where Hashable < T >, Equatable < T > =>
+    Set (Map::With(set.entries, value, ()));
+def SetWithout = fn < T >(set: Set < T >, value: T) -> Set < T > where Hashable < T >, Equatable < T > =>
+    Set (Map::Without(set.entries, value));
+def SetHas = fn < T >(set: Set < T >, value: T) -> Bool where Hashable < T >, Equatable < T > =>
+    Map::ContainsKey(set.entries, value);
+def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
+    def pairs = Map::Entries(set.entries);
+    [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]
 };
 type SetIter < T > = {
-    set: Set < T >,
+    values: Array < T >,
     index: Int
 };
-def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (set, 0);
-def SetIterStep = fn < T >(set: Set < T >, index: Int) -> Option < (T, SetIter < T >) > => {
-    if index >= set.capacity then Option::None () else {
-        match set.buckets[index] with
-            case SetSlot::Occupied(elem) => Option::Some ((elem, SetIter (set, index + 1)))
-            default => SetIterStep(set, index + 1)
-    }
-};
+def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (SetToArray(set), 0);
 instance Iterable < SetIter < T >> {
     type Item = T;
-    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > => SetIterStep(iter.set, iter.index);
+    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > =>
+        if iter.index >= ArrayUtil::Length(iter.values)
+        then Option::None ()
+        else Option::Some ((iter.values[iter.index], SetIter (iter.values, iter.index + 1)));
 };
-def MakeSetBuckets = fn < T >(capacity: Int) -> Array < SetSlot < T >> => [SetSlot::Empty () for slot in 0..1..capacity];
-def SetNewWithCapacity = fn < T >(capacity: Int) -> Set < T > => {
-    def cap = if capacity < 16 then 16 else capacity;
-    Set (MakeSetBuckets(cap), 0, cap)
-};
-def SetNew = fn < T >() -> Set < T > => SetNewWithCapacity(16);
-def FindSetSlot = fn < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
-    def probe = OpenAddressing::ProbeStart(hash, set.capacity);
-    loop {
-        if OpenAddressing::ProbeHasNext(probe) then {
-            def probe_idx = OpenAddressing::ProbeIndex(probe);
-            def entry = set.buckets[probe_idx];
-            match entry with
-                case SetSlot::Empty() => break- 1
-                case SetSlot::Deleted() => {
-                OpenAddressing::ProbeAdvance(probe);
-                ()
-            }
-                case SetSlot::Occupied(existing_elem) => {
-                if Equatable::Equals(existing_elem, elem) then break probe_idx else {
-                    OpenAddressing::ProbeAdvance(probe);
-                    ()
-                }
-            }
-        } else break- 1
-    }
-};
-def FindSetInsertSlot = fn < T >(set: Set < T >, elem: T, hash: Int) -> Int where Equatable < T > => {
-    def probe = OpenAddressing::ProbeStart(hash, set.capacity);
-    loop {
-        if OpenAddressing::ProbeHasNext(probe) then {
-            def probe_idx = OpenAddressing::ProbeIndex(probe);
-            def entry = set.buckets[probe_idx];
-            match entry with
-                case SetSlot::Empty() => break OpenAddressing::ProbeResolveInsertIndex(probe, probe_idx)
-                case SetSlot::Deleted() => {
-                OpenAddressing::ProbeRememberDeleted(probe, probe_idx);
-                OpenAddressing::ProbeAdvance(probe);
-                ()
-            }
-                case SetSlot::Occupied(existing_elem) => {
-                if Equatable::Equals(existing_elem, elem) then break probe_idx else {
-                    OpenAddressing::ProbeAdvance(probe);
-                    ()
-                }
-            }
-        } else {
-            def deleted_idx = OpenAddressing::ProbeDeletedIndex(probe);
-            if deleted_idx >= 0 then break deleted_idx else break- 1
-        }
-    }
-};
-def SetInsertNoRehash = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
-    def h = Hashable::Hash(elem);
-    def slot = FindSetInsertSlot(set, elem, h);
-    if slot < 0 then false else {
-        def existing = set.buckets[slot];
-        def was_new = match existing with
-            case SetSlot::Occupied(_elem) => false
-            default => true;
-        if was_new then {
-            set.buckets[slot] = SetSlot::Occupied (elem);
-            set.count = set.count + 1;
-        } else();
-        was_new
-    }
-};
-def SetReinsertAll = fn < T >(set: Set < T >, old_buckets: Array < SetSlot < T > >, old_capacity: Int, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
-    if index >= old_capacity then () else {
-        match old_buckets[index] with
-            case SetSlot::Occupied(elem) => {
-                SetInsertNoRehash(set, elem);
-                ()
-            }
-            default =>();
-        SetReinsertAll(set, old_buckets, old_capacity, index + 1)
-    }
-};
-def SetRehash = fn < T >(set: Set < T >, new_capacity: Int) -> Unit where Hashable < T >, Equatable < T > => {
-    def old_buckets = set.buckets;
-    def old_capacity = set.capacity;
-    set.buckets = MakeSetBuckets(new_capacity);
-    set.capacity = new_capacity;
-    set.count = 0;
-    SetReinsertAll(set, old_buckets, old_capacity, 0);
-    ()
-};
-def SetInsert = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
-    def projected = set.count + 1;
-    if projected * 10 >= set.capacity * 7 then SetRehash(set, set.capacity * 2) else();
-    SetInsertNoRehash(set, elem)
-};
-def SetContains = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
-    def h = Hashable::Hash(elem);
-    def slot = FindSetSlot(set, elem, h);
-    slot >= 0
-};
-def SetRemove = fn < T >(set: Set < T >, elem: T) -> Bool where Hashable < T >, Equatable < T > => {
-    def h = Hashable::Hash(elem);
-    def slot = FindSetSlot(set, elem, h);
-    if slot < 0 then false else {
-        def deleted: SetSlot < T > = SetSlot::Deleted ();
-        set.buckets[slot] = deleted;
-        set.count = set.count - 1;
-        true
-    }
-};
-def SetCount = fn < T >(set: Set < T >) -> Int => set.count;
 instance Countable < Set < T >> {
-    def Count = fn(value: Set < T >) -> Int => SetCount(value);
-};
-def SetSize = fn < T >(set: Set < T >) -> Int => SetCount(set);
-def SetIsEmpty = fn < T >(set: Set < T >) -> Bool => set.count == 0;
-def SetClear = fn < T >(set: Set < T >) -> Unit => {
-    set.buckets = MakeSetBuckets(set.capacity);
-    set.count = 0;
-    ()
-};
-def SetInsertAllFrom = fn < T >(target: Set < T >, source: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
-    if index >= source.capacity then () else {
-        match source.buckets[index] with
-            case SetSlot::Occupied(elem) => {
-                SetInsert(target, elem);
-                ()
-            }
-            default =>();
-        SetInsertAllFrom(target, source, index + 1)
-    }
-};
-def SetUnion = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
-    def result: Set < T > = SetNew();
-    SetInsertAllFrom(result, set1, 0);
-    SetInsertAllFrom(result, set2, 0);
-    result
-};
-def SetInsertShared = fn < T >(target: Set < T >, source: Set < T >, other: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
-    if index >= source.capacity then () else {
-        match source.buckets[index] with
-            case SetSlot::Occupied(elem) => {
-                if SetContains(other, elem) then {
-                    SetInsert(target, elem);
-                    ()
-                } else();
-                ()
-            }
-            default =>();
-        SetInsertShared(target, source, other, index + 1)
-    }
-};
-def SetIntersection = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
-    def result: Set < T > = SetNew();
-    SetInsertShared(result, set1, set2, 0);
-    result
-};
-def SetInsertMissing = fn < T >(target: Set < T >, source: Set < T >, other: Set < T >, index: Int) -> Unit where Hashable < T >, Equatable < T > => {
-    if index >= source.capacity then () else {
-        match source.buckets[index] with
-            case SetSlot::Occupied(elem) => {
-                if SetContains(other, elem) then() else {
-                    SetInsert(target, elem);
-                    ()
-                };
-                ()
-            }
-            default =>();
-        SetInsertMissing(target, source, other, index + 1)
-    }
-};
-def SetDifference = fn < T >(set1: Set < T >, set2: Set < T >) -> Set < T > where Hashable < T >, Equatable < T > => {
-    def result: Set < T > = SetNew();
-    SetInsertMissing(result, set1, set2, 0);
-    result
-};
-def SetAppendFrom = fn < T >(values: Array < T >, set: Set < T >, index: Int) -> Unit => {
-    if index >= set.capacity then () else {
-        match set.buckets[index] with
-            case SetSlot::Occupied(elem) => {
-                ArrayUtil::Append(values, elem);
-                ()
-            }
-            default =>();
-        SetAppendFrom(values, set, index + 1)
-    }
-};
-def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
-    def values: Array < T > =[];
-    SetAppendFrom(values, set, 0);
-    values
+    def Count = fn(set: Set < T >) -> Int => Map::Count(set.entries);
 };
