@@ -1,0 +1,59 @@
+module PreludePersistentMapWrite
+
+import { "../../../MidoriPrelude/Collections/PersistentMap.mdr", "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Prelude/Panic.mdr" }
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def InsertRange = fn(map: PersistentMap::PMap < Int, Int >, next: Int, stop: Int) -> PersistentMap::PMap < Int, Int > =>
+    if next >= stop then map else InsertRange(PersistentMap::With(map, next, next * 10), next + 1, stop);
+
+def CheckRange = fn(map: PersistentMap::PMap < Int, Int >, next: Int, stop: Int) -> Bool =>
+    if next >= stop
+    then true
+    else if PersistentMap::GetOr(map, next, - 1) == next * 10 then CheckRange(map, next + 1, stop) else false;
+
+def empty : PersistentMap::PMap < Int, Text > = PersistentMap::Empty();
+
+// The property the whole design rests on: inserting must not disturb the source.
+def one = PersistentMap::With(empty, 1, "one");
+def two = PersistentMap::With(one, 2, "two");
+Expect(PersistentMap::Count(empty) == 0, "the empty map is untouched by inserts");
+Expect(PersistentMap::Count(one) == 1, "the first map is untouched by the second insert");
+Expect(PersistentMap::Count(two) == 2, "the second map has both");
+Expect(!PersistentMap::ContainsKey(one, 2), "the earlier map does not gain the later key");
+Expect(PersistentMap::GetOr(two, 1, "?") == "one", "the earlier key survives");
+
+// Replacing a key keeps the count and leaves the original readable.
+def replaced = PersistentMap::With(two, 1, "uno");
+Expect(PersistentMap::Count(replaced) == 2, "replacing does not change the count");
+Expect(PersistentMap::GetOr(replaced, 1, "?") == "uno", "replacing updates the value");
+Expect(PersistentMap::GetOr(two, 1, "?") == "one", "replacing leaves the source alone");
+
+// 1 and 33 share a chunk at depth 0 and differ at depth 1, forcing a deeper branch.
+def deep0 : PersistentMap::PMap < Int, Text > = PersistentMap::Empty();
+def deep1 = PersistentMap::With(deep0, 1, "a");
+def deep2 = PersistentMap::With(deep1, 33, "b");
+Expect(PersistentMap::Count(deep2) == 2, "a chunk collision still stores both");
+Expect(PersistentMap::GetOr(deep2, 1, "?") == "a", "the first key survives the split");
+Expect(PersistentMap::GetOr(deep2, 33, "?") == "b", "the second key is reachable past the split");
+
+// Enough keys to branch widely.
+def wide0 : PersistentMap::PMap < Int, Int > = PersistentMap::Empty();
+def wide = InsertRange(wide0, 0, 80);
+Expect(PersistentMap::Count(wide) == 80, "every key is counted once");
+Expect(CheckRange(wide, 0, 80), "every key reads back");
+Expect(PersistentMap::GetOr(wide, 80, - 1) == - 1, "an absent key is absent");
+
+// Removal, including collapsing back down.
+def shrunk = PersistentMap::Without(wide, 40);
+Expect(PersistentMap::Count(shrunk) == 79, "removal decrements the count");
+Expect(PersistentMap::GetOr(shrunk, 40, - 1) == - 1, "the removed key is gone");
+Expect(PersistentMap::GetOr(wide, 40, - 1) == 400, "removal leaves the source alone");
+Expect(PersistentMap::Count(PersistentMap::Without(wide, 999)) == 80, "removing an absent key is a no-op");
+
+def emptied = PersistentMap::Without(PersistentMap::Without(two, 1), 2);
+Expect(PersistentMap::Count(emptied) == 0, "removing everything empties the map");
+Expect(PersistentMap::IsEmpty(emptied), "the emptied map reports empty");
+Expect(PersistentMap::Count(two) == 2, "the source of the removals is untouched");
+
+IO::PrintLine("persistent_map_write: PASS");

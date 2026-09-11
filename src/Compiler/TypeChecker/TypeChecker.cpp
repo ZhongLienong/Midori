@@ -2935,13 +2935,20 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	else if (subst_type->IsType<MidoriType::UnionType>())
 	{
 		MidoriType::UnionType& union_type = subst_type->GetType<MidoriType::UnionType>();
-		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
+		// A variable can only reach a nominal type through its type arguments, which
+		// are checked below. Walking the members again is redundant and does not
+		// terminate when a member reaches the type through a fresh node.
+		NominalUnifyGuard occurs_guard(*this, "occurs:" + union_type.m_name);
+		if (occurs_guard.Entered())
 		{
-			for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+			for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 			{
-				if (OccursCheck(var_id, member_type, visited))
+				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
 				{
-					return true;
+					if (OccursCheck(var_id, member_type, visited))
+					{
+						return true;
+					}
 				}
 			}
 		}

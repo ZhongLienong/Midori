@@ -1,6 +1,6 @@
 module RecursiveUnionThroughArray
 
-import { "../../../MidoriPrelude/IO.mdr" }
+import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/ArrayUtil.mdr" }
 
 // The union reaches itself through an Array rather than directly, so each
 // descent during unification rebuilds the Array node.
@@ -27,3 +27,15 @@ IO::PrintLine(Width(nested) as Text);
 def words : Tree < Text > = Tree::Fork ("a", [Tree::Fork ("b", [])]);
 IO::PrintLine(Depth(words, 0) as Text);
 IO::PrintLine(Width(words) as Text);
+
+// An imported generic helper applied to an array of the recursive union: this
+// is what the occurs check walked forever.
+def AddChild = fn < T >(tree: Tree < T >, child: Tree < T >) -> Tree < T > =>
+    match tree with
+        case Tree::Tip() => tree
+        case Tree::Fork(x, kids) => Tree::Fork (x, ArrayUtil::WithAppended(kids, child));
+
+def grown = AddChild(nested, tip);
+IO::PrintLine(Width(grown) as Text);
+IO::PrintLine(Width(nested) as Text);
+
