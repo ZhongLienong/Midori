@@ -269,3 +269,52 @@ in `m_type_substitution` at the end of type checking, for each helper, and wheth
 **Three hypotheses have now been formed and disproved here.** Do not add a fourth
 without a measurement that distinguishes it. The two contained-fix options in the
 earlier sections remain available and are unaffected by any of this.
+
+
+---
+
+## The measured asymmetry — 2026-09-10
+
+The question left open above was: both bodies are checked with type variables, so
+why does one end concrete and the other not? Measured by recording every `Pair`
+`Construct` node as it is typed and re-reading it at the end of `TypeCheck()`,
+both raw and after `ApplySubstitution`:
+
+```
+non-recursive:  raw=Pair<T0, T1>    applied=Pair<T0, T1>
+recursive:      raw=Pair<T9, T10>   applied=Pair<T14, T15>
+```
+
+**Neither is concrete at the end of type checking** — which corrects the framing
+of the previous section. The working case is not "resolved"; it is *untouched*.
+
+The difference is that the recursive body's variables are **bound to a second
+generation of variables**: `T9 -> T14`, `T10 -> T15`. The non-recursive body's
+variables are bound to nothing at all.
+
+### What that implies
+
+Codegen's `SubstituteGenericTypes` is keyed by name. For the non-recursive helper
+it is handed a node still carrying the *same* variables the specialization
+deduced against, so the lookup succeeds. For the recursive helper the node now
+carries `T14`/`T15` — variables introduced by the recursive call's per-use
+freshening, which belong to a *call*, not to the function — and nothing in the
+specialization's map is keyed by those.
+
+That is consistent with every observation in this plan, including why only a
+constructed element fails: a bare parameter is read through `m_param_type_map`,
+which is keyed by parameter *name* and so is immune to the renaming.
+
+### Status of this as an explanation
+
+The renaming `T9 -> T14` is **measured**. The claim that it comes from the
+recursive call's per-use freshening is **inferred** and is the fourth candidate
+mechanism in this plan; the three before it were each disproved. What makes this
+one different is that it rests on an observed asymmetry rather than on reading
+the code, but it has not been confirmed at the point where the binding is created.
+
+The confirming measurement is to log where `T9` acquires its binding to `T14` —
+instrument `m_type_substitution` insertions and report the one that binds a
+body variable to another variable, with the token that caused it. If that lands
+inside the recursive call's unification, the mechanism is established and option 1
+becomes actionable.
