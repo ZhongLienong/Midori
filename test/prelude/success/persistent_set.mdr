@@ -1,0 +1,52 @@
+module PreludePersistentSet
+
+import
+{
+    "../../../MidoriPrelude/Collections/PersistentSet.mdr",
+    "../../../MidoriPrelude/IO.mdr",
+    "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Panic.mdr"
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def AddRange = fn(set: PersistentSet::PSet < Int >, next: Int, stop: Int) -> PersistentSet::PSet < Int > =>
+    if next >= stop then set else AddRange(PersistentSet::SetWith(set, next), next + 1, stop);
+
+def seed : PersistentSet::PSet < Int > = PersistentSet::SetEmpty();
+Expect(PersistentSet::SetCount(seed) == 0, "a new set is empty");
+Expect(PersistentSet::SetIsEmpty(seed), "a new set reports empty");
+Expect(!PersistentSet::SetHas(seed, 1), "a new set holds nothing");
+
+def one = PersistentSet::SetWith(seed, 1);
+def two = PersistentSet::SetWith(one, 2);
+Expect(PersistentSet::SetCount(seed) == 0, "adding does not disturb the source");
+Expect(PersistentSet::SetCount(one) == 1, "the first set keeps its size");
+Expect(PersistentSet::SetCount(two) == 2, "the second set has both");
+Expect(!PersistentSet::SetHas(one, 2), "the earlier set does not gain the later value");
+
+def again = PersistentSet::SetWith(two, 1);
+Expect(PersistentSet::SetCount(again) == 2, "adding a present value does not grow the set");
+
+def wide = AddRange(seed, 0, 80);
+Expect(PersistentSet::SetCount(wide) == 80, "every value is counted once");
+Expect(PersistentSet::SetHas(wide, 79), "the last value is present");
+Expect(!PersistentSet::SetHas(wide, 80), "an absent value is absent");
+
+def shrunk = PersistentSet::SetWithout(wide, 40);
+Expect(PersistentSet::SetCount(shrunk) == 79, "removal decrements");
+Expect(!PersistentSet::SetHas(shrunk, 40), "the removed value is gone");
+Expect(PersistentSet::SetHas(wide, 40), "removal leaves the source alone");
+
+def visited = 0;
+def total = 0;
+for value in PersistentSet::SetIterNew(wide) {
+    visited = visited + 1;
+    total = total + value;
+};
+Expect(visited == 80, "iteration visits every value exactly once");
+Expect(total == 3160, "every value is seen once and only once");
+
+Expect(#PersistentSet::SetToArray(wide) == 80, "SetToArray returns every value");
+
+IO::PrintLine("persistent_set: PASS");
