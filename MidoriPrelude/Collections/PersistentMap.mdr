@@ -1,6 +1,6 @@
 module PersistentMap
-import { "./Bits.mdr", "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Prelude/Option.mdr" }
-public export { Entry, Node, PMap, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap, With, Without }
+import { "./Bits.mdr", "../ArrayUtil.mdr", "../Equatable.mdr", "../Hashable.mdr", "../Iterable.mdr", "../Prelude/Option.mdr" }
+public export { Entry, Node, PMap, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap, With, Without, Entries, MapIter, IterNew }
 use Option.{
     Option
 }
@@ -143,3 +143,32 @@ def ContainsKey = fn < K, V >(map: PMap < K, V >, key: K) -> Bool where Hashable
     match Get(map, key) with
         case Option::Some(_) => true
         case Option::None() => false;
+// One self-recursive walk over an explicit worklist: Midori has no mutual
+// recursion, so a node function and a children function could not call each
+// other.
+def CollectFrom = fn < K, V >(pending: Array < Node < K, V > >, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
+    if ArrayUtil::Length(pending) == 0
+    then collected
+    else {
+        def head = pending[0];
+        def rest = ArrayUtil::WithRemoved(pending, 0);
+        match head with
+            case Node::Nothing() => CollectFrom(rest, collected)
+            case Node::Leaf(_, leaf_key, leaf_value) => CollectFrom(rest, ArrayUtil::WithAppended(collected, Entry (leaf_key, leaf_value)))
+            case Node::Collision(_, entries) => CollectFrom(rest, ArrayUtil::Concat(collected, entries))
+            case Node::Branch(_, children) => CollectFrom(ArrayUtil::Concat(rest, children), collected)
+    };
+def Entries = fn < K, V >(map: PMap < K, V >) -> Array < Entry < K, V > > => CollectFrom([map.root], []);
+type MapIter < K, V > = {
+    entries: Array < Entry < K, V > >,
+    index: Int
+};
+def IterNew = fn < K, V >(map: PMap < K, V >) -> MapIter < K, V > => MapIter (Entries(map), 0);
+instance Iterable < MapIter < K, V >> {
+    type Item = Entry < K,
+    V >;
+    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > =>
+        if iter.index >= ArrayUtil::Length(iter.entries)
+        then Option::None ()
+        else Option::Some ((iter.entries[iter.index], MapIter (iter.entries, iter.index + 1)));
+};
