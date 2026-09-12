@@ -2,42 +2,44 @@ module GenerationalChurn
 
 import
 {
-	"../../MidoriPrelude/Appendable.mdr",
 	"../../MidoriPrelude/ArrayUtil.mdr",
-	"../../MidoriPrelude/IO.mdr"
+	"../../MidoriPrelude/IO.mdr",
+	"../../MidoriPrelude/Prelude/List.mdr"
 }
 
 def Main = fn() -> Unit =>
 {
-	// Long-lived, created before the churn and alive throughout, so the young
-	// pointers appended to it below are the old-to-young writes this test exists
-	// to exercise. Appendable::Append mutates in place and is untouched by the
-	// removal of assignment, so that path survives intact.
-	def keeper : Array<Text> = [];
+	// Was: a long-lived `keeper` array receiving young pointers by in-place
+	// Append, which is what made this an old-to-young write-barrier test. No
+	// expression can write into an existing object any more, so that coverage is
+	// gone and nothing replaces it. What remains is the allocation churn and the
+	// promotion of a structure that survives the whole run.
+	//
+	// Cons is O(1), so the accumulation stays linear; the list is converted once
+	// at the end.
+	def Churn = fn(i : Int, limit : Int, keeper : List<Text>) -> List<Text> =>
+		if i >= limit
+		then keeper
+		else
+		{
+			def base = "churn-" ++ (i as Text);
+			def scratch : Array<Text> = [base, base ++ "-x", base ++ "-x-y", base ++ "-x-y-z"];
 
-	// `for` accumulates nothing now; every statement in the body is an effect.
-	// The allocation profile is unchanged: 32000 iterations, four short-lived
-	// strings and one scratch array each.
-	for i in 0..1..32000
-	{
-		def scratch : Array<Text> = [];
-		Appendable::Append(scratch, "churn-" ++ (i as Text));
-		Appendable::Append(scratch, scratch[0] ++ "-x");
-		Appendable::Append(scratch, scratch[1] ++ "-y");
-		Appendable::Append(scratch, scratch[2] ++ "-z");
+			// Reads `scratch`, so the four strings cannot be eliminated as dead. The
+			// allocation is the entire point of this test; an unread binding would let
+			// the optimizer delete it and the file would pass while measuring nothing.
+			def churned = ArrayUtil::Length(scratch);
 
-		if i % 1000 == 0
-		then Appendable::Append(keeper, "fresh-" ++ (i as Text))
-		else ();
-	};
+			Churn(i + 1, limit, if i % 1000 == 0 && churned == 4 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
+		};
+
+	def keeper = ArrayUtil::Reverse(List::ListToArray(Churn(0, 32000, List::Nil())));
 
 	for item in keeper
 	{
 		IO::PrintLine(item);
 	};
 
-	// Previously read out of two mutable captures. Both were bookkeeping over
-	// the same promotions and are derivable from `keeper` itself.
 	IO::PrintLine(keeper[ArrayUtil::Length(keeper) - 1]);
 	IO::PrintLine(ArrayUtil::Length(keeper) as Text);
 };

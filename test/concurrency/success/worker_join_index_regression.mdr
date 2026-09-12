@@ -3,7 +3,7 @@ module worker_join_index_regression
 import
 {
     "../../../MidoriPrelude/IO.mdr",
-    "../../../MidoriPrelude/Appendable.mdr",
+    "../../../MidoriPrelude/ArrayUtil.mdr",
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
@@ -32,13 +32,12 @@ def Run = fn() -> Unit =>
     def worker_count = if band_workers < height then band_workers else height;
     def base_rows = height / worker_count;
     def remainder = height % worker_count;
-    def workers : Array<Worker<Array<Int>>> = [];
-    // `next_row` and `band_index` were the loop's carried state; they are now the
-    // helper's parameters. Spawn order is unchanged, which is what the join
-    // indices below depend on.
-    def SpawnBands = fn(band_index : Int, next_row : Int) -> Unit =>
+    // 32 bands, so WithAppended's copy is irrelevant here; the array is rebuilt
+    // 32 times at up to 32 elements. Spawn order is unchanged, which is what the
+    // join indices below depend on.
+    def SpawnBands = fn(workers : Array<Worker<Array<Int>>>, band_index : Int, next_row : Int) -> Array<Worker<Array<Int>>> =>
         if band_index >= worker_count
-        then ()
+        then workers
         else
         {
             def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
@@ -49,12 +48,12 @@ def Run = fn() -> Unit =>
             then ()
             else Panic::Panic("immediate join failed");
             def worker = spawn Answer(y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci);
-            Appendable::Append(workers, worker);
 
-            SpawnBands(band_index + 1, y_end)
+            SpawnBands(ArrayUtil::WithAppended(workers, worker), band_index + 1, y_end)
         };
 
-    SpawnBands(0, 0);
+    def empty_workers : Array<Worker<Array<Int>>> = [];
+    def workers = SpawnBands(empty_workers, 0, 0);
 
     def JoinAll = fn(join_index : Int) -> Unit =>
         if join_index >= #workers
