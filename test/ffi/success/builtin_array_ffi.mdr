@@ -6,7 +6,10 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr",
 }
 
-foreign "MIDORI_FFI_ArrayAppend" ArrayAppendInt : fn(Array<Int>, Int) -> Unit;
+// Previously also covered MIDORI_FFI_ArrayAppend, which mutated its argument
+// in place and was deleted along with the ARRAY_APPEND opcode. What remains
+// here is the FFI surface that returns new values or reads without mutating.
+
 foreign "MIDORI_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
 foreign "MIDORI_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
 foreign "MIDORI_FFI_ArrayPop" ArrayPopInt : fn(Array<Int>) -> Int;
@@ -14,12 +17,10 @@ foreign "MIDORI_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Arra
 foreign "MIDORI_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
 foreign "MIDORI_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
 
-foreign "MIDORI_FFI_ArrayAppend" ArrayAppendText : fn(Array<Text>, Text) -> Unit;
 foreign "MIDORI_FFI_ArrayPop" ArrayPopText : fn(Array<Text>) -> Text;
 
-def arr = [1, 2];
-ArrayAppendInt(arr, 3);
-if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayAppend should grow the array");
+def arr = [1, 2, 3];
+if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayLength should report the array size");
 
 def combined = ArrayConcatInt(arr, [4, 5]);
 if ArrayLengthInt(combined) == 5 then () else Panic::Panic("ArrayConcat should return a larger array");
@@ -46,10 +47,9 @@ def popped = ArrayPopInt(arr);
 if popped == 3 then () else Panic::Panic("ArrayPop should return the last element");
 if ArrayLengthInt(arr) == 2 then () else Panic::Panic("ArrayPop should shrink the array");
 
-def texts = ["alpha"];
-ArrayAppendText(texts, "beta");
+def texts = ["alpha", "beta"];
 def popped_text = ArrayPopText(texts);
 if popped_text == "beta" then () else Panic::Panic("ArrayPop should preserve pointer-backed values");
-if texts[0] == "alpha" then () else Panic::Panic("ArrayAppend should keep existing text values intact");
+if texts[0] == "alpha" then () else Panic::Panic("ArrayPop should keep the remaining text value intact");
 
 IO::PrintLine("builtin_array_ffi: PASS");

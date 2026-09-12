@@ -117,9 +117,6 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastSystemErrorMessage)(void** args, void* ret) noexcept;
 
 	// Built-in Arrays
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayAppend)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPrepend)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayExtend)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPop)(void** args, void* ret) noexcept;
@@ -128,8 +125,6 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept;
 
 	// Text
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextAppend)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextPrepend)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextLength)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept;

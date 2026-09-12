@@ -6,8 +6,11 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr",
 }
 
-foreign "MIDORI_FFI_TextAppend" TextAppend : fn(Text, Text) -> Unit;
-foreign "MIDORI_FFI_TextPrepend" TextPrepend : fn(Text, Text) -> Unit;
+// Previously also covered MIDORI_FFI_TextAppend and MIDORI_FFI_TextPrepend,
+// which mutated their argument in place and were deleted along with the
+// TEXT_APPEND opcode. What remains here is the FFI surface that returns new
+// values or reads without mutating.
+
 foreign "MIDORI_FFI_TextConcat" TextConcat : fn(Text, Text) -> Text;
 foreign "MIDORI_FFI_TextLength" TextLength : fn(Text) -> Int;
 foreign "MIDORI_FFI_TextSubstring" TextSubstring : fn(Text, Int, Int) -> Text;
@@ -17,11 +20,6 @@ foreign "MIDORI_FFI_TextContains" TextContains : fn(Text, Text) -> Bool;
 foreign "MIDORI_FFI_TextReplace" TextReplace : fn(Text, Text, Text) -> Text;
 foreign "MIDORI_FFI_TextTrim" TextTrim : fn(Text) -> Text;
 foreign "MIDORI_FFI_ArrayLength" ArrayLengthText : fn(Array<Text>) -> Int;
-
-def text = "core";
-TextAppend(text, "!");
-TextPrepend(text, "mid-");
-if text == "mid-core!" then () else Panic::Panic("TextAppend/TextPrepend should mutate the original text");
 
 def joined = TextConcat("hello", " world");
 if joined == "hello world" then () else Panic::Panic("TextConcat should return a combined text");

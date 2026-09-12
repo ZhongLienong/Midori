@@ -192,24 +192,6 @@ namespace
 
 extern "C"
 {
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayAppend)(void** args, void* ret) noexcept
-	{
-		RequireArray(args[0u]).AddBack(ReadValue(args, 1u));
-		WriteUnit(ret);
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPrepend)(void** args, void* ret) noexcept
-	{
-		RequireArray(args[0u]).AddFront(ReadValue(args, 1u));
-		WriteUnit(ret);
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayExtend)(void** args, void* ret) noexcept
-	{
-		RequireArray(args[0u]).Extend(RequireArray(args[1u]));
-		WriteUnit(ret);
-	}
-
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
 	{
 		MidoriArray concatenated = MidoriArray::Concatenate(RequireArray(args[0u]), RequireArray(args[1u]));
@@ -247,18 +229,6 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireArray(args[0u]).Contains(ReadValue(args, 1u)));
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextAppend)(void** args, void* ret) noexcept
-	{
-		RequireText(args[0u]).Append(RequireText(args[1u]));
-		WriteUnit(ret);
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextPrepend)(void** args, void* ret) noexcept
-	{
-		RequireText(args[0u]).Prepend(RequireText(args[1u]));
-		WriteUnit(ret);
 	}
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept

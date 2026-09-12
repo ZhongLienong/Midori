@@ -275,10 +275,6 @@ enum class OpCode : uint8_t
 	IF_LOCAL_LE_INT,    // [op][local][imm8][pad][off_lo][off_hi]       branch if !(local <= imm)
 	IF_LOCAL_GE_LOCAL,  // [op][left][pad][right][pad][off_lo][off_hi]  branch if !(left >= right)
 	GET_LOCAL2,         // [op][first][pad][second]                     push two locals
-
-	// Intrinsic builtins (lowered from foreign calls to skip FFI marshaling)
-	ARRAY_APPEND,
-	TEXT_APPEND,
 };
 
 class BytecodeStream
