@@ -5,29 +5,46 @@ module GenericConstructionInMethodArgument
 // travel different paths in TypeChecker::operator()(MidoriExpression::Call&) and failed
 // for different reasons, so they are pinned separately.
 //
-// Instance selection is argument-directed: `Appendable` has an Array instance and a Text
+// Instance selection is argument-directed: `Collect` has an Array instance and a Text
 // instance, so no parameter type is known until the arguments have been checked, and the
 // arguments were therefore checked with no expected type at all. NarrowClassMethodType
 // narrows the instances against the arguments already settled - once the container has
 // fixed the instance, the element parameter is known and the construction infers from it.
+//
+// This used Appendable, which had exactly this shape. Appendable was deleted for
+// mutating in place, and no prelude class has two type parameters and two
+// instances any more, so the test carries its own.
 
 import
 {
 	"../../../MidoriPrelude/IO.mdr",
-	"../../../MidoriPrelude/Appendable.mdr",
+	"../../../MidoriPrelude/ArrayUtil.mdr",
 }
 
 type Slot<K, V> = Empty | Occupied(K, V);
 
-def slots : Array<Slot<Int, Text>> = [];
-Appendable::Append(slots, Slot::Empty());
-Appendable::Append(slots, Slot::Occupied(2, "two"));
+class Collect < C, Elem >
+{
+	Of: fn(container: C, elem: Elem) -> C;
+};
+
+instance Collect < Array < T >, T >
+{
+	def Of = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
+};
+
+instance Collect < Text, Text >
+{
+	def Of = fn(container: Text, elem: Text) -> Text => container ++ elem;
+};
+
+def empty : Array<Slot<Int, Text>> = [];
+def slots = Collect::Of(Collect::Of(empty, Slot::Empty()), Slot::Occupied(2, "two"));
 
 IO::PrintLine("slots: " ++ (#slots as Text));
 
 // The Text instance of the same class still selects on its own arguments.
-def greeting = "hello";
-Appendable::Append(greeting, " world");
+def greeting = Collect::Of("hello", " world");
 
 IO::PrintLine("text: " ++ greeting);
 
