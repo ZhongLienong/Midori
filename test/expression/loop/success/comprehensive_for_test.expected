@@ -1,0 +1,17 @@
+Test 1 - Forward 0..1..10 (expected 45):
+45
+Test 2 - Backward 0..-1..-10 (expected -45):
+-45
+Test 3 - Forward 0..2..10 (expected 20):
+20
+Test 4 - Backward 10..-2..0 (expected 30):
+30
+Test 5 - Single 5..1..6 (expected 5):
+5
+Test 6 - Empty 0..1..-10 (expected 0):
+0
+Test 7 - for as effect 0..3..10:
+0
+3
+6
+9
