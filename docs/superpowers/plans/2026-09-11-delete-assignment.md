@@ -62,8 +62,13 @@ from a missing feature.
 ## Known traps
 
 1. **Counting assignments with a regex matches `default =>` arms.** Earlier
-   figures of 62, 59 and 52 were inflated by exactly this. Use
-   `'^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*([.]\\w+|\\[[^]]*\\])*[[:space:]]*([-+*/%|&^]|<<|>>)?=[^=>]'`
+   figures of 62, 59 and 52 were inflated by exactly this. Anchoring the pattern
+   at line start fixes that but introduces the opposite error: it cannot see an
+   assignment inside a single-line block, as in
+   `fn() -> Int => { counter = counter + 1; counter }`. That hid three of them
+   and made the Task 1 figure of 76 a floor rather than a count. Allow a `{` or
+   `;` before the target as well:
+   `'(^[[:space:]]*|[{;][[:space:]]*)[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*|\\[[^]]*\\])*[[:space:]]*([-+*/%|&^]|<<|>>|\\+\\+)?=[^=>]'`
    and sanity-check the total against a manual count of one file.
 2. **A `.expected` snapshot captures compiler warnings, including their line
    numbers.** Adding a line to a prelude file has twice broken unrelated tests
@@ -111,6 +116,10 @@ report before migrating.**
 ## Task 2: Migrate the corpus
 
 - [ ] **Step 1: Loop counters and accumulators to comprehensions or folds**
+
+Progress: `test/closure` done (`73789c0`). Corpus stands at **44 assignments in
+22 files** — `concurrency/success` (10 files), `expression/failure` (6),
+`expression/success` (4), `expression/loop/success` (1), `gc` (1).
 
 Verify each file against its existing `.expected` after rewriting, while
 assignment still parses.
@@ -199,3 +208,37 @@ tail-recursive helper, an accumulator becomes a fold over the same sequence.
 
 Nothing needs a new language form. The fourth bucket — "anything that fits none
 of those" — is **empty**, which was the question Task 1 existed to answer.
+
+---
+
+## Migration notes — 2026-09-11
+
+### `test/closure` cost real coverage, and should
+
+Deleting assignment makes **capture-by-reference and capture-by-value
+unobservable**. No program can distinguish them once a closure cannot witness a
+later write to what it captured. Three tests existed only to pin that
+distinction (`dynamic_creation_capture_ref`, `mutable`, and the contrast half of
+`dynamic_creation_capture_value`) and were deleted rather than reformulated into
+something that keeps the filename and loses the subject. `man_or_boy` went the
+same way: Knuth's test *is* a nested closure mutating its enclosing scope.
+
+This is the same call already made for `local_constant_propagation` and
+`helpers` — when a test's subject stops existing, retire it and say so.
+
+### The directory was asserting almost nothing
+
+`test/closure` had no `.expected` files at all. `RunOneTestInProcess` compares
+output only `if (!expected_output.empty())`, so those tests asserted exit code 0
+and nothing else — every file in the directory could have printed garbage and
+passed. Snapshots were added for all six survivors. **Check other directories
+for the same hole before trusting a green run there.**
+
+### A migration exposed a compiler defect
+
+The rewritten `nested_and_recursion.mdr` drew `Binding 'total' is never read` on
+the line above the one that reads it — a false positive at two levels of closure
+nesting, fixed in `66215cb`, reduction recorded in
+`repros/unused-local-false-positive-nested-capture.md`. Worth expecting more of
+these: the migration is pushing the corpus into shapes (deeper nesting, more
+returned closures) that the old mutable style did not produce.
