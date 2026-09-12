@@ -846,29 +846,27 @@ Delete `ARRAY_APPEND` and `TEXT_APPEND` from the `OpCode` enum in
 `Executable.h`, their `case` arms in `VirtualMachine.cpp`, and their `case` arms
 in `Disassembler.cpp`.
 
-The `OpCode` enum has no explicit values — it is positional — so removing two
-entries from the middle renumbers every opcode after them and invalidates any
-serialised bytecode.
+**This step does not renumber anything — check before believing otherwise.**
+An earlier draft of this plan said removing these two opcodes "renumbers every
+opcode after them and invalidates any serialised bytecode". That was wrong:
 
-Five `.mbc`/`.mbc.json` artifacts are **tracked in git**, which they should not
-be: they are build products from `midori build`, nothing loads them by name, and
-after this task their opcode numbering is wrong. Remove them from the index as
-part of this commit, listing each path explicitly:
+- `ARRAY_APPEND` and `TEXT_APPEND` are the **last two entries** in the `OpCode`
+  enum (`Executable.h:280-281`, under "Intrinsic builtins"). Removing entries
+  from the end changes no other opcode's value.
+- The VM dispatches with a plain `switch` (`VirtualMachine.cpp:356`, `:1044`).
+  There is no opcode-indexed jump table to keep in sync.
+- None of the five `.mbc`/`.mbc.json` artifacts tracked in git references
+  either opcode (checked by grep).
 
-```bash
-git rm --cached test/closure/closure_inside_conditional.mbc
-git rm --cached test/closure/closure_inside_conditional.mbc.json
-git rm --cached test/concurrency/success/channel_spawn_syntax.mbc.json
-git rm --cached test/concurrency/success/value_transfer_array_syntax.mbc.json
-git rm --cached test/concurrency/success/worker_spawn_syntax.mbc.json
-find test -name "*.mbc" -delete
-find test -name "*.mbc.json" -delete
-```
+So the tracked artifacts are **unaffected** and this task must leave them
+alone. They are stray build products that arguably should not be tracked, but
+removing them is unrelated cleanup and belongs in its own commit with its own
+reason — not smuggled in here under a justification that is false.
 
-**Do not assume the rest of the compound-assignment opcode block is dead.**
+**Do not assume the compound-assignment opcode block is dead either.**
 Compound assignment was deleted from the *language*, but `ADD_ASSIGN_INT` and
 `SUB_ASSIGN_INT` are still emitted by an increment peephole at
-`CodeGenerator.cpp:508`. Only `ARRAY_APPEND` and `TEXT_APPEND` are in scope here.
+`CodeGenerator.cpp:508`. Only `ARRAY_APPEND` and `TEXT_APPEND` are in scope.
 
 - [ ] **Step 5: Build**
 
