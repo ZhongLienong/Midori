@@ -55,7 +55,8 @@ private:
 	void PopScope();
 	void RegisterBinding(const Token& token, std::optional<int> local_index, bool suppressed);
 	void RegisterParameterBindings(const std::vector<Token>& params);
-	void MarkRead(const MidoriExpression::NameContext::Tag& name_ctx);
+	void MarkRead(const Token& name, const MidoriExpression::NameContext::Tag& name_ctx);
+	void MarkCapturedReadByName(const Token& name);
 
 	std::vector<FunctionContext> m_functions;
 };

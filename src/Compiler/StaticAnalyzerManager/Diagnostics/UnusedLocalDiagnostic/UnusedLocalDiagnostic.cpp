@@ -116,7 +116,7 @@ void UnusedLocalDiagnostic::RegisterParameterBindings(const std::vector<Token>& 
 	}
 }
 
-void UnusedLocalDiagnostic::MarkRead(const MidoriExpression::NameContext::Tag& name_ctx)
+void UnusedLocalDiagnostic::MarkRead(const Token& name, const MidoriExpression::NameContext::Tag& name_ctx)
 {
 	if (std::holds_alternative<MidoriExpression::NameContext::Local>(name_ctx))
 	{
@@ -129,19 +129,39 @@ void UnusedLocalDiagnostic::MarkRead(const MidoriExpression::NameContext::Tag& n
 		return;
 	}
 
-	if (!std::holds_alternative<MidoriExpression::NameContext::Cell>(name_ctx))
+	if (std::holds_alternative<MidoriExpression::NameContext::Cell>(name_ctx))
 	{
-		return;
+		MarkCapturedReadByName(name);
 	}
+}
 
-	const int local_index = std::get<MidoriExpression::NameContext::Cell>(name_ctx).m_index;
+// A cell index is the captured variable's absolute index minus the base of the
+// frame *above* the one that declares it, whereas m_active_locals is keyed by an
+// index relative to the declaring frame itself. The two agree only when both
+// bases are zero — one level of nesting — so a cell index cannot be used to look
+// a binding up here. Walking the enclosing frames outward by name is the same
+// resolution the parser performed to emit the cell in the first place.
+void UnusedLocalDiagnostic::MarkCapturedReadByName(const Token& name)
+{
 	for (std::size_t index = m_functions.size(); index > 1u; index -= 1u)
 	{
 		FunctionContext& outer_function = m_functions[index - 2u];
-		const std::unordered_map<int, int>::const_iterator it = outer_function.m_active_locals.find(local_index);
-		if (it != outer_function.m_active_locals.end())
+
+		int best_local_index = -1;
+		int best_binding_id = -1;
+		for (const std::pair<const int, int>& active_local : outer_function.m_active_locals)
 		{
-			outer_function.m_bindings[static_cast<std::size_t>(it->second)].m_is_read = true;
+			const BindingInfo& candidate = outer_function.m_bindings[static_cast<std::size_t>(active_local.second)];
+			if (candidate.m_token.m_lexeme == name.m_lexeme && active_local.first > best_local_index)
+			{
+				best_local_index = active_local.first;
+				best_binding_id = active_local.second;
+			}
+		}
+
+		if (best_binding_id >= 0)
+		{
+			outer_function.m_bindings[static_cast<std::size_t>(best_binding_id)].m_is_read = true;
 			return;
 		}
 	}
@@ -187,7 +207,7 @@ void UnusedLocalDiagnostic::operator()(MidoriPattern::Binding& binding)
 
 void UnusedLocalDiagnostic::operator()(MidoriExpression::NameAccess& access)
 {
-	MarkRead(access.m_name_ctx);
+	MarkRead(access.m_name, access.m_name_ctx);
 }
 
 void UnusedLocalDiagnostic::operator()(MidoriExpression::CompoundAssign& compound_assign)
@@ -198,7 +218,7 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::CompoundAssign& compoun
 	}
 	else
 	{
-		MarkRead(compound_assign.m_name_ctx);
+		MarkRead(compound_assign.m_name, compound_assign.m_name_ctx);
 	}
 	VisitExpression(compound_assign.m_value);
 }

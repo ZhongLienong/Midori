@@ -15,3 +15,4 @@ These are **not** part of the test suite. They fail by design.
 | `recursive-append-generic-struct*.mdr` | a recursive generic helper appending a constructed generic struct fails to resolve its typeclass instance across modules | **fixed** `eb05275`; kept as the reduction record |
 | `recursive-union-through-array.mdr` | a generic union reaching itself through an `Array`, walked by a recursive function, hung `Unify` | **fixed** `789378d`; kept as the reduction record |
 | `shadowed-generic-*.mdr` | a module defining a generic function with the same name as one it imports silently gets the imported one | **open** — silent wrong answer |
+| `unused-local-nested-capture.mdr` | a local read only from a closure two levels deep was reported as never read, because a cell index was looked up in a map keyed by local indices | **fixed**; kept as the reduction record |
