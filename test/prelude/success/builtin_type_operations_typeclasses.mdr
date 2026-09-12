@@ -8,8 +8,8 @@ import
 }
 
 // Previously also covered Appendable, Prependable and Extendable. Those three
-// mutated their argument in place and are removed by the rest of this change;
-// what remains here is Concatenable, which returns a new value and is unaffected.
+// mutated their argument in place and were removed from the language; what
+// remains here is Concatenable, which returns a new value and is unaffected.
 
 def ConcatPair = fn<T>(left: T, right: T) -> T
     where Concatenable<T> => left ++ right;
