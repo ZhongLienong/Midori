@@ -105,9 +105,16 @@ else Panic::Panic("Text case 5: a closure capturing a binding must see it unchan
 // IsFreshConcatTemporary that LOAD_STRING always pushes a fresh copy. If two
 // occurrences of the same literal ever shared one runtime buffer, mutating
 // one occurrence via EXTEND_TEXT would corrupt the other with no `def`
-// aliasing involved.
+// aliasing involved. The right operand is routed through an array index, as
+// in cases 2 and 3, so `"shared" ++ t6_suffix` is not two literal operands
+// and survives ConstantFolding as a real Binary node - otherwise the whole
+// expression folds to the single literal "shared-x" at compile time and
+// EXTEND_TEXT never runs, and this case would pass without checking
+// anything.
+def t6_suffix_src : Array<Text> = ["-x"];
+def t6_suffix = t6_suffix_src[0];
 def t6_a = "shared";
-def t6_b = "shared" ++ "-x";
+def t6_b = "shared" ++ t6_suffix;
 if t6_a == "shared"
 then ()
 else Panic::Panic("Text case 6: a separate occurrence of the same literal text must not be mutated by extending another occurrence");
