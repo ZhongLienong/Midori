@@ -16,3 +16,4 @@ These are **not** part of the test suite. They fail by design.
 | `recursive-union-through-array.mdr` | a generic union reaching itself through an `Array`, walked by a recursive function, hung `Unify` | **fixed** `789378d`; kept as the reduction record |
 | `shadowed-generic-*.mdr` | a module defining a generic function with the same name as one it imports silently gets the imported one | **open** — silent wrong answer |
 | `unused-local-nested-capture.mdr` | a local read only from a closure two levels deep was reported as never read, because a cell index was looked up in a map keyed by local indices | **fixed**; kept as the reduction record |
+| `for-break-value-unreached.mdr` | a `for` whose `break` carries a value yields an uninitialised slot when the loop completes: `0` for `Int` (silent), a memory-access violation for `Text` | **resolved by deletion** — `break` removed rather than fixed; see the `.md` |

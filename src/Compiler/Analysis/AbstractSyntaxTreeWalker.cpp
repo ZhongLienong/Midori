@@ -170,28 +170,8 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::MemberAccess& 
 	VisitExpression(get.m_struct);
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::MemberAssignment& set)
-{
-	VisitExpression(set.m_struct);
-	VisitExpression(set.m_value);
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::NameAccess&)
 {
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Assignment& bind)
-{
-	VisitExpression(bind.m_value);
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::CompoundAssign& compound_assign)
-{
-	if (compound_assign.m_struct != nullptr)
-	{
-		VisitExpression(compound_assign.m_struct);
-	}
-	VisitExpression(compound_assign.m_value);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::TextLiteral&)
@@ -285,16 +265,6 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::IndexAccess& a
 {
 	VisitExpression(array_get.m_arr_var);
 	VisitExpression(array_get.m_index);
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::IndexAssignment& array_set)
-{
-	VisitExpression(array_set.m_arr_var);
-	for (std::unique_ptr<MidoriExpression>& index : array_set.m_indices)
-	{
-		VisitExpression(index);
-	}
-	VisitExpression(array_set.m_value);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::ArrayComprehension& comp)

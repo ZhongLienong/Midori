@@ -136,28 +136,8 @@ void MidoriOptimizer::operator()(MidoriExpression::MemberAccess& get)
 	VisitAndReplace(get.m_struct);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::MemberAssignment& set)
-{
-	VisitAndReplace(set.m_struct);
-	VisitAndReplace(set.m_value);
-}
-
 void MidoriOptimizer::operator()(MidoriExpression::NameAccess&)
 {
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::Assignment& bind)
-{
-	VisitAndReplace(bind.m_value);
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::CompoundAssign& compound_assign)
-{
-	if (compound_assign.m_struct != nullptr)
-	{
-		VisitAndReplace(compound_assign.m_struct);
-	}
-	VisitAndReplace(compound_assign.m_value);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::TextLiteral&)
@@ -251,16 +231,6 @@ void MidoriOptimizer::operator()(MidoriExpression::IndexAccess& array_get)
 {
 	VisitAndReplace(array_get.m_arr_var);
 	VisitAndReplace(array_get.m_index);
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::IndexAssignment& array_set)
-{
-	VisitAndReplace(array_set.m_arr_var);
-	for (std::unique_ptr<MidoriExpression>& index : array_set.m_indices)
-	{
-		VisitAndReplace(index);
-	}
-	VisitAndReplace(array_set.m_value);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::ArrayComprehension& comp)

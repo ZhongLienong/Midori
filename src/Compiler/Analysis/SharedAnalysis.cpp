@@ -34,25 +34,6 @@ namespace
 			CheckAccess(access.m_name, access.m_name_ctx);
 		}
 
-		void operator()(MidoriExpression::Assignment& assign) override
-		{
-			CheckAccess(assign.m_name, assign.m_name_ctx);
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::CompoundAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				CheckAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
-
 	private:
 		void CheckAccess(const Token& name, const MidoriExpression::NameContext::Tag& context)
 		{
@@ -179,14 +160,6 @@ namespace
 				{
 					return &node.m_op;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Assignment>)
-				{
-					return &node.m_name;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::CompoundAssign>)
-				{
-					return &node.m_name;
-				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::NameAccess>)
 				{
 					return &node.m_name;
@@ -213,7 +186,7 @@ namespace
 				{
 					return &node.m_if_token;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::MemberAccess> || std::is_same_v<T, MidoriExpression::MemberAssignment>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::MemberAccess>)
 				{
 					return &node.m_member_name;
 				}
@@ -221,7 +194,7 @@ namespace
 				{
 					return &node.m_op;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::IndexAccess> || std::is_same_v<T, MidoriExpression::IndexAssignment>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::IndexAccess>)
 				{
 					return node.m_arr_var != nullptr ? GetPrimaryToken(*node.m_arr_var) : &node.m_op;
 				}

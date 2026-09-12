@@ -266,13 +266,10 @@ private:
 
 	void operator()(MidoriExpression::MemberAccess& get);
 
-	void operator()(MidoriExpression::MemberAssignment& set);
 
 	void operator()(MidoriExpression::NameAccess& variable);
 
-	void operator()(MidoriExpression::Assignment& bind);
 
-	void operator()(MidoriExpression::CompoundAssign& compound_assign);
 
 	void operator()(MidoriExpression::TextLiteral& text);
 
@@ -298,7 +295,6 @@ private:
 
 	void operator()(MidoriExpression::IndexAccess& array_get);
 
-	void operator()(MidoriExpression::IndexAssignment& array_set);
 
 	void operator()(MidoriExpression::RangeBinary& range_binary);
 

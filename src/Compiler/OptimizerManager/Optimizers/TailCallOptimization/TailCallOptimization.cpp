@@ -139,17 +139,6 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_channel, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::Assignment& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
-			bool operator()(const MidoriExpression::CompoundAssign& node) const
-			{
-				return (node.m_struct != nullptr && ContainsRecursiveCallImpl(*node.m_struct, m_function_name))
-					|| ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
 			bool operator()(const MidoriExpression::NameAccess&) const
 			{
 				return false;
@@ -201,11 +190,6 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_struct, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::MemberAssignment& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_struct, m_function_name) || ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
 			bool operator()(const MidoriExpression::Array& node) const
 			{
 				for (const std::unique_ptr<MidoriExpression>& elem : node.m_elems)
@@ -222,22 +206,6 @@ namespace
 			{
 				return ContainsRecursiveCallImpl(*node.m_arr_var, m_function_name)
 					|| ContainsRecursiveCallImpl(*node.m_index, m_function_name);
-			}
-
-			bool operator()(const MidoriExpression::IndexAssignment& node) const
-			{
-				if (ContainsRecursiveCallImpl(*node.m_arr_var, m_function_name) || ContainsRecursiveCallImpl(*node.m_value, m_function_name))
-				{
-					return true;
-				}
-				for (const std::unique_ptr<MidoriExpression>& index : node.m_indices)
-				{
-					if (ContainsRecursiveCallImpl(*index, m_function_name))
-					{
-						return true;
-					}
-				}
-				return false;
 			}
 
 			bool operator()(const MidoriExpression::ArrayComprehension& node) const

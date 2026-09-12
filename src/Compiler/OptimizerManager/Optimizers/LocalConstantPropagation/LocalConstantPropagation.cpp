@@ -437,44 +437,6 @@ void LocalConstantPropagation::operator()(MidoriExpression::NameAccess& variable
 	m_pending_replacement = MaterializeReplacement(it->second, variable);
 }
 
-void LocalConstantPropagation::operator()(MidoriExpression::Assignment& bind)
-{
-	VisitAndReplace(bind.m_value);
-
-	const std::optional<int> local_index = TryGetLocalIndex(bind.m_name_ctx);
-	if (local_index.has_value())
-	{
-		InvalidateLocal(local_index.value());
-	}
-	else
-	{
-		ClearAliasReplacements();
-	}
-}
-
-void LocalConstantPropagation::operator()(MidoriExpression::CompoundAssign& compound_assign)
-{
-	if (compound_assign.m_struct != nullptr)
-	{
-		VisitAndReplace(compound_assign.m_struct);
-		VisitAndReplace(compound_assign.m_value);
-		ClearAliasReplacements();
-		return;
-	}
-
-	VisitAndReplace(compound_assign.m_value);
-
-	const std::optional<int> local_index = TryGetLocalIndex(compound_assign.m_name_ctx);
-	if (local_index.has_value())
-	{
-		InvalidateLocal(local_index.value());
-	}
-	else
-	{
-		ClearAliasReplacements();
-	}
-}
-
 void LocalConstantPropagation::operator()(MidoriExpression::Call& call)
 {
 	VisitAndReplace(call.m_callee);
@@ -501,26 +463,6 @@ void LocalConstantPropagation::operator()(MidoriExpression::ArrayComprehension& 
 	const Environment repeated_environment = FilterRepeatedEnvironment(after_range, *comp.m_transform_expr);
 	const Environment after_transform = VisitInEnvironment(comp.m_transform_expr, repeated_environment);
 	CurrentEnvironment() = IntersectEnvironments(after_range, after_range, after_transform);
-}
-
-void LocalConstantPropagation::operator()(MidoriExpression::MemberAssignment& set)
-{
-	VisitAndReplace(set.m_struct);
-	VisitAndReplace(set.m_value);
-	ClearAliasReplacements();
-}
-
-void LocalConstantPropagation::operator()(MidoriExpression::IndexAssignment& array_set)
-{
-	VisitAndReplace(array_set.m_arr_var);
-
-	for (std::unique_ptr<MidoriExpression>& index : array_set.m_indices)
-	{
-		VisitAndReplace(index);
-	}
-
-	VisitAndReplace(array_set.m_value);
-	ClearAliasReplacements();
 }
 
 void LocalConstantPropagation::operator()(MidoriExpression::IfElse& if_else)

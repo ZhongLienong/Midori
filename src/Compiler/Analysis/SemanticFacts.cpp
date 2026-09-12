@@ -833,11 +833,7 @@ namespace
 				{
 					return false;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Assignment>
-					|| std::is_same_v<T, MidoriExpression::CompoundAssign>
-					|| std::is_same_v<T, MidoriExpression::Call>
-					|| std::is_same_v<T, MidoriExpression::MemberAssignment>
-					|| std::is_same_v<T, MidoriExpression::IndexAssignment>
+				else if constexpr (std::is_same_v<T, MidoriExpression::Call>
 					|| std::is_same_v<T, MidoriExpression::Loop>
 					|| std::is_same_v<T, MidoriExpression::For>
 					|| std::is_same_v<T, MidoriExpression::Return>
@@ -1253,25 +1249,6 @@ namespace
 			VisitExpression(*node.m_channel);
 		}
 
-		void Visit(const MidoriExpression::Assignment& node)
-		{
-			RecordLocalAssignment(node.m_name_ctx, false);
-			VisitExpression(*node.m_value);
-		}
-
-		void Visit(const MidoriExpression::CompoundAssign& node)
-		{
-			if (node.m_struct != nullptr)
-			{
-				VisitExpression(*node.m_struct);
-			}
-			else
-			{
-				RecordLocalAssignment(node.m_name_ctx, true);
-			}
-			VisitExpression(*node.m_value);
-		}
-
 		void Visit(const MidoriExpression::NameAccess& node)
 		{
 			RecordLocalRead(node.m_name_ctx);
@@ -1320,12 +1297,6 @@ namespace
 			VisitExpression(*node.m_struct);
 		}
 
-		void Visit(const MidoriExpression::MemberAssignment& node)
-		{
-			VisitExpression(*node.m_struct);
-			VisitExpression(*node.m_value);
-		}
-
 		void Visit(const MidoriExpression::Array& node)
 		{
 			for (const std::unique_ptr<MidoriExpression>& elem : node.m_elems)
@@ -1338,16 +1309,6 @@ namespace
 		{
 			VisitExpression(*node.m_arr_var);
 			VisitExpression(*node.m_index);
-		}
-
-		void Visit(const MidoriExpression::IndexAssignment& node)
-		{
-			VisitExpression(*node.m_arr_var);
-			for (const std::unique_ptr<MidoriExpression>& index : node.m_indices)
-			{
-				VisitExpression(*index);
-			}
-			VisitExpression(*node.m_value);
 		}
 
 		void Visit(const MidoriExpression::ArrayComprehension& node)

@@ -210,19 +210,6 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::NameAccess& access)
 	MarkRead(access.m_name, access.m_name_ctx);
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriExpression::CompoundAssign& compound_assign)
-{
-	if (compound_assign.m_struct != nullptr)
-	{
-		VisitExpression(compound_assign.m_struct);
-	}
-	else
-	{
-		MarkRead(compound_assign.m_name, compound_assign.m_name_ctx);
-	}
-	VisitExpression(compound_assign.m_value);
-}
-
 void UnusedLocalDiagnostic::operator()(MidoriExpression::Function& function)
 {
 	PushFunctionContext();

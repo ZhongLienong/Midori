@@ -2010,8 +2010,6 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::ChannelCreate& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Send& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Receive& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::Assignment& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::CompoundAssign& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::NameAccess& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Call& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Function& arg) const { (*m_self)(arg); }
@@ -2019,10 +2017,8 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::RecordUpdate& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::IfElse& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::MemberAccess& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::MemberAssignment& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Array& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::IndexAccess& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::IndexAssignment& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::ArrayComprehension& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::RangeBinary& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::RangeTernary& arg) const { (*m_self)(arg); }
@@ -3974,18 +3970,6 @@ void CodeGenerator::operator()(MidoriExpression::MemberAccess& get)
 	EmitByte(static_cast<OpCode>(get.m_index), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::MemberAssignment& set)
-{
-	int line = set.m_member_name.m_line;
-
-	Visit(set.m_struct);
-	m_operand_depth += 1;
-	Visit(set.m_value);
-	m_operand_depth -= 1;
-	EmitByte(OpCode::SET_MEMBER, line);
-	EmitByte(static_cast<OpCode>(set.m_index), line);
-}
-
 void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 {
 	struct NameAccessVisitor
@@ -4066,255 +4050,6 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 	};
 
 	std::visit(NameAccessVisitor{ this, &variable }, variable.m_name_ctx);
-}
-
-void CodeGenerator::operator()(MidoriExpression::CompoundAssign& compound_assign)
-{
-	int line = compound_assign.m_name.m_line;
-
-	if (compound_assign.m_struct != nullptr)
-	{
-		Visit(compound_assign.m_struct);
-		EmitByte(OpCode::DUP, line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
-		m_operand_depth += 2;
-		Visit(compound_assign.m_value);
-		m_operand_depth -= 2;
-
-		bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
-		switch (compound_assign.m_op.m_token_name)
-		{
-		case Token::Name::PLUS_EQUAL:
-			EmitByte(is_float ? OpCode::ADD_ASSIGN_FLOAT : OpCode::ADD_ASSIGN_INT, line);
-			break;
-		case Token::Name::MINUS_EQUAL:
-			EmitByte(is_float ? OpCode::SUB_ASSIGN_FLOAT : OpCode::SUB_ASSIGN_INT, line);
-			break;
-		case Token::Name::STAR_EQUAL:
-			EmitByte(is_float ? OpCode::MUL_ASSIGN_FLOAT : OpCode::MUL_ASSIGN_INT, line);
-			break;
-		case Token::Name::SLASH_EQUAL:
-			EmitByte(is_float ? OpCode::DIV_ASSIGN_FLOAT : OpCode::DIV_ASSIGN_INT, line);
-			break;
-		case Token::Name::PERCENT_EQUAL:
-			EmitByte(is_float ? OpCode::MOD_ASSIGN_FLOAT : OpCode::MOD_ASSIGN_INT, line);
-			break;
-		case Token::Name::AMPERSAND_EQUAL:
-			EmitByte(OpCode::AND_ASSIGN_INT, line);
-			break;
-		case Token::Name::BAR_EQUAL:
-			EmitByte(OpCode::OR_ASSIGN_INT, line);
-			break;
-		case Token::Name::CARET_EQUAL:
-			EmitByte(OpCode::XOR_ASSIGN_INT, line);
-			break;
-		case Token::Name::LEFT_SHIFT_EQUAL:
-			EmitByte(OpCode::LEFT_SHIFT_ASSIGN, line);
-			break;
-		case Token::Name::RIGHT_SHIFT_EQUAL:
-			EmitByte(OpCode::RIGHT_SHIFT_ASSIGN, line);
-			break;
-		}
-
-		EmitByte(OpCode::SET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
-		EmitByte(OpCode::GET_MEMBER, line);
-		EmitByte(static_cast<OpCode>(compound_assign.m_index), line);
-		return;
-	}
-
-	struct CompoundAssignLoadVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::CompoundAssign* m_assign = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::GET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_assign->m_name.m_lexeme;
-
-			if (name.find(NameSeparator) != std::string::npos)
-			{
-				size_t separator_pos = name.find(NameSeparator);
-				std::string module_name = name.substr(0u, separator_pos);
-				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_assign->m_name));
-				if (import_placeholder < 0)
-				{
-					return;
-				}
-
-				m_self->EmitVariable(import_placeholder, OpCode::GET_GLOBAL, m_line);
-				return;
-			}
-
-			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::GET_GLOBAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellLoadOpcode(), m_line);
-		}
-	};
-
-	struct CompoundAssignStoreVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::CompoundAssign* m_assign = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::SET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_assign->m_name.m_lexeme;
-
-			if (name.find(NameSeparator) != std::string::npos)
-			{
-				size_t separator_pos = name.find(NameSeparator);
-				std::string module_name = name.substr(0u, separator_pos);
-				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_assign->m_name));
-				if (import_placeholder < 0)
-				{
-					return;
-				}
-
-				m_self->EmitVariable(import_placeholder, OpCode::SET_GLOBAL, m_line);
-				return;
-			}
-
-			m_self->EmitVariable(m_self->m_global_variables[name], OpCode::SET_GLOBAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellStoreOpcode(), m_line);
-		}
-	};
-
-	if ((compound_assign.m_op.m_token_name == Token::Name::PLUS_EQUAL || compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL)
-		&& compound_assign.m_type_data->IsType<MidoriType::IntegerType>())
-	{
-		const MidoriExpression::NameContext::Local* local = std::get_if<MidoriExpression::NameContext::Local>(&compound_assign.m_name_ctx);
-		std::optional<MidoriInteger> imm = GetFusibleSmallInt(*compound_assign.m_value);
-		const int effective_index = local != nullptr ? EffectiveLocalIndex(local->m_index) : -1;
-		if (local != nullptr
-			&& local->m_index >= 0
-			&& effective_index <= static_cast<int>(UINT8_MAX)
-			&& GetLocalStorageKind(local->m_index) == LocalStorageKind::ValueLocal
-			&& imm.has_value())
-		{
-			MidoriInteger delta = compound_assign.m_op.m_token_name == Token::Name::MINUS_EQUAL ? -imm.value() : imm.value();
-			EmitByte(OpCode::ADD_LOCAL_INT, line);
-			EmitByte(static_cast<OpCode>(effective_index), line);
-			EmitByte(static_cast<OpCode>(static_cast<uint8_t>(static_cast<int8_t>(delta))), line);
-			EmitByte(static_cast<OpCode>(0), line);
-			EmitByte(static_cast<OpCode>(0), line);
-			EmitByte(static_cast<OpCode>(effective_index), line);
-			return;
-		}
-	}
-
-	std::visit(CompoundAssignLoadVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
-
-	m_operand_depth += 1;
-	Visit(compound_assign.m_value);
-	m_operand_depth -= 1;
-
-	bool is_float = compound_assign.m_type_data->IsType<MidoriType::FloatType>();
-	switch (compound_assign.m_op.m_token_name)
-	{
-	case Token::Name::PLUS_EQUAL:
-		EmitByte(is_float ? OpCode::ADD_ASSIGN_FLOAT : OpCode::ADD_ASSIGN_INT, line);
-		break;
-	case Token::Name::MINUS_EQUAL:
-		EmitByte(is_float ? OpCode::SUB_ASSIGN_FLOAT : OpCode::SUB_ASSIGN_INT, line);
-		break;
-	case Token::Name::STAR_EQUAL:
-		EmitByte(is_float ? OpCode::MUL_ASSIGN_FLOAT : OpCode::MUL_ASSIGN_INT, line);
-		break;
-	case Token::Name::SLASH_EQUAL:
-		EmitByte(is_float ? OpCode::DIV_ASSIGN_FLOAT : OpCode::DIV_ASSIGN_INT, line);
-		break;
-	case Token::Name::PERCENT_EQUAL:
-		EmitByte(is_float ? OpCode::MOD_ASSIGN_FLOAT : OpCode::MOD_ASSIGN_INT, line);
-		break;
-	case Token::Name::AMPERSAND_EQUAL:
-		EmitByte(OpCode::AND_ASSIGN_INT, line);
-		break;
-	case Token::Name::BAR_EQUAL:
-		EmitByte(OpCode::OR_ASSIGN_INT, line);
-		break;
-	case Token::Name::CARET_EQUAL:
-		EmitByte(OpCode::XOR_ASSIGN_INT, line);
-		break;
-	case Token::Name::LEFT_SHIFT_EQUAL:
-		EmitByte(OpCode::LEFT_SHIFT_ASSIGN, line);
-		break;
-	case Token::Name::RIGHT_SHIFT_EQUAL:
-		EmitByte(OpCode::RIGHT_SHIFT_ASSIGN, line);
-		break;
-	}
-
-	std::visit(CompoundAssignStoreVisitor{ this, &compound_assign, line }, compound_assign.m_name_ctx);
-}
-
-void CodeGenerator::operator()(MidoriExpression::Assignment& bind)
-{
-	int line = bind.m_name.m_line;
-	Visit(bind.m_value);
-
-	struct AssignmentVisitor
-	{
-		CodeGenerator* m_self = nullptr;
-		MidoriExpression::Assignment* m_bind = nullptr;
-		int m_line = 0;
-
-		void operator()(const MidoriExpression::NameContext::Local& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, OpCode::SET_LOCAL, m_line);
-		}
-
-		void operator()(const MidoriExpression::NameContext::Global&) const
-		{
-			const std::string& name = m_bind->m_name.m_lexeme;
-
-			if (name.find(NameSeparator) != std::string::npos)
-			{
-				size_t separator_pos = name.find(NameSeparator);
-				std::string module_name = name.substr(0u, separator_pos);
-				std::string symbol_name = name.substr(separator_pos + 2u);
-				int import_placeholder = m_self->GetImportPlaceholder(module_name, symbol_name, m_line, m_self->MakeSourceProvenance(m_bind->m_name));
-				if (import_placeholder < 0)
-				{
-					return;
-				}
-
-				m_self->EmitVariable(import_placeholder, OpCode::SET_GLOBAL, m_line);
-			}
-			else
-			{
-				m_self->EmitVariable(m_self->m_global_variables[name], OpCode::SET_GLOBAL, m_line);
-			}
-		}
-
-		void operator()(const MidoriExpression::NameContext::Cell& arg) const
-		{
-			m_self->EmitVariable(arg.m_index, m_self->GetCellStoreOpcode(), m_line);
-		}
-	};
-
-	std::visit(AssignmentVisitor{ this, &bind, line }, bind.m_name_ctx);
 }
 
 void CodeGenerator::operator()(MidoriExpression::TextLiteral& text)
@@ -4636,30 +4371,6 @@ void CodeGenerator::operator()(MidoriExpression::IndexAccess& array_get)
 	m_operand_depth -= 2;
 
 	EmitByte(OpCode::GET_ARRAY, line);
-}
-
-void CodeGenerator::operator()(MidoriExpression::IndexAssignment& array_set)
-{
-	int line = array_set.m_op.m_line;
-
-	// SET_ARRAY no longer carries an index count, so the parser's single-index
-	// invariant is now load-bearing for the encoding.
-	if (array_set.m_indices.size() != 1u)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Array set expression requires exactly one index", array_set.m_op, m_file_name, m_source_lines));
-		return;
-	}
-
-	Visit(array_set.m_arr_var);
-	m_operand_depth += 1;
-
-	Visit(array_set.m_indices[0u]);
-	m_operand_depth += 1;
-
-	Visit(array_set.m_value);
-	m_operand_depth -= 2;
-
-	EmitByte(OpCode::SET_ARRAY, line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::RangeBinary& range_binary)

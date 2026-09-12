@@ -95,9 +95,7 @@ private:
 
 	void operator()(MidoriExpression::NameAccess& variable) override;
 
-	void operator()(MidoriExpression::Assignment& bind) override;
 
-	void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
 
 	void operator()(MidoriExpression::Call& call) override;
 
@@ -105,9 +103,7 @@ private:
 
 	void operator()(MidoriExpression::ArrayComprehension& comp) override;
 
-	void operator()(MidoriExpression::MemberAssignment& set) override;
 
-	void operator()(MidoriExpression::IndexAssignment& array_set) override;
 
 	void operator()(MidoriExpression::IfElse& if_else) override;
 

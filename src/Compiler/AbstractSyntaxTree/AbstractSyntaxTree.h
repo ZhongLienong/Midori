@@ -463,28 +463,6 @@ public:
 		Receive(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel);
 	};
 
-	struct Assignment : BaseExpression
-	{
-		Token m_name;
-		std::unique_ptr<MidoriExpression> m_value;
-		NameContext::Tag m_name_ctx;
-
-		Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
-	};
-
-	struct CompoundAssign : BaseExpression
-	{
-		Token m_name;
-		Token m_op;
-		std::unique_ptr<MidoriExpression> m_struct;
-		std::unique_ptr<MidoriExpression> m_value;
-		NameContext::Tag m_name_ctx;
-		int m_index = -1;
-
-		CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& semantic_tag);
-		CompoundAssign(const Token& member_name, const Token& op, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
-	};
-
 	struct NameAccess : BaseExpression
 	{
 		Token m_name;
@@ -592,16 +570,6 @@ public:
 		MemberAccess(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index = -1);
 	};
 
-	struct MemberAssignment : BaseExpression
-	{
-		Token m_member_name;
-		std::unique_ptr<MidoriExpression> m_struct;
-		std::unique_ptr<MidoriExpression> m_value;
-		int m_index;
-
-		MemberAssignment(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index = -1);
-	};
-
 	struct Array : BaseExpression
 	{
 		Token m_op;
@@ -618,16 +586,6 @@ public:
 		bool m_uses_indexable = false;
 
 		IndexAccess(const Token& op, std::unique_ptr<MidoriExpression>&& index, std::unique_ptr<MidoriExpression>&& arr_var);
-	};
-
-	struct IndexAssignment : BaseExpression
-	{
-		Token m_op;
-		std::vector<std::unique_ptr<MidoriExpression>> m_indices;
-		std::unique_ptr<MidoriExpression> m_arr_var;
-		std::unique_ptr<MidoriExpression> m_value;
-
-		IndexAssignment(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value);
 	};
 
 	struct ArrayComprehension : BaseExpression
@@ -758,7 +716,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, Assignment, CompoundAssign, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, MemberAssignment, Array, IndexAccess, IndexAssignment, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
 	ExpressionUnion m_variant;
 
 public:

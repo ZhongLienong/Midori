@@ -103,24 +103,6 @@ public:
 			RewriteAccess(access.m_name, access.m_name_ctx);
 		}
 
-		void operator()(MidoriExpression::Assignment& assign) override
-		{
-			RewriteAccess(assign.m_name, assign.m_name_ctx);
-			VisitExpression(assign.m_value);
-		}
-
-		void operator()(MidoriExpression::CompoundAssign& assign) override
-		{
-			if (assign.m_struct != nullptr)
-			{
-				VisitExpression(assign.m_struct);
-			}
-			else
-			{
-				RewriteAccess(assign.m_name, assign.m_name_ctx);
-			}
-			VisitExpression(assign.m_value);
-		}
 	};
 }
 

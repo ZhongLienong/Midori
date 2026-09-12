@@ -172,33 +172,6 @@ MidoriExpression::Receive::Receive(const Token& arrow, std::unique_ptr<MidoriExp
 {
 }
 
-MidoriExpression::Assignment::Assignment(const Token& name, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
-	: m_name(name),
-	m_value(std::move(value)),
-	m_name_ctx(std::move(name_ctx))
-{
-}
-
-MidoriExpression::CompoundAssign::CompoundAssign(const Token& name, const Token& op, std::unique_ptr<MidoriExpression>&& value, NameContext::Tag&& name_ctx)
-	: m_name(name),
-	m_op(op),
-	m_struct(nullptr),
-	m_value(std::move(value)),
-	m_name_ctx(std::move(name_ctx)),
-	m_index(-1)
-{
-}
-
-MidoriExpression::CompoundAssign::CompoundAssign(const Token& member_name, const Token& op, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
-	: m_name(member_name),
-	m_op(op),
-	m_struct(std::move(struct_expr)),
-	m_value(std::move(value)),
-	m_name_ctx(NameContext::Global()),
-	m_index(index)
-{
-}
-
 MidoriExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))
@@ -266,14 +239,6 @@ MidoriExpression::MemberAccess::MemberAccess(const Token& member_name, std::uniq
 {
 }
 
-MidoriExpression::MemberAssignment::MemberAssignment(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, std::unique_ptr<MidoriExpression>&& value, int index)
-	: m_member_name(member_name),
-	m_struct(std::move(struct_expr)),
-	m_value(std::move(value)),
-	m_index(index)
-{
-}
-
 MidoriExpression::Array::Array(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elems)
 	: m_op(op),
 	m_elems(std::move(elems))
@@ -284,14 +249,6 @@ MidoriExpression::IndexAccess::IndexAccess(const Token& op, std::unique_ptr<Mido
 	: m_op(op),
 	m_index(std::move(index)),
 	m_arr_var(std::move(arr_var))
-{
-}
-
-MidoriExpression::IndexAssignment::IndexAssignment(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& indices, std::unique_ptr<MidoriExpression>&& arr_var, std::unique_ptr<MidoriExpression>&& value)
-	: m_op(op),
-	m_indices(std::move(indices)),
-	m_arr_var(std::move(arr_var)),
-	m_value(std::move(value))
 {
 }
 

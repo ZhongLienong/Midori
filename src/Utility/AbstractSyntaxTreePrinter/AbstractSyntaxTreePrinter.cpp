@@ -304,35 +304,12 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAccess& g
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::MemberAssignment& set, int depth) const
-{
-	PrintWithIndentation(depth, "Set {");
-	PrintWithIndentation(depth + 1, "MidoriStruct: ");
-	Visit(set.m_struct, depth + 2);
-	PrintWithIndentation(depth + 1, "Name: " + set.m_member_name.m_lexeme);
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(set.m_value, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::NameAccess& variable, int depth) const
 {
 	PrintWithIndentation(depth, "BoundedName {");
 	PrintWithIndentation(depth + 1, "Name: " + variable.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "NameContext {");
 	PrintVariableSemantic(depth + 2, variable.m_name_ctx);
-	PrintWithIndentation(depth + 1, "}");
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Assignment& bind, int depth) const
-{
-	PrintWithIndentation(depth, "Bind {");
-	PrintWithIndentation(depth + 1, "Name: " + bind.m_name.m_lexeme);
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(bind.m_value, depth + 2);
-	PrintWithIndentation(depth + 1, "NameContext: {");
-	PrintVariableSemantic(depth + 2, bind.m_name_ctx);
 	PrintWithIndentation(depth + 1, "}");
 	PrintWithIndentation(depth, "}");
 }
@@ -459,25 +436,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAccess& ar
 	Visit(array_get.m_arr_var, depth + 2);
 	PrintWithIndentation(depth + 1, "Index: ");
 	Visit(array_get.m_index, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::PrintAbstractSyntaxTree::operator()(const MidoriExpression::IndexAssignment& array_set, int depth) const
-{
-	PrintWithIndentation(depth, "ArraySet {");
-	PrintWithIndentation(depth + 1, "Array: ");
-	Visit(array_set.m_arr_var, depth + 2);
-	PrintWithIndentation(depth + 1, "Index: ");
-	std::ranges::for_each
-	(
-		array_set.m_indices,
-		[depth, this](const std::unique_ptr<MidoriExpression>& index)
-		{
-			Visit(index, depth + 2);
-		}
-	);
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(array_set.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

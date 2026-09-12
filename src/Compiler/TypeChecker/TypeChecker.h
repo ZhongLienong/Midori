@@ -267,13 +267,10 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::MemberAccess& get);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::MemberAssignment& set);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::NameAccess& variable);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Assignment& bind);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::CompoundAssign& compound_assign);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::TextLiteral& text);
 
@@ -299,7 +296,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::IndexAccess& array_get);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::IndexAssignment& array_set);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::RangeBinary& range_binary);
 

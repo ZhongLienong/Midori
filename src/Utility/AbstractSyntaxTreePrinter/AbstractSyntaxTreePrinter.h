@@ -52,11 +52,9 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::MemberAccess& get, int depth = 0) const;
 
-	void operator()(const MidoriExpression::MemberAssignment& set, int depth = 0) const;
 
 	void operator()(const MidoriExpression::NameAccess& variable, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Assignment& bind, int depth = 0) const;
 
 	void operator()(const MidoriExpression::TextLiteral& text, int depth = 0) const;
 
@@ -82,7 +80,6 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::IndexAccess& array_get, int depth = 0) const;
 
-	void operator()(const MidoriExpression::IndexAssignment& array_set, int depth = 0) const;
 
 	void operator()(const MidoriExpression::RangeBinary& range_binary, int depth = 0) const;
 

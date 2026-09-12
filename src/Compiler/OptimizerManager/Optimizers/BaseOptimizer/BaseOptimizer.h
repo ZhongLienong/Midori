@@ -65,10 +65,7 @@ protected:
 	virtual void operator()(MidoriExpression::UnarySuffix& unary) override;
 	virtual void operator()(MidoriExpression::Call& call) override;
 	virtual void operator()(MidoriExpression::MemberAccess& get) override;
-	virtual void operator()(MidoriExpression::MemberAssignment& set) override;
 	virtual void operator()(MidoriExpression::NameAccess& variable) override;
-	virtual void operator()(MidoriExpression::Assignment& bind) override;
-	virtual void operator()(MidoriExpression::CompoundAssign& compound_assign) override;
 	virtual void operator()(MidoriExpression::TextLiteral& text) override;
 	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr) override;
 	virtual void operator()(MidoriExpression::FloatLiteral& float_literal) override;
@@ -86,7 +83,6 @@ protected:
 	virtual void operator()(MidoriExpression::Receive& receive) override;
 	virtual void operator()(MidoriExpression::Array& array) override;
 	virtual void operator()(MidoriExpression::IndexAccess& array_get) override;
-	virtual void operator()(MidoriExpression::IndexAssignment& array_set) override;
 	virtual void operator()(MidoriExpression::ArrayComprehension& comp) override;
 	virtual void operator()(MidoriExpression::RangeBinary& range_binary) override;
 	virtual void operator()(MidoriExpression::RangeTernary& range_ternary) override;
