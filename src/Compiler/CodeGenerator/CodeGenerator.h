@@ -226,7 +226,6 @@ private:
 
 	void operator()(MidoriStatement::FunctionDefinition& defun);
 
-	void operator()(MidoriStatement::Continue& continue_stmt);
 
 	void operator()(MidoriStatement::ForeignDefinition& foreign);
 
@@ -310,13 +309,11 @@ private:
 
 	void operator()(MidoriExpression::Default& default_expr);
 
-	void operator()(MidoriExpression::Loop& loop);
 
 	void operator()(MidoriExpression::For& for_expr);
 
 	void operator()(MidoriExpression::ArrayComprehension& comp);
 
-	void operator()(MidoriExpression::Break& break_expr);
 
 	void operator()(MidoriExpression::Return& return_expr);
 

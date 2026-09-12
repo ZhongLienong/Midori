@@ -51,7 +51,6 @@ private:
 
 	void Finalize(const MidoriStatement::FunctionDefinition& defun);
 
-	void Finalize(const MidoriStatement::Continue& continue_stmt);
 
 	void Finalize(const MidoriStatement::ForeignDefinition& foreign);
 
@@ -111,7 +110,6 @@ private:
 
 	void operator()(MidoriExpression::Match& match) override;
 
-	void operator()(MidoriExpression::Loop& loop) override;
 
 	void operator()(MidoriExpression::For& for_expr) override;
 };

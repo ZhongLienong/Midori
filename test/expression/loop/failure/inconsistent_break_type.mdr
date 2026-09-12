@@ -1,8 +1,0 @@
-module InconsistentBreakType
-
-loop 
-{
-    if true 
-    then { break 1; } 
-    else { break false; }
-};

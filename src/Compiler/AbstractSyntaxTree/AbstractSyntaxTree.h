@@ -62,14 +62,6 @@ public:
 		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};
 
-	struct Continue
-	{
-		Token m_keyword;
-		int m_number_to_pop = 0;
-
-		Continue(const Token& keyword, int number_to_pop);
-	};
-
 	struct ForeignDefinition
 	{
 		Token m_function_name;
@@ -148,7 +140,7 @@ public:
 	};
 
 private:
-	using StatementUnion = std::variant<ExpressionStatement, VariableDefinition, TupleDefinition, FunctionDefinition, Continue, ForeignDefinition, Struct, Union, Class, Instance, TypeAlias>;
+	using StatementUnion = std::variant<ExpressionStatement, VariableDefinition, TupleDefinition, FunctionDefinition, ForeignDefinition, Struct, Union, Class, Instance, TypeAlias>;
 	StatementUnion m_variant;
 
 public:
@@ -671,14 +663,6 @@ public:
 		Default(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
-	struct Loop : BaseExpression
-	{
-		Token m_loop_keyword;
-		std::unique_ptr<MidoriExpression> m_body;
-
-		Loop(const Token& loop_keyword, std::unique_ptr<MidoriExpression>&& body);
-	};
-
 	struct For : BaseExpression
 	{
 		Token m_for_keyword;
@@ -706,17 +690,8 @@ public:
 		Return(const Token& keyword, std::unique_ptr<MidoriExpression>&& value);
 	};
 
-	struct Break : BaseExpression
-	{
-		Token m_keyword;
-		int m_number_to_pop = 0;
-		std::unique_ptr<MidoriExpression> m_value;
-
-		Break(const Token& keyword, int number_to_pop, std::unique_ptr<MidoriExpression>&& value);
-	};
-
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, Loop, For, Return, Break>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, For, Return>;
 	ExpressionUnion m_variant;
 
 public:
@@ -829,10 +804,6 @@ public:
 
 				return has_statement || has_final_expr;
 			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
-			{
-				return node.m_body->template Contains<Kind>();
-			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Function>)
 			{
 				return node.m_body->template Contains<Kind>();
@@ -851,10 +822,6 @@ public:
 				return node.m_callee->template Contains<Kind>() || has_arg;
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-			{
-				return node.m_value->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::Break>)
 			{
 				return node.m_value->template Contains<Kind>();
 			}

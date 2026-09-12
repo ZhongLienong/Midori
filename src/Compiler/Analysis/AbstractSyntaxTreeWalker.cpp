@@ -58,10 +58,6 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriStatement::FunctionDefinit
 	VisitExpression(defun.m_body);
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriStatement::Continue&)
-{
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriStatement::ForeignDefinition&)
 {
 }
@@ -330,20 +326,10 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Default& defau
 	VisitExpression(default_expr.m_expr);
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Loop& loop)
-{
-	VisitExpression(loop.m_body);
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::For& for_expr)
 {
 	VisitExpression(for_expr.m_range);
 	VisitExpression(for_expr.m_body);
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Break& break_expr)
-{
-	VisitExpression(break_expr.m_value);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Return& return_expr)

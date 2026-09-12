@@ -133,10 +133,6 @@ void LocalConstantPropagation::Finalize(const MidoriStatement::FunctionDefinitio
 	ClearAllReplacements();
 }
 
-void LocalConstantPropagation::Finalize(const MidoriStatement::Continue&)
-{
-}
-
 void LocalConstantPropagation::Finalize(const MidoriStatement::ForeignDefinition& foreign)
 {
 	if (foreign.m_local_index.has_value())
@@ -517,14 +513,6 @@ void LocalConstantPropagation::operator()(MidoriExpression::Match& match)
 	{
 		CurrentEnvironment() = std::move(merged);
 	}
-}
-
-void LocalConstantPropagation::operator()(MidoriExpression::Loop& loop)
-{
-	const Environment before_body = CurrentEnvironment();
-	const Environment repeated_environment = FilterRepeatedEnvironment(before_body, *loop.m_body);
-	const Environment after_body = VisitInEnvironment(loop.m_body, repeated_environment);
-	CurrentEnvironment() = IntersectEnvironments(before_body, before_body, after_body);
 }
 
 void LocalConstantPropagation::operator()(MidoriExpression::For& for_expr)

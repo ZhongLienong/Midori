@@ -18,7 +18,6 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriStatement::FunctionDefinition& defun, int depth = 0) const;
 
-	void operator()(const MidoriStatement::Continue&, int depth = 0) const;
 
 	void operator()(const MidoriStatement::ForeignDefinition& foreign, int depth = 0) const;
 
@@ -95,13 +94,11 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Default& default_expr, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Loop& loop, int depth = 0) const;
 
 	void operator()(const MidoriExpression::For& for_expr, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Return& return_expr, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Break& break_expr, int depth = 0) const;
 
 	void operator()(const MidoriPattern::Binding& binding, int depth = 0) const;
 

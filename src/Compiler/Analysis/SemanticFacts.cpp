@@ -834,10 +834,8 @@ namespace
 					return false;
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Call>
-					|| std::is_same_v<T, MidoriExpression::Loop>
 					|| std::is_same_v<T, MidoriExpression::For>
 					|| std::is_same_v<T, MidoriExpression::Return>
-					|| std::is_same_v<T, MidoriExpression::Break>
 					|| std::is_same_v<T, MidoriExpression::ArrayComprehension>)
 				{
 					return false;
@@ -1127,10 +1125,6 @@ namespace
 			NoteNestedCallableBoundary();
 		}
 
-		void Visit(const MidoriStatement::Continue&)
-		{
-		}
-
 		void Visit(const MidoriStatement::ForeignDefinition& node)
 		{
 			RecordDefinition(m_summary, node.m_local_index);
@@ -1373,11 +1367,6 @@ namespace
 			VisitExpression(*node.m_expr);
 		}
 
-		void Visit(const MidoriExpression::Loop& node)
-		{
-			VisitExpression(*node.m_body);
-		}
-
 		void Visit(const MidoriExpression::For& node)
 		{
 			RecordSyntheticLocal(node.m_loop_variable_index);
@@ -1386,11 +1375,6 @@ namespace
 			RecordSyntheticLocal(node.m_hidden_array_index);
 			VisitExpression(*node.m_range);
 			VisitExpression(*node.m_body);
-		}
-
-		void Visit(const MidoriExpression::Break& node)
-		{
-			VisitExpression(*node.m_value);
 		}
 
 		void Visit(const MidoriExpression::Return& node)

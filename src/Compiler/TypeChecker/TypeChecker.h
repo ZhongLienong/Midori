@@ -227,7 +227,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriStatement::FunctionDefinition& defun);
 
-	MidoriResult::TypeResult operator()(MidoriStatement::Continue& continue_stmt);
 
 	MidoriResult::TypeResult operator()(MidoriStatement::ForeignDefinition& foreign_stmt);
 
@@ -311,7 +310,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Default& default_expr);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Loop& loop);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::For& for_expr);
 
@@ -319,7 +317,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Break& break_expr);
 
 	bool HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type);
 

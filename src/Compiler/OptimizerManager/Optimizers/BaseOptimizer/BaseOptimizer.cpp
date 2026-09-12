@@ -60,10 +60,6 @@ void MidoriOptimizer::operator()(MidoriStatement::FunctionDefinition& defun)
 	VisitAndReplace(defun.m_body);
 }
 
-void MidoriOptimizer::operator()(MidoriStatement::Continue&)
-{
-}
-
 void MidoriOptimizer::operator()(MidoriStatement::ForeignDefinition&)
 {
 }
@@ -295,20 +291,10 @@ void MidoriOptimizer::operator()(MidoriExpression::Default& default_expr)
 	VisitAndReplace(default_expr.m_expr);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Loop& loop)
-{
-	VisitAndReplace(loop.m_body);
-}
-
 void MidoriOptimizer::operator()(MidoriExpression::For& for_expr)
 {
 	VisitAndReplace(for_expr.m_range);
 	VisitAndReplace(for_expr.m_body);
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::Break& break_expr)
-{
-	VisitAndReplace(break_expr.m_value);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Return& return_expr)

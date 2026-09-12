@@ -633,7 +633,6 @@ private:
 
 	MidoriResult::ExpressionResult ParsePostfixChain(std::unique_ptr<MidoriExpression>&& expr);
 
-	MidoriResult::ExpressionResult ParseLoopExpression();
 
 	MidoriResult::ExpressionResult ParseForExpression();
 
@@ -641,7 +640,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseReturnExpression();
 
-	MidoriResult::ExpressionResult ParseBreakExpression();
 
 	MidoriResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr);
 
@@ -679,7 +677,6 @@ private:
 
 	MidoriResult::StatementResult ParseAliasDeclaration();
 
-	MidoriResult::StatementResult ParseContinueStatement();
 
 	MidoriResult::StatementResult ParseSimpleStatement();
 

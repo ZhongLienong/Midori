@@ -1,8 +1,0 @@
-module BreakSameType
-
-loop 
-{
-    if true 
-    then break 1
-    else break 2
-};

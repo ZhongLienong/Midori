@@ -108,11 +108,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::FunctionDefiniti
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Continue&, int depth) const
-{
-	PrintWithIndentation(depth, "Continue");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriStatement::ForeignDefinition& foreign, int depth) const
 {
 	PrintWithIndentation(depth, "ForeignFunctionInterface {");
@@ -533,14 +528,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Default& defaul
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Loop& loop, int depth) const
-{
-	PrintWithIndentation(depth, "Loop {");
-	PrintWithIndentation(depth + 1, "Body: ");
-	Visit(loop.m_body, depth + 2);
-	PrintWithIndentation(depth + 1, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::For& for_expr, int depth) const
 {
 	PrintWithIndentation(depth, "For {");
@@ -557,14 +544,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Return& return_
 	PrintWithIndentation(depth, "Return {");
 	PrintWithIndentation(depth + 1, "Value: ");
 	Visit(return_expr.m_value, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Break& break_expr, int depth) const
-{
-	PrintWithIndentation(depth, "Break");
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(break_expr.m_value, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

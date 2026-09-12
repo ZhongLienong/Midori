@@ -1974,7 +1974,6 @@ void CodeGenerator::DispatchStatement(MidoriStatement& statement)
 		void operator()(MidoriStatement::VariableDefinition& arg) const { (*m_self)(arg); }
 		void operator()(MidoriStatement::TupleDefinition& arg) const { (*m_self)(arg); }
 		void operator()(MidoriStatement::FunctionDefinition& arg) const { (*m_self)(arg); }
-		void operator()(MidoriStatement::Continue& arg) const { (*m_self)(arg); }
 		void operator()(MidoriStatement::ForeignDefinition& arg) const { (*m_self)(arg); }
 		void operator()(MidoriStatement::Struct& arg) const { (*m_self)(arg); }
 		void operator()(MidoriStatement::Union& arg) const { (*m_self)(arg); }
@@ -2026,10 +2025,8 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::Match& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Case& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Default& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::Loop& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::For& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Return& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::Break& arg) const { (*m_self)(arg); }
 	};
 
 	std::visit(ExpressionDispatcher{ this }, *expression);
@@ -2153,7 +2150,6 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 
 		void operator()(const MidoriStatement::ExpressionStatement&) const {}
 		void operator()(const MidoriStatement::TupleDefinition&) const {}
-		void operator()(const MidoriStatement::Continue&) const {}
 		void operator()(const MidoriStatement::Class&) const {}
 		void operator()(const MidoriStatement::Instance&) const {}
 		void operator()(const MidoriStatement::TypeAlias&) const {}
@@ -2375,21 +2371,6 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 		// Local function - store in local variable
 		EmitVariable(defun.m_local_index.value(), OpCode::SET_LOCAL, line);
 	}
-}
-
-void CodeGenerator::operator()(MidoriStatement::Continue& continue_stmt)
-{
-	int line = continue_stmt.m_keyword.m_line;
-
-	while (continue_stmt.m_number_to_pop > 0)
-	{
-		int count_to_pop = std::min(continue_stmt.m_number_to_pop, static_cast<int>(UINT8_MAX));
-		EmitByte(OpCode::POP_VALUES, line);
-		EmitByte(static_cast<OpCode>(count_to_pop), line);
-		continue_stmt.m_number_to_pop -= count_to_pop;
-	}
-
-	EmitLoop(m_loop_contexts.top().m_continue_target, line);
 }
 
 void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
@@ -4642,20 +4623,6 @@ void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
 	Visit(default_expr.m_expr);
 }
 
-void CodeGenerator::operator()(MidoriExpression::Loop& loop)
-{
-	int line = loop.m_loop_keyword.m_line;
-
-	int loop_start = m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize();
-	BeginLoop(loop_start);
-
-	Visit(loop.m_body);
-	EmitByte(OpCode::POP, line);
-
-	EmitLoop(loop_start, line);
-	EndLoop(line);
-}
-
 void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 {
 	int line = for_expr.m_for_keyword.m_line;
@@ -5141,30 +5108,6 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 	// Push the result array as the expression value
 	EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
 	// Stack: [..., result_array]
-}
-
-void CodeGenerator::operator()(MidoriExpression::Break& break_expr)
-{
-	int line = break_expr.m_keyword.m_line;
-
-	Visit(break_expr.m_value);
-
-	while (break_expr.m_number_to_pop > 0)
-	{
-		int count_to_pop = std::min(break_expr.m_number_to_pop, static_cast<int>(UINT8_MAX));
-		if (count_to_pop == break_expr.m_number_to_pop)
-		{
-			EmitByte(OpCode::POP_BLOCK_SCOPE, line);
-		}
-		else
-		{
-			EmitByte(OpCode::POP_LOCAL_SCOPE, line);
-		}
-		EmitByte(static_cast<OpCode>(count_to_pop), line);
-		break_expr.m_number_to_pop -= count_to_pop;
-	}
-
-	m_loop_contexts.top().m_break_positions.emplace_back(EmitJump(OpCode::BREAK, line));
 }
 
 void CodeGenerator::operator()(MidoriExpression::Return& return_expr)

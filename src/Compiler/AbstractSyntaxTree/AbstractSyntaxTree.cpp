@@ -313,12 +313,6 @@ MidoriExpression::Default::Default(const Token& keyword, std::unique_ptr<MidoriE
 {
 }
 
-MidoriExpression::Loop::Loop(const Token& loop_keyword, std::unique_ptr<MidoriExpression>&& body)
-	: m_loop_keyword(loop_keyword),
-	m_body(std::move(body))
-{
-}
-
 MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
 	std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body)
 	: m_for_keyword(for_keyword),
@@ -331,13 +325,6 @@ MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable,
 
 MidoriExpression::Return::Return(const Token& keyword, std::unique_ptr<MidoriExpression>&& value)
 	: m_keyword(keyword),
-	m_value(std::move(value))
-{
-}
-
-MidoriExpression::Break::Break(const Token& keyword, int number_to_pop, std::unique_ptr<MidoriExpression>&& value)
-	: m_keyword(keyword),
-	m_number_to_pop(number_to_pop),
 	m_value(std::move(value))
 {
 }
@@ -414,12 +401,6 @@ MidoriStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, st
 	: m_names(std::move(names)),
 	m_value(std::move(value)),
 	m_local_indices(std::move(local_indices))
-{
-}
-
-MidoriStatement::Continue::Continue(const Token& keyword, int number_to_pop)
-	: m_keyword(keyword),
-	m_number_to_pop(number_to_pop)
 {
 }
 

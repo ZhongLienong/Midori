@@ -89,10 +89,6 @@ namespace
 				{
 					return &node.m_name;
 				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::Continue>)
-				{
-					return &node.m_keyword;
-				}
 				else if constexpr (std::is_same_v<T, MidoriStatement::ForeignDefinition>)
 				{
 					return &node.m_function_name;
@@ -230,15 +226,11 @@ namespace
 				{
 					return &node.m_keyword;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Loop>)
-				{
-					return &node.m_loop_keyword;
-				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::For>)
 				{
 					return &node.m_for_keyword;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Return> || std::is_same_v<T, MidoriExpression::Break>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 				{
 					return &node.m_keyword;
 				}
@@ -265,7 +257,7 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriExpression::Return> || std::is_same_v<T, MidoriExpression::Break>)
+				if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 				{
 					return true;
 				}
@@ -303,11 +295,7 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriStatement::Continue>)
-				{
-					return true;
-				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
+				if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
 				{
 					return node.m_expr != nullptr && IsTerminatingExpressionImpl(*node.m_expr);
 				}

@@ -1,9 +1,0 @@
-module BreakWithTrailingExpr
-
-loop 
-{
-    if true
-    then { break "done"; }
-    else "";
-    123;
-};

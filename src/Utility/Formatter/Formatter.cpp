@@ -252,15 +252,12 @@ namespace
 		case TokenName::ELSE:
 		case TokenName::FALSE:
 		case TokenName::FUNCTION:
-		case TokenName::LOOP:
 		case TokenName::FOR:
 		case TokenName::IN:
 		case TokenName::IF:
 		case TokenName::RETURN:
 		case TokenName::TRUE:
 		case TokenName::DEF:
-		case TokenName::BREAK:
-		case TokenName::CONTINUE:
 		case TokenName::IMPORT:
 		case TokenName::AS:
 		case TokenName::FOREIGN:
@@ -583,8 +580,7 @@ namespace
 					|| previous == TokenName::CASE
 					|| previous == TokenName::DEFAULT
 					|| previous == TokenName::IN
-					|| previous == TokenName::RETURN
-					|| previous == TokenName::BREAK))
+					|| previous == TokenName::RETURN))
 			{
 				return;
 			}

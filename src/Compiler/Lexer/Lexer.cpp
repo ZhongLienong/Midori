@@ -22,7 +22,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	// reserved keywords
 	{"else"s, Token::Name::ELSE},
 	{"false"s, Token::Name::FALSE},
-	{"loop"s, Token::Name::LOOP},
 	{"for"s, Token::Name::FOR},
 	{"in"s, Token::Name::IN},
 	{"if"s, Token::Name::IF},
@@ -31,8 +30,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"def"s, Token::Name::DEF},
 	{"fn"s, Token::Name::FUNCTION},
 	{"as"s, Token::Name::AS},
-	{"break"s, Token::Name::BREAK},
-	{"continue"s, Token::Name::CONTINUE},
 	{"import"s, Token::Name::IMPORT},
 	{"foreign"s, Token::Name::FOREIGN},
 	{"case"s, Token::Name::CASE},

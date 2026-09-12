@@ -112,13 +112,25 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 ### Counts
 
-| | before | target | **actual, 2026-09-06** |
-|---|---|---|---|
-| Expression nodes | 41 | 18 | **42** |
-| Statement nodes | 11 | 5 | **11** |
-| Built-in type kinds | 17 | 8 | **17** |
-| Reserved words | 37 | ~25 | **34** |
-| Callable concepts | 7 | 1 | **7** |
+| | before | target | actual, 2026-09-06 | **actual, 2026-09-12** |
+|---|---|---|---|---|
+| Expression nodes | 41 | 18 | 42 | **36** |
+| Statement nodes | 11 | 5 | 11 | **10** |
+| Built-in type kinds | 17 | 8 | 17 | *not re-measured* |
+| Reserved words | 37 | ~25 | 34 | **31** |
+| Callable concepts | 7 | 1 | 7 | *unchanged* |
+
+The 2026-09-12 column is the first time a structural row has moved. Deleting
+assignment removed four expression nodes; deleting `loop`, `break` and
+`continue` removed two more plus the `Continue` statement node, and freed three
+reserved words. Expression nodes 42 → 36, statements 11 → 10, reserved words
+34 → 31.
+
+Counted from the source, not from this document: `ExpressionUnion` and
+`StatementUnion` in `AbstractSyntaxTree.h`, and the second keyword table in
+`Lexer.cpp` (the first holds the 12 built-in type names, which is a different
+measure from the 17 "type kinds" row and is why that row is left alone rather
+than silently redefined).
 
 Statements remaining: `ExpressionStatement`, `VariableDefinition`,
 `TypeDefinition`, `Class`, `Instance`. Only the first two appear inside a block.

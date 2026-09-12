@@ -34,15 +34,8 @@ def early_return = fn() -> Int => {
     print_and_return(99);
 };
 
-def unreachable_break: Int = loop
-{
-    break 7;
-    print_and_return(100);
-};
-
 IO::PrintLine("unused_pure_local=" ++ (unused_pure_local as Text));
 IO::PrintLine("pure_statement_cleanup=" ++ (pure_statement_cleanup as Text));
 IO::PrintLine("kept_effectful_local=" ++ (kept_effectful_local as Text));
 IO::PrintLine("kept_effectful_statement=" ++ (kept_effectful_statement as Text));
 IO::PrintLine("early_return=" ++ (early_return() as Text));
-IO::PrintLine("unreachable_break=" ++ (unreachable_break as Text));

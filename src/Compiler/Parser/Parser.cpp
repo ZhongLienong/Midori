@@ -588,6 +588,23 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 	}
 
+	// `loop`, `break` and `continue` are no longer keywords, so a file still using
+	// them lexes them as ordinary identifiers and would fail with a bare "Undefined
+	// name." Name the removal instead. Reached only when the name does not resolve,
+	// so a binding actually called `loop` is untouched.
+	if (lookup_name == "loop")
+	{
+		return std::unexpected(GenerateParserError("'loop' is no longer supported. Write a recursive function, or 'for x in iterable { ... }' to consume an iterable for its effects.", name_token));
+	}
+	if (lookup_name == "break")
+	{
+		return std::unexpected(GenerateParserError("'break' is no longer supported. A loop that stops early becomes a recursive function whose base case returns the answer, which also has to say what happens when nothing is found.", name_token));
+	}
+	if (lookup_name == "continue")
+	{
+		return std::unexpected(GenerateParserError("'continue' is no longer supported. Guard the body with 'if' instead.", name_token));
+	}
+
 	return std::unexpected(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
 }
 
@@ -1903,17 +1920,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		return ParseMatchExpression();
 	}
-	else if (Match(Token::Name::LOOP))
-	{
-		return ParseLoopExpression();
-	}
 	else if (Match(Token::Name::FOR))
 	{
 		return ParseForExpression();
-	}
-	else if (Match(Token::Name::BREAK))
-	{
-		return ParseBreakExpression();
 	}
 	else if (Match(Token::Name::RETURN))
 	{
@@ -2332,26 +2341,6 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseBreakExpression()
-{
-	Token& keyword = Previous();
-	if (m_state.m_local_count_before_loop.empty())
-	{
-		return std::unexpected(GenerateParserError("'break' must be used inside a loop.", keyword));
-	}
-	else
-	{
-		return ParseExpression()
-			.and_then
-			(
-				[&keyword, this](std::unique_ptr<MidoriExpression>&& expr)->MidoriResult::ExpressionResult
-				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Break(keyword, m_state.m_total_variables - m_state.m_local_count_before_loop.top(), std::move(expr)));
-				}
-			);
-	}
-}
-
 MidoriResult::ExpressionResult Parser::ParseReturnExpression()
 {
 	Token& keyword = Previous();
@@ -2370,22 +2359,6 @@ MidoriResult::ExpressionResult Parser::ParseReturnExpression()
 				}
 			);
 	}
-}
-
-MidoriResult::ExpressionResult Parser::ParseLoopExpression()
-{
-	Token& keyword = Previous();
-	m_state.m_local_count_before_loop.emplace(m_state.m_total_variables);
-
-	return ParseExpression()
-		.and_then
-		(
-			[&keyword, this](std::unique_ptr<MidoriExpression>&& body)->MidoriResult::ExpressionResult
-			{
-				m_state.m_local_count_before_loop.pop();
-				return std::make_unique<MidoriExpression>(MidoriExpression::Loop(keyword, std::move(body)));
-			}
-		);
 }
 
 MidoriResult::ExpressionResult Parser::ParseForExpression()
@@ -3935,25 +3908,6 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	);
 }
 
-MidoriResult::StatementResult Parser::ParseContinueStatement()
-{
-	Token& keyword = Previous();
-
-	if (m_state.m_local_count_before_loop.empty())
-	{
-		return std::unexpected(GenerateParserError("'continue' must be used inside a loop.", keyword));
-	}
-
-	return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after \"continue\".")
-		.and_then
-		(
-			[&keyword, this](Token&&) ->MidoriResult::StatementResult
-			{
-				return std::make_unique<MidoriStatement>(MidoriStatement::Continue(keyword, m_state.m_total_variables - m_state.m_local_count_before_loop.top() - 1));
-			}
-		);
-}
-
 MidoriResult::StatementResult Parser::ParseSimpleStatement()
 {
 	ParseState checkpoint = m_state;
@@ -4711,22 +4665,7 @@ MidoriResult::ExpressionResult Parser::ParseDefaultExpression(bool& default_visi
 
 MidoriResult::StatementResult Parser::ParseStatement()
 {
-	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
-		[this]() -> MidoriResult::StatementResult
-		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
-				Token::Name::CONTINUE,
-				[this](Token&&) -> MidoriResult::StatementResult
-				{
-					return ParseContinueStatement();
-				}
-			);
-		},
-		[this]() -> MidoriResult::StatementResult
-		{
-			return ParseSimpleStatement();
-		}
-	);
+	return ParseSimpleStatement();
 }
 
 MidoriResult::TypeResult Parser::ParseType(bool is_foreign)

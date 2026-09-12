@@ -1,0 +1,23 @@
+[warning] 3 warning(s) in dead_code_elimination.mdr
+Static Analyzer Warning at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\optimizer\dead_code_elimination.mdr:12
+   |
+12 |     def y: Int = x + 4;
+   |         ^ Binding 'y' is never read.
+   |
+Static Analyzer Warning at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\optimizer\dead_code_elimination.mdr:23
+   |
+23 |     def x: Int = print_and_return(1);
+   |         ^ Binding 'x' is never read.
+   |
+Static Analyzer Warning at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\optimizer\dead_code_elimination.mdr:34
+   |
+34 |     print_and_return(99);
+   |     ^^^^^^^^^^^^^^^^ This code is unreachable because control flow already exits earlier in the block.
+   |
+effect=1
+effect=2
+unused_pure_local=9
+pure_statement_cleanup=5
+kept_effectful_local=2
+kept_effectful_statement=4
+early_return=3

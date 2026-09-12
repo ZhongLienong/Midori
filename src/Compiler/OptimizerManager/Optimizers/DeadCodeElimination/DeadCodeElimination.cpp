@@ -23,7 +23,7 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriExpression::Return> || std::is_same_v<T, MidoriExpression::Break>)
+				if constexpr (std::is_same_v<T, MidoriExpression::Return>)
 				{
 					return true;
 				}
@@ -61,11 +61,7 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriStatement::Continue>)
-				{
-					return true;
-				}
-				else if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
+				if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
 				{
 					return IsTerminatingExpressionImpl(*node.m_expr);
 				}

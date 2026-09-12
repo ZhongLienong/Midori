@@ -3242,7 +3242,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStat
 		(
 			[&simple, this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
 			{
-				if (simple.m_expr->IsExpression<MidoriExpression::Break>() || simple.m_expr->IsExpression<MidoriExpression::Return>())
+				if (simple.m_expr->IsExpression<MidoriExpression::Return>())
 				{
 					return type;
 				}
@@ -3790,11 +3790,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 				}
 			);
 	});
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Continue&)
-{
-	return MidoriType::MakeUndecidedType();
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ForeignDefinition& foreign)
@@ -4436,42 +4431,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Default& defa
 				return Unify(default_expr.m_keyword, default_expr.m_type_data, expr_type);
 			}
 		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Loop& loop)
-{
-	// Save the outer loop's expected break type (for nested loops)
-	std::shared_ptr<MidoriType> outer_break_type = m_expected_break_type;
-
-	// Set the expected break type for this loop (initially undecided)
-	m_expected_break_type = loop.m_type_data;
-
-	MidoriResult::TypeResult result = Evaluate(loop.m_body)
-		.and_then
-		(
-			[&loop, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-			{
-				// The loop's type is determined by the expected break type
-				// If no breaks occurred, m_expected_break_type is still undecided
-				if (m_expected_break_type->IsType<MidoriType::UndecidedType>())
-				{
-					// No breaks in this loop - it's an infinite loop with NeverType
-					loop.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
-				}
-				else
-				{
-					// Loop has breaks - use the unified break type
-					loop.m_type_data = m_expected_break_type;
-				}
-
-				return loop.m_type_data;
-			}
-		);
-
-	// Restore the outer loop's expected break type
-	m_expected_break_type = outer_break_type;
-
-	return result;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr)
@@ -6836,8 +6795,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 			if (last_stmt->IsStatement<MidoriStatement::ExpressionStatement>())
 			{
 				const MidoriStatement::ExpressionStatement& simple = last_stmt->GetStatement<MidoriStatement::ExpressionStatement>();
-				if (simple.m_expr->IsExpression<MidoriExpression::Break>() ||
-				    simple.m_expr->IsExpression<MidoriExpression::Return>())
+				if (simple.m_expr->IsExpression<MidoriExpression::Return>())
 				{
 					// Block ends with break or return statement - use NeverType
 					block.m_type_data = simple.m_expr->GetType();
@@ -6853,39 +6811,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 		}
 		return block.m_type_data;
 	});
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Break& break_expr)
-{
-	return Evaluate(break_expr.m_value)
-		.and_then
-		(
-			[&break_expr, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
-			{
-				// Unify the break value's type with the expected break type for the current loop
-				if (m_expected_break_type)
-				{
-					return Unify(break_expr.m_keyword, type, m_expected_break_type, UnifyDiagnosticMode::ActualExpected)
-						.and_then
-						(
-							[&break_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-							{
-								// Like return, break never returns normally, so its type is NeverType
-								// This allows it to unify with any type in if-else branches
-								break_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
-								return break_expr.m_type_data;
-							}
-						);
-				}
-				else
-				{
-					// Break outside of a loop - this should be caught by an earlier pass
-					// For now, just set to NeverType
-					break_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
-					return break_expr.m_type_data;
-				}
-			}
-		);
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& return_expr)

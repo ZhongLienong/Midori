@@ -49,7 +49,6 @@ protected:
 	virtual void operator()(MidoriStatement::VariableDefinition& def) override;
 	virtual void operator()(MidoriStatement::TupleDefinition& def_tuple) override;
 	virtual void operator()(MidoriStatement::FunctionDefinition& defun) override;
-	virtual void operator()(MidoriStatement::Continue& continue_stmt) override;
 	virtual void operator()(MidoriStatement::ForeignDefinition& foreign) override;
 	virtual void operator()(MidoriStatement::Struct& struct_stmt) override;
 	virtual void operator()(MidoriStatement::Union& union_stmt) override;
@@ -91,8 +90,6 @@ protected:
 	virtual void operator()(MidoriExpression::Match& match) override;
 	virtual void operator()(MidoriExpression::Case& case_expr) override;
 	virtual void operator()(MidoriExpression::Default& default_expr) override;
-	virtual void operator()(MidoriExpression::Loop& loop) override;
 	virtual void operator()(MidoriExpression::For& for_expr) override;
-	virtual void operator()(MidoriExpression::Break& break_expr) override;
 	virtual void operator()(MidoriExpression::Return& return_expr) override;
 };
