@@ -85,7 +85,9 @@ reallocation path is not exercised.
 4. **There are two live preludes.** `<Name>` system imports resolve through
    `MIDORI_PATH` to an installed copy under `AppData`, which nothing syncs. After
    every prelude change run
-   `cp -r MidoriPrelude "$LOCALAPPDATA/Midori/MidoriPrelude"` or the
+   `rm -rf "$LOCALAPPDATA/Midori/MidoriPrelude"
+cp -r MidoriPrelude "$LOCALAPPDATA/Midori/MidoriPrelude"
+diff -rq MidoriPrelude "$LOCALAPPDATA/Midori/MidoriPrelude"` or the
    `<IO>`-importing tests keep compiling the old one. This cost 20 confusing
    failures last time.
 5. **`benchmark/` and `misc/` are not a migration cost.** Between them they hold
@@ -763,7 +765,9 @@ git rm MidoriPrelude/Appendable.mdr MidoriPrelude/Prependable.mdr MidoriPrelude/
 - [ ] **Step 4: Sync the installed prelude — trap 4**
 
 ```bash
+rm -rf "$LOCALAPPDATA/Midori/MidoriPrelude"
 cp -r MidoriPrelude "$LOCALAPPDATA/Midori/MidoriPrelude"
+diff -rq MidoriPrelude "$LOCALAPPDATA/Midori/MidoriPrelude"
 ```
 
 Skipping this makes every `<IO>`-importing test fail against the old copy, which
