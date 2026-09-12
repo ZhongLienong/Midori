@@ -716,15 +716,29 @@ Delete `ARRAY_APPEND` and `TEXT_APPEND` from the `OpCode` enum in
 `Executable.h`, their `case` arms in `VirtualMachine.cpp`, and their `case` arms
 in `Disassembler.cpp`.
 
-The opcode enum is serialised into bytecode artifacts. Removing entries from the
-middle renumbers everything after them, so any `.mbc` file on disk becomes
-garbage. That is fine — they are build products — but delete them so a stale one
-cannot be loaded:
+The `OpCode` enum has no explicit values — it is positional — so removing two
+entries from the middle renumbers every opcode after them and invalidates any
+serialised bytecode.
+
+Five `.mbc`/`.mbc.json` artifacts are **tracked in git**, which they should not
+be: they are build products from `midori build`, nothing loads them by name, and
+after this task their opcode numbering is wrong. Remove them from the index as
+part of this commit, listing each path explicitly:
 
 ```bash
+git rm --cached test/closure/closure_inside_conditional.mbc
+git rm --cached test/closure/closure_inside_conditional.mbc.json
+git rm --cached test/concurrency/success/channel_spawn_syntax.mbc.json
+git rm --cached test/concurrency/success/value_transfer_array_syntax.mbc.json
+git rm --cached test/concurrency/success/worker_spawn_syntax.mbc.json
 find test -name "*.mbc" -delete
 find test -name "*.mbc.json" -delete
 ```
+
+**Do not assume the rest of the compound-assignment opcode block is dead.**
+Compound assignment was deleted from the *language*, but `ADD_ASSIGN_INT` and
+`SUB_ASSIGN_INT` are still emitted by an increment peephole at
+`CodeGenerator.cpp:508`. Only `ARRAY_APPEND` and `TEXT_APPEND` are in scope here.
 
 - [ ] **Step 5: Build**
 
