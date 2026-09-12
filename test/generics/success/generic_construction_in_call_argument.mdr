@@ -31,34 +31,35 @@ type Bag<T> =
 	items : Array<T>
 };
 
-def AppendTo = fn<T>(items : Array<T>, value : T) -> Unit => ArrayUtil::Append(items, value);
+def AppendTo = fn<T>(items : Array<T>, value : T) -> Array<T> => ArrayUtil::WithAppended(items, value);
 
 // The deciding argument comes first and is concrete.
 def slots : Array<Slot<Int, Text>> = [];
-AppendTo(slots, Slot::Empty());
-AppendTo(slots, Slot::Occupied(1, "one"));
+def slots_with_empty = AppendTo(slots, Slot::Empty());
+def slots_filled = AppendTo(slots_with_empty, Slot::Occupied(1, "one"));
 
-IO::PrintLine("slots: " ++ (#slots as Text));
+IO::PrintLine("slots: " ++ (#slots_filled as Text));
 
 // The same call inside a generic function, where the deciding argument is generic in the
 // enclosing definition rather than concrete.
-def FillGeneric = fn<K, V>(bucket : Array<Slot<K, V>>) -> Int =>
+def FillGeneric = fn<K, V>(bucket : Array<Slot<K, V>>) -> Array<Slot<K, V>> =>
 {
-	AppendTo(bucket, Slot::Empty());
-	#bucket
+	AppendTo(bucket, Slot::Empty())
 };
 
 def texts : Array<Slot<Text, Int>> = [];
-IO::PrintLine("generic: " ++ (FillGeneric(texts) as Text));
-IO::PrintLine("generic again: " ++ (FillGeneric(texts) as Text));
+def texts_once = FillGeneric(texts);
+IO::PrintLine("generic: " ++ (#texts_once as Text));
+def texts_twice = FillGeneric(texts_once);
+IO::PrintLine("generic again: " ++ (#texts_twice as Text));
 
 // The construction is nested inside another generic instantiation in argument position.
 def bags : Array<Bag<Slot<Int, Text>>> = [];
-AppendTo(bags, Bag([Slot::Empty()]));
+def bags_filled = AppendTo(bags, Bag([Slot::Empty()]));
 
-IO::PrintLine("bags: " ++ (#bags as Text) ++ " inner " ++ (#(bags[0].items) as Text));
+IO::PrintLine("bags: " ++ (#bags_filled as Text) ++ " inner " ++ (#(bags_filled[0].items) as Text));
 
-match slots[1] with
+match slots_filled[1] with
 	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
 	case Slot::Empty => IO::PrintLine("empty")
 ;

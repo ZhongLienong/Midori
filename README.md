@@ -364,9 +364,6 @@ Concatenation assignment is explicit rather than a dedicated operator:
 ```midori
 items = items ++ [value];
 text = text ++ suffix;
-Prependable::Prepend(items, value);
-Appendable::Append(items, value);
-Extendable::Extend(items, other_items);
 ```
 
 ### Advanced Features
@@ -388,7 +385,7 @@ Extendable::Extend(items, other_items);
 - **Collections** - `Collections/Map.mdr`, `Collections/Set.mdr`
 - **Effects** - `IO.mdr`, `System.mdr`, `DateTime.mdr`
 - **Built-in helpers** - `TextUtil.mdr`, `ArrayUtil.mdr`, `Math.mdr`
-- **Helper / typeclass modules** - `Appendable`, `Prependable`, `Extendable`, `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
+- **Helper / typeclass modules** - `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
 
@@ -396,7 +393,7 @@ The public IO and system surface now prefers typed wrappers over sentinel values
 - `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::CurrentPlatform`, and `System::CurrentProcessId`
 - `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, and `DateTime::FormatLocal`
 - `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`
-- `ArrayUtil::Append`, `ArrayUtil::Prepend`, `ArrayUtil::Extend`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse`
+- `ArrayUtil::WithAppended`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse` (arrays are immutable; these return new arrays)
 
 `Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are removed from the public prelude API.
 

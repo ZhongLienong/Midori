@@ -9,9 +9,7 @@ import
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");
 def headline = TextUtil::Replace("midori docs", "docs", "prelude");
 
-def numbers = [2, 3];
-ArrayUtil::Prepend(numbers, 1);
-ArrayUtil::Append(numbers, 4);
+def numbers = [1, 2, 3, 4];
 
 def reversed = ArrayUtil::Reverse(numbers);
 def window = ArrayUtil::Slice(numbers, 1, 3);

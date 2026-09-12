@@ -14,14 +14,13 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Collections/Map.mdr` and `Collections/Set.mdr` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
 - `IO.mdr`, `System.mdr`, and `DateTime.mdr` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
-- `Appendable.mdr`, `Prependable.mdr`, `Extendable.mdr`, `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
+- `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
 
 ## Helper and Typeclass Modules
 
 The prelude is not only collections and IO wrappers. It also ships the public helper/typeclass modules that the compiler and standard data structures lean on:
 
-- `Appendable`, `Prependable`, and `Extendable` provide mutating container helper methods. Today they ship concrete instances for arrays, with text support for append/prepend.
 - `Concatenable` backs `++` and currently ships concrete instances for `Text` and `Array<T>`.
 - `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
@@ -118,7 +117,7 @@ Public date/time entry points:
 
 ## Text and Array Helpers
 
-`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary mutable array helpers. `ArrayUtil::Append`, `Prepend`, and `Extend` mutate the target array. `Slice` and `Reverse` return new arrays.
+`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Build an array up front with a comprehension or `List`, or grow one incrementally with `WithAppended` when the number of elements is small - calling it in a loop is quadratic.
 
 ```midori-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mdr module=PreludeTextArrayHelpers
 import
@@ -130,9 +129,7 @@ import
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");
 def headline = TextUtil::Replace("midori docs", "docs", "prelude");
 
-def numbers = [2, 3];
-ArrayUtil::Prepend(numbers, 1);
-ArrayUtil::Append(numbers, 4);
+def numbers = [1, 2, 3, 4];
 
 def reversed = ArrayUtil::Reverse(numbers);
 def window = ArrayUtil::Slice(numbers, 1, 3);
@@ -146,8 +143,8 @@ Public text helpers:
 Public array helpers:
 
 - `Length`, `Contains`
-- `Append`, `Prepend`, `Extend`
-- `Slice`, `Reverse`
+- `Slice`, `Reverse`, `Copy`, `Concat`
+- `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
 
 ## Core ADTs and Collections
 
