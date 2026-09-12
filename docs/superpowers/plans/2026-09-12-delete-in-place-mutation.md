@@ -998,6 +998,55 @@ old-to-young write-barrier coverage in the process, and nothing replaces it: an
 immutable language cannot express that write.
 ```
 
+- [ ] **Step 2b: Correct three existing passages that are now false**
+
+Adding lines is not enough. Three passages already in the spec describe a state
+this plan has changed, and one of them was never true.
+
+1. **§ "Two honest qualifications", around line 216.** Both items are resolved:
+   - Item 1 says `Appendable`/`Prependable`/`Extendable` "still mutate an array
+     in place… so the language still offers in-place array mutation to a user."
+     This plan removed them.
+   - Item 2 says `ListToArray` "is now quadratic where it was linear… a builder
+     or a reversed accumulator would recover it." That was fixed in `c925fcf`,
+     before this plan started — it is now a comprehension over the list's own
+     `Iterable`, measured at 155 ms for 40,000 elements against 34,589 ms before.
+
+   Do not delete the passage — it is an honest record of a known gap. Mark each
+   item resolved, with the commit and, for item 2, the measured figures.
+
+2. **§12 Verification, criterion 2, around line 499:**
+   "`arr |> ArrayUtil::Append(4) |> ArrayUtil::Reverse` compiles."
+
+   `ArrayUtil::Append` no longer exists — but the criterion was **never
+   satisfiable as written**. The old forwarder was declared
+   `fn<T>(array: Array<T>, value: T) -> Unit`, so piping its `Unit` result into
+   `ArrayUtil::Reverse` could not type-check. Replace it with the form that
+   actually expresses the intent, which has been run and works:
+
+   ```midori
+   arr |> ArrayUtil::WithAppended(4) |> ArrayUtil::Reverse
+   ```
+
+   (On `[1, 2, 3]` it yields `[4, 3, 2, 1]` and leaves `arr` unchanged.) Say in
+   the text that the original criterion was unsatisfiable, so nobody concludes
+   the rewrite regressed something that used to work.
+
+3. **§ "`new` was blocked on inference", around line 395**, quotes
+   `Appendable::Append(buckets, Slot::Empty())` alongside the diagnostic it
+   produced. **Leave it.** It is a historical record of an error message from a
+   specific point in time, and it is accurate about that moment. Rewriting it to
+   use a surviving function would falsify the history.
+
+Verify nothing else in the spec still presents the deleted API as current:
+
+```bash
+grep -n "Appendable\|Prependable\|Extendable\|ArrayUtil::Append\|ArrayUtil::Prepend\|ArrayUtil::Extend" docs/superpowers/specs/2026-09-01-expression-oriented-midori-design.md
+```
+
+Every remaining hit should be either the new "Removed" entry, a resolved
+qualification, or the historical `new` passage. Classify each.
+
 - [ ] **Step 3: Commit**
 
 ```bash
