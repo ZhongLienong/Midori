@@ -94,6 +94,9 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 - Six redundant prelude names: `MapSize`, `SetSize`, `ArrayUtil::Length`,
   `TextUtil::Length`, and the `ArrayUtil::Append` / `Prepend` / `Extend`
   forwarders.
+- `Appendable`, `Prependable`, `Extendable` — in-place mutation. Deleting
+  assignment removed the operator; these removed the last expressions that
+  write into an object that already exists.
 
 ### Added
 
@@ -119,6 +122,28 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 | Built-in type kinds | 17 | 8 | 17 | *not re-measured* |
 | Reserved words | 37 | ~25 | 34 | **31** |
 | Callable concepts | 7 | 1 | 7 | *unchanged* |
+
+In-place mutation was removed on 2026-09-12. The replacement idioms are a
+comprehension or a cons `List` converted once, both linear and both within ~2x
+of the in-place loop at 40,000 elements; `ArrayUtil::WithAppended` in a loop is
+quadratic and is not the replacement. `test/gc/generational_churn` lost its
+old-to-young write-barrier coverage in the process, and nothing replaces it: an
+immutable language cannot express that write.
+`test/concurrency/success/gc_stress_arrays` also lost coverage: it used to build
+an array by repeated in-place `Append`, exercising the backing store's
+reallocation-as-it-grows path. Its comprehension replacement allocates the same
+volume once, so that incremental-growth path is no longer exercised either.
+
+One in-place write path survives on purpose. For `++`, the code generator emits
+`EXTEND_TEXT` / `EXTEND_ARRAY` instead of `CONCAT_TEXT` / `CONCAT_ARRAY` when
+`IsFreshConcatTemporary` (`CodeGenerator.cpp`) classifies the left operand as an
+unaliased temporary — purely syntactic, tested adversarially across twelve
+cases with none breaking, and pinned by
+`test/prelude/success/concat_does_not_mutate_aliases.mdr` plus a bytecode-level
+unit test (`CodeGeneratorConcatFreshnessTests.cpp`) that runs the real optimizer
+pipeline. No *source-level* Midori expression can mutate an existing object; the
+one internal in-place optimisation is alias-safe by construction and pinned by
+tests, not a surviving user-visible mutation.
 
 The 2026-09-12 column is the first time a structural row has moved. Deleting
 assignment removed four expression nodes; deleting `loop`, `break` and
@@ -211,16 +236,20 @@ What replaced mutation, in the order it mattered:
   and `Set` needed this, and only because an open-addressed table cannot be made
   persistent without copying the whole table per insert.
 
-Two honest qualifications:
+Two honest qualifications, both now resolved:
 
-1. `Appendable::Append`, `Prependable::Prepend` and `Extendable::Extend` still
-   mutate an array in place. Nothing in the prelude calls them any more —
-   `ListToArray` was the last, converted the same day — but they remain exported,
-   so the language still offers in-place array mutation to a user. Removing the
-   assignment *operator* does not by itself remove mutation.
-2. `ListToArray` is now quadratic where it was linear, because it appends to a
-   fresh array per element. That is the honest cost of the rewrite in one place;
-   a builder or a reversed accumulator would recover it.
+1. **Resolved 2026-09-12.** `Appendable::Append`, `Prependable::Prepend` and
+   `Extendable::Extend` used to still mutate an array in place. Nothing in the
+   prelude called them any more — `ListToArray` was the last, converted the
+   same day — but they remained exported, so the language still offered
+   in-place array mutation to a user. The `2026-09-12-delete-in-place-mutation`
+   plan deleted the three typeclasses, their five FFI functions and two
+   intrinsic opcodes; removing the assignment *operator* no longer leaves
+   mutation reachable, because there is nothing left that performs it.
+2. **Resolved before this plan started, in `c925fcf`.** `ListToArray` was
+   briefly quadratic where it had been linear, because it appended to a fresh
+   array per element. It is now a comprehension over the list's own
+   `Iterable`, measured at 155 ms for 40,000 elements against 34,589 ms before.
 
 
 Reducible to library types: `Range`, `Never` as a zero-variant union, `Unit` as
@@ -496,7 +525,15 @@ The rewrite is done when:
 
 1. The prelude compiles with no `defun`, `return`, `loop`, `break`, `continue`,
    `new`, `struct`, `union`, assignment, or compound assignment.
-2. `arr |> ArrayUtil::Append(4) |> ArrayUtil::Reverse` compiles.
+2. `arr |> ArrayUtil::WithAppended(4) |> ArrayUtil::Reverse` compiles. (The
+   criterion as originally written here, `arr |> ArrayUtil::Append(4) |>
+   ArrayUtil::Reverse`, was never satisfiable: the old `ArrayUtil::Append`
+   forwarder was declared `fn<T>(array: Array<T>, value: T) -> Unit`, and
+   piping a `Unit` into `ArrayUtil::Reverse` cannot type-check. The rewrite
+   above is not a regression of something that used to pass — it replaces a
+   criterion that could never have passed. Run against
+   `./out/build/ninja/x64-development/out/Midori.exe`: on `[1, 2, 3]` it
+   yields `[4, 3, 2, 1]` and leaves `arr` unchanged.)
 3. The audited defects are inexpressible: a mutated `Text` key and iterator
    invalidation. `Map<Float, _>` NaN keys are addressed separately, since
    immutability does not make NaN reflexive.
