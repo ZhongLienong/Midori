@@ -3,63 +3,43 @@ module GenerationalChurn
 import
 {
 	"../../MidoriPrelude/Appendable.mdr",
+	"../../MidoriPrelude/ArrayUtil.mdr",
 	"../../MidoriPrelude/IO.mdr"
 }
 
 def Main = fn() -> Unit =>
 {
-	def seed = 0;
-	def counter = fn(delta : Int) -> Int => { seed = seed + delta; seed };
-
-	def last = "tracker-initial";
-	def tracker = fn(t : Text) -> Text => { if t == "" then last else { last = t; last } };
-
+	// Long-lived, created before the churn and alive throughout, so the young
+	// pointers appended to it below are the old-to-young writes this test exists
+	// to exercise. Appendable::Append mutates in place and is untouched by the
+	// removal of assignment, so that path survives intact.
 	def keeper : Array<Text> = [];
-	def init = 0;
-	loop
+
+	// `for` accumulates nothing now; every statement in the body is an effect.
+	// The allocation profile is unchanged: 32000 iterations, four short-lived
+	// strings and one scratch array each.
+	for i in 0..1..32000
 	{
-		if init >= 32
-		then break ()
-		else
-		{
-			Appendable::Append(keeper, "seed-" ++ (init as Text));
-			init = init + 1;
-		}
+		def scratch : Array<Text> = [];
+		Appendable::Append(scratch, "churn-" ++ (i as Text));
+		Appendable::Append(scratch, scratch[0] ++ "-x");
+		Appendable::Append(scratch, scratch[1] ++ "-y");
+		Appendable::Append(scratch, scratch[2] ++ "-z");
+
+		if i % 1000 == 0
+		then Appendable::Append(keeper, "fresh-" ++ (i as Text))
+		else ();
 	};
 
-	def i = 0;
-	loop
+	for item in keeper
 	{
-		if i >= 32000
-		then break ()
-		else
-		{
-			def scratch : Array<Text> = [];
-			Appendable::Append(scratch, "churn-" ++ (i as Text));
-			Appendable::Append(scratch, scratch[0] ++ "-x");
-			Appendable::Append(scratch, scratch[1] ++ "-y");
-			Appendable::Append(scratch, scratch[2] ++ "-z");
-
-			if i % 1000 == 0
-			then
-			{
-				def fresh = "fresh-" ++ (i as Text);
-				keeper[i / 1000] = fresh;
-				tracker(fresh);
-				counter(1);
-				()
-			}
-			else ();
-
-			i = i + 1;
-		}
-	};
-
-	for item in keeper {
 		IO::PrintLine(item);
 	};
-	IO::PrintLine(tracker(""));
-	IO::PrintLine(counter(0) as Text);
+
+	// Previously read out of two mutable captures. Both were bookkeeping over
+	// the same promotions and are derivable from `keeper` itself.
+	IO::PrintLine(keeper[ArrayUtil::Length(keeper) - 1]);
+	IO::PrintLine(ArrayUtil::Length(keeper) as Text);
 };
 
 Main();
