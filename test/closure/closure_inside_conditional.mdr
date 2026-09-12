@@ -5,20 +5,19 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
+// Was: a function local reassigned inside an if-branch. The branch now yields
+// the closure instead, which is what the test was really checking -- that a
+// closure created inside a conditional captures that branch's binding.
 def foo = fn() -> Int =>
 {
-	def getFunc = fn() -> Int => 1;
-	if (true)
-	then
-	{
-		def y : Int = 5;
-		getFunc = fn() -> Int => y;
-	}
-	else
-	{
-		
-	};
-	return getFunc();
+	def getFunc = if true
+		then
+		{
+			def y : Int = 5;
+			fn() -> Int => y
+		}
+		else fn() -> Int => 1;
+	getFunc()
 };
 
 IO::PrintLine(foo() as Text);  // Should print 5

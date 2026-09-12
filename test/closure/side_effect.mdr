@@ -5,13 +5,22 @@ import
 	"../../MidoriPrelude/IO.mdr",
 }
 
-def makeCounter = fn() -> fn() -> Int =>
+// Previously a closure over a private mutable counter. Without assignment a
+// closure cannot hold state, so that subject no longer exists; what survives is
+// the other property the file pinned: a closure body runs when the closure is
+// called, not when it is created.
+
+def makeReporter = fn(label : Text) -> fn() -> Unit =>
 {
-	def privateCounter = 0;
-	fn() -> Int => { privateCounter = privateCounter + 1; privateCounter }
+	IO::PrintLine("built " ++ label);
+	fn() -> Unit => IO::PrintLine("ran " ++ label)
 };
 
-def counter = makeCounter();
+// Both reporters are built before either is run, so the four lines interleave
+// only if creation and invocation are genuinely separate.
+def first = makeReporter("first");
+def second = makeReporter("second");
 
-IO::PrintLine(counter() as Text);  // Should print 1
-IO::PrintLine(counter() as Text);  // Should print 2
+first();
+second();
+first();

@@ -1,0 +1,11 @@
+[warning] 1 warning(s) in side_effect.mdr
+Static Analyzer Warning at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\closure\side_effect.mdr:16
+   |
+16 | 	fn() -> Unit => IO::PrintLine("ran " ++ label)
+   |  ^^ Captured anonymous closure escapes its defining scope as a return value.
+   |
+built first
+built second
+ran first
+ran second
+ran first

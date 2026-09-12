@@ -7,23 +7,10 @@ import
 
 def makeCapture = fn(val : Int) -> fn() -> Int => fn() -> Int => val;
 
+// Each closure must capture its own argument, not share one binding.
 def foo = fn() -> Unit =>
 {
-	def arr : Array<fn() -> Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= 3
-		then
-		{
-			break ();
-		}
-		else
-		{
-			arr = arr ++ [makeCapture(i)];
-			i = i + 1;
-		};
-	};
+	def arr : Array<fn() -> Int> = [makeCapture(i) for i in 0..1..3];
 
 	IO::PrintLine(arr[0]() as Text);  // Should print 0
 	IO::PrintLine(arr[1]() as Text);  // Should print 1

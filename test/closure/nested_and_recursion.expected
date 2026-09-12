@@ -1,0 +1,7 @@
+[warning] 1 warning(s) in nested_and_recursion.mdr
+Static Analyzer Warning at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\closure\nested_and_recursion.mdr:16
+   |
+16 |     fn() -> Int => total
+   |     ^^ Captured anonymous closure escapes its defining scope as a return value.
+   |
+8

@@ -2,15 +2,18 @@ module NestedAndRecursion
 
 import
 {
-	"../../MidoriPrelude/IO.mdr",
+  "../../MidoriPrelude/IO.mdr",
 }
 
+// Three levels of nesting, each capturing from the one above. The middle level
+// used to accumulate into the captured `initial`; it now derives a new binding,
+// which still requires the innermost closure to capture from a captured value.
 def createCounter = fn(initial : Int) -> fn(Int) -> fn() -> Int =>
 {
   def counter = fn(value : Int) -> fn() -> Int =>
   {
-    initial = initial + value;
-    fn() -> Int => initial
+    def total = initial + value;
+    fn() -> Int => total
   };
   counter
 };
