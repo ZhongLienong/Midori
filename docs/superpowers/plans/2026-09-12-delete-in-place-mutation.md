@@ -376,12 +376,19 @@ If the construction `Slot::Empty()` now fails to infer, the local class is not
 reproducing the original shape — check it really has two type parameters and two
 instances, because that is what the test exists to exercise.
 
-- [ ] **Step 3: Capture the snapshot, which the file did not have**
+- [ ] **Step 3: Do NOT regenerate the snapshot — check the existing one still passes**
+
+This file already has a `.expected`, committed in `a284fd3` against the old
+`Appendable`-based version. (An earlier survey said otherwise; it was wrong.)
+That is better than a fresh capture: if the rewritten file reproduces a snapshot
+written against the implementation it replaces, the behaviour provably did not
+change. Regenerating it would throw that evidence away.
 
 ```bash
-./out/build/ninja/x64-development/out/Midori.exe run test/typeclass/success/generic_construction_in_method_argument.mdr 2>&1 \
-  | sed 's/\x1b\[[0-9;]*m//g' > test/typeclass/success/generic_construction_in_method_argument.expected
+./out/build/ninja/x64-development/out/Midori.exe test typeclass
 ```
+
+Expected: 51/51, with this file passing against its unmodified snapshot.
 
 - [ ] **Step 4: Verify the snapshot bites**
 
