@@ -125,8 +125,13 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 In-place mutation was removed on 2026-09-12. The replacement idioms are a
 comprehension or a cons `List` converted once, both linear and both within ~2x
-of the in-place loop at 40,000 elements; `ArrayUtil::WithAppended` in a loop is
-quadratic and is not the replacement. `test/gc/generational_churn` lost its
+of the in-place loop at 40,000 elements: in-place `Append` was 90 ms (measured
+in the plan's table, before deletion — the function no longer exists, so this
+figure cannot be re-measured), a cons `List` converted once was 155 ms, and a
+comprehension was 131-143 ms across five runs (131, 143, 137, 143, 136), all at
+40,000 elements on the same machine, all dominated by roughly 90 ms of process
+startup. `ArrayUtil::WithAppended` in a loop is quadratic and is not the
+replacement. `test/gc/generational_churn` lost its
 old-to-young write-barrier coverage in the process, and nothing replaces it: an
 immutable language cannot express that write.
 `test/concurrency/success/gc_stress_arrays` also lost coverage: it used to build
@@ -137,8 +142,8 @@ volume once, so that incremental-growth path is no longer exercised either.
 One in-place write path survives on purpose. For `++`, the code generator emits
 `EXTEND_TEXT` / `EXTEND_ARRAY` instead of `CONCAT_TEXT` / `CONCAT_ARRAY` when
 `IsFreshConcatTemporary` (`CodeGenerator.cpp`) classifies the left operand as an
-unaliased temporary — purely syntactic, tested adversarially across twelve
-cases with none breaking, and pinned by
+unaliased temporary — purely syntactic, tested adversarially across thirteen
+cases (six Text, seven Array) with none breaking, and pinned by
 `test/prelude/success/concat_does_not_mutate_aliases.mdr` plus a bytecode-level
 unit test (`CodeGeneratorConcatFreshnessTests.cpp`) that runs the real optimizer
 pipeline. No *source-level* Midori expression can mutate an existing object; the
