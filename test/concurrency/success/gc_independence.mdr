@@ -9,17 +9,21 @@ type Pair =
     B : Int,
 };
 
-def AllocHeavyWorker = fn(ch: Channel<Int>, count: Int) -> Int => {
-    def sum = 0;
-    def i = 0;
-    loop
+// Tail recursive, so 100000 iterations do not grow the stack. Still allocates
+// one Pair per iteration -- the allocation pressure is the point of this test.
+// Defined before AllocHeavyWorker: a worker rebuilds its globals by name, and
+// forward references do not resolve across a spawn.
+def AccumulatePairs = fn(i: Int, sum: Int, count: Int) -> Int =>
+    if i >= count
+    then sum
+    else
     {
         def p = Pair(i, i * 2);
-        sum = sum + p.A + p.B;
-        i = i + 1;
-        if i >= count then break () else ();
+        AccumulatePairs(i + 1, sum + p.A + p.B, count)
     };
-    ch -> sum;
+
+def AllocHeavyWorker = fn(ch: Channel<Int>, count: Int) -> Int => {
+    ch -> AccumulatePairs(0, 0, count);
     0
 };
 

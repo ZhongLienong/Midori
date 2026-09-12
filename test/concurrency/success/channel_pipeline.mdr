@@ -3,27 +3,35 @@ module channel_pipeline
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
-def Stage1_Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
-    def i = 0;
-    loop
+// Defined before the stages: a worker rebuilds its globals by name, and forward
+// references do not resolve across a spawn.
+def Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit =>
+    if i >= count
+    then ()
+    else
     {
         def val = <- in_ch;
         out_ch -> (val * 2);
-        i = i + 1;
-        if i >= count then break () else ();
+        Double(in_ch, out_ch, i + 1, count)
     };
+
+def AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit =>
+    if i >= count
+    then ()
+    else
+    {
+        def val = <- in_ch;
+        out_ch -> (val + 10);
+        AddTen(in_ch, out_ch, i + 1, count)
+    };
+
+def Stage1_Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
+    Double(in_ch, out_ch, 0, count);
     0
 };
 
 def Stage2_AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
-    def i = 0;
-    loop
-    {
-        def val = <- in_ch;
-        out_ch -> (val + 10);
-        i = i + 1;
-        if i >= count then break () else ();
-    };
+    AddTen(in_ch, out_ch, 0, count);
     0
 };
 
@@ -41,14 +49,16 @@ ch_input -> 10;
 ch_input -> 0;
 ch_input -> 100;
 
-def i = 0;
-loop
-{
-    def result = <- ch_output;
-    PrintLine("out=" ++ (result as Text));
-    i = i + 1;
-    if i >= count then break () else ();
-};
+def Drain = fn(source: Channel<Int>, i: Int, limit: Int) -> Unit =>
+    if i >= limit
+    then ()
+    else
+    {
+        PrintLine("out=" ++ ((<- source) as Text));
+        Drain(source, i + 1, limit)
+    };
+
+Drain(ch_output, 0, count);
 
 close(ch_input);
 close(ch_mid);

@@ -6,27 +6,27 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/System.mdr" }
 use System.{Sleep}
 
-def Spin = fn(_dummy: Int) -> Int => {
-    def i = 0;
-    loop
-    {
-        i = i + 1;
-        if i < 0 then break () else ();
-    };
-    i
-};
+// Spins forever until cancelled. Tail recursion gives the same unbounded loop
+// the `loop` block did, without growing the stack and without assignment.
+def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
+
+def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 
 def w = spawn Spin(0);
 Sleep(50);
 def cancelled = cancel(w);
-def attempts = 0;
-loop
-{
-    if is_done(w) then break () else ();
-    Sleep(10);
-    attempts = attempts + 1;
-    if attempts >= 500 then break () else ();
-};
+// Polls the global `w` rather than taking it as a parameter, so the worker
+// handle type does not have to be named.
+def WaitUntilDone = fn(attempts: Int) -> Unit =>
+    if is_done(w) || attempts >= 500
+    then ()
+    else
+    {
+        Sleep(10);
+        WaitUntilDone(attempts + 1)
+    };
+
+WaitUntilDone(0);
 if cancelled && is_done(w)
 then PrintLine("spin worker cancelled")
 else PrintLine("spin worker still running");

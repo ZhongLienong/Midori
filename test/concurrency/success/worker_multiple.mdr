@@ -3,14 +3,13 @@ module worker_multiple
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
+// Defined before Counter: a worker rebuilds its globals by name, and forward
+// references do not resolve across a spawn.
+def CountTo = fn(i: Int, limit: Int) -> Int =>
+    if i >= limit then i else CountTo(i + 1, limit);
+
 def Counter = fn(label: Text) -> Int => {
-    def i = 0;
-    loop
-    {
-        i = i + 1;
-        if i >= 1000 then break () else ();
-    };
-    PrintLine(label ++ " counted to " ++ (i as Text));
+    PrintLine(label ++ " counted to " ++ (CountTo(0, 1000) as Text));
     0
 };
 

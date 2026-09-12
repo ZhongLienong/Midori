@@ -33,43 +33,48 @@ def Run = fn() -> Unit =>
     def base_rows = height / worker_count;
     def remainder = height % worker_count;
     def workers : Array<Worker<Array<Int>>> = [];
-    def next_row = 0;
-    def band_index = 0;
-    loop
-    {
-        if band_index >= worker_count then break () else ();
-
-        def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
-        def y_start = next_row;
-        def y_end = y_start + band_rows;
-        def immediate = join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0);
-        if immediate[0] == 0
+    // `next_row` and `band_index` were the loop's carried state; they are now the
+    // helper's parameters. Spawn order is unchanged, which is what the join
+    // indices below depend on.
+    def SpawnBands = fn(band_index : Int, next_row : Int) -> Unit =>
+        if band_index >= worker_count
         then ()
-        else Panic::Panic("immediate join failed");
-        def worker = spawn Answer(y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci);
-        Appendable::Append(workers, worker);
+        else
+        {
+            def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
+            def y_start = next_row;
+            def y_end = y_start + band_rows;
+            def immediate = join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0);
+            if immediate[0] == 0
+            then ()
+            else Panic::Panic("immediate join failed");
+            def worker = spawn Answer(y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci);
+            Appendable::Append(workers, worker);
 
-        next_row = y_end;
-        band_index = band_index + 1;
-    };
+            SpawnBands(band_index + 1, y_end)
+        };
 
-    def join_index = 0;
-    loop
-    {
-        if join_index >= #workers then break () else ();
+    SpawnBands(0, 0);
 
-        def result = join workers[join_index];
-        def expected_y_start = join_index * 2;
-        def expected_y_end = expected_y_start + 2;
-        if result[0] == expected_y_start
+    def JoinAll = fn(join_index : Int) -> Unit =>
+        if join_index >= #workers
         then ()
-        else Panic::Panic("unexpected y_start at " ++ (join_index as Text));
-        if result[1] == expected_y_end
-        then ()
-        else Panic::Panic("unexpected y_end at " ++ (join_index as Text));
+        else
+        {
+            def result = join workers[join_index];
+            def expected_y_start = join_index * 2;
+            def expected_y_end = expected_y_start + 2;
+            if result[0] == expected_y_start
+            then ()
+            else Panic::Panic("unexpected y_start at " ++ (join_index as Text));
+            if result[1] == expected_y_end
+            then ()
+            else Panic::Panic("unexpected y_end at " ++ (join_index as Text));
 
-        join_index = join_index + 1;
-    };
+            JoinAll(join_index + 1)
+        };
+
+    JoinAll(0);
 };
 
 Run();

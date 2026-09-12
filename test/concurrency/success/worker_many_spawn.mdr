@@ -11,23 +11,17 @@ def IdentityWorker = fn(ch: Channel<Int>, val: Int) -> Int => {
 def n = 16;
 def ch = channel<Int>(n);
 
-def i = 0;
-loop
+// Spawning is an effect, so `for` still suits it.
+for i in 0..1..n
 {
     def _w = spawn IdentityWorker(ch, i);
-    i = i + 1;
-    if i >= n then break () else ();
 };
 
-def sum = 0;
-def j = 0;
-loop
-{
-    def val = <- ch;
-    sum = sum + val;
-    j = j + 1;
-    if j >= n then break () else ();
-};
+// Receiving accumulates, so it becomes a tail-recursive helper.
+def Collect = fn(source: Channel<Int>, j: Int, sum: Int, limit: Int) -> Int =>
+    if j >= limit then sum else Collect(source, j + 1, sum + (<- source), limit);
+
+def sum = Collect(ch, 0, 0, n);
 
 PrintLine("count=" ++ (n as Text));
 PrintLine("sum=" ++ (sum as Text));

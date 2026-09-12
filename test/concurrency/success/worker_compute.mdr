@@ -3,16 +3,13 @@ module worker_compute
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
+// Defined before SumRange: a worker rebuilds its globals by name, and forward
+// references do not resolve across a spawn.
+def SumTo = fn(i: Int, end_val: Int) -> Int =>
+    if i > end_val then 0 else i + SumTo(i + 1, end_val);
+
 def SumRange = fn(ch: Channel<Int>, start: Int, end_val: Int) -> Int => {
-    def sum = 0;
-    def i = start;
-    loop
-    {
-        sum = sum + i;
-        i = i + 1;
-        if i > end_val then break () else ();
-    };
-    ch -> sum;
+    ch -> SumTo(start, end_val);
     0
 };
 

@@ -6,26 +6,26 @@ use IO.{PrintLine}
 import { "../../../MidoriPrelude/Appendable.mdr" }
 use Appendable.{Appendable}
 
-def BuildArrayWorker = fn(ch: Channel<Int>, size: Int) -> Int => {
-    def arr : Array<Int> = [];
-    def i = 0;
-    loop
+// Both tail recursive, so 10000 iterations do not grow the stack. The array is
+// still built by in-place Append, which is what this test stresses.
+// Defined before BuildArrayWorker: a worker rebuilds its globals by name, and
+// forward references do not resolve across a spawn.
+def Fill = fn(arr: Array<Int>, i: Int, size: Int) -> Unit =>
+    if i >= size
+    then ()
+    else
     {
         Appendable::Append(arr, i * i);
-        i = i + 1;
-        if i >= size then break () else ();
+        Fill(arr, i + 1, size)
     };
 
-    def sum = 0;
-    def j = 0;
-    loop
-    {
-        sum = sum + arr[j];
-        j = j + 1;
-        if j >= size then break () else ();
-    };
+def Total = fn(arr: Array<Int>, j: Int, sum: Int, size: Int) -> Int =>
+    if j >= size then sum else Total(arr, j + 1, sum + arr[j], size);
 
-    ch -> sum;
+def BuildArrayWorker = fn(ch: Channel<Int>, size: Int) -> Int => {
+    def arr : Array<Int> = [];
+    Fill(arr, 0, size);
+    ch -> Total(arr, 0, 0, size);
     0
 };
 
