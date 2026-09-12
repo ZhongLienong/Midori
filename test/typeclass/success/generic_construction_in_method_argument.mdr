@@ -14,6 +14,12 @@ module GenericConstructionInMethodArgument
 // This used Appendable, which had exactly this shape. Appendable was deleted for
 // mutating in place, and no prelude class has two type parameters and two
 // instances any more, so the test carries its own.
+//
+// The Text instance is not decorative. NarrowClassMethodType matches every
+// instance vacuously at argument index 0, where no argument type is known yet,
+// so a class with only one instance resolves there immediately and never
+// reaches the no-expected-type path this test pins. The second instance is
+// what makes the index-0 candidate set ambiguous. Do not remove it.
 
 import
 {
@@ -25,26 +31,26 @@ type Slot<K, V> = Empty | Occupied(K, V);
 
 class Collect < C, Elem >
 {
-	Of: fn(container: C, elem: Elem) -> C;
+	Append: fn(container: C, elem: Elem) -> C;
 };
 
 instance Collect < Array < T >, T >
 {
-	def Of = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
+	def Append = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
 };
 
 instance Collect < Text, Text >
 {
-	def Of = fn(container: Text, elem: Text) -> Text => container ++ elem;
+	def Append = fn(container: Text, elem: Text) -> Text => container ++ elem;
 };
 
 def empty : Array<Slot<Int, Text>> = [];
-def slots = Collect::Of(Collect::Of(empty, Slot::Empty()), Slot::Occupied(2, "two"));
+def slots = Collect::Append(Collect::Append(empty, Slot::Empty()), Slot::Occupied(2, "two"));
 
 IO::PrintLine("slots: " ++ (#slots as Text));
 
 // The Text instance of the same class still selects on its own arguments.
-def greeting = Collect::Of("hello", " world");
+def greeting = Collect::Append("hello", " world");
 
 IO::PrintLine("text: " ++ greeting);
 
