@@ -130,12 +130,28 @@ Suite 379/379.
 
 ## Task 3: Reject the grammar
 
-- [ ] **Step 1: Parser rejects `=` in expression position** with a message naming
-  the replacement, in the manner of the five earlier deletions.
-- [ ] **Step 2: Delete the compound-assignment tokens** from the lexer.
-- [ ] **Step 3: Failure tests** — one per deleted form, each asserting the
-  message, snapshots verified to bite.
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Parser rejects `=` in expression position** — `633a22c`.
+- [ ] ~~**Step 2: Delete the compound-assignment tokens** from the lexer.~~
+  **Deliberately not done — needs a call.** Deleting them makes `+=` lex as `+`
+  then `=`, so the diagnostic degrades to the generic assignment message and
+  cannot name the operator; `<<=` degrades worse. The tokens are internal, not
+  surface syntax, and keeping them for rejection is exactly how `++=` and `=++`
+  were already handled. Reverse it if the token count matters more than the
+  message.
+- [x] **Step 3: Failure tests** — seven, one per rejected form, each pinning its
+  message and each verified to bite.
+- [x] **Step 4: Commit** — `633a22c`.
+
+### What the parser found that no regex did
+
+Seven more files used assignment on the right of a `def`
+(`def result = text = text ++ "ori"`), which neither counting pattern matched —
+a third blind spot after `default =>` arms and single-line blocks. **Stop
+counting with regexes.** The parser is the only reliable counter and, since
+Step 1, it is one: anything still using assignment now fails to compile.
+
+Four unit tests embedded assignment in inline Midori source and had to be
+migrated too — worth remembering that `test/` is not the whole corpus.
 
 ### The nine files Task 3 inherits
 
