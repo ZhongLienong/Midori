@@ -115,20 +115,16 @@ report before migrating.**
 
 ## Task 2: Migrate the corpus
 
-- [ ] **Step 1: Loop counters and accumulators to comprehensions or folds**
+- [x] **Step 1: Loop counters and accumulators to comprehensions or folds**
+- [x] **Step 2: Field and element mutation to value-returning forms**
+- [x] **Step 3: Commit per directory**
 
-Progress: `test/closure` done (`73789c0`). Corpus stands at **44 assignments in
-22 files** — `concurrency/success` (10 files), `expression/failure` (6),
-`expression/success` (4), `expression/loop/success` (1), `gc` (1).
+**Task 2 is done.** `closure` `73789c0`, `expression` `3e9f502`, `gc` `ae9f858`,
+`concurrency` `c6d597a`. The corpus is down to **9 assignments in 9 files**, and
+all nine are tests *of* the operators rather than users of them — they are
+Task 3's to delete, listed there.
 
-Verify each file against its existing `.expected` after rewriting, while
-assignment still parses.
-
-- [ ] **Step 2: Field and element mutation to value-returning forms**
-
-`{ s with f = v }` for records. For arrays, `ArrayUtil::WithReplaced`.
-
-- [ ] **Step 3: Commit per directory**, so a regression bisects to a small change.
+Suite 379/379.
 
 ---
 
@@ -140,6 +136,27 @@ assignment still parses.
 - [ ] **Step 3: Failure tests** — one per deleted form, each asserting the
   message, snapshots verified to bite.
 - [ ] **Step 4: Commit**
+
+### The nine files Task 3 inherits
+
+Delete with the operator; do not migrate. Each asserts something about
+assignment itself, so there is nothing left to assert once it is gone.
+
+| file | asserts |
+|---|---|
+| `expression/failure/compound_assignment_bitwise_requires_integer.mdr` | `&=` rejects non-integers |
+| `expression/failure/compound_assignment_numeric_requires_numeric.mdr` | `+=` rejects non-numerics |
+| `expression/failure/concat_assign_array_element_removed.mdr` | `a[i] ++= e` already rejected |
+| `expression/failure/concat_assign_non_concat_target.mdr` | `++=` rejects non-concatenables |
+| `expression/failure/concat_assign_struct_member_array_element_removed.mdr` | `s.f[i] ++= e` already rejected |
+| `expression/failure/prepend_assign_removed.mdr` | `++:=` already rejected |
+| `expression/success/concat_assign_text.mdr` | `++=` returns the updated value, for a local and a member |
+| `expression/success/concat_assign_array_exposed_result_alias.mdr` | an escaped `++=` result keeps the old array |
+| `expression/success/concat_assign_captured_array_alias.mdr` | `++=` in a closure does not disturb the aliased original |
+
+The last three encode a real property — that concat-assign *rebound* rather
+than mutated. It becomes vacuous once no binding can be reassigned: aliases
+cannot diverge when nothing can be written. Replace them with nothing.
 
 ---
 
