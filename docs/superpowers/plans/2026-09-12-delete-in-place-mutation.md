@@ -745,7 +745,14 @@ def Prepend = fn < T >(array: Array < T >, value: T) -> Unit => Prependable::Pre
 def Extend = fn < T >(array: Array < T >, other: Array < T >) -> Unit => Extendable::Extend(array, other);
 ```
 
-and the three corresponding imports at the top of the file.
+Three more edits in the same file, all easy to miss:
+
+1. The **`public export` list** on line 3 names `Append, Prepend, Extend`.
+   Remove all three. Leaving them exported names symbols that no longer exist.
+2. The **import line** on line 2 pulls in `./Appendable.mdr`, `./Extendable.mdr`
+   and `./Prependable.mdr`. Remove those three; keep `./Equatable.mdr`, which
+   `Contains` needs.
+3. Check for any other use of the three inside the file before deleting.
 
 - [ ] **Step 3: Delete the three modules**
 
