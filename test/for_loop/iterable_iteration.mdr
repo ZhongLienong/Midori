@@ -28,11 +28,16 @@ instance Iterable<Counter>
 };
 
 def iter = CounterNew(4);
-def total = 0;
 
-for i in iter {
-    total = total + i;
-};
+def SumIter = fn(state: Counter, acc: Int) -> Int =>
+    match Iterable::Next(state) with
+        case Option::Some(step) => {
+            def (value, rest) = step;
+            SumIter(rest, acc + value)
+        }
+        case Option::None() => acc;
+
+def total = SumIter(iter, 0);
 
 if total == 6
 then IO::PrintLine("iterable_iteration: PASS")

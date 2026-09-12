@@ -52,11 +52,15 @@ def TickerNew = fn(end: Int) -> Ticker => {
 	counter as Ticker
 };
 
-def total = 0;
+def SumTicker = fn(state: Ticker, acc: Int) -> Int =>
+	match Iterable::Next(state) with
+		case Option::Some(step) => {
+			def (value, rest) = step;
+			SumTicker(rest, acc + value)
+		}
+		case Option::None() => acc;
 
-for i in TickerNew(3) {
-	total = total + i;
-};
+def total = SumTicker(TickerNew(3), 0);
 
 if total == 33
 then ()
