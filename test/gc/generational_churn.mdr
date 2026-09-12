@@ -4,7 +4,8 @@ import
 {
 	"../../MidoriPrelude/ArrayUtil.mdr",
 	"../../MidoriPrelude/IO.mdr",
-	"../../MidoriPrelude/Prelude/List.mdr"
+	"../../MidoriPrelude/Prelude/List.mdr",
+	"../../MidoriPrelude/Prelude/Panic.mdr"
 }
 
 def Main = fn() -> Unit =>
@@ -16,7 +17,9 @@ def Main = fn() -> Unit =>
 	// promotion of a structure that survives the whole run.
 	//
 	// Cons is O(1), so the accumulation stays linear; the list is converted once
-	// at the end.
+	// at the end. Churn's recursive call is in tail position, so 32000 iterations
+	// do not grow the stack (well past the ~3333-frame limit for non-tail
+	// recursion in this language).
 	def Churn = fn(i : Int, limit : Int, keeper : List<Text>) -> List<Text> =>
 		if i >= limit
 		then keeper
@@ -25,12 +28,16 @@ def Main = fn() -> Unit =>
 			def base = "churn-" ++ (i as Text);
 			def scratch : Array<Text> = [base, base ++ "-x", base ++ "-x-y", base ++ "-x-y-z"];
 
-			// Reads `scratch`, so the four strings cannot be eliminated as dead. The
-			// allocation is the entire point of this test; an unread binding would let
-			// the optimizer delete it and the file would pass while measuring nothing.
+			// Reads `scratch`, so the four strings cannot be eliminated as dead; the
+			// allocation is the entire point of this test, and an unread binding would
+			// let the optimizer delete it, so the file would pass while measuring
+			// nothing. The 4 below must track the length of the `scratch` literal
+			// above; if that ever changes without updating this check, fail loudly
+			// here instead of failing silently later.
 			def churned = ArrayUtil::Length(scratch);
+			if churned == 4 then () else Panic::Panic("scratch should hold four strings; update this check if that changes");
 
-			Churn(i + 1, limit, if i % 1000 == 0 && churned == 4 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
+			Churn(i + 1, limit, if i % 1000 == 0 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
 		};
 
 	def keeper = ArrayUtil::Reverse(List::ListToArray(Churn(0, 32000, List::Nil())));
