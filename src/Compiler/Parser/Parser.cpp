@@ -1312,6 +1312,8 @@ MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
 	return ParseBinary(&Parser::ParseBitwiseXor, Token::Name::SINGLE_BAR);
 }
 
+// Assignment is not grammar. ParseBind survives only to reject the forms that
+// used to parse here, each naming what replaces it.
 MidoriResult::ExpressionResult Parser::ParseBind()
 {
 	return ParseLogicalOr()
@@ -1321,106 +1323,20 @@ MidoriResult::ExpressionResult Parser::ParseBind()
 			{
 				if (Match(Token::Name::SINGLE_EQUAL))
 				{
-					Token& equal = Previous();
-					return ParseBind()
-						.and_then
-						(
-							[this, &left_expr, &equal](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
-							{
-								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
-								{
-									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
-									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
-
-									if (found_scope_it != m_state.m_scopes.crend())
-									{
-										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
-										if (IsGlobalName(found_scope_it))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Global()));
-										}
-										else if (IsLocalName(find_result))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
-										}
-										else
-										{
-											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
-											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-											return std::make_unique<MidoriExpression>(MidoriExpression::Assignment(variable_expr.m_name, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
-										}
-									}
-									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
-								}
-								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
-								{
-									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::MemberAssignment(get_expr.m_member_name, std::move(get_expr.m_struct), std::move(right_expr)));
-								}
-								else if (left_expr->IsExpression<MidoriExpression::IndexAccess>())
-								{
-									MidoriExpression::IndexAccess& access_expr = left_expr->GetExpression<MidoriExpression::IndexAccess>();
-									// IndexAssignment still stores a vector because the whole node is removed by the
-									// expression-oriented grammar work; only IndexAccess is collapsed here.
-									std::vector<std::unique_ptr<MidoriExpression>> indices;
-									indices.emplace_back(std::move(access_expr.m_index));
-									return std::make_unique<MidoriExpression>(MidoriExpression::IndexAssignment(access_expr.m_op, std::move(indices), std::move(access_expr.m_arr_var), std::move(right_expr)));
-								}
-								return std::unexpected(GenerateParserError("Invalid binding target.", equal));
-							}
-						);
+					return std::unexpected(GenerateParserError("Assignment is no longer supported. Bind the new value to a name with 'def', rebuild a struct with '{ s with field = value }', or an array with 'ArrayUtil::WithReplaced(a, i, v)'.", Previous()));
 				}
 				else if (Match(Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
 				{
-					Token& op = Previous();
-					return ParseBind()
-						.and_then
-						(
-							[this, &left_expr, &op](std::unique_ptr<MidoriExpression>&& right_expr) -> MidoriResult::ExpressionResult
-							{
-								if (left_expr->IsExpression<MidoriExpression::NameAccess>())
-								{
-									MidoriExpression::NameAccess& variable_expr = left_expr->GetExpression<MidoriExpression::NameAccess>();
-									std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(variable_expr.m_name.m_lexeme);
-
-									if (found_scope_it != m_state.m_scopes.crend())
-									{
-										Scope::VariableTable::const_iterator find_result = found_scope_it->m_variables.find(variable_expr.m_name.m_lexeme);
-										if (IsGlobalName(found_scope_it))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Global()));
-										}
-										else if (IsLocalName(find_result))
-										{
-											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
-										}
-										else
-										{
-											int var_depth = find_result->second.m_function_depth.value();
-											int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
-											int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-											return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(variable_expr.m_name, op, std::move(right_expr), MidoriExpression::NameContext::Cell(cell_index)));
-										}
-									}
-									return std::unexpected(GenerateParserError("Unbound name.", variable_expr.m_name));
-								}
-								else if (left_expr->IsExpression<MidoriExpression::MemberAccess>())
-								{
-									MidoriExpression::MemberAccess& get_expr = left_expr->GetExpression<MidoriExpression::MemberAccess>();
-									return std::make_unique<MidoriExpression>(MidoriExpression::CompoundAssign(get_expr.m_member_name, op, std::move(get_expr.m_struct), std::move(right_expr)));
-								}
-								return std::unexpected(GenerateParserError("Invalid compound assignment target (must be a variable or struct member).", op));
-							}
-						);
+					const Token& op = Previous();
+					return std::unexpected(GenerateParserError(std::format("Compound assignment '{}' is no longer supported. Compute the value and bind it with 'def'; a loop that accumulates becomes a comprehension or a recursive helper.", op.m_lexeme), op));
 				}
 				else if (Match(Token::Name::PLUS_PLUS_EQUAL))
 				{
-					return std::unexpected(GenerateParserError("Concatenation assignment syntax '++=' is no longer supported. Write x = x ++ y, or use Appendable::Append / Extendable::Extend.", Previous()));
+					return std::unexpected(GenerateParserError("Concatenation assignment syntax '++=' is no longer supported. Bind the concatenation with 'def', or use Appendable::Append / Extendable::Extend.", Previous()));
 				}
 				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
 				{
-					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Write x = prefix ++ x, or use Prependable::Prepend.", Previous()));
+					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Bind the concatenation with 'def', or use Prependable::Prepend.", Previous()));
 				}
 
 				return left_expr;

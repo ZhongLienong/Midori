@@ -117,7 +117,7 @@ def main = fn() -> Int => 0;
 	REQUIRE(executed.m_output.m_stderr == "panic on stderr\n");
 }
 
-TEST_CASE("VM preserves mutable closure state across repeated calls inside one scope", "[runtime][vm][closure]")
+TEST_CASE("VM gives a closure the same result on repeated calls inside one scope", "[runtime][vm][closure]")
 {
 	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
 
@@ -126,7 +126,7 @@ TEST_CASE("VM preserves mutable closure state across repeated calls inside one s
 import {{ "{}" }}
 def values = {{
 	def y = 5;
-	def f = fn(z : Int) -> Int => {{ y = y - 1; y + z }};
+	def f = fn(z : Int) -> Int => y + z;
 	def first = f(2);
 	def second = f(2);
 	(first, second)
@@ -146,7 +146,7 @@ def main = fn() -> Int => 0;
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
-	REQUIRE(executed.m_output.m_stdout == "6\n5\n");
+	REQUIRE(executed.m_output.m_stdout == "7\n7\n");
 	REQUIRE(executed.m_output.m_stderr.empty());
 }
 
@@ -162,10 +162,9 @@ def tuple_sum = match pair with
 	case (x, y) => x + y
 ;
 def backward = 10..-2..0;
-def total = 0;
-for i in backward {{
-	total = total + i;
-}};
+def SumFrom = fn(values : Array<Int>, index : Int) -> Int =>
+	if index >= #values then 0 else values[index] + SumFrom(values, index + 1);
+def total = SumFrom([i for i in backward], 0);
 IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
 IO::PrintLine("range_sum=" ++ (total as Text));
 def main = fn() -> Int => 0;

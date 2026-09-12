@@ -49,15 +49,8 @@ TEST_CASE("Joining a cancelled spinning worker reports a cancellation error", "[
 	const std::string source_code = std::format(
 		R"(module WorkerCancelJoin
 import {{ "{}" }}
-def Spin = fn(dummy: Int) -> Int => {{
-    def i = 0;
-    loop
-    {{
-        i = i + 1;
-        if i < 0 then break () else ();
-    }};
-    i
-}};
+def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
+def Spin = fn(dummy: Int) -> Int => SpinFrom(0);
 def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);
@@ -109,15 +102,8 @@ TEST_CASE("Joining a cancelled worker preserves the WorkerCancelled error code",
 	const std::string source_code = std::format(
 		R"(module WorkerCancelCode
 import {{ "{}" }}
-def Spin = fn(_dummy: Int) -> Int => {{
-    def i = 0;
-    loop
-    {{
-        i = i + 1;
-        if i < 0 then break () else ();
-    }};
-    i
-}};
+def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
+def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);

@@ -1,6 +1,0 @@
-Compilation failed :(
-Type Checker Error at test/expression/failure/compound_assignment_bitwise_requires_integer.mdr:4
-  |
-4 | value &= 1;
-  |       ^^ Compound assignment type error: expected integer type for bitwise operator
-  |
