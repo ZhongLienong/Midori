@@ -58,14 +58,10 @@ def ListFromArrayAt = fn < T >(values: Array < T >, index: Int) -> List < T > =>
     if index >=#values then List::Nil () else List::Cons (values[index], ListFromArrayAt(values, index + 1))
 };
 def ListFromArray = fn < T >(values: Array < T >) -> List < T > => ListFromArrayAt(values, 0);
-def ListToArrayAppend = fn < T >(list: List < T >, values: Array < T >) -> Array < T > => {
+def ListToArrayAppend = fn < T >(list: List < T >, values: Array < T >) -> Array < T > =>
     match list with
-        case List::Cons(head, tail) => {
-        ArrayUtil::Append(values, head);
-        ListToArrayAppend(tail, values)
-    }
-        case List::Nil => values
-};
+        case List::Cons(head, tail) => ListToArrayAppend(tail, ArrayUtil::WithAppended(values, head))
+        case List::Nil => values;
 def ListToArray = fn < T >(list: List < T >) -> Array < T > => {
     def values: Array < T > =[];
     ListToArrayAppend(list, values)

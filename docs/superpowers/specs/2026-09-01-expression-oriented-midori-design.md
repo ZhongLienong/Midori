@@ -180,6 +180,37 @@ the same pattern `Channel<T>` and `Worker<T>` already use.
 rewrite the prelude without it. If the prelude never needs one, the language does
 not; if it needs three, those three define its shape.
 
+### Result — 2026-09-11: the prelude needed none
+
+The rewrite is done (`f86cac5`). Prelude assignments went **21 to 0**, and no
+`Cell<T>` was introduced. By the test this section set, the language does not
+need one.
+
+What replaced mutation, in the order it mattered:
+
+- **Comprehensions** for anything that builds an array of known shape —
+  `MakeSetBuckets` and `MakeMapBuckets` went from nine-line counter loops to one
+  line each.
+- **Tail recursion over an index** for anything that walks a structure. Every
+  collection view, union, intersection and rehash converted this way.
+- **Value-returning array helpers** (`WithAppended`, `WithReplaced`,
+  `WithInserted`, `WithRemoved`, `Concat`) for the trie's path copying.
+- **A persistent data structure** where sharing actually mattered. Only `Map`
+  and `Set` needed this, and only because an open-addressed table cannot be made
+  persistent without copying the whole table per insert.
+
+Two honest qualifications:
+
+1. `Appendable::Append`, `Prependable::Prepend` and `Extendable::Extend` still
+   mutate an array in place. Nothing in the prelude calls them any more —
+   `ListToArray` was the last, converted the same day — but they remain exported,
+   so the language still offers in-place array mutation to a user. Removing the
+   assignment *operator* does not by itself remove mutation.
+2. `ListToArray` is now quadratic where it was linear, because it appends to a
+   fresh array per element. That is the honest cost of the rewrite in one place;
+   a builder or a reversed accumulator would recover it.
+
+
 Reducible to library types: `Range`, `Never` as a zero-variant union, `Unit` as
 the 0-tuple, `Worker`, and `Channel`.
 
