@@ -166,3 +166,36 @@ assignment still parses.
 3. No `.mdr` file in `test/` or `MidoriPrelude/` contains an assignment.
 4. Suite green at 380/380 plus the new failure tests.
 5. Spec §4's counts table carries measured figures, not targets.
+
+---
+
+## Task 1 survey — 2026-09-11
+
+| kind | count |
+|---|---|
+| plain local rebinding (counters, accumulators) | 74 |
+| field mutation `x.f = v` | 1 |
+| array element mutation `x[i] = v` | 1 |
+
+Of the 76, **19** use a compound operator (`+=` and friends); the rest are plain
+`=`. The named targets are overwhelmingly `i`, `j`, `total`, `sum`, `count`,
+`visited` — loop bookkeeping, exactly the shape the prelude rewrite already
+converted a dozen times.
+
+### Only two files need thought
+
+- `test/expression/success/concat_assign_text.mdr` — this is a test **of**
+  `++=`. It does not get migrated; it gets deleted with the operator, and a
+  failure test asserting the new diagnostic replaces it.
+- `test/gc/generational_churn.mdr` — mutates a field to create garbage on
+  purpose. The GC behaviour it exercises is the point, so the rewrite must keep
+  allocating at the same rate rather than becoming cheap. Read it before
+  touching it.
+
+Everything else is mechanical: a counter loop becomes a comprehension or a
+tail-recursive helper, an accumulator becomes a fold over the same sequence.
+
+### What this survey changes about the plan
+
+Nothing needs a new language form. The fourth bucket — "anything that fits none
+of those" — is **empty**, which was the question Task 1 existed to answer.
