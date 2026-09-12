@@ -605,6 +605,118 @@ git commit -m "Migrate the remaining in-place Append call sites"
 
 ---
 
+## Task 4b: The call sites the survey missed — READ THIS BEFORE TASK 5
+
+**The original survey for this plan was wrong.** It grepped for
+`Appendable::`, `Prependable::` and `Extendable::` and therefore never saw the
+callers of the `ArrayUtil` *forwarders*. There are **six more files and 19 more
+call sites**, plus documentation. Deleting the forwarders in Task 5 without this
+task first would break all of them.
+
+That is the fourth counting miss on this branch (after `default =>` arms,
+single-line blocks, and assignments on the right of a `def`). The lesson is the
+same each time: grep for the *thing*, then grep for everything that forwards to
+it.
+
+| file | sites | snapshot? |
+|---|---|---|
+| `test/prelude/success/array_util.mdr` | 11 | no |
+| `test/prelude/success/documentation_examples.mdr` | 2 | no |
+| `test/module/success/recursive_generic_constructs_lib.mdr` | 2 | no |
+| `test/doc_examples/success/prelude/text_array_helpers.mdr` | 2 | no |
+| `test/generics/success/generic_construction_in_call_argument.mdr` | 1 | **yes** |
+| `test/generics/failure/generic_construction_argument_monomorphisation.mdr` | 1 | **yes** |
+
+### Documentation is part of this, and it has its own test gate
+
+`test/doc_examples/` is **extracted from the markdown docs**. Fenced blocks
+tagged ```` ```midori-test name=... path=... ```` in `docs/*.md` are the source
+of truth; the `.mdr` mirrors are generated and checked by
+
+```bash
+python scripts/check_doc_examples.py
+```
+
+which compiles each example against the real compiler. **`Midori.exe test` does
+NOT run these** — `TestRunner.cpp:623` explicitly skips the `doc_examples`
+directory. It currently reports `[SUCCESS] 11 doc example(s) passed.` Run it
+after every change in this task; a green `Midori.exe test` tells you nothing
+about it.
+
+Editing `test/doc_examples/success/prelude/text_array_helpers.mdr` by hand is
+therefore wrong — fix the fenced block in `docs/prelude.md` (around line 123)
+and let the script reconcile the mirror.
+
+Documentation that describes the three functions and must be updated:
+
+- `docs/prelude.md` lines 17, 24, 121, 134-135, 149 — line 24 says they "provide
+  mutating container helper methods"; line 121 says they "mutate the target
+  array".
+- `README.md` lines 367-369, 391, 399.
+- `docs/feature-matrix.md` — check and update.
+
+- [ ] **Step 1: The two easy mirrors**
+
+`test/prelude/success/array_util.mdr` builds its fixture by mutation:
+
+```midori
+def numbers = [2, 3];
+ArrayUtil::Append(numbers, 4);
+ArrayUtil::Prepend(numbers, 1);
+ArrayUtil::Extend(numbers, [5, 6]);
+```
+
+Replace those four lines with `def numbers = [1, 2, 3, 4, 5, 6];` and delete the
+three `Expect` lines that assert what `Prepend`/`Append`/`Extend` did. Keep
+every other assertion — `Slice`, `Reverse`, `Contains`, `Length`, `With*` are
+unaffected and are most of the file.
+
+`test/prelude/success/documentation_examples.mdr` has the same three lines
+around 99-101; same fix.
+
+- [ ] **Step 2: `recursive_generic_constructs_lib.mdr`**
+
+`AppendRecPlain` and `AppendRecStruct` fill an array by recursion. Change each
+to thread the array and return it, as `SpawnBands` was changed in Task 4. `n` is
+small, so `ArrayUtil::WithAppended` is fine here — say so in a comment, because
+this plan tells readers elsewhere that `WithAppended` in a loop is quadratic.
+
+- [ ] **Step 3: The two inference tests — careful**
+
+These two are the same shape as Task 3: `AppendTo` is a **vehicle** for pinning
+type inference, not a subject. Read the comments in both files first.
+
+`def AppendTo = fn<T>(items : Array<T>, value : T) -> Unit => ArrayUtil::Append(items, value);`
+
+must become a returning form, and the call sites must thread the result. The
+property being pinned is that **the deciding argument comes first and is
+concrete**, so the element type is settled before the constructed argument
+(`Slot::Empty()`) needs to infer. Preserve that ordering exactly.
+
+Both files HAVE snapshots. **Do not regenerate them.** They must pass unchanged;
+that is the proof the inference path did not change.
+
+- [ ] **Step 4: Documentation**
+
+Update `docs/prelude.md`, `README.md` and `docs/feature-matrix.md` so they no
+longer present the three functions as available. Where they describe mutation
+("mutate the target array"), say instead that arrays are immutable and point at
+`WithAppended` / a comprehension / `List`.
+
+- [ ] **Step 5: Verify — three separate gates**
+
+```bash
+./out/build/ninja/x64-development/out/Midori.exe test
+python scripts/check_doc_examples.py
+grep -rn "ArrayUtil::Append\|ArrayUtil::Prepend\|ArrayUtil::Extend" --include=*.mdr test/ MidoriPrelude/
+```
+
+Expected: the suite green, `11 doc example(s) passed`, and the grep silent.
+
+- [ ] **Step 6: Commit**
+
+---
+
 ## Task 5: Delete the prelude modules
 
 **Files:**
