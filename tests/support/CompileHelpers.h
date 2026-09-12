@@ -71,6 +71,14 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mdr");
 
+	// Identical to GenerateBytecodeSnippetWithDiagnostics, except it runs
+	// OptimizerManager between type checking and code generation, the way the
+	// real compiler does (see Compiler.cpp's WithOptimizedAst). Use this when a
+	// test needs to know what the optimizer pipeline does to codegen output -
+	// GenerateBytecodeSnippetWithDiagnostics alone cannot detect a regression
+	// that only shows up after optimisation, because it never runs one.
+	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mdr");
+
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mdr");
 
 	[[nodiscard]] MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name = "Test.mdr");

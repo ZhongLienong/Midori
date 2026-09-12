@@ -5,6 +5,7 @@
 #include "Compiler/CodeGenerator/CodeGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
+#include "Compiler/OptimizerManager/OptimizerManager.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
@@ -246,6 +247,56 @@ namespace MidoriTest
 		}
 
 		PreparedTypedModule typed = std::move(typed_result.value());
+		std::string module_name = typed.m_module_declaration.has_value()
+			? typed.m_module_declaration->ModuleName()
+			: std::filesystem::path(typed.m_source.FileName()).stem().string();
+
+		MidoriResult::CodeGeneratorResult codegen_result = CodeGenerator(
+			std::move(typed.m_program),
+			typed.m_source.FileName(),
+			typed.m_source.SourceLines(),
+			std::move(module_name),
+			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
+		if (!codegen_result.has_value())
+		{
+			return std::unexpected(std::move(codegen_result.error()));
+		}
+
+		return std::move(codegen_result).value();
+	}
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	{
+		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.has_value())
+		{
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
+		}
+
+		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
+		if (!typed_result.has_value())
+		{
+			return std::unexpected(std::move(typed_result.error()));
+		}
+
+		PreparedTypedModule typed = std::move(typed_result.value());
+
+		// The real pipeline also runs StaticAnalyzerManager here (Compiler.cpp's
+		// WithStaticAnalysis, between WithTypeCheckedAst and WithOptimizedAst).
+		// Its five passes (ShadowingPolicy, UnusedLocal, UnreachableCode,
+		// CaptureEscape, IntegerOverflow) only read the tree and write into a
+		// DiagnosticSink for warnings/errors; none of them mutates the AST, so
+		// no optimizer pass can depend on their output. It is intentionally
+		// skipped here.
+		MidoriResult::OptimizerResult optimize_result = OptimizerManager(std::move(typed.m_program)).Optimize();
+		if (!optimize_result.has_value())
+		{
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(optimize_result.error())));
+		}
+
+		typed.m_program = std::move(optimize_result).value();
+
 		std::string module_name = typed.m_module_declaration.has_value()
 			? typed.m_module_declaration->ModuleName()
 			: std::filesystem::path(typed.m_source.FileName()).stem().string();
