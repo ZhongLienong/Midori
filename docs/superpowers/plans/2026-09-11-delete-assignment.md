@@ -178,23 +178,31 @@ cannot diverge when nothing can be written. Replace them with nothing.
 
 ## Task 4: Delete the nodes
 
-- [ ] **Step 1: Remove the four expression variants** and every visitor arm.
-- [ ] **Step 2: Read `SemanticFacts.cpp` and `SharedAnalysis.cpp`** rather than
-  trusting the compiler — trap 3.
-- [ ] **Step 3: Remove `loop`, `break`, `continue`** and the `Continue` statement
-  node.
-- [ ] **Step 4: Recount** expression and statement nodes and reserved words, and
-  update spec §4's table with the measured figures.
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Remove the four expression variants** — `8251a0b`.
+- [x] **Step 2: Read `SemanticFacts.cpp` and `SharedAnalysis.cpp`** — trap 3 was
+  real. `SharedAnalysis::GetPrimaryToken` shared two arms
+  (`MemberAccess || MemberAssignment`, `IndexAccess || IndexAssignment`); both
+  had to be *narrowed*, not deleted, and the compiler could not have said so.
+- [x] **Step 3: Remove `loop`, `break`, `continue`** — `11ddf3a`.
+- [x] **Step 4: Recount** — spec §4 now carries a measured 2026-09-12 column.
+- [x] **Step 5: Commit**
+
+### `break` was deleted, and why
+
+The open question below is resolved **against** keeping `break` for `for`, on
+evidence rather than taste. `for` is an expression and `break` carries a value,
+so `for`/`break` is reachable as a search — and the completing path never writes
+the result slot: `Int` reads back `0` with exit 0 (silently wrong), `Text`
+panics with exit 2. Soundness would require `for` to yield `Option<T>`, which is
+*more* built-in machinery. See `repros/for-break-value-unreached.md`.
 
 ---
 
 ## Open, and not decided by this plan
 
-- **Does `break` survive inside `for`?** It carries a value and is the only way
-  out of an iteration early. Spec §4 lists `break` as removed alongside `loop`,
-  but that entry was written when `break` existed to serve `loop`. Keeping it for
-  `for` is defensible and is a separate call.
+- ~~**Does `break` survive inside `for`?**~~ **Resolved: no.** Deleted in
+  `11ddf3a`; the reasoning is above and in
+  `repros/for-break-value-unreached.md`.
 - **Do `Appendable`, `Prependable` and `Extendable` survive?** They mutate an
   array in place. Nothing in the prelude calls them since `8cee027`, but they stay
   exported — so this deletion removes the assignment *operator* without removing
@@ -275,3 +283,34 @@ nesting, fixed in `66215cb`, reduction recorded in
 `repros/unused-local-false-positive-nested-capture.md`. Worth expecting more of
 these: the migration is pushing the corpus into shapes (deeper nesting, more
 returned closures) that the old mutable style did not produce.
+
+
+---
+
+## Done — 2026-09-12
+
+All five conditions met. `x = e`, `x += e` and friends are parse errors naming
+their replacement; the four expression nodes and the `Continue` statement node
+are gone; no `.mdr` in `test/` or `MidoriPrelude/` contains an assignment; spec
+§4 carries measured figures.
+
+Final: suite **367/367**, unit tests **1024 assertions / 176 cases**.
+
+### Two things this plan did not anticipate
+
+1. **There are two live preludes.** `<IO>`-style *system* imports resolve
+   through `MIDORI_PATH` to an installed copy under `AppData`, not the repo one,
+   and nothing syncs them. That copy was months stale — it still had
+   `OpenAddressing.mdr` and lacked `Bits.mdr` — so 20 tests had been validating
+   an old prelude. Only a *grammar* change exposed it. Sync the installed copy
+   when changing `MidoriPrelude/`, or those tests keep testing the old one.
+2. **`test/` is not the whole corpus.** Four unit tests embed Midori source in
+   C++ raw string literals and had to be migrated too.
+
+### Still open, and deliberately not decided here
+
+`Appendable`, `Prependable` and `Extendable` still mutate arrays in place and
+are still exported, so this plan removed the assignment *operator* without
+removing mutation from the language. `test/gc/generational_churn` and
+`test/concurrency/gc_stress_arrays` now depend on that, since in-place `Append`
+is what preserves their allocation behaviour. Their own plan.
