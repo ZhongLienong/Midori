@@ -5,8 +5,11 @@ import
     "../../../MidoriPrelude/Collections/Set.mdr",
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr",
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+use Option.{ Option }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 
@@ -29,10 +32,15 @@ Expect(!Set::SetHas(removed, "alpha"), "the removed value is gone");
 Expect(Set::SetHas(words, "alpha"), "removal leaves the source alone");
 Expect(Set::SetCount(Set::SetWithout(words, "absent")) == 2, "removing an absent value is a no-op");
 
-def seen = 0;
-for value in Set::SetIterNew(words) {
-    seen = seen + 1;
-};
+def CountValues = fn(state: Set::SetIter < Text >, acc: Int) -> Int =>
+    match Iterable::Next(state) with
+        case Option::Some(step) => {
+            def (_, rest) = step;
+            CountValues(rest, acc + 1)
+        }
+        case Option::None() => acc;
+
+def seen = CountValues(Set::SetIterNew(words), 0);
 Expect(seen == 2, "iteration visits every value exactly once");
 
 def emptied = Set::SetWithout(removed, "beta");

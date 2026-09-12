@@ -4,18 +4,24 @@ import
 {
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Iterable.mdr",
-    "../../../MidoriPrelude/Prelude/List.mdr"
+    "../../../MidoriPrelude/Prelude/List.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr"
 }
 
 use List.{List, ListIter, ListIterNew}
+use Option.{ Option }
 
 def list : List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
 def iter : ListIter<Int> = ListIterNew(list);
-def total = 0;
+def SumList = fn(state: ListIter<Int>, acc: Int) -> Int =>
+    match Iterable::Next(state) with
+        case Option::Some(step) => {
+            def (value, rest) = step;
+            SumList(rest, acc + value)
+        }
+        case Option::None() => acc;
 
-for value in iter {
-    total = total + value;
-};
+def total = SumList(iter, 0);
 
 if total == 6
 then IO::PrintLine("iterable_list: PASS")

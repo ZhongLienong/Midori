@@ -5,8 +5,11 @@ import
     "../../../MidoriPrelude/Collections/Map.mdr",
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr",
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+use Option.{ Option }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 
@@ -18,24 +21,22 @@ def seed : Map::Map < Int, Int > = Map::Empty();
 def wide = InsertRange(seed, 0, 80);
 
 // Every entry exactly once: sum the keys and count the visits.
-def visited = 0;
-def key_total = 0;
-def value_total = 0;
-for entry in Map::IterNew(wide) {
-    visited = visited + 1;
-    key_total = key_total + entry.key;
-    value_total = value_total + entry.value;
-};
+def Tally = fn(state: Map::MapIter < Int, Int >, seen: Int, keys: Int, values: Int) -> (Int, Int, Int) =>
+    match Iterable::Next(state) with
+        case Option::Some(step) => {
+            def (entry, rest) = step;
+            Tally(rest, seen + 1, keys + entry.key, values + entry.value)
+        }
+        case Option::None() => (seen, keys, values);
+
+def (visited, key_total, value_total) = Tally(Map::IterNew(wide), 0, 0, 0);
 
 Expect(visited == 80, "iteration visits every entry exactly once");
 Expect(key_total == 3160, "every key is seen once and only once");
 Expect(value_total == 31600, "every value accompanies its key");
 
 def empty : Map::Map < Int, Int > = Map::Empty();
-def empty_visits = 0;
-for entry in Map::IterNew(empty) {
-    empty_visits = empty_visits + 1;
-};
+def (empty_visits, empty_keys, empty_values) = Tally(Map::IterNew(empty), 0, 0, 0);
 Expect(empty_visits == 0, "an empty map yields nothing");
 
 // Iterating must not disturb the map.

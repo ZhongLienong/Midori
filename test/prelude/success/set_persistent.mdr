@@ -5,8 +5,11 @@ import
     "../../../MidoriPrelude/Collections/Set.mdr",
     "../../../MidoriPrelude/IO.mdr",
     "../../../MidoriPrelude/Iterable.mdr",
+    "../../../MidoriPrelude/Prelude/Option.mdr",
     "../../../MidoriPrelude/Prelude/Panic.mdr"
 }
+
+use Option.{ Option }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 
@@ -38,12 +41,15 @@ Expect(Set::SetCount(shrunk) == 79, "removal decrements");
 Expect(!Set::SetHas(shrunk, 40), "the removed value is gone");
 Expect(Set::SetHas(wide, 40), "removal leaves the source alone");
 
-def visited = 0;
-def total = 0;
-for value in Set::SetIterNew(wide) {
-    visited = visited + 1;
-    total = total + value;
-};
+def Tally = fn(state: Set::SetIter < Int >, seen: Int, sum: Int) -> (Int, Int) =>
+    match Iterable::Next(state) with
+        case Option::Some(step) => {
+            def (value, rest) = step;
+            Tally(rest, seen + 1, sum + value)
+        }
+        case Option::None() => (seen, sum);
+
+def (visited, total) = Tally(Set::SetIterNew(wide), 0, 0);
 Expect(visited == 80, "iteration visits every value exactly once");
 Expect(total == 3160, "every value is seen once and only once");
 
