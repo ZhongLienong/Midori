@@ -1,6 +1,6 @@
 Compilation failed :(
-Code Generator Error at test/generics/failure/generic_construction_argument_monomorphisation.mdr:5
-  |
-5 | // and reports an early line. That misattribution is pinned here along with the error.
-  | Unresolved method 'Appendable::Append': no matching concrete instance found.
-  |
+Code Generator Error at test/generics/failure/generic_construction_argument_monomorphisation.mdr:27
+   |
+27 | // the file name and quoted source text were taken from whichever file was compiling, so
+   | Unresolved method 'Growable::Append': no matching concrete instance found.
+   |
