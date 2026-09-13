@@ -1186,6 +1186,102 @@ The grep should leave only the new failure test.
 5. Suite green at 368/368 plus the new failure test; unit tests 1024/176.
 6. Spec §4 names the classes as removed and records the coverage lost.
 
+## Outcome — 2026-09-12
+
+**Complete, and a final whole-branch review judged it ready to merge with
+follow-ups.** Every criterion above is met, with one named exception to the
+broader goal recorded below.
+
+| criterion | status |
+|---|---|
+| 1. No `Appendable`/`Prependable`/`Extendable` in `MidoriPrelude/` | met — `ba98bb2` |
+| 2. No `.mdr` under `test/` or `MidoriPrelude/` calls them | met — Tasks 2-4b |
+| 3. The FFI functions and intrinsic opcodes are gone | met, and **exceeded** — six FFI functions, not five: `ArrayPop` too (`214642b`) |
+| 4. `def b = a;` followed by anything cannot change `b` | met — pinned by `concat_does_not_mutate_aliases.mdr` and `in_place_mutation_removed.mdr` |
+| 5. Suite and unit tests green | met — **372/372** and **1031 assertions / 179 cases**; the figures in criterion 5 were the pre-plan baseline |
+| 6. Spec §4 names the removal and the coverage lost | met — `54b1d97`, `6a0c95d`, `01d6b91`, `cf3974c` |
+
+Verification gates at the end: `Midori.exe test` 372/372,
+`MidoriUnitTests.exe` 1031/179, `scripts/check_doc_examples.py` 11/11, and the
+installed prelude under `MIDORI_PATH` byte-identical to the repo copy.
+
+### The one exception to the goal
+
+The goal was that no Midori expression writes into an object that already
+exists. One way still does, and this plan does not own it: **closures created in
+a comprehension or `for` loop share a single cell for the loop variable.**
+`[fn() -> Int => i for i in 0..1..3]` returns `3 3 3` — a value `i` never held
+during any iteration. It predates this plan, is a code-generator fix, and is
+filed as its own task. The spec names it as an exception rather than claiming
+no mutation remains.
+
+No builtin and no prelude function mutates an existing object. That was
+established across all 96 FFI builtins by implementation rather than by name,
+before `ArrayPop` was removed; the registry now holds 95.
+
+### Defects in this plan, found by executing it
+
+This plan was wrong in more places than any code it produced. Each defect was
+found by someone running a step rather than reading it:
+
+1. The Task 2 snippet lacked a terminating `;` — a transcription slip in a
+   dispatch prompt, not the plan itself.
+2. Task 6 said to untrack five `.mbc` artifacts on the grounds that removing the
+   two opcodes renumbers the enum. It does not — they were the last two entries.
+3. Task 3 said to capture a snapshot "which the file did not have". It had one,
+   committed against the old implementation, and passing it unchanged was
+   better evidence than a fresh capture.
+4. **The survey missed 19 call sites and the docs** (Task 4b). It searched for
+   `Appendable::` and never for the `ArrayUtil::` forwarders that call it.
+5. Task 5 Step 2 omitted `ArrayUtil.mdr`'s `public export` list.
+6. The installed-prelude sync used `cp -r`, which merges and does not prune, so a
+   deleted module would have survived in the installed copy.
+7. Task 8 only added lines, while three existing spec passages had become false
+   — and verification criterion 2, `arr |> ArrayUtil::Append(4) |>
+   ArrayUtil::Reverse`, **had never been satisfiable**, because the forwarder
+   returned `Unit`.
+8. **The survey never looked for `ArrayPop`** (Task 9). It searched by name.
+   `ArrayPop` mutated just as surely and survived until the final review.
+9. **The Task 6 correction in item 2 was itself incomplete.** It was right that
+   removing the opcodes renumbers nothing, but nobody checked the FFI *registry*,
+   a separate table whose positions are serialised into bytecode. Removing six
+   entries from its middle shifted every later entry, so a stale `.mbc` would
+   have silently called the wrong builtin. Fixed by bumping `MbcFormatVersion`
+   in `cf3974c`, with a comment stating the rule for next time.
+
+Items 4 and 8 are the same mistake twice: searching for the names of the thing
+being removed, instead of for everything that does what it does. Item 9 is the
+same shape one level down: checking one serialised table and assuming it was the
+only one.
+
+### Tests that passed while testing nothing
+
+Four were caught, every one by checking that the work actually happened rather
+than that the test came up green:
+
+- a benchmark that timed a `ListFromArray` stack overflow and nearly recorded a
+  330x improvement that did not exist;
+- a `generational_churn` rewrite whose `scratch` binding was never read, inviting
+  dead-code elimination to remove the very allocations under test;
+- Text Case 6, where constant folding turned `"shared" ++ "-x"` into one literal
+  so `EXTEND_TEXT` never ran;
+- a bytecode-level vacuity guard that bypassed the optimizer, and so could not
+  see the optimizer making the other tests vacuous.
+
+### Found in passing, spun off
+
+- **Build-configuration ODR violation.** Test targets compiled `BuildConfig.h`
+  at a different debug level than `MidoriCore`; in x64-debug that was a live
+  out-of-bounds read on `MidoriValue`. Fixed for existing targets by `2d44c1d`;
+  the root fix (PUBLIC definitions plus a regression guard) is its own task.
+- **Loop-variable closure capture**, above.
+- `foreign` declarations are not checked against the FFI registry at compile
+  time, so a mistyped builtin name compiles and fails only when called.
+- `SET_ARRAY`, `ADD_FRONT_ARRAY` and `SET_MEMBER` exist in the VM but are never
+  emitted — dead code.
+- 19 `.expected` snapshots embed absolute paths and are not portable across
+  checkout locations; this plan added two of them.
+
 ## Open, and not decided by this plan
 
 - **`Array` is still a mutable primitive underneath.** `ArrayUtil::WithReplaced`
