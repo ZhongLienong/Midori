@@ -360,7 +360,7 @@ int CodeGenerator::CurrentProcedureCaptureCount() const
 	return m_procedure_capture_counts[proc_index];
 }
 
-void CodeGenerator::NoteCaptureBinding(int captured_count)
+void CodeGenerator::NoteCaptureBinding(int captured_count, int line)
 {
 	if (captured_count <= 0)
 	{
@@ -375,6 +375,25 @@ void CodeGenerator::NoteCaptureBinding(int captured_count)
 	}
 
 	const size_t proc_index = m_builder.m_current_procedure_index;
+
+	// Locals declared by a block, match, for loop or comprehension in operand
+	// position are emitted at shifted indices; converting a local to a cell
+	// matches parser indices and cannot reach them. One capture binds every
+	// frame slot below its count, so report it once for the closure, not once
+	// per slot.
+	std::unordered_map<size_t, std::unordered_set<int>>::const_iterator scoped_it = m_operand_scoped_locals.find(proc_index);
+	if (scoped_it != m_operand_scoped_locals.end())
+	{
+		for (int local_index = 0; local_index < local_capture_count; local_index += 1)
+		{
+			if (scoped_it->second.contains(local_index))
+			{
+				AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("A closure cannot capture a variable declared by a block, match, for loop or comprehension that is itself an operand of a larger expression (a call argument, or the right side of an operator). Bind that expression to a name first, then use the name.", line, m_file_name, m_source_lines));
+				return;
+			}
+		}
+	}
+
 	EnsureLocalKindCapacity(proc_index, local_capture_count);
 	std::vector<LocalStorageKind>& kinds = m_procedure_local_kinds[proc_index];
 	for (int local_index = 0; local_index < local_capture_count; local_index += 1)
@@ -420,15 +439,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 {
 	if (variable_index < 0 || previous_kind == new_kind)
 	{
-		return;
-	}
-
-	// Locals declared in operand-position blocks are emitted with shifted
-	// indices; the rewrite below matches parser indices and cannot reach them.
-	std::unordered_map<size_t, std::unordered_set<int>>::const_iterator scoped_it = m_operand_scoped_locals.find(m_builder.m_current_procedure_index);
-	if (scoped_it != m_operand_scoped_locals.end() && scoped_it->second.contains(variable_index))
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Capturing a variable declared in a block used inside a larger expression is not supported.", 0, m_file_name, m_source_lines));
 		return;
 	}
 
@@ -3859,7 +3869,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 				// Fallback to closure call for tail calls
 				EmitByte(OpCode::MAKE_CLOSURE, line);
 				EmitByte(static_cast<OpCode>(specialized_proc_index), line);
-				NoteCaptureBinding(0);
+				NoteCaptureBinding(0, line);
 				EmitByte(OpCode::BIND_CAPTURES, line);
 				EmitByte(static_cast<OpCode>(0), line);
 				EmitByte(OpCode::TAIL_CALL, line);
@@ -3876,7 +3886,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			EmitByte(OpCode::MAKE_CLOSURE, line);
 			EmitByte(static_cast<OpCode>(specialized_proc_index), line);
 
-			NoteCaptureBinding(generic_info.m_captured_count);
+			NoteCaptureBinding(generic_info.m_captured_count, line);
 			EmitByte(OpCode::BIND_CAPTURES, line);
 			EmitByte(static_cast<OpCode>(generic_info.m_captured_count), line);
 
@@ -6419,7 +6429,7 @@ int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_pt
 		EmitByte(OpCode::MAKE_CLOSURE, line);
 		EmitByte(static_cast<OpCode>(closure_proc_index), line);
 
-		NoteCaptureBinding(captured_count);
+		NoteCaptureBinding(captured_count, line);
 		EmitByte(OpCode::BIND_CAPTURES, line);
 		EmitByte(static_cast<OpCode>(captured_count), line);
 	}

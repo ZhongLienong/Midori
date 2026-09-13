@@ -1,7 +1,6 @@
-Compilation failed :( 
-Code Generator Error at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\expression\failure\hidden_local_capture_in_operand_position.mdr:0
-  Capturing a variable declared in a block used inside a larger expression is not supported.
-Code Generator Error at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\expression\failure\hidden_local_capture_in_operand_position.mdr:0
-  Capturing a variable declared in a block used inside a larger expression is not supported.
-Code Generator Error at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\expression\failure\hidden_local_capture_in_operand_position.mdr:0
-  Capturing a variable declared in a block used inside a larger expression is not supported.
+Compilation failed :(
+Code Generator Error at test/expression/failure/hidden_local_capture_in_operand_position.mdr:20
+   |
+20 | ShowF("captured", match pair with case (a, b) => fn() -> Int => a + b);
+   | A closure cannot capture a variable declared by a block, match, for loop or comprehension that is itself an operand of a larger expression (a call argument, or the right side of an operator). Bind that expression to a name first, then use the name.
+   |

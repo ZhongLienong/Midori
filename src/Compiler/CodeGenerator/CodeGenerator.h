@@ -150,7 +150,7 @@ private:
 
 	void EnsureLocalKindCapacity(size_t procedure_index, int local_count);
 
-	void NoteCaptureBinding(int captured_count);
+	void NoteCaptureBinding(int captured_count, int line);
 
 	int CurrentProcedureCaptureCount() const;
 
