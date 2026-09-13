@@ -334,6 +334,30 @@ private:
 
 	int EffectiveLocalIndex(int variable_index) const;
 
+	// Blocks are not the only expressions that declare locals: match, for and
+	// array comprehensions keep hidden locals (a match value slot and its pattern
+	// bindings, a loop variable and iteration state) on the same value stack.
+	// When one is evaluated while an operand is pending, its locals sit above that
+	// operand too, and must be shifted the same way or every write lands on the
+	// pending operand. The scope pops its shift on every exit, including early
+	// returns, because a shift left behind silently misaddresses every later local
+	// in the procedure.
+	class OperandShiftScope
+	{
+	public:
+		OperandShiftScope(CodeGenerator& generator, const std::vector<int>& hidden_local_indices);
+		~OperandShiftScope();
+
+		OperandShiftScope(const OperandShiftScope&) = delete;
+		OperandShiftScope& operator=(const OperandShiftScope&) = delete;
+
+	private:
+		CodeGenerator& m_generator;
+		bool m_pushed = false;
+	};
+
+	void CollectPatternLocalIndices(const MidoriPattern& pattern, std::vector<int>& indices) const;
+
 	std::optional<int> GetFusibleLocalIndex(const MidoriExpression& expr) const;
 
 	static std::optional<MidoriInteger> GetFusibleSmallInt(const MidoriExpression& expr);

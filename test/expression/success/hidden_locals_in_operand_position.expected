@@ -1,0 +1,9 @@
+binary right operand: 120
+match=20
+tuple=7
+ab=20
+for
+range=0,20
+array=8,10
+nested=11,11
+hidden_locals_in_operand_position: PASS

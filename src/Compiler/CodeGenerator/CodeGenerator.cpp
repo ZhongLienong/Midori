@@ -760,6 +760,81 @@ int CodeGenerator::EffectiveLocalIndex(int variable_index) const
 	return variable_index;
 }
 
+CodeGenerator::OperandShiftScope::OperandShiftScope(CodeGenerator& generator, const std::vector<int>& hidden_local_indices)
+	: m_generator(generator)
+{
+	if (m_generator.m_operand_depth <= 0)
+	{
+		return;
+	}
+
+	// Unused hidden-local fields are left at -1. Letting one into the minimum
+	// would shift every local in the procedure, outer ones included.
+	std::vector<int> used_indices;
+	std::ranges::copy_if(hidden_local_indices, std::back_inserter(used_indices), [](int index) { return index >= 0; });
+	if (used_indices.empty())
+	{
+		return;
+	}
+
+	m_generator.m_operand_block_shifts.emplace_back(OperandBlockShift{ std::ranges::min(used_indices), m_generator.m_operand_depth });
+
+	// A captured local is rewritten into a cell by matching its parser index,
+	// which cannot reach the shifted index emitted here. Registering the locals
+	// turns that capture into a diagnostic instead of a read of unrelated memory.
+	std::unordered_set<int>& scoped_locals = m_generator.m_operand_scoped_locals[m_generator.m_builder.m_current_procedure_index];
+	for (int index : used_indices)
+	{
+		scoped_locals.insert(index);
+	}
+
+	m_pushed = true;
+}
+
+CodeGenerator::OperandShiftScope::~OperandShiftScope()
+{
+	if (m_pushed)
+	{
+		m_generator.m_operand_block_shifts.pop_back();
+	}
+}
+
+void CodeGenerator::CollectPatternLocalIndices(const MidoriPattern& pattern, std::vector<int>& indices) const
+{
+	if (pattern.IsPattern<MidoriPattern::Binding>())
+	{
+		const std::optional<int>& local_index = pattern.GetPattern<MidoriPattern::Binding>().m_local_index;
+		if (local_index.has_value())
+		{
+			indices.push_back(local_index.value());
+		}
+		return;
+	}
+	if (pattern.IsPattern<MidoriPattern::Tuple>())
+	{
+		for (const std::unique_ptr<MidoriPattern>& elem : pattern.GetPattern<MidoriPattern::Tuple>().m_elements)
+		{
+			CollectPatternLocalIndices(*elem, indices);
+		}
+		return;
+	}
+	if (pattern.IsPattern<MidoriPattern::Array>())
+	{
+		for (const std::unique_ptr<MidoriPattern>& elem : pattern.GetPattern<MidoriPattern::Array>().m_elements)
+		{
+			CollectPatternLocalIndices(*elem, indices);
+		}
+		return;
+	}
+	if (pattern.IsPattern<MidoriPattern::Constructor>())
+	{
+		for (const std::unique_ptr<MidoriPattern>& arg : pattern.GetPattern<MidoriPattern::Constructor>().m_args)
+		{
+			CollectPatternLocalIndices(*arg, indices);
+		}
+	}
+}
+
 void CodeGenerator::EmitVariable(int variable_index, OpCode op, int line)
 {
 	if (op == OpCode::GET_LOCAL || op == OpCode::SET_LOCAL || op == OpCode::GET_LOCAL_CELL || op == OpCode::SET_LOCAL_CELL)
@@ -4509,6 +4584,16 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 		return;
 	}
 
+	std::vector<int> hidden_local_indices{ match.m_match_value_index };
+	for (const std::unique_ptr<MidoriExpression>& match_case : match.m_cases)
+	{
+		if (match_case->IsExpression<MidoriExpression::Case>())
+		{
+			CollectPatternLocalIndices(*match_case->GetExpression<MidoriExpression::Case>().m_pattern, hidden_local_indices);
+		}
+	}
+	const OperandShiftScope operand_shift(*this, hidden_local_indices);
+
 	EmitByte(OpCode::PUSH_PLACEHOLDER, line);
 	if (m_local_count < match.m_match_value_index + 1)
 	{
@@ -4608,6 +4693,7 @@ void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
 void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 {
 	int line = for_expr.m_for_keyword.m_line;
+	const OperandShiftScope operand_shift(*this, { for_expr.m_loop_variable_index, for_expr.m_hidden_step_index, for_expr.m_hidden_end_index, for_expr.m_hidden_array_index });
 
 	if (for_expr.m_is_iterable_iteration)
 	{
@@ -4874,6 +4960,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 {
 	int line = comp.m_bracket.m_line;
+	const OperandShiftScope operand_shift(*this, { comp.m_loop_variable_index, comp.m_hidden_step_index, comp.m_hidden_end_index, comp.m_hidden_array_index, comp.m_result_array_index });
 
 	// Update m_local_count to account for the 5 reserved locals
 	if (m_local_count < comp.m_result_array_index + 1)
