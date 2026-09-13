@@ -1056,6 +1056,127 @@ git commit -m "Record the removal of in-place mutation in spec section 4"
 
 ---
 
+## Task 9: The mutator the survey never looked for — found by the final review
+
+**The final whole-branch review blocked the merge.** One source-reachable
+builtin still writes into an existing, aliased array:
+
+```midori
+foreign "MIDORI_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
+def a = [1, 2, 3];
+def b = a;
+def ignored = Pop(a);
+// #b is 2. b was never reassigned.
+```
+
+The original survey searched for `Append`/`Prepend`/`Extend` **by name**.
+`ArrayPop` mutates just as surely and was never on the list. Task 6 even kept
+it alive in `test/ffi/success/builtin_array_ffi.mdr`, and that file's new
+comment claims what remains "returns new values or reads without mutating".
+
+### It is the only one left — established by implementation, not name
+
+All 96 entries in `MidoriFFIRegistry.h` were checked, three independent ways:
+
+1. Every `MidoriArray`/`MidoriText` member function the FFI layer calls is
+   `const` or a `static` over `const&` — **except `MidoriArray::Pop()`**
+   (`Value.h:395`). The one `mutable` member is a length cache, which no other
+   name can observe change.
+2. No FFI file other than `BuiltinTypes.cpp` touches a heap object at all.
+3. The two binary-IO functions that handle arrays were read directly:
+   `ReadBinaryFile` `malloc`s a fresh result; `WriteBinaryFile` only reads its
+   argument into a local buffer.
+
+There is also **no VM array-pop opcode**: every `POP*` opcode is an
+operand-stack or scope pop. `VirtualMachine::CheckArrayPopResult` is defined
+but never called, and `RuntimeErrorCode::ArrayPopEmpty` is unreachable — the
+FFI `ArrayPop` aborts with `AbortRuntime` directly. Both are dead remnants of
+an earlier array-pop opcode.
+
+### And one exception that is not this plan's to fix
+
+Closures created in a comprehension or `for` loop share **one** cell for the
+loop variable. `[fn() -> Int => i for i in 0..1..3]` returns `3 3 3` — a value
+`i` never held during any iteration. That is also a write into an existing,
+observable object. It predates this plan and is a code-generator fix, so it has
+been filed as a separate task. Until it lands, the spec must name it as an
+exception rather than claim no mutation remains.
+
+- [ ] **Step 1: Delete `ArrayPop` and its dead remnants**
+
+- `src/Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h:151` — the entry
+- `src/Library/BuiltinTypes.cpp:206` — the implementation
+- `src/Library/MidoriStdLibExports.h:122` — the declaration
+- `src/Interpreter/VirtualMachine/VirtualMachine.cpp:810` and `.h:411` —
+  `CheckArrayPopResult`, never called
+- `MidoriArray::Pop()` in `Value.h`/`Value.cpp` — delete only if nothing else
+  calls it; grep first
+
+- [ ] **Step 2: `RuntimeErrorCode::ArrayPopEmpty` — check before removing**
+
+It sits at `Error.h:73`, fifth in the enum, with eight codes after it.
+`RuntimeError::ExitCode()` returns `Panic ? 2 : 1`, not the ordinal, and
+diagnostics serialise codes by **name** (`Error.cpp:127-128`). So removal
+looks safe — but `WorkerCancelled` comes after it and has a unit test about
+preserving it across a join. Confirm nothing compares any `RuntimeErrorCode`
+as a raw integer, across a worker boundary or anywhere else. If something
+does, leave the enumerator in place and say why. If nothing does, remove it
+from `Error.h`, both switches in `Error.cpp`, and the docs:
+`docs/diagnostic-format.md:207,346` and `docs/error-reporting.md:97`. Leave
+`docs/superpowers/plans/2026-07-14-concurrency-correctness.md` alone — it is
+historical.
+
+- [ ] **Step 3: `test/ffi/success/builtin_array_ffi.mdr`**
+
+Remove the two `ArrayPop` declarations (lines 15, 20) and the assertions that
+use them (46-53). Fix the comment at lines 9-11 so it is true. Every surviving
+assertion must still test something; the setup data may need adjusting, as
+Task 6 did for the same file.
+
+- [ ] **Step 4: A failure test proving `ArrayPop` is gone**
+
+`test/ffi/failure/array_pop_removed.mdr`: declare
+`foreign "MIDORI_FFI_ArrayPop"` and call it. Confirm it fails **because the
+foreign symbol cannot be resolved**, not for an unrelated reason. Snapshot
+verified to bite.
+
+- [ ] **Step 5: Correct the claims that are now false**
+
+The spec, around lines 142-151 and 246-252, says no source-level expression
+can mutate an existing object and nothing is left that performs it. With
+`ArrayPop` deleted that is still false, because of the loop-capture cell.
+Rewrite both passages to state:
+
+- no builtin and no prelude function mutates an existing object — checked
+  across all 96 FFI builtins by implementation;
+- the `++` in-place optimisation is alias-safe by construction and pinned;
+- **one known exception remains:** closures in a loop share the loop
+  variable's cell, reproduced above, tracked separately;
+- `SET_ARRAY`, `ADD_FRONT_ARRAY` and `SET_MEMBER` still exist in the VM but
+  are never emitted, so they are dead code rather than a mutation path.
+
+Also fix, as they sit in blocks this plan already edited:
+
+- `README.md` around lines 360-367 still teaches `items = items ++ [value]`
+  under "Concatenation assignment", and lists compound assignment. Assignment
+  was deleted earlier on this branch.
+- `test/prelude/success/documentation_examples.mdr` lines 99-105 no longer
+  mirror the `docs/prelude.md` array example, which now uses
+  `WithAppended`/`WithReplaced`.
+
+- [ ] **Step 6: Verify**
+
+```bash
+./out/build/ninja/x64-development/out/Midori.exe test
+./out/build/ninja/x64-development/out/MidoriUnitTests.exe
+python scripts/check_doc_examples.py
+grep -rn "ArrayPop" --include=*.cpp --include=*.h --include=*.mdr src/ tests/ test/ MidoriPrelude/
+```
+
+The grep should leave only the new failure test.
+
+---
+
 ## Done when
 
 1. `MidoriPrelude/` contains no `Appendable`, `Prependable` or `Extendable`.
