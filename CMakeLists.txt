@@ -101,9 +101,16 @@ function(midori_configure_target target_name)
     target_include_directories(${target_name} PUBLIC
         ${CMAKE_SOURCE_DIR}/src
     )
-    target_compile_definitions(${target_name} PRIVATE
+    # PUBLIC because headers read them: BuildConfig.h defines an inline constexpr
+    # VersionString from MIDORI_VERSION_STRING, and falls back to its own endian
+    # detection when neither endian macro is set. Every translation unit that
+    # includes those headers has to see the same values as the library it links,
+    # or the program has two different definitions of the same inline entity.
+    target_compile_definitions(${target_name} PUBLIC
         ${MIDORI_ENDIAN_DEFINES}
         MIDORI_VERSION_STRING="${PROJECT_VERSION}"
+    )
+    target_compile_definitions(${target_name} PRIVATE
         $<$<BOOL:${MIDORI_PROFILE_OPCODES}>:MIDORI_PROFILE_OPCODES=1>
     )
 endfunction()
@@ -274,9 +281,14 @@ else()
         message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
     endif()
 
-    # Target-specific compile definitions
+    # PUBLIC, so every target that links MidoriCore inherits them. They select
+    # MIDORI_DEBUG_LEVEL in BuildConfig.h, which changes type layouts in headers
+    # (sizeof(MidoriValue) is 8 at levels 1-2 and 16 at level 3). Before these were
+    # PUBLIC, the unit test targets compiled those headers at a different level
+    # from MidoriCore, which in x64-debug was a live out-of-bounds read. Pinned by
+    # tests/unit/common/AbiConsistencyTests.cpp.
     foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
-        target_compile_definitions(${target_name} PRIVATE
+        target_compile_definitions(${target_name} PUBLIC
             $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
             $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
             $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:NDEBUG>

@@ -150,6 +150,18 @@ namespace MidoriBuild
     [[nodiscard]] bool IsTestMode() noexcept;
 
     [[nodiscard]] bool ShouldEmitInternalDiagnostics() noexcept;
+
+    // The configuration MidoriCore itself was compiled with. Defined out of line
+    // in BuildConfig.cpp on purpose: a translation unit compares these against
+    // its OWN MIDORI_DEBUG_LEVEL, MIDORI_VERSION_STRING and endianness to detect
+    // that it read this header differently from the library it links. An inline
+    // definition could not detect that, because the linker keeps one copy of an
+    // inline function and both sides would see the same answer.
+    [[nodiscard]] int LibraryDebugLevel() noexcept;
+
+    [[nodiscard]] std::string_view LibraryVersionString() noexcept;
+
+    [[nodiscard]] bool LibraryIsLittleEndian() noexcept;
 }
 
 // Feature flags based on build level

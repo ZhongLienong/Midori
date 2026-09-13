@@ -35,4 +35,23 @@ namespace MidoriBuild
     {
         return !IsTestMode();
     }
+
+    int LibraryDebugLevel() noexcept
+    {
+        return MIDORI_DEBUG_LEVEL;
+    }
+
+    std::string_view LibraryVersionString() noexcept
+    {
+        return MIDORI_VERSION_STRING;
+    }
+
+    bool LibraryIsLittleEndian() noexcept
+    {
+#if defined(MIDORI_LITTLE_ENDIAN)
+        return true;
+#else
+        return false;
+#endif
+    }
 }

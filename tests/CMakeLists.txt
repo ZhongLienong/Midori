@@ -31,25 +31,12 @@ target_include_directories(MidoriUnitTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# The root CMakeLists.txt only defines MIDORI_BUILD_DEBUG/MIDORI_BUILD_DEVELOPMENT
-# (BuildConfig.h's MIDORI_DEBUG_LEVEL, which in turn gates
-# MIDORI_ENABLE_OPTIMIZER_STATS and friends) for MidoriCore and Midori -
-# add_subdirectory(tests) runs after that foreach, so these two targets never
-# received it and always compiled at MIDORI_DEBUG_LEVEL 1. That is harmless
-# for headers whose declarations do not change shape under these flags, but
-# OptimizerManager::Optimize's parameter list is guarded by
-# MIDORI_ENABLE_OPTIMIZER_STATS, so a test target built without this define
-# calls a different overload than the one MidoriCore's object files provide -
-# an unresolved external symbol at link time, not a compile error, the first
-# time a test actually calls it. Mirror the same per-config defines here so
-# every target that links MidoriCore sees BuildConfig.h identically.
-foreach(midori_test_target IN ITEMS MidoriTestSupport MidoriUnitTests)
-    target_compile_definitions(${midori_test_target} PRIVATE
-        $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
-        $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
-        $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:NDEBUG>
-    )
-endforeach()
+# No build-configuration defines here on purpose. MidoriCore declares
+# MIDORI_BUILD_*, NDEBUG, the endian macros and MIDORI_VERSION_STRING as PUBLIC,
+# so both test targets inherit them through the link to MidoriCore and see
+# BuildConfig.h exactly as the library does. Copying them here instead is what
+# let them drift before; tests/unit/common/AbiConsistencyTests.cpp fails if a
+# target ever compiles those headers differently from MidoriCore again.
 
 target_link_libraries(MidoriUnitTests PRIVATE
     Catch2::Catch2WithMain

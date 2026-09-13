@@ -278,6 +278,13 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 	return result;
 }
 
+// Deliberately outside every MIDORI_DEBUG_* block: this exists to be compared
+// across build configurations, so it must be compiled in all of them.
+std::size_t MidoriValue::LibrarySize() noexcept
+{
+	return sizeof(MidoriValue);
+}
+
 #if MIDORI_DEBUG_FULL
 MidoriText MidoriValue::ToText() const
 {
