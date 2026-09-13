@@ -146,9 +146,28 @@ unaliased temporary — purely syntactic, tested adversarially across thirteen
 cases (six Text, seven Array) with none breaking, and pinned by
 `test/prelude/success/concat_does_not_mutate_aliases.mdr` plus a bytecode-level
 unit test (`CodeGeneratorConcatFreshnessTests.cpp`) that runs the real optimizer
-pipeline. No *source-level* Midori expression can mutate an existing object; the
-one internal in-place optimisation is alias-safe by construction and pinned by
-tests, not a surviving user-visible mutation.
+pipeline.
+
+No builtin and no prelude function mutates an existing object. This was checked
+across all 96 entries in `MidoriFFIRegistry.h` by implementation, not by name:
+`MIDORI_FFI_ArrayPop` (Task 9, 2026-09-12) was the one this plan's own by-name
+survey missed — found only by a final whole-branch review — and its deletion
+also removed the last caller of `MidoriArray::Pop()` and the dead
+`VirtualMachine::CheckArrayPopResult`. `SET_ARRAY`, `ADD_FRONT_ARRAY` and
+`SET_MEMBER` still exist as VM opcodes, with handlers in the interpreter and
+the disassembler, but `CodeGenerator.cpp` never emits any of the three; they
+are dead code, not a reachable mutation path. The `++` in-place optimisation
+above is alias-safe by construction and pinned by tests, not a surviving
+user-visible mutation.
+
+**One known exception remains, and it is not this plan's to fix.** Closures
+created in a comprehension or `for` loop share a single cell for the loop
+variable: `[fn() -> Int => i for i in 0..1..3]` returns `3 3 3`, not `0 1 2` —
+a value `i` never held during any iteration, reachable from ordinary source
+code with no FFI or intrinsic involved. It predates this plan, is a
+code-generator bug rather than a design choice, and is tracked as a separate
+fix. Until it lands, this is the one way a Midori expression can still observe
+a write into an object that already exists.
 
 The 2026-09-12 column is the first time a structural row has moved. Deleting
 assignment removed four expression nodes; deleting `loop`, `break` and
@@ -249,8 +268,17 @@ Two honest qualifications, both now resolved:
    same day — but they remained exported, so the language still offered
    in-place array mutation to a user. The `2026-09-12-delete-in-place-mutation`
    plan deleted the three typeclasses, their five FFI functions and two
-   intrinsic opcodes; removing the assignment *operator* no longer leaves
-   mutation reachable, because there is nothing left that performs it.
+   intrinsic opcodes. A final whole-branch review then found one more builtin
+   doing the same thing: `MIDORI_FFI_ArrayPop` mutated its argument array
+   through an alias exactly as `Appendable::Append` had, and had never been on
+   the by-name survey that found the other three. The same plan's Task 9
+   deleted it too, along with `MidoriArray::Pop()` and the dead
+   `VirtualMachine::CheckArrayPopResult`. No builtin or prelude function
+   mutates an existing object now — checked across all 96 FFI entries by
+   implementation, not by name. One exception remains outside either task's
+   scope: closures created in a loop share the loop variable's cell
+   (`[fn() -> Int => i for i in 0..1..3]` returns `3 3 3`, not `0 1 2`), a
+   pre-existing code-generator bug tracked separately, not a design choice.
 2. **Resolved before this plan started, in `c925fcf`.** `ListToArray` was
    briefly quadratic where it had been linear, because it appended to a fresh
    array per element. It is now a comprehension over the list's own

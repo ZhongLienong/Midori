@@ -96,12 +96,17 @@ Expect(#words == 2, "The documented TextUtil example should split the trimmed te
 Expect(words[0] == "alpha" && words[1] == "beta", "The documented TextUtil example should preserve word ordering");
 Expect(headline == "midori prelude", "The documented TextUtil example should replace the requested substring");
 
-def numbers = [1, 2, 3, 4];
+def numbers = [1, 2, 3];
+def grown = ArrayUtil::WithAppended(numbers, 4);
+def replaced = ArrayUtil::WithReplaced(grown, 0, 9);
 
-def reversed = ArrayUtil::Reverse(numbers);
-def window = ArrayUtil::Slice(numbers, 1, 3);
+def reversed = ArrayUtil::Reverse(replaced);
+def window = ArrayUtil::Slice(replaced, 1, 3);
 
-Expect(reversed[0] == 4 && reversed[3] == 1, "The documented ArrayUtil example should reverse the array order");
+Expect(#grown == 4 && grown[3] == 4, "The documented ArrayUtil example should grow the array by one element");
+Expect(#numbers == 3, "The documented ArrayUtil example should leave the original array untouched");
+Expect(replaced[0] == 9, "The documented ArrayUtil example should replace the first element");
+Expect(reversed[0] == 4 && reversed[3] == 9, "The documented ArrayUtil example should reverse the array order");
 Expect(ArrayUtil::Length(window) == 2 && window[0] == 2 && window[1] == 3, "The documented ArrayUtil example should preserve the requested slice");
 
 // A construction takes its type arguments from its own arguments or from an annotation on

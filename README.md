@@ -357,13 +357,14 @@ def second = counter();  // 2
 - **Concatenation**: `++` for `Text` and `Array<T>`, with constrained dispatch through `Concatenable<T>`
 - **Pipe**: `|>` (function composition)
 - **Length**: `#` for arrays and other countable shapes, with constrained dispatch through `Countable<T>`
-- **Compound Assignment**: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`
 
-Concatenation assignment is explicit rather than a dedicated operator:
+There is no assignment operator, compound or otherwise, and no in-place
+mutation: `def` binds a name once and the name never changes value.
+Concatenating onto an existing binding produces a new value under a new name:
 
 ```midori
-items = items ++ [value];
-text = text ++ suffix;
+def updated_items = items ++ [value];
+def updated_text = text ++ suffix;
 ```
 
 ### Advanced Features
