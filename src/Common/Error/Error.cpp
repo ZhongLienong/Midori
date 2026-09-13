@@ -75,6 +75,8 @@ std::string_view CompilerErrorCodeName(CompilerErrorCode code)
 		return "CodeGeneratorAmbiguousMethodResolution";
 	case CompilerErrorCode::CodeGeneratorUnsupportedLowering:
 		return "CodeGeneratorUnsupportedLowering";
+	case CompilerErrorCode::CodeGeneratorUnknownForeignFunction:
+		return "CodeGeneratorUnknownForeignFunction";
 	case CompilerErrorCode::BytecodeLinkerNoModulesToLink:
 		return "BytecodeLinkerNoModulesToLink";
 	case CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol:

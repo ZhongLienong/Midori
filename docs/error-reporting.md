@@ -68,6 +68,7 @@ Current `CompilerErrorCode` values:
 - `CodeGeneratorUnresolvedMethodResolution`
 - `CodeGeneratorAmbiguousMethodResolution`
 - `CodeGeneratorUnsupportedLowering`
+- `CodeGeneratorUnknownForeignFunction`
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`

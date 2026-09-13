@@ -4,6 +4,9 @@
 
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
+#include "support/TempProject.h"
+
+using namespace std::string_literals;
 
 namespace
 {
@@ -32,6 +35,99 @@ def main = fn() -> Int => {
 };
 )";
 	}
+
+	std::string PackageForeignSource()
+	{
+		return
+			R"(module Image
+foreign "MIDORI_FFI_Image_ReadInfo" ReadInfo : fn(Text) -> Array<Int>;
+foreign "MIDORI_FFI_Image_ReadInfoo" ReadInfoTypo : fn(Text) -> Array<Int>;
+)";
+	}
+
+	MidoriTest::TempProject ImagePackageProject(bool ffi_enabled)
+	{
+		return MidoriTest::TempProject(
+			{
+				MidoriTest::TempProjectFile(
+					"pkg/package.midori",
+					"[package]\n"
+					"name = \"Image\"\n"
+					"version = \"0.1.0\"\n"
+					"midori_version = \">=1.0.0\"\n"
+					"\n"
+					"[ffi]\n"
+					"enabled = "s + (ffi_enabled ? "true" : "false") + "\n"
+					"library_name = \"midori_image\"\n"
+					"\n"
+					"[ffi.functions]\n"
+					"\"MIDORI_FFI_Image_ReadInfo\" = \"midori_image_read_info\"\n"),
+				MidoriTest::TempProjectFile("pkg/Image.mdr", PackageForeignSource())
+			});
+	}
+}
+
+TEST_CASE("CodeGenerator rejects a foreign name that is neither builtin nor package-declared", "[compiler][codegen][diagnostics][ffi]")
+{
+	const std::string source =
+		R"(module ForeignTypo
+foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
+)";
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "ForeignTypo.mdr");
+	REQUIRE_FALSE(bytecode_result.has_value());
+	REQUIRE(bytecode_result.error().Size() == 1u);
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::CodeGenerator;
+	expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
+	expectation.m_line = 3;
+	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_PrintLin'" };
+	expectation.m_rendered_substrings = { "Code Generator Error", "ForeignTypo.mdr:3" };
+	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
+}
+
+TEST_CASE("CodeGenerator accepts exactly the foreign names the file's package manifest declares", "[compiler][codegen][diagnostics][ffi]")
+{
+	const MidoriTest::TempProject project = ImagePackageProject(true);
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(PackageForeignSource(), project.Path("pkg/Image.mdr").string());
+	REQUIRE_FALSE(bytecode_result.has_value());
+	REQUIRE(bytecode_result.error().Size() == 1u);
+
+	MidoriTest::ErrorExpectation expectation;
+	expectation.m_stage = CompilerStage::CodeGenerator;
+	expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
+	expectation.m_line = 3;
+	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfoo'" };
+	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
+}
+
+TEST_CASE("CodeGenerator ignores the foreign names of a package whose ffi is disabled", "[compiler][codegen][diagnostics][ffi]")
+{
+	const MidoriTest::TempProject project = ImagePackageProject(false);
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(PackageForeignSource(), project.Path("pkg/Image.mdr").string());
+	REQUIRE_FALSE(bytecode_result.has_value());
+	REQUIRE(bytecode_result.error().Size() == 2u);
+
+	MidoriTest::ErrorExpectation declared_expectation;
+	declared_expectation.m_stage = CompilerStage::CodeGenerator;
+	declared_expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
+	declared_expectation.m_line = 2;
+	declared_expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfo'" };
+	RequireErrorMatches(bytecode_result.error().m_errors[0u], declared_expectation);
+
+	MidoriTest::ErrorExpectation typo_expectation;
+	typo_expectation.m_stage = CompilerStage::CodeGenerator;
+	typo_expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
+	typo_expectation.m_line = 3;
+	typo_expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfoo'" };
+	RequireErrorMatches(bytecode_result.error().m_errors[1u], typo_expectation);
 }
 
 TEST_CASE("CodeGenerator preserves structured diagnostics for recoverable lowering failures", "[compiler][codegen][diagnostics]")

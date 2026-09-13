@@ -194,6 +194,10 @@ Current validation:
 - `abi_version` must be a positive integer
 - enabled packages must target the current runtime ABI version
 - declared symbols are validated against the loaded library before registration
+- at compile time, a `foreign "Name"` declaration must name either a builtin
+  runtime function or a key of `functions` in the `package.midori` in the same
+  directory as the declaring file; anything else is the compile error
+  `CodeGeneratorUnknownForeignFunction`, rather than a failed call at run time
 
 ### `[build]`
 

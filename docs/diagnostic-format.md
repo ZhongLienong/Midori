@@ -191,6 +191,7 @@ Current `CompilerErrorCode` values:
 - `CodeGeneratorUnresolvedMethodResolution`
 - `CodeGeneratorAmbiguousMethodResolution`
 - `CodeGeneratorUnsupportedLowering`
+- `CodeGeneratorUnknownForeignFunction`
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
@@ -328,6 +329,7 @@ are emitted with the same shape as the full examples above.
 | `CodeGeneratorUnresolvedMethodResolution` | `CodeGenerator` | `Could not resolve method 'show' for type 'T'.` |
 | `CodeGeneratorAmbiguousMethodResolution` | `CodeGenerator` | `Ambiguous method 'show' for type 'T'.` |
 | `CodeGeneratorUnsupportedLowering` | `CodeGenerator` | `Cannot lower expression to bytecode.` |
+| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Midori builtin, and no package.midori in this file's directory lists it under [ffi.functions].` |
 | `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |

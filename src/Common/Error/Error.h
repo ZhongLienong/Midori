@@ -45,6 +45,7 @@ enum class CompilerErrorCode
 	CodeGeneratorUnresolvedMethodResolution,
 	CodeGeneratorAmbiguousMethodResolution,
 	CodeGeneratorUnsupportedLowering,
+	CodeGeneratorUnknownForeignFunction,
 	BytecodeLinkerNoModulesToLink,
 	BytecodeLinkerDuplicateExportedSymbol,
 	BytecodeLinkerUnresolvedImport,
