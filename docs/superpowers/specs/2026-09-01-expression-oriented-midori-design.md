@@ -149,11 +149,12 @@ unit test (`CodeGeneratorConcatFreshnessTests.cpp`) that runs the real optimizer
 pipeline.
 
 No builtin and no prelude function mutates an existing object. This was checked
-across all 96 entries in `MidoriFFIRegistry.h` by implementation, not by name:
-`MIDORI_FFI_ArrayPop` (Task 9, 2026-09-12) was the one this plan's own by-name
-survey missed — found only by a final whole-branch review — and its deletion
-also removed the last caller of `MidoriArray::Pop()` and the dead
-`VirtualMachine::CheckArrayPopResult`. `SET_ARRAY`, `ADD_FRONT_ARRAY` and
+across all 96 entries in `MidoriFFIRegistry.h` when this plan started, by
+implementation, not by name: `MIDORI_FFI_ArrayPop` (Task 9, 2026-09-12) was the
+one this plan's own by-name survey missed — found only by a final
+whole-branch review — and its deletion also removed the last caller of
+`MidoriArray::Pop()` and the dead `VirtualMachine::CheckArrayPopResult`,
+leaving 95 entries in the registry today. `SET_ARRAY`, `ADD_FRONT_ARRAY` and
 `SET_MEMBER` still exist as VM opcodes, with handlers in the interpreter and
 the disassembler, but `CodeGenerator.cpp` never emits any of the three; they
 are dead code, not a reachable mutation path. The `++` in-place optimisation
@@ -274,9 +275,10 @@ Two honest qualifications, both now resolved:
    the by-name survey that found the other three. The same plan's Task 9
    deleted it too, along with `MidoriArray::Pop()` and the dead
    `VirtualMachine::CheckArrayPopResult`. No builtin or prelude function
-   mutates an existing object now — checked across all 96 FFI entries by
-   implementation, not by name. One exception remains outside either task's
-   scope: closures created in a loop share the loop variable's cell
+   mutates an existing object now — checked across all 96 FFI entries the
+   registry held before `ArrayPop` was removed, by implementation, not by
+   name; the registry holds 95 entries today. One exception remains outside
+   either task's scope: closures created in a loop share the loop variable's cell
    (`[fn() -> Int => i for i in 0..1..3]` returns `3 3 3`, not `0 1 2`), a
    pre-existing code-generator bug tracked separately, not a design choice.
 2. **Resolved before this plan started, in `c925fcf`.** `ListToArray` was

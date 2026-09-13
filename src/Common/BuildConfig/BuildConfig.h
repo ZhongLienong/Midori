@@ -90,7 +90,19 @@ namespace MidoriBuild
 {
     inline constexpr std::string_view VersionString = MIDORI_VERSION_STRING;
 
-    inline constexpr uint32_t MbcFormatVersion = 2u;
+    // Bumped 2026-09-12: the 2026-09-12-delete-in-place-mutation plan removed
+    // six builtins from the MIDDLE of MidoriFFIRegistry's entry table (five in
+    // Task 6 - ArrayAppend/ArrayPrepend/ArrayExtend/TextAppend/TextPrepend -
+    // and ArrayPop in Task 9). The code generator serialises a builtin's
+    // POSITION in that table into the bytecode (CodeGenerator.cpp), and the
+    // VM looks the builtin up by that position at call time
+    // (VirtualMachine.cpp). Removing entries from the middle shifts every
+    // later entry's position, so a .mbc built against the old table would
+    // silently call a different builtin with no error. Bumping this forces
+    // old artifacts to be rejected instead of misexecuted. A future reader
+    // who removes or reorders a builtin from this table must bump this
+    // version too - appending new entries at the END does not require it.
+    inline constexpr uint32_t MbcFormatVersion = 3u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {
