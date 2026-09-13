@@ -432,7 +432,8 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		return;
 	}
 
-	auto map_opcode = [previous_kind, new_kind](OpCode opcode) -> OpCode
+	const bool is_rebinding = IsRebindingLocal(variable_index);
+	auto map_opcode = [previous_kind, new_kind, is_rebinding](OpCode opcode) -> OpCode
 	{
 		if (previous_kind == LocalStorageKind::ValueLocal)
 		{
@@ -441,11 +442,11 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			case OpCode::GET_LOCAL:
 				return OpCode::GET_LOCAL_CELL;
 			case OpCode::SET_LOCAL:
-				return OpCode::SET_LOCAL_CELL;
+				return is_rebinding ? OpCode::SET_LOCAL : OpCode::SET_LOCAL_CELL;
 			case OpCode::GET_LOCAL_WIDE:
 				return OpCode::GET_LOCAL_CELL_WIDE;
 			case OpCode::SET_LOCAL_WIDE:
-				return OpCode::SET_LOCAL_CELL_WIDE;
+				return is_rebinding ? OpCode::SET_LOCAL_WIDE : OpCode::SET_LOCAL_CELL_WIDE;
 			default:
 				return opcode;
 			}
@@ -692,8 +693,27 @@ OpCode CodeGenerator::GetLocalLoadOpcode(int variable_index) const
 	}
 }
 
+void CodeGenerator::RegisterRebindingLocal(int variable_index)
+{
+	if (variable_index >= 0)
+	{
+		m_rebinding_locals[m_builder.m_current_procedure_index].insert(variable_index);
+	}
+}
+
+bool CodeGenerator::IsRebindingLocal(int variable_index) const
+{
+	std::unordered_map<size_t, std::unordered_set<int>>::const_iterator it = m_rebinding_locals.find(m_builder.m_current_procedure_index);
+	return it != m_rebinding_locals.end() && it->second.contains(variable_index);
+}
+
 OpCode CodeGenerator::GetLocalStoreOpcode(int variable_index) const
 {
+	if (IsRebindingLocal(variable_index))
+	{
+		return OpCode::SET_LOCAL;
+	}
+
 	switch (GetLocalStorageKind(variable_index))
 	{
 	case LocalStorageKind::CellLocal:
@@ -4694,6 +4714,7 @@ void CodeGenerator::operator()(MidoriExpression::For& for_expr)
 {
 	int line = for_expr.m_for_keyword.m_line;
 	const OperandShiftScope operand_shift(*this, { for_expr.m_loop_variable_index, for_expr.m_hidden_step_index, for_expr.m_hidden_end_index, for_expr.m_hidden_array_index });
+	RegisterRebindingLocal(for_expr.m_loop_variable_index);
 
 	if (for_expr.m_is_iterable_iteration)
 	{
@@ -4961,6 +4982,7 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 {
 	int line = comp.m_bracket.m_line;
 	const OperandShiftScope operand_shift(*this, { comp.m_loop_variable_index, comp.m_hidden_step_index, comp.m_hidden_end_index, comp.m_hidden_array_index, comp.m_result_array_index });
+	RegisterRebindingLocal(comp.m_loop_variable_index);
 
 	// Update m_local_count to account for the 5 reserved locals
 	if (m_local_count < comp.m_result_array_index + 1)

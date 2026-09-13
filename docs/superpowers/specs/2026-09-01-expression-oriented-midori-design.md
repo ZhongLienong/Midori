@@ -161,14 +161,29 @@ are dead code, not a reachable mutation path. The `++` in-place optimisation
 above is alias-safe by construction and pinned by tests, not a surviving
 user-visible mutation.
 
-**One known exception remains, and it is not this plan's to fix.** Closures
-created in a comprehension or `for` loop share a single cell for the loop
-variable: `[fn() -> Int => i for i in 0..1..3]` returns `3 3 3`, not `0 1 2` —
-a value `i` never held during any iteration, reachable from ordinary source
-code with no FFI or intrinsic involved. It predates this plan, is a
-code-generator bug rather than a design choice, and is tracked as a separate
-fix. Until it lands, this is the one way a Midori expression can still observe
-a write into an object that already exists.
+**The one known exception was resolved on 2026-09-13.** Closures created in a
+comprehension or `for` loop shared a single cell for the loop variable:
+`[fn() -> Int => i for i in 0..1..3]` returned `3 3 3`, not `0 1 2` — a value `i`
+never held during any iteration. The loop variable is one frame slot rebound on
+every iteration; the first capture promoted it to a cell, and every later
+rebinding wrote through that cell while every later capture reused it. A loop
+variable's store now overwrites the slot instead, so each iteration's capture
+allocates a fresh cell and earlier closures keep their own. Only loop variables
+are exempted: a recursive local closure is captured before its own store, and
+must keep writing into its cell. Pinned by `test/closure/loop_variable_capture.mdr`,
+which covers range, array and Iterable sources, nested loops, a captured
+parameter, a body-local and the recursive-local boundary.
+
+There is no remaining known way for a Midori expression to observe a write into
+an object that already exists. That rests on what was checked — every FFI
+builtin, the `++` optimisation, and loop rebinding — not on a proof.
+
+Fixing it exposed a more serious, related defect, fixed first in `8709828`: a
+`match`, `for` or comprehension evaluated while an operand was pending
+overwrote that operand. `100 + (match v with case 2 => 20 default => 99)`
+evaluated to 22, and the same construct as a later call argument crashed.
+Capturing a local that such a construct declares, while it is used as an
+operand, is now a compile error rather than a read of unrelated memory.
 
 The 2026-09-12 column is the first time a structural row has moved. Deleting
 assignment removed four expression nodes; deleting `loop`, `break` and
@@ -277,10 +292,10 @@ Two honest qualifications, both now resolved:
    `VirtualMachine::CheckArrayPopResult`. No builtin or prelude function
    mutates an existing object now — checked across all 96 FFI entries the
    registry held before `ArrayPop` was removed, by implementation, not by
-   name; the registry holds 95 entries today. One exception remains outside
-   either task's scope: closures created in a loop share the loop variable's cell
-   (`[fn() -> Int => i for i in 0..1..3]` returns `3 3 3`, not `0 1 2`), a
-   pre-existing code-generator bug tracked separately, not a design choice.
+   name; the registry holds 95 entries today. The one exception outside
+   either task's scope — closures created in a loop sharing the loop variable's
+   cell, so `[fn() -> Int => i for i in 0..1..3]` returned `3 3 3` — was a
+   pre-existing code-generator bug, fixed on 2026-09-13.
 2. **Resolved before this plan started, in `c925fcf`.** `ListToArray` was
    briefly quadratic where it had been linear, because it appended to a fresh
    array per element. It is now a comprehension over the list's own

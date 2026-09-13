@@ -330,6 +330,19 @@ private:
 
 	std::vector<OperandBlockShift> m_operand_block_shifts;
 	std::unordered_map<size_t, std::unordered_set<int>> m_operand_scoped_locals;
+
+	// Loop variables, by procedure. A loop variable is one frame slot rebound on
+	// every iteration. Once a closure captures it the slot holds a cell, and an
+	// ordinary cell store writes THROUGH that cell, so every closure built in the
+	// loop would share it and see the value after the loop. A rebinding store
+	// overwrites the slot instead, leaving earlier closures their own cell; the
+	// next capture then allocates a fresh one. Only loop variables qualify: they
+	// are always stored before the body can capture them. A recursive local
+	// closure is captured BEFORE its store, and must keep writing into its cell.
+	std::unordered_map<size_t, std::unordered_set<int>> m_rebinding_locals;
+
+	void RegisterRebindingLocal(int variable_index);
+	bool IsRebindingLocal(int variable_index) const;
 	int m_operand_depth = 0;
 
 	int EffectiveLocalIndex(int variable_index) const;

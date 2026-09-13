@@ -1,0 +1,9 @@
+range: 0 1 2
+array: a b c
+iterable: 7 8 9
+in function: 0 10 20
+nested: 0 1 10 11
+with outer: 1000 1001 1002
+body local: 0 2 4
+recursive local: 120
+loop_variable_capture: PASS
