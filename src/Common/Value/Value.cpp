@@ -733,30 +733,6 @@ void MidoriArray::Expand(int new_capacity)
 	}
 }
 
-std::optional<MidoriValue> MidoriArray::Pop()
-{
-	int len = GetLength();
-	if (len > 0)
-	{
-		MidoriValue val;
-		if (IsShort())
-		{
-			val = m_short.m_buffer[len - 1];
-			SetShortSize(len - 1);
-		}
-		else
-		{
-			val = m_long.m_ptr[len - 1];
-			m_long.m_size -= 1;
-		}
-		return std::optional<MidoriValue>(val);
-	}
-	else
-	{
-		return std::nullopt;
-	}
-}
-
 MidoriArray MidoriArray::Slice(int start, int end) const
 {
 	const int len = GetLength();

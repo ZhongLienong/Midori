@@ -6,18 +6,17 @@ import
     "../../../MidoriPrelude/Prelude/Panic.mdr",
 }
 
-// Previously also covered MIDORI_FFI_ArrayAppend, which mutated its argument
-// in place and was deleted along with the ARRAY_APPEND opcode. What remains
-// here is the FFI surface that returns new values or reads without mutating.
+// Previously also covered MIDORI_FFI_ArrayAppend and MIDORI_FFI_ArrayPop, both
+// of which mutated their argument in place and were deleted along with the
+// ARRAY_APPEND opcode (ArrayAppend) and MidoriArray::Pop (ArrayPop). What
+// remains here is the FFI surface that returns new values or reads without
+// mutating.
 
 foreign "MIDORI_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
 foreign "MIDORI_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
-foreign "MIDORI_FFI_ArrayPop" ArrayPopInt : fn(Array<Int>) -> Int;
 foreign "MIDORI_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
 foreign "MIDORI_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
 foreign "MIDORI_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
-
-foreign "MIDORI_FFI_ArrayPop" ArrayPopText : fn(Array<Text>) -> Text;
 
 def arr = [1, 2, 3];
 if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayLength should report the array size");
@@ -42,14 +41,5 @@ else Panic::Panic("ArrayContains should find existing values");
 if ArrayContainsInt(slice, 9)
 then Panic::Panic("ArrayContains should reject missing values")
 else ();
-
-def popped = ArrayPopInt(arr);
-if popped == 3 then () else Panic::Panic("ArrayPop should return the last element");
-if ArrayLengthInt(arr) == 2 then () else Panic::Panic("ArrayPop should shrink the array");
-
-def texts = ["alpha", "beta"];
-def popped_text = ArrayPopText(texts);
-if popped_text == "beta" then () else Panic::Panic("ArrayPop should preserve pointer-backed values");
-if texts[0] == "alpha" then () else Panic::Panic("ArrayPop should keep the remaining text value intact");
 
 IO::PrintLine("builtin_array_ffi: PASS");

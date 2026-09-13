@@ -807,15 +807,6 @@ int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
 	return 0;
 }
 
-int VirtualMachine::CheckArrayPopResult(const std::optional<MidoriValue>& result) noexcept
-{
-	if (!result.has_value())
-	{
-		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ArrayPopEmpty, "Cannot pop from an empty array.", GetLine()));
-	}
-	return 0;
-}
-
 MidoriValue VirtualMachine::EnsureCellHandle(MidoriValue& slot, ValueStackPointer closure_slot) noexcept
 {
 	MidoriTraceable* ptr = slot.GetPointer();

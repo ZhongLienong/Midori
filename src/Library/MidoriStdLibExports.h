@@ -119,7 +119,6 @@ extern "C"
 	// Built-in Arrays
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPop)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept;

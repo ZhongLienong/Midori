@@ -1,0 +1,9 @@
+error[FFIFunctionNotFound]: Failed to load foreign function 'MIDORI_FFI_ArrayPop'.
+ --> C:\Users\jk381\source\repos\ZhongLienong\Midori\test\ffi\failure\array_pop_removed.mdr:13
+   |
+13 | def ignored = Pop(a);
+   | Failed to load foreign function 'MIDORI_FFI_ArrayPop'.
+   |
+stack trace:
+  at main [module ArrayPopRemoved] in C:\Users\jk381\source\repos\ZhongLienong\Midori\test\ffi\failure\array_pop_removed.mdr:13
+    def ignored = Pop(a);

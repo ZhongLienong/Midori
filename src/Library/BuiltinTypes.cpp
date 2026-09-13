@@ -43,11 +43,6 @@ namespace
 		*static_cast<MidoriValue*>(ret) = MidoriValue(value);
 	}
 
-	void WriteMidoriValue(void* ret, const MidoriValue& value) noexcept
-	{
-		*static_cast<MidoriValue*>(ret) = value;
-	}
-
 	void WritePointerResult(void* ret, const void* pointer) noexcept
 	{
 		*static_cast<MidoriValue*>(ret) = static_cast<MidoriInteger>(reinterpret_cast<int64_t>(pointer));
@@ -201,17 +196,6 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
 	{
 		WriteInt(ret, RequireArray(args[0u]).GetLength());
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayPop)(void** args, void* ret) noexcept
-	{
-		std::optional<MidoriValue> popped = RequireArray(args[0u]).Pop();
-		if (!popped.has_value())
-		{
-			AbortRuntime("Attempted to pop from an empty array.");
-		}
-
-		WriteMidoriValue(ret, popped.value());
 	}
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept

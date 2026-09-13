@@ -1,0 +1,13 @@
+module ArrayPopRemoved
+
+// MIDORI_FFI_ArrayPop mutated its argument array in place and was deleted
+// along with MidoriArray::Pop(). This asserts the FFI entry is genuinely
+// gone: declaring the foreign function still compiles - the compiler does
+// not validate the symbol against the registry - but resolving it at the
+// call site must fail because the symbol cannot be found.
+
+foreign "MIDORI_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
+
+def a = [1, 2, 3];
+def b = a;
+def ignored = Pop(a);

@@ -6,7 +6,6 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <optional>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -391,8 +390,6 @@ public:
 	void AddFront(const MidoriValue& value);
 
 	void Extend(const MidoriArray& other);
-
-	std::optional<MidoriValue> Pop();
 
 	MidoriArray Slice(int start, int end) const;
 

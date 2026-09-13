@@ -124,8 +124,6 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "NegativeArraySize";
 	case RuntimeErrorCode::ArraySizeExceeded:
 		return "ArraySizeExceeded";
-	case RuntimeErrorCode::ArrayPopEmpty:
-		return "ArrayPopEmpty";
 	case RuntimeErrorCode::FFIFunctionNotFound:
 		return "FFIFunctionNotFound";
 	case RuntimeErrorCode::StackOverflow:
@@ -361,7 +359,6 @@ namespace
 		case RuntimeErrorCode::IndexOutOfBounds:
 		case RuntimeErrorCode::NegativeArraySize:
 		case RuntimeErrorCode::ArraySizeExceeded:
-		case RuntimeErrorCode::ArrayPopEmpty:
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:

@@ -70,7 +70,6 @@ enum class RuntimeErrorCode
 	IndexOutOfBounds,
 	NegativeArraySize,
 	ArraySizeExceeded,
-	ArrayPopEmpty,
 	FFIFunctionNotFound,
 	StackOverflow,
 	MemoryAccessViolation,

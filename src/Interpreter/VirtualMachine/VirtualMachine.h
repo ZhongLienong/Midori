@@ -408,8 +408,6 @@ private:
 
 	int CheckNewArraySize(MidoriInteger size) noexcept;
 
-	int CheckArrayPopResult(const std::optional<MidoriValue>& result) noexcept;
-
 	MidoriValue EnsureCellHandle(MidoriValue& slot, ValueStackPointer closure_slot) noexcept;
 
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
