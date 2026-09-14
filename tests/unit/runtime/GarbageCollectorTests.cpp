@@ -275,6 +275,72 @@ TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay hi
 	REQUIRE(allocator.LiveSlotCount() == 0uz);
 }
 
+namespace
+{
+	constexpr int LARGE_TEXT_RESERVE_BYTES = 4 * 1024 * 1024;
+
+	// Roots enough 4MB texts to hold at least live_bytes, then collects, so the
+	// collector's next threshold is computed from that much live data.
+	GarbageCollector::GarbageCollectionRoots RootLiveBytes(MidoriAllocator& allocator, GarbageCollector& gc, size_t live_bytes)
+	{
+		GarbageCollector::GarbageCollectionRoots roots;
+		while (gc.TotalBytesAllocated() < live_bytes)
+		{
+			roots.emplace_back(AllocateLargeText(allocator, gc, LARGE_TEXT_RESERVE_BYTES));
+		}
+		gc.ReclaimMemory(roots, allocator, true);
+		return roots;
+	}
+}
+
+// Regression: the threshold used to be clamped to an absolute maximum of
+// 65,536,000 bytes. Once live data outgrew it, the threshold sat below the live
+// bytes, ShouldCollect() stayed true, and the VM ran a full collection -- which
+// freed nothing -- on every allocation check. Building ~840k union values took
+// minutes instead of a tenth of a second.
+TEST_CASE("Threshold stays above live bytes when live data exceeds the headroom cap", "[gc][threshold]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	GarbageCollector::GarbageCollectionRoots roots = RootLiveBytes(allocator, gc, GarbageCollector::MAX_GC_HEADROOM + 16uz * 1024uz * 1024uz);
+	REQUIRE(gc.TotalBytesAllocated() > GarbageCollector::MAX_GC_HEADROOM);
+
+	REQUIRE_FALSE(gc.ShouldCollect());
+	AllocateText(allocator, gc, "one more small object");
+	REQUIRE_FALSE(gc.ShouldCollect());
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.ReclaimMemory(no_roots, allocator, true);
+	REQUIRE(allocator.LiveSlotCount() == 0uz);
+}
+
+TEST_CASE("Room before the next collection above a large heap is positive and capped", "[gc][threshold]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	// Twice the cap: the uncapped growth (half the live bytes) would exceed it.
+	GarbageCollector::GarbageCollectionRoots roots = RootLiveBytes(allocator, gc, 2uz * GarbageCollector::MAX_GC_HEADROOM + 1uz);
+	const size_t live_bytes = gc.TotalBytesAllocated();
+	const size_t one_large_text = roots.back()->GetSize();
+
+	while (!gc.ShouldCollect())
+	{
+		AllocateLargeText(allocator, gc, LARGE_TEXT_RESERVE_BYTES);
+	}
+	const size_t allocated_since_collection = gc.TotalBytesAllocated() - live_bytes;
+
+	REQUIRE(allocated_since_collection > GarbageCollector::MAX_GC_HEADROOM - one_large_text);
+	REQUIRE(allocated_since_collection <= GarbageCollector::MAX_GC_HEADROOM + one_large_text);
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.ReclaimMemory(no_roots, allocator, true);
+	REQUIRE(allocator.LiveSlotCount() == 0uz);
+}
+
 TEST_CASE("Write barrier deduplicates remembered objects", "[gc][generational]")
 {
 	MidoriAllocator allocator;

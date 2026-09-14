@@ -14,7 +14,9 @@ class GarbageCollector
 public:
 	static constexpr inline size_t INITIAL_GC_THRESHOLD = 512000uz * 8uz;
 	static constexpr inline size_t MIN_GC_THRESHOLD = 512000uz * 4uz;
-	static constexpr inline size_t MAX_GC_THRESHOLD = 512000uz * 128uz;
+	// Caps the headroom above live bytes, not the threshold itself: a threshold at
+	// or below the live bytes would make every allocation check collect.
+	static constexpr inline size_t MAX_GC_HEADROOM = 512000uz * 128uz;
 	static constexpr inline double GC_GROWTH_FACTOR = 1.5;
 
 	using GarbageCollectionRoots = std::vector<MidoriTraceable*>;

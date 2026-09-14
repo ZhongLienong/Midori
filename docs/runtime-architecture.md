@@ -95,8 +95,12 @@ out moving/copying collection — Midori's collector is strictly non-moving.
   and whenever live bytes after a minor collection exceed 2× live bytes
   after the last major.
 - Collection triggers on a byte-allocated threshold (`ShouldCollect`),
-  starting at `INITIAL_GC_THRESHOLD` and growing geometrically between
-  `MIN_GC_THRESHOLD` and `MAX_GC_THRESHOLD` after each cycle.
+  starting at `INITIAL_GC_THRESHOLD`. After each cycle the next threshold is
+  the live bytes plus headroom of half the live bytes, with the headroom
+  capped at `MAX_GC_HEADROOM` and the threshold never below
+  `MIN_GC_THRESHOLD`. The cap bounds the growth, never the threshold itself,
+  so the threshold always stays above the live bytes; a threshold at or below
+  them would make every allocation check run a collection that frees nothing.
 
 The collector traces values reachable from the VM stacks, globals, closure
 environments, the remembered set, and nested aggregate objects.

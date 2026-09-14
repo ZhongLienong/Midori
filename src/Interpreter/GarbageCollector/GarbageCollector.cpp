@@ -367,10 +367,13 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	}
 #endif
 
-	size_t new_threshold = static_cast<size_t>(static_cast<double>(m_total_bytes_allocated) * GC_GROWTH_FACTOR);
-	new_threshold = std::max(new_threshold, MIN_GC_THRESHOLD);
-	new_threshold = std::min(new_threshold, MAX_GC_THRESHOLD);
-	m_gc_threshold = new_threshold;
+	// Grow geometrically, but bound the growth rather than the threshold. Clamping
+	// the threshold itself to a maximum put it below the live bytes once the heap
+	// outgrew that maximum, so ShouldCollect() stayed true and every allocation
+	// check ran a collection that could free nothing.
+	size_t headroom = static_cast<size_t>(static_cast<double>(m_total_bytes_allocated) * (GC_GROWTH_FACTOR - 1.0));
+	headroom = std::min(headroom, MAX_GC_HEADROOM);
+	m_gc_threshold = std::max(m_total_bytes_allocated + headroom, MIN_GC_THRESHOLD);
 }
 
 void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
