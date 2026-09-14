@@ -623,7 +623,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::JUMP_IF_FALSE:
 		case OpCode::JUMP_IF_TRUE:
 		case OpCode::JUMP_BACK:
-		case OpCode::BREAK:
 		case OpCode::IF_INTEGER_EQUAL:
 		case OpCode::IF_INTEGER_NOT_EQUAL:
 		case OpCode::IF_INTEGER_GREATER:
@@ -637,9 +636,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::IF_FLOAT_LESS:
 		case OpCode::IF_FLOAT_LESS_EQUAL:
 			advance = 3;
-			break;
-		case OpCode::MATCH_JUMP_TABLE:
-			advance = 2 + (static_cast<int>(procedure.ReadByteCode(offset + 1)) * 2);
 			break;
 		case OpCode::SPAWN_WORKER:
 			advance = 4;
@@ -672,17 +668,8 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::CALL_GLOBAL_WIDE:
 			advance = 4;
 			break;
-		case OpCode::GET_LOCAL_0:
-		case OpCode::GET_LOCAL_1:
-		case OpCode::GET_LOCAL_2:
-		case OpCode::GET_LOCAL_3:
-		case OpCode::SET_LOCAL_0:
-		case OpCode::SET_LOCAL_1:
-		case OpCode::SET_LOCAL_2:
-		case OpCode::SET_LOCAL_3:
 		case OpCode::GET_ARRAY:
 		case OpCode::GET_TUPLE:
-		case OpCode::SET_ARRAY:
 			advance = 1;
 			break;
 		case OpCode::DEFINE_GLOBAL:
@@ -696,7 +683,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::CALL:
 		case OpCode::BIND_CAPTURES:
 		case OpCode::GET_MEMBER:
-		case OpCode::SET_MEMBER:
 		case OpCode::POP_VALUES:
 		case OpCode::POP_LOCAL_SCOPE:
 		case OpCode::POP_BLOCK_SCOPE:

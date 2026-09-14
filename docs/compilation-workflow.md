@@ -217,18 +217,18 @@ Important opcode families in the current executable format:
 
 - Constants: `LOAD_STRING`, `INTEGER_CONSTANT`, `FLOAT_CONSTANT`, `BYTE_CONSTANT`, `WORD_CONSTANT`, `OP_UNIT`, `OP_TRUE`, `OP_FALSE`
 - Small integer constants: `INT_MINUS_1`, `INT_0`, `INT_1`, `INT_2`, `INT_3`, `INT_4`, `INT_5`, `INT_10`
-- Arrays and tuples: `CREATE_ARRAY`, `CREATE_TUPLE`, `GET_ARRAY`, `SET_ARRAY`, `GET_TUPLE`, `UNPACK_TUPLE`, `ADD_BACK_ARRAY`, `ADD_FRONT_ARRAY`, `GET_ARRAY_LENGTH`
+- Arrays and tuples: `CREATE_ARRAY`, `CREATE_TUPLE`, `GET_ARRAY`, `GET_TUPLE`, `UNPACK_TUPLE`, `ADD_BACK_ARRAY`, `GET_ARRAY_LENGTH`
 - Ranges: `CREATE_INT_RANGE`, `CREATE_FLOAT_RANGE`, `GET_RANGE_START`, `GET_RANGE_END`, `GET_RANGE_STEP`
 - Casts: `INT_TO_FLOAT`, `TEXT_TO_FLOAT`, `FLOAT_TO_INT`, `TEXT_TO_INT`, `FLOAT_TO_TEXT`, `INT_TO_TEXT`, `BYTE_TO_INT`, `INT_TO_BYTE`, `BYTE_TO_WORD`, `WORD_TO_BYTE`, `WORD_TO_INT`, `INT_TO_WORD`, `BYTE_TO_FLOAT`, `FLOAT_TO_BYTE`, `WORD_TO_FLOAT`, `FLOAT_TO_WORD`
 - Arithmetic and bit operations: `ADD_*`, `SUBTRACT_*`, `MULTIPLY_*`, `DIVIDE_*`, `MODULO_*`, `LEFT_SHIFT`, `RIGHT_SHIFT`, `BITWISE_AND`, `BITWISE_OR`, `BITWISE_XOR`, `BITWISE_NOT`
-- Compound assignment: `ADD_ASSIGN_INT`, `ADD_ASSIGN_FLOAT`, `SUB_ASSIGN_INT`, `SUB_ASSIGN_FLOAT`, `MUL_ASSIGN_INT`, `MUL_ASSIGN_FLOAT`, `DIV_ASSIGN_INT`, `DIV_ASSIGN_FLOAT`, `MOD_ASSIGN_INT`, `MOD_ASSIGN_FLOAT`, `AND_ASSIGN_INT`, `OR_ASSIGN_INT`, `XOR_ASSIGN_INT`, `LEFT_SHIFT_ASSIGN`, `RIGHT_SHIFT_ASSIGN`
-- Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, `BREAK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
-- Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`, `MATCH_JUMP_TABLE`
+- Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (produced only when the code generator splits a fused `ADD_LOCAL_INT` back apart because that local became a captured cell; the language has no compound assignment)
+- Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
+- Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`
 - Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC`, `CALL_PROC_0` through `CALL_PROC_3`, `CALL_GLOBAL`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
 - Closures and functions: `MAKE_FUNCTION`, `MAKE_CLOSURE`, `BIND_CAPTURES`
 - Variables: `DEFINE_GLOBAL`, `GET_GLOBAL`, `SET_GLOBAL`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL`, `GET_CELL`, `SET_CELL`, plus wide variants
-- Members and stack: `GET_MEMBER`, `SET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
+- Members and stack: `GET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
 - Termination: `RETURN`, `HALT`
 
 Generic functions are specialized at call sites; the emitted module keeps specialization metadata so later codegen and linking stages can resolve the concrete procedures.

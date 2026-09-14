@@ -85,5 +85,5 @@ private:
 
 	void PatchProcedure(BytecodeStream& procedure, size_t module_proc_base_offset, size_t module_global_base_offset, const std::vector<size_t>& import_resolved_indices, const std::vector<size_t>& string_mapping) const;
 
-	int CalculateInstructionSize(OpCode opcode, const BytecodeStream& procedure, int offset) const;
+	int CalculateInstructionSize(OpCode opcode) const;
 };

@@ -1223,32 +1223,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case OpCode::SET_ARRAY:
-		{
-			MidoriValue value_to_set = Pop(sp);
-			MidoriValue& index = *(sp - 1);
-			MidoriValue* arr_slot = sp - 2;
-			MidoriValue arr = *arr_slot;
-			MidoriTraceable* arr_owner = arr.GetPointer();
-			MidoriArray& arr_ref = arr_owner->GetTraceable<MidoriArray>();
-			m_instruction_pointer = inst_ip;
-
-			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
-			if (return_code != 0)
-			{
-				m_value_stack_pointer = arr_slot;
-				m_value_stack_base_pointer = bp;
-				m_curr_environment = env;
-				return return_code;
-			}
-
-			m_gc.WriteBarrier(arr_owner);
-			arr_ref[static_cast<int>(index.GetInteger())] = value_to_set;
-
-			*arr_slot = value_to_set;
-			sp = arr_slot + 1;
-			break;
-		}
 		case OpCode::ADD_BACK_ARRAY:
 		{
 			MidoriValue val = Pop(sp);
@@ -1257,19 +1231,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			m_gc.WriteBarrier(arr.GetPointer());
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
 			arr_ref.AddBack(val);
-
-			break;
-		}
-		case OpCode::ADD_FRONT_ARRAY:
-		{
-			MidoriValue arr = Pop(sp);
-			MidoriValue& val = Peek(sp);
-
-			m_gc.WriteBarrier(arr.GetPointer());
-			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
-			arr_ref.AddFront(val);
-
-			val = arr;
 
 			break;
 		}
@@ -1810,104 +1771,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			var = var.GetInteger() + value.GetInteger();
 			break;
 		}
-		case OpCode::ADD_ASSIGN_FLOAT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetFloat() + value.GetFloat();
-			break;
-		}
 		case OpCode::SUB_ASSIGN_INT:
 		{
 			MidoriValue value = Pop(sp);
 			MidoriValue& var = Peek(sp);
 			var = var.GetInteger() - value.GetInteger();
-			break;
-		}
-		case OpCode::SUB_ASSIGN_FLOAT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetFloat() - value.GetFloat();
-			break;
-		}
-		case OpCode::MUL_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() * value.GetInteger();
-			break;
-		}
-		case OpCode::MUL_ASSIGN_FLOAT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetFloat() * value.GetFloat();
-			break;
-		}
-		case OpCode::DIV_ASSIGN_INT:
-		{
-			m_instruction_pointer = inst_ip;
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() / value.GetInteger();
-			break;
-		}
-		case OpCode::DIV_ASSIGN_FLOAT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetFloat() / value.GetFloat();
-			break;
-		}
-		case OpCode::MOD_ASSIGN_INT:
-		{
-			m_instruction_pointer = inst_ip;
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() % value.GetInteger();
-			break;
-		}
-		case OpCode::MOD_ASSIGN_FLOAT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = std::fmod(var.GetFloat(), value.GetFloat());
-			break;
-		}
-		case OpCode::AND_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() & value.GetInteger();
-			break;
-		}
-		case OpCode::OR_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() | value.GetInteger();
-			break;
-		}
-		case OpCode::XOR_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() ^ value.GetInteger();
-			break;
-		}
-		case OpCode::LEFT_SHIFT_ASSIGN:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() << value.GetInteger();
-			break;
-		}
-		case OpCode::RIGHT_SHIFT_ASSIGN:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() >> value.GetInteger();
 			break;
 		}
 		case OpCode::EQUAL_FLOAT:
@@ -2337,14 +2205,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case OpCode::BREAK:
-		{
-			MidoriValue value = Pop(sp);
-			int offset = ReadShort(ip);
-			ip += offset;
-			Push(sp, value);
-			break;
-		}
 		case OpCode::LOAD_TAG:
 		{
 			MidoriValue union_val = Pop(sp);
@@ -2370,23 +2230,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int tag = static_cast<int>(ReadByte(ip));
 			MidoriUnion& union_ref = Peek(sp).GetPointer()->GetTraceable<MidoriUnion>();
 			union_ref.m_index = tag;
-			break;
-		}
-		case OpCode::MATCH_JUMP_TABLE:
-		{
-			MidoriInteger tag = Peek(sp).GetInteger();
-			int case_count = static_cast<int>(ReadByte(ip));
-
-			if (tag >= 0 && tag < case_count)
-			{
-				InstructionPointer offset_ptr = ip + 2 * static_cast<int>(tag);
-				int offset = ReadShort(offset_ptr);
-				ip += 2 * case_count + offset;
-			}
-			else
-			{
-				ip += 2 * case_count;
-			}
 			break;
 		}
 		case OpCode::CALL_FOREIGN:
@@ -2979,24 +2822,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		case OpCode::GET_LOCAL_0:
-		case OpCode::GET_LOCAL_1:
-		case OpCode::GET_LOCAL_2:
-		case OpCode::GET_LOCAL_3:
-		{
-			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::GET_LOCAL_0);
-			Push(sp, *(bp + offset));
-			break;
-		}
-		case OpCode::SET_LOCAL_0:
-		case OpCode::SET_LOCAL_1:
-		case OpCode::SET_LOCAL_2:
-		case OpCode::SET_LOCAL_3:
-		{
-			int offset = static_cast<int>(instruction) - static_cast<int>(OpCode::SET_LOCAL_0);
-			*(bp + offset) = Peek(sp);
-			break;
-		}
 		case OpCode::GET_LOCAL_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
@@ -3156,16 +2981,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
 			break;
 		}
-		case OpCode::SET_MEMBER:
-		{
-			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			m_gc.WriteBarrier(var.GetPointer());
-			MidoriValue& member = var.GetPointer()->GetTraceable<MidoriStruct>().m_values[index];
-			member = value;
-			break;
-		}
 		case OpCode::POP:
 		{
 			--sp;
@@ -3237,11 +3052,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::PUSH_PLACEHOLDER:
 		{
 			Push(sp, MidoriValue());
-			break;
-		}
-		case OpCode::UPDATE_PLACEHOLDER:
-		{
-			Peek(sp) = Pop(sp);
 			break;
 		}
 		case OpCode::SPAWN_WORKER:

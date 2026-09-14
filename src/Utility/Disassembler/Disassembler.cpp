@@ -407,40 +407,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void MatchJumpTableInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int case_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int table_start = offset + 2;
-
-		std::ostringstream formated_str;
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_YELLOW>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(case_count));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(case_count) + " cases");
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-
-		// Advance offset past opcode and case count
-		offset += 2;
-
-		// Print each jump table entry
-		for (int i = 0; i < case_count; i += 1)
-		{
-			int jump_offset = static_cast<int>(executable.ReadByteCode(offset, proc_index)) |
-				(static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) << 8);
-
-			int destination = table_start + case_count * 2 + jump_offset;
-
-			std::ostringstream entry_str;
-			entry_str << "    [" << Printer::Colored<Printer::Color::CYAN>(std::to_string(i)) << "] ";
-			entry_str << "-> 0x" << std::hex << std::setfill('0') << std::setw(::address_width) << destination;
-			entry_str << Printer::Colored<Printer::Color::DARK_GRAY>(" (offset +" + std::to_string(jump_offset) + ")");
-			entry_str << '\n';
-			Printer::Print(entry_str.str());
-
-			offset += 2;
-		}
-	}
-
 	void SpawnWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		const int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -570,14 +536,8 @@ namespace Disassembler
 		case OpCode::UNPACK_TUPLE:
 			SimpleInstruction("UNPACK_TUPLE", offset);
 			break;
-		case OpCode::SET_ARRAY:
-			SimpleInstruction("SET_ARRAY", offset);
-			break;
 		case OpCode::ADD_BACK_ARRAY:
 			SimpleInstruction("ADD_BACK_ARRAY", offset);
-			break;
-		case OpCode::ADD_FRONT_ARRAY:
-			SimpleInstruction("ADD_FRONT_ARRAY", offset);
 			break;
 		case OpCode::GET_ARRAY_LENGTH:
 			SimpleInstruction("GET_ARRAY_LENGTH", offset);
@@ -744,47 +704,8 @@ namespace Disassembler
 		case OpCode::ADD_ASSIGN_INT:
 			SimpleInstruction("ADD_ASSIGN_INT", offset);
 			break;
-		case OpCode::ADD_ASSIGN_FLOAT:
-			SimpleInstruction("ADD_ASSIGN_FLOAT", offset);
-			break;
 		case OpCode::SUB_ASSIGN_INT:
 			SimpleInstruction("SUB_ASSIGN_INT", offset);
-			break;
-		case OpCode::SUB_ASSIGN_FLOAT:
-			SimpleInstruction("SUB_ASSIGN_FLOAT", offset);
-			break;
-		case OpCode::MUL_ASSIGN_INT:
-			SimpleInstruction("MUL_ASSIGN_INT", offset);
-			break;
-		case OpCode::MUL_ASSIGN_FLOAT:
-			SimpleInstruction("MUL_ASSIGN_FLOAT", offset);
-			break;
-		case OpCode::DIV_ASSIGN_INT:
-			SimpleInstruction("DIV_ASSIGN_INT", offset);
-			break;
-		case OpCode::DIV_ASSIGN_FLOAT:
-			SimpleInstruction("DIV_ASSIGN_FLOAT", offset);
-			break;
-		case OpCode::MOD_ASSIGN_INT:
-			SimpleInstruction("MOD_ASSIGN_INT", offset);
-			break;
-		case OpCode::MOD_ASSIGN_FLOAT:
-			SimpleInstruction("MOD_ASSIGN_FLOAT", offset);
-			break;
-		case OpCode::AND_ASSIGN_INT:
-			SimpleInstruction("AND_ASSIGN_INT", offset);
-			break;
-		case OpCode::OR_ASSIGN_INT:
-			SimpleInstruction("OR_ASSIGN_INT", offset);
-			break;
-		case OpCode::XOR_ASSIGN_INT:
-			SimpleInstruction("XOR_ASSIGN_INT", offset);
-			break;
-		case OpCode::LEFT_SHIFT_ASSIGN:
-			SimpleInstruction("LEFT_SHIFT_ASSIGN", offset);
-			break;
-		case OpCode::RIGHT_SHIFT_ASSIGN:
-			SimpleInstruction("RIGHT_SHIFT_ASSIGN", offset);
 			break;
 		case OpCode::EQUAL_FLOAT:
 			SimpleInstruction("EQUAL_FLOAT", offset);
@@ -918,9 +839,6 @@ namespace Disassembler
 		case OpCode::IF_FLOAT_NOT_EQUAL:
 			JumpInstruction("IF_FLOAT_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::BREAK:
-			JumpInstruction("BREAK", 1, executable, proc_index, offset);
-			break;
 		case OpCode::LOAD_TAG:
 			SimpleInstruction("LOAD_TAG", offset);
 			break;
@@ -929,9 +847,6 @@ namespace Disassembler
 			break;
 		case OpCode::SET_TAG:
 			SetTagInstruction("SET_TAG", executable, proc_index, offset);
-			break;
-		case OpCode::MATCH_JUMP_TABLE:
-			MatchJumpTableInstruction("MATCH_JUMP_TABLE", executable, proc_index, offset);
 			break;
 		case OpCode::SPAWN_WORKER:
 			SpawnWorkerInstruction("SPAWN_WORKER", executable, proc_index, offset);
@@ -1079,30 +994,6 @@ namespace Disassembler
 		case OpCode::SET_LOCAL:
 			LocalOrCellVariableInstruction("SET_LOCAL", executable, proc_index, offset);
 			break;
-		case OpCode::GET_LOCAL_0:
-			SimpleInstruction("GET_LOCAL_0", offset);
-			break;
-		case OpCode::GET_LOCAL_1:
-			SimpleInstruction("GET_LOCAL_1", offset);
-			break;
-		case OpCode::GET_LOCAL_2:
-			SimpleInstruction("GET_LOCAL_2", offset);
-			break;
-		case OpCode::GET_LOCAL_3:
-			SimpleInstruction("GET_LOCAL_3", offset);
-			break;
-		case OpCode::SET_LOCAL_0:
-			SimpleInstruction("SET_LOCAL_0", offset);
-			break;
-		case OpCode::SET_LOCAL_1:
-			SimpleInstruction("SET_LOCAL_1", offset);
-			break;
-		case OpCode::SET_LOCAL_2:
-			SimpleInstruction("SET_LOCAL_2", offset);
-			break;
-		case OpCode::SET_LOCAL_3:
-			SimpleInstruction("SET_LOCAL_3", offset);
-			break;
 		case OpCode::GET_LOCAL_CELL:
 			LocalOrCellVariableInstruction("GET_LOCAL_CELL", executable, proc_index, offset);
 			break;
@@ -1148,9 +1039,6 @@ namespace Disassembler
 		case OpCode::GET_MEMBER:
 			MemberInstruction("GET_MEMBER", executable, proc_index, offset);
 			break;
-		case OpCode::SET_MEMBER:
-			MemberInstruction("SET_MEMBER", executable, proc_index, offset);
-			break;
 		case OpCode::POP:
 			SimpleInstruction("POP", offset);
 			break;
@@ -1180,9 +1068,6 @@ namespace Disassembler
 			break;
 		case OpCode::PUSH_PLACEHOLDER:
 			SimpleInstruction("PUSH_PLACEHOLDER", offset);
-			break;
-		case OpCode::UPDATE_PLACEHOLDER:
-			SimpleInstruction("UPDATE_PLACEHOLDER", offset);
 			break;
 		default:
 #ifdef _MSC_VER

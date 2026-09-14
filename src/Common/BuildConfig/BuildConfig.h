@@ -102,7 +102,13 @@ namespace MidoriBuild
     // old artifacts to be rejected instead of misexecuted. A future reader
     // who removes or reorders a builtin from this table must bump this
     // version too - appending new entries at the END does not require it.
-    inline constexpr uint32_t MbcFormatVersion = 3u;
+    //
+    // Bumped 2026-09-14 (4): 27 opcodes that nothing emitted were deleted from
+    // the OpCode enum, including SET_ARRAY, the ninth entry. Opcodes are
+    // serialised by their enum VALUE, so every opcode after the first removed
+    // one was renumbered. The same rule applies to OpCode as to the FFI table:
+    // removing or reordering an enum entry requires a bump, appending does not.
+    inline constexpr uint32_t MbcFormatVersion = 4u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

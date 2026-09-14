@@ -36,9 +36,7 @@ enum class OpCode : uint8_t
 	GET_ARRAY,
 	GET_TUPLE,
 	UNPACK_TUPLE,
-	SET_ARRAY,
 	ADD_BACK_ARRAY,
-	ADD_FRONT_ARRAY,
 	GET_ARRAY_LENGTH,
 
 	// Range Operations
@@ -106,20 +104,7 @@ enum class OpCode : uint8_t
 
 	// Compound Assignment Operations
 	ADD_ASSIGN_INT,
-	ADD_ASSIGN_FLOAT,
 	SUB_ASSIGN_INT,
-	SUB_ASSIGN_FLOAT,
-	MUL_ASSIGN_INT,
-	MUL_ASSIGN_FLOAT,
-	DIV_ASSIGN_INT,
-	DIV_ASSIGN_FLOAT,
-	MOD_ASSIGN_INT,
-	MOD_ASSIGN_FLOAT,
-	AND_ASSIGN_INT,
-	OR_ASSIGN_INT,
-	XOR_ASSIGN_INT,
-	LEFT_SHIFT_ASSIGN,
-	RIGHT_SHIFT_ASSIGN,
 
 	// Comparison Operations
 	EQUAL_FLOAT,
@@ -172,13 +157,11 @@ enum class OpCode : uint8_t
 	IF_FLOAT_GREATER_EQUAL,
 	IF_FLOAT_EQUAL,
 	IF_FLOAT_NOT_EQUAL,
-	BREAK,
 
 	// Match
 	LOAD_TAG,
 	GET_TAG,
 	SET_TAG,
-	MATCH_JUMP_TABLE,
 
 	// Callable
 	CALL_FOREIGN,
@@ -208,14 +191,6 @@ enum class OpCode : uint8_t
 	SET_GLOBAL,
 	GET_LOCAL,
 	SET_LOCAL,
-	GET_LOCAL_0,
-	GET_LOCAL_1,
-	GET_LOCAL_2,
-	GET_LOCAL_3,
-	SET_LOCAL_0,
-	SET_LOCAL_1,
-	SET_LOCAL_2,
-	SET_LOCAL_3,
 	GET_LOCAL_CELL,
 	SET_LOCAL_CELL,
 	GET_CELL,
@@ -234,7 +209,6 @@ enum class OpCode : uint8_t
 
 	// Struct Operations
 	GET_MEMBER,
-	SET_MEMBER,
 
 	// Stack Operations
 	POP,
@@ -251,7 +225,6 @@ enum class OpCode : uint8_t
 
 	// Placeholder
 	PUSH_PLACEHOLDER,
-	UPDATE_PLACEHOLDER,
 
 	// Concurrency
 	SPAWN_WORKER,

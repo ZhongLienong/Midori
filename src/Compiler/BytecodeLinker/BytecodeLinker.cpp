@@ -488,7 +488,7 @@ void BytecodeLinker::PatchBootstrapOffsets()
 			for (int offset = 0; offset < bytecode_size; )
 			{
 				OpCode opcode = procedure.ReadByteCode(offset);
-				int advance = CalculateInstructionSize(opcode, procedure, offset);
+				int advance = CalculateInstructionSize(opcode);
 
 				if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
 				{
@@ -724,7 +724,7 @@ void BytecodeLinker::PatchProcedure(
 	for (int offset = 0; offset < bytecode_size; )
 	{
 		const OpCode opcode = procedure.ReadByteCode(offset);
-		const int advance = CalculateInstructionSize(opcode, procedure, offset);
+		const int advance = CalculateInstructionSize(opcode);
 
 		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
 			opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
@@ -823,7 +823,7 @@ void BytecodeLinker::PatchProcedure(
 	}
 }
 
-int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream& procedure, int offset) const
+int BytecodeLinker::CalculateInstructionSize(OpCode opcode) const
 {
 	switch (opcode)
 	{
@@ -850,7 +850,6 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::JUMP_IF_FALSE:
 		case OpCode::JUMP_IF_TRUE:
 		case OpCode::JUMP_BACK:
-		case OpCode::BREAK:
 		case OpCode::IF_INTEGER_EQUAL:
 		case OpCode::IF_INTEGER_NOT_EQUAL:
 		case OpCode::IF_INTEGER_GREATER:
@@ -864,11 +863,6 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::IF_FLOAT_LESS:
 		case OpCode::IF_FLOAT_LESS_EQUAL:
 			return 3;
-		case OpCode::MATCH_JUMP_TABLE:
-		{
-			const int case_count = static_cast<int>(procedure.ReadByteCode(offset + 1));
-			return 2 + (case_count * 2);
-		}
 		case OpCode::SPAWN_WORKER:
 			return 4;
 		case OpCode::JOIN_WORKER:
@@ -919,7 +913,6 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::CALL:
 		case OpCode::BIND_CAPTURES:
 		case OpCode::GET_MEMBER:
-		case OpCode::SET_MEMBER:
 		case OpCode::POP_VALUES:
 		case OpCode::POP_LOCAL_SCOPE:
 		case OpCode::POP_BLOCK_SCOPE:
@@ -933,17 +926,8 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode, const BytecodeStream
 		case OpCode::CALL_1:
 		case OpCode::CALL_2:
 		case OpCode::CALL_3:
-		case OpCode::GET_LOCAL_0:
-		case OpCode::GET_LOCAL_1:
-		case OpCode::GET_LOCAL_2:
-		case OpCode::GET_LOCAL_3:
-		case OpCode::SET_LOCAL_0:
-		case OpCode::SET_LOCAL_1:
-		case OpCode::SET_LOCAL_2:
-		case OpCode::SET_LOCAL_3:
 		case OpCode::GET_ARRAY:
 		case OpCode::GET_TUPLE:
-		case OpCode::SET_ARRAY:
 			return 1;
 		default:
 			return 1;
