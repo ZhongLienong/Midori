@@ -1,3 +1,3 @@
 Compilation failed :( 
-Module Error at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\prelude\failure\in_place_mutation_removed.mdr:9
+Module Error at test/prelude/failure/in_place_mutation_removed.mdr:9
   Could not resolve import: ../../../MidoriPrelude/Appendable.mdr

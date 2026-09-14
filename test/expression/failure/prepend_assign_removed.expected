@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at C:\Users\jk381\source\repos\ZhongLienong\Midori\test\expression\failure\prepend_assign_removed.mdr:4
+Parser Error at test/expression/failure/prepend_assign_removed.mdr:4
   |
 4 | text =++ "head";
   |      ^^^ Prepend assignment syntax '=++' is no longer supported. Bind the concatenation with 'def', or use Prependable::Prepend.

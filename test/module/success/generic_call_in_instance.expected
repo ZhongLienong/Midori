@@ -1,12 +1,12 @@
-[33m[warning] [37m2 warning(s) in generic_call_in_instance_lib.mdr
-[0m[1m[93mStatic Analyzer Warning[0m at [96mC:\Users\jk381\source\repos\ZhongLienong\Midori\test\module\success\generic_call_in_instance_lib.mdr:8[0m
-[34m  |
-8 |[0m def GenericPick = fn < T >(x: T, n: Int) -> Int => n;
-[34m  |[93m                            ^ Binding 'x' is never read.[0m
-[34m  |[0m
-[1m[93mStatic Analyzer Warning[0m at [96mC:\Users\jk381\source\repos\ZhongLienong\Midori\test\module\success\generic_call_in_instance_lib.mdr:9[0m
-[34m  |
-9 |[0m def PlainPick = fn(x: Int, n: Int) -> Int => n;
-[34m  |[93m                    ^ Binding 'x' is never read.[0m
-[34m  |[0m
+[warning] 2 warning(s) in generic_call_in_instance_lib.mdr
+Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mdr:8
+  |
+8 | def GenericPick = fn < T >(x: T, n: Int) -> Int => n;
+  |                            ^ Binding 'x' is never read.
+  |
+Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mdr:9
+  |
+9 | def PlainPick = fn(x: Int, n: Int) -> Int => n;
+  |                    ^ Binding 'x' is never read.
+  |
 405

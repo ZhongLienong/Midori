@@ -325,16 +325,27 @@ namespace
 		process.m_started = false;
 	}
 
+	// The project root as it appears in rendered diagnostics, with forward
+	// slashes and a trailing slash; empty if it cannot be resolved.
+	[[nodiscard]] std::string RootPrefix(const std::filesystem::path& root)
+	{
+		std::error_code error_code;
+		const std::string resolved_root = std::filesystem::weakly_canonical(root, error_code).generic_string();
+		if (resolved_root.empty())
+		{
+			return "";
+		}
+		return resolved_root + "/";
+	}
+
 	[[nodiscard]] std::string NormalizePathText(std::string text, const std::filesystem::path& root)
 	{
 		std::string clean = text;
 		std::replace(clean.begin(), clean.end(), '\\', '/');
 
-		std::error_code error_code;
-		const std::string resolved_root = std::filesystem::weakly_canonical(root, error_code).generic_string();
-		if (!resolved_root.empty())
+		const std::string root_with_slash = RootPrefix(root);
+		if (!root_with_slash.empty())
 		{
-			const std::string root_with_slash = resolved_root + "/";
 			size_t index = 0u;
 			while ((index = clean.find(root_with_slash, index)) != std::string::npos)
 			{
@@ -343,6 +354,22 @@ namespace
 		}
 
 		return clean;
+	}
+
+	// A snapshot that spells out this checkout's absolute path still passes here,
+	// because the root is stripped from both sides before comparing, but fails in
+	// any other checkout or worktree. Reject it where it is written.
+	[[nodiscard]] bool EmbedsRootPath(std::string_view snapshot, const std::filesystem::path& root)
+	{
+		const std::string root_with_slash = RootPrefix(root);
+		if (root_with_slash.empty())
+		{
+			return false;
+		}
+
+		std::string clean(snapshot);
+		std::replace(clean.begin(), clean.end(), '\\', '/');
+		return clean.find(root_with_slash) != std::string::npos;
 	}
 
 	[[nodiscard]] std::string StripAnsiCodes(std::string_view text)
@@ -775,6 +802,12 @@ namespace
 			result.m_error = result.m_expected_to_fail
 				? std::format("Expected a non-zero exit code, got {}.", result.m_exit_code)
 				: std::format("Expected exit code 0, got {}.", result.m_exit_code);
+		}
+
+		if (result.m_passed && (EmbedsRootPath(expected_output, root) || EmbedsRootPath(expected_warnings, root)))
+		{
+			result.m_passed = false;
+			result.m_error = std::format("Snapshot contains the absolute project path '{}'. Write paths relative to the project root so the snapshot passes in other checkouts.", RootPrefix(root));
 		}
 
 		if (result.m_passed && !expected_output.empty())
