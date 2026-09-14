@@ -154,10 +154,11 @@ implementation, not by name: `MIDORI_FFI_ArrayPop` (Task 9, 2026-09-12) was the
 one this plan's own by-name survey missed — found only by a final
 whole-branch review — and its deletion also removed the last caller of
 `MidoriArray::Pop()` and the dead `VirtualMachine::CheckArrayPopResult`,
-leaving 95 entries in the registry today. `SET_ARRAY`, `ADD_FRONT_ARRAY` and
-`SET_MEMBER` still exist as VM opcodes, with handlers in the interpreter and
-the disassembler, but `CodeGenerator.cpp` never emits any of the three; they
-are dead code, not a reachable mutation path. The `++` in-place optimisation
+leaving 95 entries in the registry today. The mutating VM opcodes `SET_ARRAY`,
+`ADD_FRONT_ARRAY` and `SET_MEMBER`, which nothing emitted, were deleted on
+2026-09-14 (`ffa3d76`) together with 24 other unemitted opcodes, among them
+the compound assignments and `BREAK`; no handler for a mutation the language
+cannot express remains in the interpreter. The `++` in-place optimisation
 above is alias-safe by construction and pinned by tests, not a surviving
 user-visible mutation.
 
