@@ -227,6 +227,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Skip the formatter idempotency check that normally runs with full regression passes.",
     )
+    parser.add_argument(
+        "--skip-benchmark-check",
+        action="store_true",
+        help="Skip compiling the programs under benchmark/, which normally runs with full regression passes.",
+    )
     args = parser.parse_args(argv)
 
     root = repo_root()
@@ -275,10 +280,12 @@ def main(argv: list[str]) -> int:
         should_run_doc_examples = not args.skip_doc_examples
         should_run_cli_contracts = not args.skip_cli_contracts
         should_run_format_check = not args.skip_format_check
+        should_run_benchmark_check = not args.skip_benchmark_check
         if args.category or args.pattern or args.test:
             should_run_doc_examples = False
             should_run_cli_contracts = False
             should_run_format_check = False
+            should_run_benchmark_check = False
 
         if args.category == "doc_examples":
             doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
@@ -297,6 +304,12 @@ def main(argv: list[str]) -> int:
             if args.verbose:
                 format_check_command.append("--verbose")
             return run_command(format_check_command, root)
+
+        if args.category == "benchmarks":
+            benchmark_check_command = [sys.executable, str(root / "scripts" / "check_benchmarks.py"), "--build", regression_build]
+            if args.verbose:
+                benchmark_check_command.append("--verbose")
+            return run_command(benchmark_check_command, root)
 
         if should_run_doc_examples:
             doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
@@ -324,6 +337,15 @@ def main(argv: list[str]) -> int:
             format_check_exit_code = run_command(format_check_command, root)
             if format_check_exit_code != 0:
                 return format_check_exit_code
+
+        if should_run_benchmark_check:
+            benchmark_check_command = [sys.executable, str(root / "scripts" / "check_benchmarks.py"), "--build", regression_build]
+            if args.verbose:
+                benchmark_check_command.append("--verbose")
+
+            benchmark_check_exit_code = run_command(benchmark_check_command, root)
+            if benchmark_check_exit_code != 0:
+                return benchmark_check_exit_code
 
         regression_command = [sys.executable, str(root / "scripts" / "run_tests.py"), "--build", regression_build]
         if args.category:

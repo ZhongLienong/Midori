@@ -1,26 +1,22 @@
 module StrConcat
 
-import 
+import
 {
 	"../MidoriPrelude/IO.mdr",
-	"../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/DateTime.mdr",
+	"../MidoriPrelude/TextUtil.mdr"
 }
 
-def start = DateTime::GetTime();
+// v2 port: `test_string = test_string ++ "a"` in a loop is now a tail-recursive
+// walk carrying the text. Each step still copies the accumulated text, which is
+// what this benchmark has always measured.
+def Build = fn(count : Int, limit : Int, acc : Text) -> Text =>
+	if count >= limit then acc else Build(count + 1, limit, acc ++ "a");
 
-def test_string = "";
-def count = 0;
-loop
-{
-	if count >= 10000
-	then break ()
-	else
-	{
-		test_string = test_string ++ "a";
-		count = count + 1;
-	}
-};
+def start = DateTime::NowUnixMillis();
 
-def end = DateTime::GetTime();
+def test_string = Build(0, 10000, "");
 
-IO::PrintLine("String manipulation benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+def end = DateTime::NowUnixMillis();
+
+IO::PrintLine("String manipulation (length " ++ (TextUtil::Length(test_string) as Text) ++ ") benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

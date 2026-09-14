@@ -2,7 +2,6 @@ module BinarySearch
 
 import
 {
-	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
@@ -27,41 +26,27 @@ def BinarySearch = fn(arr : Array<Int>, target : Int, low : Int, high : Int) -> 
 	}
 };
 
-def start = DateTime::GetTime();
-
-def sorted_array : Array<Int> = [];
-def array_len = 0;
-def i = 0;
-loop
+// v2 port: the search loop assigned to a counter and an index; it is now a
+// tail-recursive walk carrying both.
+def CountFound = fn(arr : Array<Int>, search : Int, searches : Int, found_count : Int) -> Int =>
 {
-	if i >= 100000
-	then break ()
+	if search >= searches
+	then found_count
 	else
 	{
-		Appendable::Append(sorted_array, i);
-		array_len = array_len + 1;
-		i = i + 1;
+		def target = (search * 7) % 100000;
+		def result = BinarySearch(arr, target, 0, #arr - 1);
+		CountFound(arr, search + 1, searches, if result != -1 then found_count + 1 else found_count)
 	}
 };
 
-def searches = 10000;
-def found_count = 0;
-def j = 0;
-loop
-{
-	if j >= searches
-	then break ()
-	else
-	{
-		def target = (j * 7) % 100000;
-		def result = BinarySearch(sorted_array, target, 0, array_len - 1);
-		if result != -1
-		then found_count = found_count + 1
-		else 0;
-		j = j + 1;
-	}
-};
+def start = DateTime::NowUnixMillis();
 
-def end = DateTime::GetTime();
+// v2 port: formerly built by in-place Append in a loop; a comprehension builds it now.
+def sorted_array = [value for value in 0..1..100000];
+
+def found_count = CountFound(sorted_array, 0, 10000, 0);
+
+def end = DateTime::NowUnixMillis();
 
 IO::PrintLine("Binary search (10000 searches in 100000 elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");

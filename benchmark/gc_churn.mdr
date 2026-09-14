@@ -2,65 +2,58 @@ module GCChurn
 
 import
 {
-	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
-	"../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/DateTime.mdr",
+	"../MidoriPrelude/Prelude/List.mdr"
 }
+
+use List.{List, ListReverse, ListToArray}
+
+// v2 port. What is preserved: a long-lived keeper of ~300,000 distinct texts
+// that every collection must account for, and a churn phase of 800,000
+// iterations of short-lived text and array allocation.
+//
+// What could not be preserved: the original wrote a fresh text into the old
+// keeper array every 1000 iterations (`keeper[...] = fresh`) to exercise the
+// write barrier and remembered set with old-to-young edges. v2 has no in-place
+// writes, so that edge cannot be expressed. The fresh texts are instead kept in
+// a young cons list and copied into a new keeper once at the end, which yields
+// the same final checksum. See docs/superpowers/specs/2026-09-01-expression-
+// oriented-midori-design.md, which records the same loss for
+// test/gc/generational_churn.
+
+def Churn = fn(i : Int, limit : Int, fresh : List<Text>) -> List<Text> =>
+{
+	if i >= limit
+	then fresh
+	else
+	{
+		// Four texts plus the array holding them, formerly four in-place Appends.
+		def first = "churn-" ++ (i as Text);
+		def second = first ++ "-x";
+		def third = second ++ "-y";
+		def scratch = [first, second, third, third ++ "-z"];
+
+		Churn(i + 1, limit, if i % 1000 == 0 then List::Cons("fresh-" ++ (i as Text) ++ "-" ++ scratch[3], fresh) else fresh)
+	}
+};
 
 def Main = fn() -> Unit =>
 {
 	def start = DateTime::NowUnixMillis();
 
-	// Long-lived keeper: ~300,000 distinct Text entries, comfortably above the
-	// ~4MB minor-collection threshold, so every collection triggered by the
-	// churn phase below must trace and sweep it (old GC: every object, every
-	// cycle; new GC: only if promoted/young + remembered set).
 	def pad = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-keeper-record-payload-";
-	def keeper : Array<Text> = [];
-	def k = 0;
-	loop
-	{
-		if k >= 300000
-		then break ()
-		else
-		{
-			Appendable::Append(keeper, pad ++ (k as Text));
-			k = k + 1;
-		}
-	};
+	def keeper = [pad ++ (k as Text) for k in 0..1..300000];
 
-	// Churn phase: sustained short-lived allocation with periodic old->young
-	// mutations into the keeper (exercises the write barrier / remembered set).
-	def i = 0;
-	loop
-	{
-		if i >= 800000
-		then break ()
-		else
-		{
-			def scratch : Array<Text> = [];
-			Appendable::Append(scratch, "churn-" ++ (i as Text));
-			Appendable::Append(scratch, scratch[0] ++ "-x");
-			Appendable::Append(scratch, scratch[1] ++ "-y");
-			Appendable::Append(scratch, scratch[2] ++ "-z");
-
-			if i % 1000 == 0
-			then
-			{
-				def fresh = "fresh-" ++ (i as Text) ++ "-" ++ scratch[3];
-				keeper[(i / 1000) % 300000] = fresh;
-				()
-			}
-			else ();
-
-			i = i + 1;
-		}
-	};
+	// The churn wrote fresh text number n into keeper[n % 300000]; n stays below
+	// 800, so each write lands in a distinct slot.
+	def fresh = ListToArray(ListReverse(Churn(0, 800000, List::Nil())));
+	def final_keeper = [if slot < #fresh then fresh[slot] else keeper[slot] for slot in 0..1..(#keeper)];
 
 	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("GC churn benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
-	IO::PrintLine("checksum: keeper_len=" ++ ((#keeper) as Text) ++ " keeper[0]=" ++ keeper[0] ++ " keeper[299999]=" ++ keeper[299999]);
+	IO::PrintLine("checksum: keeper_len=" ++ ((#final_keeper) as Text) ++ " keeper[0]=" ++ final_keeper[0] ++ " keeper[299999]=" ++ final_keeper[299999]);
 };
 
 Main();

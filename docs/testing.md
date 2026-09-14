@@ -201,6 +201,23 @@ python scripts/check_format.py --build Development --enforce-clean
 reference package. The optional `--enforce-clean` flag additionally requires
 `midori fmt --check` to pass on each scanned root.
 
+Compile every benchmark program, and optionally run them:
+
+```powershell
+python scripts/check_benchmarks.py --build Development
+python scripts/check_benchmarks.py --build Release --run
+```
+
+The programs under `benchmark/` print timings, so they have no snapshots and
+are not part of the regression suite. `scripts/check_benchmarks.py` runs
+`midori check` on each one and fails on any compile error or warning, so a
+language change cannot leave them uncompilable unnoticed (it did once: every
+benchmark stopped compiling when v2 removed `loop`, assignment and in-place
+`Appendable`). `--run` also executes each one; its timings are only meaningful
+with a Release build. `python scripts/test_project.py --mode regression` runs
+the compile check unless you pass `--skip-benchmark-check`, and
+`--category benchmarks` runs it alone.
+
 Configure and build implementation tests on Windows:
 
 ```powershell

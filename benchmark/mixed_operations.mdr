@@ -2,246 +2,147 @@ module MixedOperations
 
 import
 {
-	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
-	"../MidoriPrelude/DateTime.mdr"
+	"../MidoriPrelude/DateTime.mdr",
+	"../MidoriPrelude/TextUtil.mdr",
+	"../MidoriPrelude/Prelude/List.mdr"
 }
+
+use List.{List, ListToArray}
+
+// v2 port: loops that assigned to an accumulator are tail-recursive walks
+// carrying it; arrays that were filled by in-place `Appendable::Append` are built
+// by comprehensions, or by prepending into a cons list converted once when the
+// size is not known in advance (filtering).
+
+def ConcatAll = fn(texts : Array<Text>, j : Int, acc : Text) -> Text =>
+	if j >= #texts then acc else ConcatAll(texts, j + 1, acc ++ texts[j]);
+
+// Joins parts[low..high) by halves, so each character is copied O(log n) times.
+def JoinRange = fn(parts : Array<Text>, low : Int, high : Int) -> Text =>
+{
+	if high - low <= 0
+	then ""
+	else if high - low == 1
+	then parts[low]
+	else
+	{
+		def mid = low + (high - low) / 2;
+		JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
+	}
+};
+
+// Walks from the last element down and prepends, so the kept elements stay in
+// input order and the call stays in tail position.
+def KeepEven = fn(arr : Array<Int>, index : Int, kept : List<Int>) -> List<Int> =>
+{
+	if index < 0
+	then kept
+	else
+	{
+		def value = arr[index];
+		KeepEven(arr, index - 1, if value % 2 == 0 then List::Cons(value, kept) else kept)
+	}
+};
+
+def MakeRecord = fn(i : Int) -> Text =>
+{
+	def id = i as Text;
+	def name = "User" ++ id;
+	def email = name ++ "@example.com";
+	"ID:" ++ id ++ ",Name:" ++ name ++ ",Email:" ++ email
+};
 
 def TestTextArrayCombination = fn(iterations : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def texts : Array<Text> = [];
-	def i = 0;
-	loop
-	{
-		if i >= iterations
-		then break ()
-		else
-		{
-			Appendable::Append(texts, "Number: " ++ (i as Text));
-			i = i + 1;
-		}
-	};
+	def texts = ["Number: " ++ (value as Text) for value in 0..1..iterations];
+	def combined = ConcatAll(texts, 0, "");
 
-	def combined = "";
-	def j = 0;
-	loop
-	{
-		if j >= iterations
-		then break ()
-		else
-		{
-			combined = combined ++ texts[j];
-			j = j + 1;
-		}
-	};
+	def end = DateTime::NowUnixMillis();
 
-	def end = DateTime::GetTime();
-
-	IO::PrintLine("Text-Array combination (" ++ (iterations as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Text-Array combination (" ++ (iterations as Text) ++ " elements, length " ++ (TextUtil::Length(combined) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestArrayFilter = fn(size : Int) -> Unit =>
 {
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def filtered : Array<Int> = [];
-	def j = 0;
-	loop
-	{
-		if j >= size
-		then break ()
-		else
-		{
-			if arr[j] % 2 == 0
-			then Appendable::Append(filtered, arr[j])
-			else ();
-			j = j + 1;
-		}
-	};
+	def filtered = ListToArray(KeepEven(arr, size - 1, List::Nil()));
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array filter (even numbers from " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array filter (even numbers from " ++ (size as Text) ++ " elements, kept " ++ ((#filtered) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly in-place Append of each doubled element; a comprehension now.
 def TestArrayMap = fn(size : Int) -> Unit =>
 {
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def mapped : Array<Int> = [];
-	def j = 0;
-	loop
-	{
-		if j >= size
-		then break ()
-		else
-		{
-			Appendable::Append(mapped, arr[j] * 2);
-			j = j + 1;
-		}
-	};
+	def mapped = [value * 2 for value in arr];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array map (multiply by 2, " ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array map (multiply by 2, " ++ (size as Text) ++ " elements, last " ++ (mapped[size - 1] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: this measured in-place `Appendable::Append` onto a text, which no
+// longer exists. The v2 string-builder pattern makes the parts with a
+// comprehension and joins them by halves.
 def TestStringBuilder = fn(num_parts : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def parts : Array<Text> = [];
-	def i = 0;
-	loop
-	{
-		if i >= num_parts
-		then break ()
-		else
-		{
-			Appendable::Append(parts, "Part" ++ (i as Text) ++ " ");
-			i = i + 1;
-		}
-	};
+	def parts = ["Part" ++ (value as Text) ++ " " for value in 0..1..num_parts];
+	def result = JoinRange(parts, 0, num_parts);
 
-	def result = "";
-	def j = 0;
-	loop
-	{
-		if j >= num_parts
-		then break ()
-		else
-		{
-			Appendable::Append(result, parts[j]);
-			j = j + 1;
-		}
-	};
+	def end = DateTime::NowUnixMillis();
 
-	def end = DateTime::GetTime();
-
-	IO::PrintLine("String builder pattern (" ++ (num_parts as Text) ++ " parts): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("String builder pattern (" ++ (num_parts as Text) ++ " parts, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly in-place Append of each record; a comprehension now.
 def TestComplexDataStructure = fn() -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def records : Array<Text> = [];
-	def i = 0;
-	loop
-	{
-		if i >= 1000
-		then break ()
-		else
-		{
-			def id = i as Text;
-			def name = "User" ++ id;
-			def email = name ++ "@example.com";
-			def record = "ID:" ++ id ++ ",Name:" ++ name ++ ",Email:" ++ email;
-			Appendable::Append(records, record);
-			i = i + 1;
-		}
-	};
+	def records = [MakeRecord(value) for value in 0..1..1000];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Complex data structure (1000 records): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Complex data structure (" ++ ((#records) as Text) ++ " records): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly in-place Append walking backwards; a comprehension now.
 def TestArrayReversal = fn(size : Int) -> Unit =>
 {
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def reversed : Array<Int> = [];
-	def j = size - 1;
-	loop
-	{
-		if j < 0
-		then break ()
-		else
-		{
-			Appendable::Append(reversed, arr[j]);
-			j = j - 1;
-		}
-	};
+	def reversed = [arr[size - 1 - offset] for offset in 0..1..size];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array reversal (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array reversal (" ++ (size as Text) ++ " elements, first " ++ (reversed[0] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly nested loops with in-place Append; a nested comprehension now.
 def TestMemoryIntensive = fn() -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arrays : Array<Array<Int>> = [];
-	def i = 0;
-	loop
-	{
-		if i >= 100
-		then break ()
-		else
-		{
-			def inner : Array<Int> = [];
-			def j = 0;
-			loop
-			{
-				if j >= 1000
-				then break ()
-				else
-				{
-					Appendable::Append(inner, i * 1000 + j);
-					j = j + 1;
-				}
-			};
-			Appendable::Append(arrays, inner);
-			i = i + 1;
-		}
-	};
+	def arrays = [[row * 1000 + column for column in 0..1..1000] for row in 0..1..100];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Memory intensive test (100x1000 nested arrays): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Memory intensive test (100x1000 nested arrays, last " ++ (arrays[99][999] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
 TestTextArrayCombination(2000);

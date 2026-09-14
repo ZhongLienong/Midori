@@ -2,229 +2,125 @@ module ArrayOperations
 
 import
 {
-	"../MidoriPrelude/Appendable.mdr",
 	"../MidoriPrelude/IO.mdr",
 	"../MidoriPrelude/DateTime.mdr"
 }
 
+// v2 port: loops that assigned to an accumulator are tail-recursive walks
+// carrying it; arrays that were filled by in-place `Appendable::Append` are built
+// by comprehensions. Walks that grow an array with `acc ++ [value]` still copy
+// the accumulated array on every step, which is what the concatenation tests
+// have always measured.
+
+def AppendEach = fn(i : Int, limit : Int, acc : Array<Int>) -> Array<Int> =>
+	if i >= limit then acc else AppendEach(i + 1, limit, acc ++ [i]);
+
+def AppendPairs = fn(i : Int, limit : Int, acc : Array<Int>) -> Array<Int> =>
+	if i >= limit then acc else AppendPairs(i + 1, limit, acc ++ [i * 2] ++ [i * 3]);
+
+def SumAccesses = fn(arr : Array<Int>, j : Int, accesses : Int, sum : Int) -> Int =>
+	if j >= accesses then sum else SumAccesses(arr, j + 1, accesses, sum + arr[j % #arr]);
+
+def SumFrom = fn(arr : Array<Int>, j : Int, sum : Int) -> Int =>
+	if j >= #arr then sum else SumFrom(arr, j + 1, sum + arr[j]);
+
+// v2 port: this measured in-place `Appendable::Append`, which no longer exists.
+// A comprehension is the v2 way to build an array of known size.
 def TestArrayAppend = fn(size : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array append (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array build via comprehension (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestArrayConcatenation = fn(size : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			arr = arr ++ [i];
-			i = i + 1;
-		}
-	};
+	def arr = AppendEach(0, size, []);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array concatenation (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array concatenation (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestArrayAccess = fn(size : Int, num_accesses : Int) -> Unit =>
 {
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def sum = 0;
-	def j = 0;
-	loop
-	{
-		if j >= num_accesses
-		then break ()
-		else
-		{
-			def index = j % size;
-			sum = sum + arr[index];
-			j = j + 1;
-		}
-	};
+	def sum = SumAccesses(arr, 0, num_accesses, 0);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Array access (" ++ (num_accesses as Text) ++ " accesses on " ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestArrayIteration = fn(size : Int) -> Unit =>
 {
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, i);
-			i = i + 1;
-		}
-	};
+	def arr = [value for value in 0..1..size];
 
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def sum = 0;
-	def j = 0;
-	loop
-	{
-		if j >= size
-		then break ()
-		else
-		{
-			sum = sum + arr[j];
-			j = j + 1;
-		}
-	};
+	def sum = SumFrom(arr, 0, 0);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
 	IO::PrintLine("Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestArrayBuilding = fn(size : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arr : Array<Int> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			arr = arr ++ [i * 2] ++ [i * 3];
-			i = i + 1;
-		}
-	};
+	def arr = AppendPairs(0, size, []);
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array building with multiple concatenations (" ++ (size as Text) ++ " iterations): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array building with multiple concatenations (" ++ (size as Text) ++ " iterations, " ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
 };
 
 def TestLargeArrayOperations = fn() -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arr1 : Array<Int> = [];
-	def arr2 : Array<Int> = [];
-
-	def i = 0;
-	loop
-	{
-		if i >= 5000
-		then break ()
-		else
-		{
-			Appendable::Append(arr1, i);
-			Appendable::Append(arr2, i * 2);
-			i = i + 1;
-		}
-	};
-
+	// Formerly two arrays filled by in-place Append in one loop.
+	def arr1 = [value for value in 0..1..5000];
+	def arr2 = [value * 2 for value in 0..1..5000];
 	def combined = arr1 ++ arr2;
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Large array operations (2x5000 elements combined): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Large array operations (2x5000 elements combined into " ++ ((#combined) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly filled by in-place Append; built by a comprehension now.
 def TestArrayOfText = fn(size : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def arr : Array<Text> = [];
-	def i = 0;
-	loop
-	{
-		if i >= size
-		then break ()
-		else
-		{
-			Appendable::Append(arr, "Item " ++ (i as Text));
-			i = i + 1;
-		}
-	};
+	def arr = ["Item " ++ (value as Text) for value in 0..1..size];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Array of Text (" ++ (size as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Array of Text (" ++ ((#arr) as Text) ++ " elements, last " ++ arr[size - 1] ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
+// v2 port: formerly nested loops with in-place Append; a nested comprehension now.
 def TestNestedArrays = fn(outer_size : Int, inner_size : Int) -> Unit =>
 {
-	def start = DateTime::GetTime();
+	def start = DateTime::NowUnixMillis();
 
-	def outer : Array<Array<Int>> = [];
-	def i = 0;
-	loop
-	{
-		if i >= outer_size
-		then break ()
-		else
-		{
-			def inner : Array<Int> = [];
-			def j = 0;
-			loop
-			{
-				if j >= inner_size
-				then break ()
-				else
-				{
-					Appendable::Append(inner, i * inner_size + j);
-					j = j + 1;
-				}
-			};
-			Appendable::Append(outer, inner);
-			i = i + 1;
-		}
-	};
+	def outer = [[row * inner_size + column for column in 0..1..inner_size] for row in 0..1..outer_size];
 
-	def end = DateTime::GetTime();
+	def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ ", last " ++ (outer[outer_size - 1][inner_size - 1] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
 TestArrayAppend(10000);

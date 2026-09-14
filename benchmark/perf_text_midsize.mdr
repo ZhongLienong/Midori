@@ -6,23 +6,22 @@ import
 	"../MidoriPrelude/DateTime.mdr"
 }
 
-def start = DateTime::NowUnixMillis();
-
-def matches = 0;
-def i = 0;
-loop
+// v2 port: the loop's `matches += 1` and `i += 1` are now a tail-recursive walk
+// carrying both counters. Each step still builds and compares one mid-size text.
+def CountMatches = fn(i : Int, limit : Int, matches : Int) -> Int =>
 {
-	if i >= 2000000
-	then break ()
+	if i >= limit
+	then matches
 	else
 	{
 		def s = "some_longer_prefix_string_" ++ ((i % 1000) as Text) ++ "_and_a_longer_suffix_here";
-		if s == "some_longer_prefix_string_42_and_a_longer_suffix_here"
-		then matches += 1
-		else 0;
-		i += 1;
+		CountMatches(i + 1, limit, if s == "some_longer_prefix_string_42_and_a_longer_suffix_here" then matches + 1 else matches)
 	}
 };
+
+def start = DateTime::NowUnixMillis();
+
+def matches = CountMatches(0, 2000000, 0);
 
 def end = DateTime::NowUnixMillis();
 

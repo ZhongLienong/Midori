@@ -18,10 +18,10 @@ def Ackermann = fn(m : Int, n : Int) -> Int =>
 	}
 };
 
-def start = DateTime::GetTime();
+def start = DateTime::NowUnixMillis();
 
 def result = Ackermann(3, 5);
 
-def end = DateTime::GetTime();
+def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("Ackermann(3, 10): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine("Ackermann(3, 5): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
