@@ -308,9 +308,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Case& case_expr);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Default& default_expr);
-
-
 	MidoriResult::TypeResult operator()(MidoriExpression::For& for_expr);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::ArrayComprehension& comp);

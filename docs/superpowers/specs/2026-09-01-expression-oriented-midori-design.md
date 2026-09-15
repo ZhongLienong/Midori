@@ -467,6 +467,7 @@ character wider than `union` and two wider than `struct`.
 | `:` in return position | **deleted** | `c2077d4` (corpus), this commit (parser) |
 | assignment | **deleted** | 2026-09-11/12, see the delete-assignment and delete-in-place-mutation plans |
 | `return` | **deleted** | 2026-09-15. 64 sites migrated with the compiler still accepting `return`, so the suite proved each rewrite kept its output before the node was removed. It took the unreachable-code warning and dead-code trimming with it: only a `return` could make code unreachable. |
+| `default` | **deleted** | 2026-09-15. 38 arms became `case _ =>`. Exhaustiveness now accepts any unguarded irrefutable arm for every scrutinee type, not only a lone one for non-unions, and an unguarded `case _` compiles to the same bytecode `default` did. Derived union instances build a wildcard case instead of a `Default` node. `default` is an ordinary identifier again. |
 
 Suite **367/367**, unit tests **1024 assertions / 176 cases**. Each removed keyword
 now gives a diagnostic naming its replacement rather than falling through to a bare

@@ -89,6 +89,5 @@ protected:
 	virtual void operator()(MidoriExpression::Block& block) override;
 	virtual void operator()(MidoriExpression::Match& match) override;
 	virtual void operator()(MidoriExpression::Case& case_expr) override;
-	virtual void operator()(MidoriExpression::Default& default_expr) override;
 	virtual void operator()(MidoriExpression::For& for_expr) override;
 };

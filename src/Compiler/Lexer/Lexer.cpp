@@ -32,7 +32,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"import"s, Token::Name::IMPORT},
 	{"foreign"s, Token::Name::FOREIGN},
 	{"case"s, Token::Name::CASE},
-	{"default"s, Token::Name::DEFAULT},
 	{"then"s, Token::Name::THEN},
 	{"with"s, Token::Name::WITH},
 	{"match"s, Token::Name::MATCH},

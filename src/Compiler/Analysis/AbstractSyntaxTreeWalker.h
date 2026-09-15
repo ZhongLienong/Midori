@@ -70,6 +70,5 @@ protected:
 	virtual void operator()(MidoriExpression::Block& block);
 	virtual void operator()(MidoriExpression::Match& match);
 	virtual void operator()(MidoriExpression::Case& case_expr);
-	virtual void operator()(MidoriExpression::Default& default_expr);
 	virtual void operator()(MidoriExpression::For& for_expr);
 };

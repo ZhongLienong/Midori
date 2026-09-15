@@ -261,7 +261,6 @@ namespace
 		case TokenName::AS:
 		case TokenName::FOREIGN:
 		case TokenName::CASE:
-		case TokenName::DEFAULT:
 		case TokenName::MATCH:
 		case TokenName::THEN:
 		case TokenName::WITH:
@@ -577,7 +576,6 @@ namespace
 					|| previous == TokenName::FAT_ARROW
 					|| previous == TokenName::WITH
 					|| previous == TokenName::CASE
-					|| previous == TokenName::DEFAULT
 					|| previous == TokenName::IN))
 			{
 				return;
@@ -723,7 +721,6 @@ namespace
 				}
 				return;
 			case TokenName::CASE:
-			case TokenName::DEFAULT:
 				if (!m_at_line_start)
 				{
 					WriteNewline();
@@ -743,7 +740,7 @@ namespace
 				return;
 			case TokenName::WITH:
 				WriteTokenText(token);
-				if (next_token == TokenName::CASE || next_token == TokenName::DEFAULT)
+				if (next_token == TokenName::CASE)
 				{
 					m_match_contexts.push_back(MatchContext{ m_indent + 1, m_paren_depth, m_bracket_depth, m_block_depth });
 					WriteNewline();

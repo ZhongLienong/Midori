@@ -87,7 +87,6 @@ struct Token
 		AS,
 		FOREIGN,
 		CASE,
-		DEFAULT,
 		MATCH,
 		THEN,
 		WITH,

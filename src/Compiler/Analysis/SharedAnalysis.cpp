@@ -220,7 +220,7 @@ namespace
 				{
 					return &node.m_match_keyword;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Case> || std::is_same_v<T, MidoriExpression::Default>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::Case>)
 				{
 					return &node.m_keyword;
 				}

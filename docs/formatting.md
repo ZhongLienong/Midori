@@ -54,8 +54,7 @@ with the line that owns the brace.
 | `def`      | `def name = expr;` or `def name = { ... };`                     |
 | `if`       | `if(cond) then { ... } else { ... };`                           |
 | `for`      | `for x in iter { ... };`                                        |
-| `loop`     | `loop { ... };`                                                 |
-| `match`    | `match value with case <pattern> => expr default => expr;`      |
+| `match`    | `match value with case <pattern> => expr case _ => expr;`      |
 | `type` (record) | `type Name = { field: Type, ... };`                        |
 | `type` (sum) | `type Name = Variant \| Variant(Type) \| ...;`                |
 | `class`    | `class Name<T> { method: fn(value: T) -> Type; ... };`           |
@@ -97,7 +96,7 @@ can group related imports manually.
 
 ### Match arm alignment
 
-- each `case` arm and the `default` arm appears on its own line
+- each `case` arm, including a catch-all `case _`, appears on its own line
 - arms inside a `match ... with` are indented one level beyond the surrounding
   block
 - exactly one space appears between the pattern and `=>`, and one space between
@@ -109,7 +108,7 @@ can group related imports manually.
 def name = match value with
     case (Some(x), 0) => x
     case (Some(x), _) => x + 1
-    default           => 0;
+    case _ => 0;
 ```
 
 The formatter does **not** vertically align the `=>` arrows. Authors who want

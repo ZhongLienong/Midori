@@ -30,12 +30,12 @@ def v = 2;
 def pair = (3, 4);
 
 // Right-hand operand of a binary operator. This was the silent wrong answer.
-def sum = 100 + (match v with case 1 => 10 case 2 => 20 default => 99);
+def sum = 100 + (match v with case 1 => 10 case 2 => 20 case _ => 99);
 Expect(sum == 120, "a match as the right operand of + must not overwrite the left operand");
 IO::PrintLine("binary right operand: " ++ (sum as Text));
 
 // A later call argument.
-def matched = Echo("match", match v with case 1 => 10 case 2 => 20 default => 99);
+def matched = Echo("match", match v with case 1 => 10 case 2 => 20 case _ => 99);
 Expect(matched == "match=20", "a match as a later argument must not overwrite the earlier argument");
 IO::PrintLine(matched);
 
@@ -45,7 +45,7 @@ Expect(destructured == "tuple=7", "pattern-bound locals must not overwrite an ea
 IO::PrintLine(destructured);
 
 // Two operands pending, so every write used to land two slots low.
-def two = EchoTwo("a", "b", match v with case 2 => 20 default => 0);
+def two = EchoTwo("a", "b", match v with case 2 => 20 case _ => 0);
 Expect(two == "ab=20", "a match must not overwrite either of two earlier arguments");
 IO::PrintLine(two);
 
@@ -66,7 +66,7 @@ IO::PrintLine(arrayed);
 
 // Nested: a match inside a comprehension, with the comprehension itself a later
 // argument and the match also a right-hand operand. Both shifts must compose.
-def nested = EchoArray("nested", [1 + (match x with case 1 => 10 default => 0) for x in [1, 2, 1]]);
+def nested = EchoArray("nested", [1 + (match x with case 1 => 10 case _ => 0) for x in [1, 2, 1]]);
 Expect(nested == "nested=11,11", "nested hidden-local constructs in operand position must compose");
 IO::PrintLine(nested);
 

@@ -321,11 +321,6 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Case& case_exp
 	VisitExpression(case_expr.m_expr);
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Default& default_expr)
-{
-	VisitExpression(default_expr.m_expr);
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::For& for_expr)
 {
 	VisitExpression(for_expr.m_range);

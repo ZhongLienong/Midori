@@ -520,14 +520,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Case& case_expr
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Default& default_expr, int depth) const
-{
-	PrintWithIndentation(depth, "Default {");
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(default_expr.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::For& for_expr, int depth) const
 {
 	PrintWithIndentation(depth, "For {");

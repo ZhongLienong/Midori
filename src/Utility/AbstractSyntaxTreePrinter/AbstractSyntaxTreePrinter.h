@@ -92,9 +92,6 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::Case& case_expr, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Default& default_expr, int depth = 0) const;
-
-
 	void operator()(const MidoriExpression::For& for_expr, int depth = 0) const;
 
 

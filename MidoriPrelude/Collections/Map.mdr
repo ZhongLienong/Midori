@@ -93,7 +93,7 @@ def CollapseBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >)
         match children[0] with
             case Node::Leaf(leaf_hash, leaf_key, leaf_value) => Node::Leaf (leaf_hash, leaf_key, leaf_value)
             case Node::Collision(collision_hash, entries) => Node::Collision (collision_hash, entries)
-            default => Node::Branch (bitmap, children)
+            case _ => Node::Branch (bitmap, children)
     }
     else Node::Branch (bitmap, children);
 def NodeWithout = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> (Node < K, V >, Int) where Equatable < K > =>
@@ -125,7 +125,7 @@ def NodeWithout = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int
                 def (child, delta) = NodeWithout(children[slot], hash, key, depth + 1);
                 match child with
                     case Node::Nothing() => (CollapseBranch(bitmap ^ Bits::BitAt(chunk), ArrayUtil::WithRemoved(children, slot)), delta)
-                    default => (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
+                    case _ => (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
             }
             else (Node::Branch (bitmap, children), 0)
         };

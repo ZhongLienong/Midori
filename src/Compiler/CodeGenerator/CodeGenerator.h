@@ -307,9 +307,6 @@ private:
 
 	void operator()(MidoriExpression::Case& case_expr);
 
-	void operator()(MidoriExpression::Default& default_expr);
-
-
 	void operator()(MidoriExpression::For& for_expr);
 
 	void operator()(MidoriExpression::ArrayComprehension& comp);

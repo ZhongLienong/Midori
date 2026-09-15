@@ -309,12 +309,6 @@ bool MidoriExpression::Case::HasGuard() const
 	return m_guard.has_value();
 }
 
-MidoriExpression::Default::Default(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr)
-	: m_keyword(keyword),
-	m_expr(std::move(expr))
-{
-}
-
 MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
 	std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body)
 	: m_for_keyword(for_keyword),

@@ -4233,7 +4233,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					missing_cases.emplace("false");
 				}
 
-				bool has_default_case = false;
+				bool has_catch_all_case = false;
 				std::shared_ptr<MidoriType> prev_case_type = nullptr;
 
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
@@ -4242,12 +4242,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					std::optional<CompilerError> error;
 					MidoriResult::TypeResult case_result;
 
-					if (case_expr->IsExpression<MidoriExpression::Default>())
-					{
-						has_default_case = true;
-						case_result = Evaluate(case_expr);
-					}
-					else if (case_expr->IsExpression<MidoriExpression::Case>())
+					if (case_expr->IsExpression<MidoriExpression::Case>())
 					{
 						MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
 						MidoriResult::TypeResult pattern_result = CheckPattern(*match_case.m_pattern, resolved_arg_type);
@@ -4286,8 +4281,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 								}
 							}
 
-							if ((is_union || is_bool) && IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
+							if (IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
 							{
+								has_catch_all_case = true;
 								missing_cases.clear();
 							}
 						}
@@ -4329,7 +4325,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 
 				if (is_union || is_bool)
 				{
-					if (!missing_cases.empty() && !has_default_case)
+					if (!missing_cases.empty())
 					{
 						std::vector<std::string> missing_names(missing_cases.begin(), missing_cases.end());
 						const std::string missing_label = is_union ? "variants" : "cases";
@@ -4339,16 +4335,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				}
 				else
 				{
-					if (!has_default_case)
+					if (!has_catch_all_case)
 					{
-						bool irrefutable = match.m_cases.size() == 1u
-							&& match.m_cases[0u]->IsExpression<MidoriExpression::Case>()
-							&& !match.m_cases[0u]->GetExpression<MidoriExpression::Case>().HasGuard()
-							&& IsIrrefutablePattern(*match.m_cases[0u]->GetExpression<MidoriExpression::Case>().m_pattern, resolved_arg_type);
-						if (!irrefutable)
-						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches require a default case", match.m_match_keyword, m_file_name, m_source_lines));
-						}
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'",match.m_match_keyword, m_file_name, m_source_lines));
 					}
 				}
 
@@ -4393,18 +4382,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_ex
 			[&case_expr, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
 			{
 				return Unify(case_expr.m_keyword, case_expr.m_type_data, expr_type);
-			}
-		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Default& default_expr)
-{
-	return Evaluate(default_expr.m_expr)
-		.and_then
-		(
-			[&default_expr, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
-			{
-				return Unify(default_expr.m_keyword, default_expr.m_type_data, expr_type);
 			}
 		);
 }

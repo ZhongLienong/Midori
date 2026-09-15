@@ -18,7 +18,7 @@ def CountDownBinding = fn(n : Int, acc : Int) -> Int =>
 
 def CountDownInMatch = fn(n : Int, acc : Int) -> Int => match n <= 0 with
 	case true => acc
-	default => CountDownInMatch(n - 1, acc + n)
+	case _ => CountDownInMatch(n - 1, acc + n)
 ;
 
 def OuterHoldingLocalBinding = fn() -> Int =>

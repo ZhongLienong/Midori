@@ -4,5 +4,5 @@ def value = 1;
 
 def result = match value with
 	case [x] => x
-	default => 0
+	case _ => 0
 ;

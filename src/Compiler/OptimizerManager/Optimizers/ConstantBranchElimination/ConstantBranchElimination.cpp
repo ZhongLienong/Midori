@@ -69,14 +69,6 @@ void ConstantBranchElimination::operator()(MidoriExpression::Match& match)
 
 	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 	{
-		if (case_expr->IsExpression<MidoriExpression::Default>())
-		{
-			MidoriExpression::Default& default_expr = case_expr->GetExpression<MidoriExpression::Default>();
-			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(default_expr.m_expr));
-			m_pending_replacement->GetType() = match.m_type_data;
-			return;
-		}
-
 		if (!case_expr->IsExpression<MidoriExpression::Case>())
 		{
 			return;

@@ -390,9 +390,12 @@ def Unwrap = fn(option: Option<Int>) -> Int =>
 
 `match` expressions are checked for exhaustiveness:
 
-- **Union scrutinees** must cover every variant unless a `default` arm is present
-- **`Bool` scrutinees** must cover both `true` and `false` unless a `default` arm is present
-- **Other scrutinee types** require `default`
+- **Union scrutinees** must cover every variant unless a catch-all arm is present
+- **`Bool` scrutinees** must cover both `true` and `false` unless a catch-all arm is present
+- **Other scrutinee types** require a catch-all arm
+
+A catch-all arm is an unguarded `case` whose pattern always matches: `case _`, a
+bare binding such as `case n`, or a tuple of those. There is no `default` keyword.
 
 Coverage is currently tracked at the top-level pattern. For unions, matching a variant counts as covering that variant even if nested sub-patterns are not themselves exhaustive.
 

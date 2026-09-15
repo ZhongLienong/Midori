@@ -4,5 +4,5 @@ def pair = (1, 2);
 
 def result = match pair with
 	case (a, b, c) => 0
-	default => 1
+	case _ => 1
 ;

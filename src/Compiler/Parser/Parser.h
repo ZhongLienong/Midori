@@ -656,7 +656,6 @@ private:
 
 	MidoriResult::PatternResult ParsePattern();
 
-	MidoriResult::ExpressionResult ParseDefaultExpression(bool& default_visited, Token& keyword);
 
 	MidoriResult::StatementResult ParseDeclaration();
 

@@ -127,11 +127,11 @@ TEST_CASE("Formatter is idempotent for match arms", "[formatter][edge]")
 {
 	const std::string source_code =
 		"module MatchArms\n"
-		"def value = match 0 with case 0 => 0 case 1 => 1 default => 2;\n";
+		"def value = match 0 with case 0 => 0 case 1 => 1 case _ => 2;\n";
 
 	const std::string first_pass = FormatOrFail(source_code, "MatchArms.mdr");
 	CHECK(first_pass.find("case 0 => 0") != std::string::npos);
-	CHECK(first_pass.find("default => 2") != std::string::npos);
+	CHECK(first_pass.find("case _ => 2") != std::string::npos);
 	RequireIdempotent(source_code, "MatchArms.mdr");
 }
 
@@ -139,12 +139,12 @@ TEST_CASE("Formatter round-trips guarded match arms", "[formatter][edge]")
 {
 	const std::string source_code =
 		"module GuardedArms\n"
-		"def value = match 0 with case n if n>10 =>1 case n if n>0 =>2 default => 3;\n";
+		"def value = match 0 with case n if n>10 =>1 case n if n>0 =>2 case _ => 3;\n";
 
 	const std::string first_pass = FormatOrFail(source_code, "GuardedArms.mdr");
 	CHECK(first_pass.find("case n if n > 10 => 1") != std::string::npos);
 	CHECK(first_pass.find("case n if n > 0 => 2") != std::string::npos);
-	CHECK(first_pass.find("default => 3") != std::string::npos);
+	CHECK(first_pass.find("case _ => 3") != std::string::npos);
 	RequireIdempotent(source_code, "GuardedArms.mdr");
 }
 

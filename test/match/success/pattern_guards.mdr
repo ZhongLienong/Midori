@@ -32,7 +32,7 @@ IO::PrintLine("statement_level=" ++ statement_level);
 def guard_on_binding = match 17 with
 	case n if n > 20 => "big"
 	case n if n > 10 => "medium"
-	default => "small"
+	case _ => "small"
 ;
 
 IO::PrintLine("guard_on_binding=" ++ guard_on_binding);
@@ -40,7 +40,7 @@ IO::PrintLine("guard_on_binding=" ++ guard_on_binding);
 def guard_on_tuple = match (3, 4) with
 	case (a, b) if a + b > 100 => 0
 	case (a, b) if a + b > 5 => a + b
-	default => -1
+	case _ => -1
 ;
 
 IO::PrintLine("guard_on_tuple=" ++ (guard_on_tuple as Text));
@@ -48,7 +48,7 @@ IO::PrintLine("guard_on_tuple=" ++ (guard_on_tuple as Text));
 def guard_falls_to_default = match true with
 	case true if 1 > 2 => "impossible"
 	case false => "false branch"
-	default => "fell through"
+	case _ => "fell through"
 ;
 
 IO::PrintLine("guard_falls_to_default=" ++ guard_falls_to_default);

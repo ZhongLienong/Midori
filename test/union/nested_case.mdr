@@ -19,5 +19,5 @@ def zz = Inner::A();
 
 def sssw = match z with
 	case U1::D(u) => IO::PrintLine("D")
-	default => IO::PrintLine("Outer default case")
+	case _ => IO::PrintLine("Outer default case")
 ;

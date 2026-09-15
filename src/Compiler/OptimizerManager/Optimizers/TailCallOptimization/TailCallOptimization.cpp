@@ -260,11 +260,6 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_expr, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::Default& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_expr, m_function_name);
-			}
-
 			bool operator()(const MidoriExpression::For& node) const
 			{
 				return ContainsRecursiveCallImpl(*node.m_range, m_function_name) || ContainsRecursiveCallImpl(*node.m_body, m_function_name);
@@ -503,11 +498,6 @@ bool TailCallOptimization::IsTailRecursive(std::unique_ptr<MidoriExpression>& ex
 		}
 
 		return IsTailRecursive(case_expr.m_expr, function_name);
-	}
-	if (expr->IsExpression<MidoriExpression::Default>())
-	{
-		MidoriExpression::Default& default_expr = expr->GetExpression<MidoriExpression::Default>();
-		return IsTailRecursive(default_expr.m_expr, function_name);
 	}
 	if (expr->IsExpression<MidoriExpression::Group>())
 	{

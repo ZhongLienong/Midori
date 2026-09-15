@@ -48,7 +48,7 @@ def ExpectIOErrNotFound = fn<T>(result: Result<T, IOError>, message: Text) -> Un
         case Result::Err(err) => {
             match err with
                 case IOError::NotFound(_) => ()
-                default => Panic::Panic(message)
+                case _ => Panic::Panic(message)
             ;
         }
         case Result::Ok(_) => Panic::Panic(message)
@@ -71,7 +71,7 @@ def ExpectSystemErrInvalidDirectory = fn<T>(result: Result<T, SystemError>, mess
         case Result::Err(err) => {
             match err with
                 case SystemError::InvalidDirectory(_) => ()
-                default => Panic::Panic(message)
+                case _ => Panic::Panic(message)
             ;
         }
         case Result::Ok(_) => Panic::Panic(message)
@@ -88,7 +88,7 @@ def ExpectSystemCommandFailed = fn(result: Result<ProcessResult, SystemError>, m
         case Result::Err(err) => {
             match err with
                 case SystemError::CommandFailed(code) => Expect(code != 0, message)
-                default => Panic::Panic(message)
+                case _ => Panic::Panic(message)
             ;
         }
         case Result::Ok(_) => Panic::Panic(message)
@@ -168,7 +168,7 @@ ExpectNoneText(System::TryGetEnv(missing_env_name), "TryGetEnv should return Non
 def platform = System::CurrentPlatform();
 match platform with
     case Platform::Unknown(name) => Panic::Panic("CurrentPlatform returned an unexpected platform: " ++ name)
-    default => ()
+    case _ => ()
 ;
 
 Expect(System::CurrentProcessId() > 0, "CurrentProcessId should be a positive integer");

@@ -286,11 +286,6 @@ void MidoriOptimizer::operator()(MidoriExpression::Case& case_expr)
 	VisitAndReplace(case_expr.m_expr);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Default& default_expr)
-{
-	VisitAndReplace(default_expr.m_expr);
-}
-
 void MidoriOptimizer::operator()(MidoriExpression::For& for_expr)
 {
 	VisitAndReplace(for_expr.m_range);

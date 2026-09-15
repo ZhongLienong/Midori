@@ -664,14 +664,6 @@ public:
 		bool HasGuard() const;
 	};
 
-	struct Default : BaseExpression
-	{
-		Token m_keyword;
-		std::unique_ptr<MidoriExpression> m_expr;
-
-		Default(const Token& keyword, std::unique_ptr<MidoriExpression>&& expr);
-	};
-
 	struct For : BaseExpression
 	{
 		Token m_for_keyword;
@@ -692,7 +684,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, For>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
 	ExpressionUnion m_variant;
 
 public:

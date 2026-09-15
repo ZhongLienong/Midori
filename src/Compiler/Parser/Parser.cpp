@@ -4034,32 +4034,23 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 		(
 			[expr = std::move(expr), &match_keyword, this, match_value_index, match_value_index_opt](Token&&) mutable ->MidoriResult::ExpressionResult
 			{
-				bool default_visited = false;
 				std::unordered_set<std::string> visited_names;
 				std::vector<std::unique_ptr<MidoriExpression>> cases;
 
-				while (Check(Token::Name::CASE, 0) || Check(Token::Name::DEFAULT, 0))
+				while (Match(Token::Name::CASE))
 				{
-					if (Match(Token::Name::CASE))
+					Token& case_keyword = Previous();
+					MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
+					if (!case_result.has_value())
 					{
-						Token& case_keyword = Previous();
-						MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
-						if (!case_result.has_value())
-						{
-							return std::unexpected(std::move(case_result.error()));
-						}
-						cases.emplace_back(std::move(case_result.value()));
+						return std::unexpected(std::move(case_result.error()));
 					}
-					else if (Match(Token::Name::DEFAULT))
-					{
-						Token& default_keyword = Previous();
-						MidoriResult::ExpressionResult default_result = ParseDefaultExpression(default_visited, default_keyword);
-						if (!default_result.has_value())
-						{
-							return std::unexpected(std::move(default_result.error()));
-						}
-						cases.emplace_back(std::move(default_result.value()));
-					}
+					cases.emplace_back(std::move(case_result.value()));
+				}
+
+				if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "default")
+				{
+					return std::unexpected(GenerateParserError("'default' is no longer supported. Write 'case _ =>' instead; '_' is a wildcard pattern, so it also works nested inside other patterns.", Peek(0)));
 				}
 
 				if (cases.empty())
@@ -4644,33 +4635,6 @@ MidoriResult::PatternResult Parser::ParsePattern()
 	}
 
 	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
-}
-
-MidoriResult::ExpressionResult Parser::ParseDefaultExpression(bool& default_visited, Token& keyword)
-{
-	if (default_visited)
-	{
-		return std::unexpected(GenerateParserError("Cannot have more than one default case.", Previous()));
-	}
-	else
-	{
-		default_visited = true;
-		return Consume(Token::Name::FAT_ARROW, "Expected '=>' after default.")
-			.and_then
-			(
-				[&keyword, this](Token&&)->MidoriResult::ExpressionResult
-				{
-					return ParseExpression()
-						.and_then
-						(
-							[&keyword](std::unique_ptr<MidoriExpression>&& case_expr) -> MidoriResult::ExpressionResult
-							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::Default(keyword, std::move(case_expr)));
-							}
-						);
-				}
-			);
-	}
 }
 
 MidoriResult::StatementResult Parser::ParseStatement()
@@ -5948,8 +5912,10 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	auto make_default_case = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& expr) -> std::unique_ptr<MidoriExpression>
 	{
-		Token default_token = MakeSyntheticToken("default", Token::Name::DEFAULT, union_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::Default(default_token, std::move(expr)));
+		Token case_token = MakeSyntheticToken("case", Token::Name::CASE, union_stmt.m_name);
+		Token wildcard_token = MakeSyntheticToken("_", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
+		std::unique_ptr<MidoriPattern> wildcard = std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(wildcard_token));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(wildcard), std::move(expr), 0));
 	};
 
 	auto make_match = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& scrutinee, int hidden_index, std::vector<std::unique_ptr<MidoriExpression>>&& cases) -> std::unique_ptr<MidoriExpression>

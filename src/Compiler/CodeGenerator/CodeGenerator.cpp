@@ -2148,7 +2148,6 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::Block& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Match& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Case& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::Default& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::For& arg) const { (*m_self)(arg); }
 	};
 
@@ -4662,14 +4661,14 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 	std::vector<int> end_jumps;
 	for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 	{
-		if (case_expr->IsExpression<MidoriExpression::Default>())
+		MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+		if (!match_case.HasGuard() && match_case.m_pattern->IsPattern<MidoriPattern::Wildcard>())
 		{
-			Visit(case_expr);
+			Visit(match_case.m_expr);
 			end_jumps.emplace_back(EmitJump(OpCode::JUMP, line));
 			break;
 		}
 
-		MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
 		std::vector<int> failure_jumps;
 		EmitVariable(match.m_match_value_index, OpCode::GET_LOCAL, line);
 		EmitPatternCheck(*match_case.m_pattern, failure_jumps, 0);
@@ -4738,11 +4737,6 @@ void CodeGenerator::operator()(MidoriExpression::Match& match)
 void CodeGenerator::operator()(MidoriExpression::Case& case_expr)
 {
 	Visit(case_expr.m_expr);
-}
-
-void CodeGenerator::operator()(MidoriExpression::Default& default_expr)
-{
-	Visit(default_expr.m_expr);
 }
 
 void CodeGenerator::operator()(MidoriExpression::For& for_expr)

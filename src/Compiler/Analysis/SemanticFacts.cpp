@@ -956,10 +956,6 @@ namespace
 
 					return IsPureExpression(*node.m_expr);
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Default>)
-				{
-					return IsPureExpression(*node.m_expr);
-				}
 				else
 				{
 					return false;
@@ -1357,11 +1353,6 @@ namespace
 			{
 				VisitExpression(*node.m_guard.value());
 			}
-			VisitExpression(*node.m_expr);
-		}
-
-		void Visit(const MidoriExpression::Default& node)
-		{
 			VisitExpression(*node.m_expr);
 		}
 

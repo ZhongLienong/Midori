@@ -16,7 +16,7 @@ def Impure = fn(n: Int) -> Bool =>
 def constant_scrutinee = match 5 with
 	case 5 if Impure(5) => "guarded five"
 	case 5 => "plain five"
-	default => "other"
+	case _ => "other"
 ;
 
 IO::PrintLine("constant_scrutinee=" ++ constant_scrutinee);
@@ -30,7 +30,7 @@ def CountDown = fn(s: Step, acc: Int) -> Int => match s with
 IO::PrintLine("count_down=" ++ (CountDown(Step::Continue(10000), 0) as Text));
 
 def nested = match Step::Continue(3) with
-	case Step::Continue(n) if (match n with case 3 => true default => false) => "nested guard hit"
+	case Step::Continue(n) if (match n with case 3 => true case _ => false) => "nested guard hit"
 	case Step::Continue(_) => "nested guard missed"
 	case Step::Stop(_) => "stop"
 ;
@@ -40,7 +40,7 @@ IO::PrintLine("nested=" ++ nested);
 def many_bindings = match (1, (2, 3), [4, 5]) with
 	case (a, (b, c), [d, e]) if a + b + c + d + e > 100 => 0
 	case (a, (b, c), [d, e]) if a + b + c + d + e > 10 => a * b * c * d * e
-	default => -1
+	case _ => -1
 ;
 
 IO::PrintLine("many_bindings=" ++ (many_bindings as Text));

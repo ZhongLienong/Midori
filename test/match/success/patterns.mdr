@@ -24,19 +24,19 @@ def area = match point with
 def arr = [1, 2, 3];
 def array_sum = match arr with
 	case [a, b, c] => a + b + c
-	default => 0
+	case _ => 0
 ;
 
 def literal_match = match 3 with
 	case 1 => 10
 	case 3 => 30
-	default => 0
+	case _ => 0
 ;
 
 def text_match = match "hi" with
 	case "bye" => 0
 	case "hi" => 1
-	default => -1
+	case _ => -1
 ;
 
 IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
