@@ -130,14 +130,14 @@ def scenario_check_json_success_uses_project_manifest(runner: TestRunner) -> Non
             source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "def Value = fn(): Int => 41;\n",
+            "def Value = fn() -> Int => 41;\n",
         )
         main_path = source_dir / "Main.mdr"
         write_text(
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "def main = fn(): Int => {\n"
+            "def main = fn() -> Int => {\n"
             "    def unused = 1;\n"
             "    Support::Value()\n"
             "};\n",
@@ -153,7 +153,7 @@ def scenario_check_json_success_uses_project_manifest(runner: TestRunner) -> Non
 
         assert_condition(
             completed.returncode == 0,
-            f"check_json_success_uses_project_manifest: expected exit code 0, got {completed.returncode}.",
+            f"check_json_success_uses_project_manifest: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
         )
         assert_condition(payload.get("command") == "check", f"Unexpected command payload: {payload}")
         warnings = report["warnings"]
@@ -228,14 +228,14 @@ def scenario_package_manifest_project_fallback(runner: TestRunner) -> None:
             source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "def Value = fn(): Int => 99;\n",
+            "def Value = fn() -> Int => 99;\n",
         )
         main_path = source_dir / "Main.mdr"
         write_text(
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "def main = fn(): Int => Support::Value();\n",
+            "def main = fn() -> Int => Support::Value();\n",
         )
 
         completed = run_midori(
@@ -248,7 +248,7 @@ def scenario_package_manifest_project_fallback(runner: TestRunner) -> None:
 
         assert_condition(
             completed.returncode == 0,
-            f"package_manifest_project_fallback: expected exit code 0, got {completed.returncode}.",
+            f"package_manifest_project_fallback: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
         )
         assert_condition(report["warnings"] == [], f"Expected no warnings, got: {report['warnings']}")
         assert_condition(report["errors"] == [], f"Expected no errors, got: {report['errors']}")
@@ -278,7 +278,7 @@ def scenario_project_manifest_takes_precedence_over_package_fallback(runner: Tes
             preferred_source_dir / "Support.mdr",
             "module Support\n"
             "public export { Value }\n"
-            "def Value = fn(): Int => 5;\n",
+            "def Value = fn() -> Int => 5;\n",
         )
         write_text(
             package_source_dir / "Support.mdr",
@@ -291,7 +291,7 @@ def scenario_project_manifest_takes_precedence_over_package_fallback(runner: Tes
             main_path,
             "module Main\n"
             "import { <Support> }\n"
-            "def main = fn(): Int => Support::Value();\n",
+            "def main = fn() -> Int => Support::Value();\n",
         )
 
         completed = run_midori(
@@ -304,7 +304,7 @@ def scenario_project_manifest_takes_precedence_over_package_fallback(runner: Tes
 
         assert_condition(
             completed.returncode == 0,
-            "project_manifest_takes_precedence_over_package_fallback: expected exit code 0.",
+            f"project_manifest_takes_precedence_over_package_fallback: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
         )
         assert_condition(report["warnings"] == [], f"Expected no warnings, got: {report['warnings']}")
         assert_condition(report["errors"] == [], f"Expected no errors, got: {report['errors']}")
@@ -388,7 +388,7 @@ def scenario_run_command_executes_program(runner: TestRunner) -> None:
         write_text(
             source_path,
             "module Main\n"
-            "def main = fn(): Int => 0;\n",
+            "def main = fn() -> Int => 0;\n",
         )
 
         completed = run_midori(
@@ -399,7 +399,7 @@ def scenario_run_command_executes_program(runner: TestRunner) -> None:
         payload = parse_command_json("run_command_executes_program", completed)
         report = require_report(payload, "run_command_executes_program")
 
-        assert_condition(completed.returncode == 0, f"run_command_executes_program: expected exit code 0, got {completed.returncode}.")
+        assert_condition(completed.returncode == 0, f"run_command_executes_program: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}")
         assert_condition(payload.get("command") == "run", f"Unexpected command payload: {payload}")
         assert_condition(payload.get("success") is True, f"Expected run success payload, got {payload}")
         assert_condition(report["errors"] == [], f"Expected no run errors, got: {report['errors']}")
@@ -412,7 +412,7 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         write_text(
             source_path,
             "module Main\n"
-            "def main = fn(): Int => 13;\n",
+            "def main = fn() -> Int => 13;\n",
         )
 
         completed = run_midori(
@@ -423,7 +423,7 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         payload = parse_command_json("build_command_compiles_without_running", completed)
         report = require_report(payload, "build_command_compiles_without_running")
 
-        assert_condition(completed.returncode == 0, f"build_command_compiles_without_running: expected exit code 0, got {completed.returncode}.")
+        assert_condition(completed.returncode == 0, f"build_command_compiles_without_running: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}")
         assert_condition(payload.get("command") == "build", f"Unexpected command payload: {payload}")
         assert_condition(payload.get("success") is True, f"Expected build success payload, got {payload}")
         assert_condition(report["errors"] == [], f"Expected no build errors, got: {report['errors']}")
@@ -447,7 +447,7 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
             source_path,
             "module Main\n"
             "// comment\n"
-            "def main = fn():Int=>0; // trailing\n",
+            "def main = fn()->Int=>0; // trailing\n",
         )
 
         check_before = run_midori(runner, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MIDORI_PATH": None})
@@ -489,7 +489,7 @@ def scenario_test_command_discovers_project_tests(runner: TestRunner) -> None:
         write_text(
             test_dir / "smoke.mdr",
             "module Smoke\n"
-            "def main = fn(): Int => 0;\n",
+            "def main = fn() -> Int => 0;\n",
         )
 
         completed = run_midori(
@@ -501,7 +501,7 @@ def scenario_test_command_discovers_project_tests(runner: TestRunner) -> None:
         payload = parse_command_json("test_command_discovers_project_tests", completed)
         summary = payload.get("summary")
 
-        assert_condition(completed.returncode == 0, f"test_command_discovers_project_tests: expected exit code 0, got {completed.returncode}.")
+        assert_condition(completed.returncode == 0, f"test_command_discovers_project_tests: expected exit code 0, got {completed.returncode}. Payload: {payload}")
         assert_condition(payload.get("command") == "test", f"Unexpected command payload: {payload}")
         assert_condition(isinstance(summary, dict), f"Expected summary object, got: {summary}")
         assert_condition(summary.get("total") == 1, f"Expected one discovered test, got: {payload}")
@@ -528,8 +528,9 @@ def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
         write_text(
             test_dir / "hang.mdr",
             "module Hang\n"
-            "loop {\n"
-            "};\n",
+            "// `loop` was removed in v2; a tail call recurses forever without growing the stack.\n"
+            "def Spin = fn(n: Int) -> Int => Spin(n + 1);\n"
+            "Spin(0);\n",
         )
 
         completed = run_midori(
