@@ -119,7 +119,7 @@ type Hidden =
 	value: Int
 };
 def Display = fn<T>(value: T) -> Text where Show<T> => {
-	return Show::show(value);
+	Show::show(value)
 };
 def rendered = Display(Hidden(1));
 )";

@@ -21,7 +21,6 @@ protected:
 	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 	void operator()(MidoriExpression::Function& function) override;
 	void operator()(MidoriExpression::Block& block) override;
-	void operator()(MidoriExpression::Return& return_expr) override;
 
 private:
 	struct ClosureBinding
@@ -54,6 +53,11 @@ private:
 	const ClosureBinding* ResolveClosure(const MidoriExpression::NameContext::Tag& name_ctx) const;
 	std::optional<EscapingClosure> TryGetEscapingClosure(const MidoriExpression& expression) const;
 	void WarnOnEscapingClosure(const MidoriExpression& expression);
+	void VisitFunctionBody(std::unique_ptr<MidoriExpression>& body);
 
 	std::vector<FunctionContext> m_functions;
+	// The block that is the body of the function being visited: its final
+	// expression is the function's result. It is checked from inside the block,
+	// while the bindings it can name are still in scope.
+	const MidoriExpression::Block* m_result_block = nullptr;
 };

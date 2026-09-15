@@ -15,20 +15,20 @@ class Debug<T> {
 
 instance Show<Int> {
     def display = fn(value: Int) -> Text => {
-        return "Show: " ++ (value as Text);
+        "Show: " ++ (value as Text)
     };
 };
 
 instance Debug<Int> {
     def display = fn(value: Int) -> Text => {
-        return "Debug: " ++ (value as Text);
+        "Debug: " ++ (value as Text)
     };
 };
 
 // ERROR: Function with BOTH constraints - which display?
 // With qualified class methods required, unqualified access is rejected.
 def print_both = fn<T>(x: T) -> Text where Show<T>, Debug<T> => {
-    return display(x);  // Error: unqualified class method
+    display(x)  // Error: unqualified class method
 };
 
 def result = print_both(42);

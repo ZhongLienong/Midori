@@ -9,7 +9,7 @@ def CountUp = fn<T>(start: T, step: T, end: T) -> Unit =>
     {
         x;
     };
-    return ();
+    ()
 };
 
 CountUp(0, 1, 10);
@@ -25,7 +25,7 @@ def IterateTwice = fn<T>(start: T, step: T, end: T) -> Unit =>
     {
         y;
     };
-    return ();
+    ()
 };
 
 IterateTwice(1, 2, 20);

@@ -5,7 +5,7 @@ import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.md
 
 // This should fail at type checking because there's no Convertable<T, Text> constraint
 def ToTextMissingConstraint = fn<T>(value: T) -> Text => {
-    return value as Text;  // ERROR: Should require Convertable<T, Text> constraint
+    value as Text  // ERROR: Should require Convertable<T, Text> constraint
 };
 
 def result = ToTextMissingConstraint(42);

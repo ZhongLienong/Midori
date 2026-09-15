@@ -588,10 +588,14 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 	}
 
-	// `loop`, `break` and `continue` are no longer keywords, so a file still using
-	// them lexes them as ordinary identifiers and would fail with a bare "Undefined
-	// name." Name the removal instead. Reached only when the name does not resolve,
-	// so a binding actually called `loop` is untouched.
+	// `loop`, `break`, `continue` and `return` are no longer keywords, so a file
+	// still using them lexes them as ordinary identifiers and would fail with a bare
+	// "Undefined name." Name the removal instead. Reached only when the name does not
+	// resolve, so a binding actually called `loop` is untouched.
+	if (lookup_name == "return")
+	{
+		return std::unexpected(GenerateParserError("'return' is no longer supported. A function's value is its body's value, and a block's value is its last expression, so drop 'return'. To leave early, make the rest of the body an 'if'/'else' or a 'match' branch.", name_token));
+	}
 	if (lookup_name == "loop")
 	{
 		return std::unexpected(GenerateParserError("'loop' is no longer supported. Write a recursive function, or 'for x in iterable { ... }' to consume an iterable for its effects.", name_token));
@@ -1924,10 +1928,6 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	{
 		return ParseForExpression();
 	}
-	else if (Match(Token::Name::RETURN))
-	{
-		return ParseReturnExpression();
-	}
 	else
 	{
 		return std::unexpected(GenerateParserError("Expected expression.", Peek(0)));
@@ -2369,26 +2369,6 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 					);
 			}
 		);
-}
-
-MidoriResult::ExpressionResult Parser::ParseReturnExpression()
-{
-	Token& keyword = Previous();
-	if (m_state.m_function_depth == 0)
-	{
-		return std::unexpected(GenerateParserError("'return' must be used inside a function.", keyword));
-	}
-	else
-	{
-		return ParseExpression()
-			.and_then
-			(
-				[&keyword, this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
-				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Return(keyword, std::move(expr)));
-				}
-			);
-	}
 }
 
 MidoriResult::ExpressionResult Parser::ParseForExpression()

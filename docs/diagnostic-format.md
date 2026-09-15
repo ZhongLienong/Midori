@@ -220,7 +220,6 @@ Current `CompilerWarningCode` values:
 - `None`
 - `NameShadowing`
 - `UnusedLocal`
-- `UnreachableCode`
 - `CaptureEscape`
 - `IntegerOverflow`
 
@@ -304,7 +303,6 @@ are emitted with the same shape as the full examples above.
 |------|-------|-----------------|
 | `NameShadowing` | `StaticAnalyzer` | `Binding 'count' shadows an earlier definition.` |
 | `UnusedLocal` | `StaticAnalyzer` | `Binding 'unused' is never read.` |
-| `UnreachableCode` | `StaticAnalyzer` | `Statement is unreachable; the preceding branch always returns.` |
 | `CaptureEscape` | `StaticAnalyzer` | `Captured local 'state' escapes its defining scope.` |
 | `IntegerOverflow` | `StaticAnalyzer` | `Integer literal '9999999999' overflows 'Int'.` |
 

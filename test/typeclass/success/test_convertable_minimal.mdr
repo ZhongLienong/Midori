@@ -15,7 +15,7 @@ instance Convertable<Bool, Int> {
 };
 
 def BoolToInt = fn<T>(value: T) -> Int where Convertable<T, Int> => {
-    return Convertable::Convert(value);
+    Convertable::Convert(value)
 };
 
 // Just test that it works

@@ -12,5 +12,5 @@ def wants_text_tag = fn(t: Tag<Text>) -> Int => 1;
 def main = fn() -> Int => 
 {
 	def t = make_int_tag();
-	return wants_text_tag(t);
+	wants_text_tag(t)
 };

@@ -8,6 +8,6 @@ class Show<T> {
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {
-        return value as Text;
+        value as Text
     };
 };

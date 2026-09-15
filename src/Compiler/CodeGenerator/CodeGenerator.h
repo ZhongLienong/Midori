@@ -315,7 +315,6 @@ private:
 	void operator()(MidoriExpression::ArrayComprehension& comp);
 
 
-	void operator()(MidoriExpression::Return& return_expr);
 
 	void EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line);
 

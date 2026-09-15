@@ -539,14 +539,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::For& for_expr, 
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Return& return_expr, int depth) const
-{
-	PrintWithIndentation(depth, "Return {");
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(return_expr.m_value, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
 void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Binding& binding, int depth) const
 {
 	PrintWithIndentation(depth, "BindingPattern {");

@@ -11,19 +11,19 @@ class Show<T> {
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {
-        return value as Text;
+        value as Text
     };
 };
 
 instance Show<Float> {
     def show = fn(value: Float) -> Text => {
-        return value as Text;
+        value as Text
     };
 };
 
 // Generic function with constraint - should dispatch to correct instance
 def display = fn<T>(value: T) -> Text where Show<T> => {
-    return Show::show(value);
+    Show::show(value)
 };
 
 // Test Int dispatch

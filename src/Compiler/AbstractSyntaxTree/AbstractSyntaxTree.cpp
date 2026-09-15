@@ -325,12 +325,6 @@ MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable,
 {
 }
 
-MidoriExpression::Return::Return(const Token& keyword, std::unique_ptr<MidoriExpression>&& value)
-	: m_keyword(keyword),
-	m_value(std::move(value))
-{
-}
-
 bool MidoriExpression::Block::HasDefine() const
 {
 	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::VariableDefinition>(); });

@@ -4,11 +4,11 @@ module TestNestedGenericCalls
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Convertable.mdr" }
 
 def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
-    return value as Text;
+    value as Text
 };
 
 def ToInt = fn<T>(value: T) -> Int where Convertable<T, Int> => {
-    return value as Int;
+    value as Int
 };
 
 // Function that uses other generic functions
@@ -17,7 +17,7 @@ def ProcessValue = fn<T>(value: T) -> Text
     def text_repr = ToText(value);
     def int_repr = ToInt(value);
     def int_as_text = ToText(int_repr);
-    return "Text: " ++ text_repr ++ ", Int: " ++ int_as_text;
+    "Text: " ++ text_repr ++ ", Int: " ++ int_as_text
 };
 
 def result1 = ProcessValue(42);

@@ -15,11 +15,11 @@ instance Equatable<Point>
 instance Orderable<Point>
 {
     def Compare = fn(a: Point, b: Point) -> Int => {
-        if a.x < b.x then return -1 else
-        if a.x > b.x then return 1 else
-        if a.y < b.y then return -1 else
-        if a.y > b.y then return 1 else
-        return 0;
+        if a.x < b.x then -1 else
+        if a.x > b.x then 1 else
+        if a.y < b.y then -1 else
+        if a.y > b.y then 1 else
+        0
     };
 };
 

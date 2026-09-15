@@ -25,7 +25,6 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"for"s, Token::Name::FOR},
 	{"in"s, Token::Name::IN},
 	{"if"s, Token::Name::IF},
-	{"return"s, Token::Name::RETURN},
 	{"true"s, Token::Name::TRUE},
 	{"def"s, Token::Name::DEF},
 	{"fn"s, Token::Name::FUNCTION},

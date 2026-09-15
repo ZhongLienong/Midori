@@ -97,7 +97,6 @@ struct PrintAbstractSyntaxTree
 
 	void operator()(const MidoriExpression::For& for_expr, int depth = 0) const;
 
-	void operator()(const MidoriExpression::Return& return_expr, int depth = 0) const;
 
 
 	void operator()(const MidoriPattern::Binding& binding, int depth = 0) const;

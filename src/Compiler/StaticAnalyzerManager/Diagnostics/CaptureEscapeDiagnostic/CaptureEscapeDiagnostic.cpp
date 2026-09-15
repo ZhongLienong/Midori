@@ -197,17 +197,34 @@ void CaptureEscapeDiagnostic::operator()(MidoriStatement::FunctionDefinition& de
 	RegisterClosureBinding(defun.m_local_index, defun.m_name, defun.m_captured_count > 0);
 
 	PushFunctionContext();
-	VisitExpression(defun.m_body);
-	WarnOnEscapingClosure(*defun.m_body);
+	VisitFunctionBody(defun.m_body);
 	PopFunctionContext();
 }
 
 void CaptureEscapeDiagnostic::operator()(MidoriExpression::Function& function)
 {
 	PushFunctionContext();
-	VisitExpression(function.m_body);
-	WarnOnEscapingClosure(*function.m_body);
+	VisitFunctionBody(function.m_body);
 	PopFunctionContext();
+}
+
+void CaptureEscapeDiagnostic::VisitFunctionBody(std::unique_ptr<MidoriExpression>& body)
+{
+	const MidoriExpression::Block* saved_result_block = m_result_block;
+	const MidoriExpression* stripped = MidoriAnalysis::StripRedundantGroups(body.get());
+	const bool body_is_block = stripped != nullptr && stripped->IsExpression<MidoriExpression::Block>();
+	m_result_block = body_is_block ? &stripped->GetExpression<MidoriExpression::Block>() : nullptr;
+
+	VisitExpression(body);
+
+	// A block body reports from inside the block (see operator()(Block&)), where
+	// a closure bound in it is still in scope; by now that scope has been popped.
+	if (!body_is_block)
+	{
+		WarnOnEscapingClosure(*body);
+	}
+
+	m_result_block = saved_result_block;
 }
 
 void CaptureEscapeDiagnostic::operator()(MidoriExpression::Block& block)
@@ -222,13 +239,12 @@ void CaptureEscapeDiagnostic::operator()(MidoriExpression::Block& block)
 	if (block.m_final_expr.has_value())
 	{
 		VisitExpression(block.m_final_expr.value());
+		if (&block == m_result_block)
+		{
+			WarnOnEscapingClosure(*block.m_final_expr.value());
+		}
 	}
 
 	PopScope();
 }
 
-void CaptureEscapeDiagnostic::operator()(MidoriExpression::Return& return_expr)
-{
-	VisitExpression(return_expr.m_value);
-	WarnOnEscapingClosure(*return_expr.m_value);
-}

@@ -14,5 +14,5 @@ def wants_text_marker = fn(m: Marker<Text>) -> Int => 1;
 def main = fn() -> Int => 
 {
 	def m = make_int_marker();
-	return wants_text_marker(m);
+	wants_text_marker(m)
 };

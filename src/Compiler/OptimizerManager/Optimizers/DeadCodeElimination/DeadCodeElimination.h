@@ -15,11 +15,7 @@ private:
 
 	void RemovePureExpressionStatements(std::vector<std::unique_ptr<MidoriStatement>>& statements);
 
-	void TrimUnreachableBlockTail(MidoriExpression::Block& block);
-
 	void ElideUnusedPureLocalDefinitions(MidoriExpression::Block& block);
-
-	static bool IsTerminatingStatement(const MidoriStatement& statement);
 
 	static bool HasNestedCallableBoundaryAfter(const MidoriAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index);
 

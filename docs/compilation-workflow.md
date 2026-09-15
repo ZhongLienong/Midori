@@ -126,8 +126,7 @@ Current expression variants include:
 - `RangeBinary`, `RangeTernary`
 - `Block`
 - `Match`, `Case`, `Default`
-- `Loop`, `For`
-- `Return`, `Break`
+- `For`
 
 Notably absent:
 
@@ -177,7 +176,6 @@ Static analysis runs after type checking and before optimization. It emits warni
 Current warning passes:
 
 - `UnusedLocalDiagnostic`
-- `UnreachableCodeDiagnostic`
 - `ShadowingPolicyDiagnostic`
 - `CaptureEscapeDiagnostic`
 

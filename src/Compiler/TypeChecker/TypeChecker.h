@@ -315,7 +315,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::ArrayComprehension& comp);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::Return& return_expr);
 
 
 	bool HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type);

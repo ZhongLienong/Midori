@@ -9,7 +9,7 @@ def ConvertToTextAndInt = fn<T>(value: T) -> Text
     def as_text = value as Text;
     def as_int = value as Int;
     def int_text = as_int as Text;
-    return as_text ++ " (int: " ++ int_text ++ ")";
+    as_text ++ " (int: " ++ int_text ++ ")"
 };
 
 def result1 = ConvertToTextAndInt(42);

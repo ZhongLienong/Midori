@@ -642,7 +642,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
 
-	MidoriResult::ExpressionResult ParseReturnExpression();
 
 
 	MidoriResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr);

@@ -834,9 +834,7 @@ namespace
 					return false;
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::Call>
-					|| std::is_same_v<T, MidoriExpression::For>
-					|| std::is_same_v<T, MidoriExpression::Return>
-					|| std::is_same_v<T, MidoriExpression::ArrayComprehension>)
+					|| std::is_same_v<T, MidoriExpression::For>					|| std::is_same_v<T, MidoriExpression::ArrayComprehension>)
 				{
 					return false;
 				}
@@ -1375,11 +1373,6 @@ namespace
 			RecordSyntheticLocal(node.m_hidden_array_index);
 			VisitExpression(*node.m_range);
 			VisitExpression(*node.m_body);
-		}
-
-		void Visit(const MidoriExpression::Return& node)
-		{
-			VisitExpression(*node.m_value);
 		}
 	};
 }

@@ -691,16 +691,8 @@ public:
 		For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword, std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body);
 	};
 
-	struct Return : BaseExpression
-	{
-		Token m_keyword;
-		std::unique_ptr<MidoriExpression> m_value;
-
-		Return(const Token& keyword, std::unique_ptr<MidoriExpression>&& value);
-	};
-
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, For, Return>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, Default, For>;
 	ExpressionUnion m_variant;
 
 public:
@@ -829,10 +821,6 @@ public:
 				);
 
 				return node.m_callee->template Contains<Kind>() || has_arg;
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-			{
-				return node.m_value->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::ArrayComprehension>)
 			{

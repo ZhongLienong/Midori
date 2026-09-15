@@ -44,44 +44,44 @@ def midpoint_segment = fn(seg : LineSegment) -> Point =>
 	def end_pt = end_segment(seg);
 	def x_diff = x_point(end_pt) - x_point(start_pt);
 	def y_diff = y_point(end_pt) - y_point(start_pt);
-	return make_point(x_point(start_pt) + x_diff / 2.0, y_point(start_pt) + y_diff / 2.0);
+	make_point(x_point(start_pt) + x_diff / 2.0, y_point(start_pt) + y_diff / 2.0)
 };
 
 def make_rect = fn(top_left : Point, bottom_right : Point) -> Rectangle =>
 {
 	def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
 	def top_right = make_point(-x_point(bottom_right), y_point(top_left));
-	return Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left));
+	Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left))
 };
 
 def width_rect = fn(rect : Rectangle) -> Float =>
 {
-	return abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)));
+	abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)))
 };
 
 def height_rect = fn(rect : Rectangle) -> Float =>
 {
-	return abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)));
+	abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)))
 };
 
 def perimeter_rect = fn(rect : Rectangle) -> Float =>
 {
-	return abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect));
+	abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect))
 };
 
 def pair = fn(x : Int, y : Int) -> fn(fn(Int, Int) -> Int) -> Int =>
 {
-	return fn(f : fn(Int, Int) -> Int) -> Int => f(x, y);
+	fn(f : fn(Int, Int) -> Int) -> Int => f(x, y)
 };
 
 def head = fn(z : fn(fn(Int, Int) -> Int) -> Int) -> Int =>
 {
-    return z(fn(x : Int, y : Int) -> Int => x);
+    z(fn(x : Int, y : Int) -> Int => x)
 };
 
 def tail = fn(z : fn(fn(Int, Int) -> Int) -> Int) -> Int =>
 {
-    return z(fn(x : Int, y : Int) -> Int => y);
+    z(fn(x : Int, y : Int) -> Int => y)
 };
 
 def start_pt = make_point(0.0, 0.0);

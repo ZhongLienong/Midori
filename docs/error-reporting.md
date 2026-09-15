@@ -83,7 +83,6 @@ Current `CompilerWarningCode` values:
 - `None`
 - `NameShadowing`
 - `UnusedLocal`
-- `UnreachableCode`
 - `CaptureEscape`
 - `IntegerOverflow`
 

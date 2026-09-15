@@ -34,7 +34,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 |---------|--------|------------------|-------|
 | Pattern guards | Stable | `test/match/`, `tests/unit/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
 | Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions, taking its type from the already-resolved source record. |
-| `if`, block expressions, `return`, `loop`, `break`, `continue` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | The language remains expression-oriented even for most control-flow forms. |
+| `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `tests/unit/runtime/` | Both `start..end` and `start..step..end` are implemented. |
 | Array comprehensions | Stable | `test/array_comprehension/`, `tests/unit/parser/` | Supports range, array, and `Iterable` inputs. |
@@ -81,7 +81,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `package.midori` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
 | Structured compiler warnings/errors and stable diagnostic codes | Stable | `tests/unit/common/`, `tests/unit/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
 | Machine-readable warnings and compiler-report JSON | Stable | `tests/unit/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Midori.exe check --format json`. |
-| Static-analyzer warnings: `UnusedLocal`, `UnreachableCode`, `ShadowingPolicy`, `CaptureEscape` | Stable | `tests/unit/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
+| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `tests/unit/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
 | Project manifests (`project.midori` and `[project]` fallback) and `Midori.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.midori` fallback, manifest precedence, and init scaffolding. |
 
 ## Standard Library

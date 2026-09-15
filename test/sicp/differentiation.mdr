@@ -42,14 +42,14 @@ def make_sum = fn(v1 : Term, v2 : Term) -> Expr =>
 {
 	def is_sum = true;
 	def error = false;
-	return Expr(Sum(v1, v2), Product(v1, v2), is_sum, error);
+	Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
 };
 
 def make_product = fn(v1 : Term, v2 : Term) -> Expr => 
 {
 	def is_sum = false;
 	def error = false;
-	return Expr(Sum(v1, v2), Product(v1, v2), is_sum, error);
+	Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
 };
 
 def is_sum = fn(exp : Expr) -> Bool => exp.is_sum;

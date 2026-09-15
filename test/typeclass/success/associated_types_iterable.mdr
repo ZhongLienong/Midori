@@ -30,7 +30,7 @@ instance Iterable<Counter>
 
 def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
     where Iterable<Iter> => {
-    return Iterable::Next(iter);
+    Iterable::Next(iter)
 };
 
 def iter = CounterNew(2);

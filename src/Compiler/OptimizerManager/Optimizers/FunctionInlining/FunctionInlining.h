@@ -37,7 +37,6 @@ private:
 
 	void CollectCandidates(const MidoriProgramTree& program_tree);
 
-	static const MidoriExpression* UnwrapReturn(const MidoriExpression& body);
 
 	static bool IsInlinableBody(const MidoriExpression& expr, InlineCandidate& candidate, int& node_budget, bool conditional);
 
@@ -73,7 +72,6 @@ private:
 
 	void operator()(MidoriExpression::Block& block) override;
 
-	void operator()(MidoriExpression::Return& return_expr) override;
 
 	void operator()(MidoriExpression::Match& match) override;
 

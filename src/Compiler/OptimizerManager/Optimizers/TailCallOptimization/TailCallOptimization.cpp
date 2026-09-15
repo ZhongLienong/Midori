@@ -270,11 +270,6 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_range, m_function_name) || ContainsRecursiveCallImpl(*node.m_body, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::Return& node) const
-			{
-				return ContainsRecursiveCallImpl(*node.m_value, m_function_name);
-			}
-
 			bool operator()(const MidoriExpression::TextLiteral&) const
 			{
 				return false;
@@ -431,11 +426,6 @@ bool TailCallOptimization::IsTailRecursive(std::unique_ptr<MidoriExpression>& ex
 		return true;
 	}
 
-	if (expr->IsExpression<MidoriExpression::Return>())
-	{
-		MidoriExpression::Return& return_expr = expr->GetExpression<MidoriExpression::Return>();
-		return IsTailRecursive(return_expr.m_value, function_name);
-	}
 	if (expr->IsExpression<MidoriExpression::IfElse>())
 	{
 		MidoriExpression::IfElse& if_else = expr->GetExpression<MidoriExpression::IfElse>();
@@ -463,27 +453,14 @@ bool TailCallOptimization::IsTailRecursive(std::unique_ptr<MidoriExpression>& ex
 	if (expr->IsExpression<MidoriExpression::Block>())
 	{
 		MidoriExpression::Block& block = expr->GetExpression<MidoriExpression::Block>();
-		bool has_tail_call = false;
 
+		// Only the final expression is in tail position: a recursive call in any
+		// statement before it is followed by more work.
 		for (std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
 		{
 			if (stmt->IsStatement<MidoriStatement::ExpressionStatement>())
 			{
-				std::unique_ptr<MidoriExpression>& stmt_expr = stmt->GetStatement<MidoriStatement::ExpressionStatement>().m_expr;
-				if (stmt_expr->IsExpression<MidoriExpression::Return>())
-				{
-					bool stmt_has_call = ContainsRecursiveCallImpl(*stmt_expr, function_name);
-					bool stmt_is_tail = IsTailRecursive(stmt_expr, function_name);
-					if (stmt_has_call && !stmt_is_tail)
-					{
-						return false;
-					}
-					if (stmt_is_tail)
-					{
-						has_tail_call = true;
-					}
-				}
-				else if (ContainsRecursiveCallImpl(*stmt_expr, function_name))
+				if (ContainsRecursiveCallImpl(*stmt->GetStatement<MidoriStatement::ExpressionStatement>().m_expr, function_name))
 				{
 					return false;
 				}
@@ -512,10 +489,10 @@ bool TailCallOptimization::IsTailRecursive(std::unique_ptr<MidoriExpression>& ex
 			{
 				return false;
 			}
-			return has_tail_call || final_is_tail;
+			return final_is_tail;
 		}
 
-		return has_tail_call;
+		return false;
 	}
 	if (expr->IsExpression<MidoriExpression::Case>())
 	{

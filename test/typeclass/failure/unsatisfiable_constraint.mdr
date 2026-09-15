@@ -8,7 +8,7 @@ type CustomType = {
 };
 
 def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
-    return value as Text;
+    value as Text
 };
 
 // This should fail because there's no Convertable<CustomType, Text> instance

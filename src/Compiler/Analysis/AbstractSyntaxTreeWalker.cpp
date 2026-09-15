@@ -331,8 +331,3 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::For& for_expr)
 	VisitExpression(for_expr.m_range);
 	VisitExpression(for_expr.m_body);
 }
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Return& return_expr)
-{
-	VisitExpression(return_expr.m_value);
-}

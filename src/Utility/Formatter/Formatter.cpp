@@ -255,7 +255,6 @@ namespace
 		case TokenName::FOR:
 		case TokenName::IN:
 		case TokenName::IF:
-		case TokenName::RETURN:
 		case TokenName::TRUE:
 		case TokenName::DEF:
 		case TokenName::IMPORT:
@@ -579,8 +578,7 @@ namespace
 					|| previous == TokenName::WITH
 					|| previous == TokenName::CASE
 					|| previous == TokenName::DEFAULT
-					|| previous == TokenName::IN
-					|| previous == TokenName::RETURN))
+					|| previous == TokenName::IN))
 			{
 				return;
 			}

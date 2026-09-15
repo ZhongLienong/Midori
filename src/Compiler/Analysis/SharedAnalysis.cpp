@@ -11,8 +11,6 @@ namespace
 	const Token* GetPrimaryToken(const MidoriStatement& statement);
 	const Token* GetPrimaryToken(const MidoriExpression& expression);
 
-	bool IsTerminatingStatementImpl(const MidoriStatement& statement);
-
 	class LiftSafetyWalker final : protected MidoriAbstractSyntaxTreeWalker
 	{
 	public:
@@ -230,81 +228,12 @@ namespace
 				{
 					return &node.m_for_keyword;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-				{
-					return &node.m_keyword;
-				}
 				else
 				{
 					return nullptr;
 				}
 			},
 			*expression
-		);
-	}
-
-	bool IsTerminatingExpressionImpl(const MidoriExpression& expression)
-	{
-		const MidoriExpression* stripped_expression = MidoriAnalysis::StripRedundantGroups(&expression);
-		if (stripped_expression == nullptr)
-		{
-			return false;
-		}
-
-		return std::visit
-		(
-			[](const auto& node) -> bool
-			{
-				using T = std::decay_t<decltype(node)>;
-
-				if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-				{
-					return true;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
-				{
-					for (const std::unique_ptr<MidoriStatement>& statement : node.m_stmts)
-					{
-						if (IsTerminatingStatementImpl(*statement))
-						{
-							return true;
-						}
-					}
-
-					return node.m_final_expr.has_value() && IsTerminatingExpressionImpl(*node.m_final_expr.value());
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
-				{
-					return IsTerminatingExpressionImpl(*node.m_true_branch)
-						&& IsTerminatingExpressionImpl(*node.m_else_branch);
-				}
-				else
-				{
-					return false;
-				}
-			},
-			**stripped_expression
-		);
-	}
-
-	bool IsTerminatingStatementImpl(const MidoriStatement& statement)
-	{
-		return std::visit
-		(
-			[](const auto& node) -> bool
-			{
-				using T = std::decay_t<decltype(node)>;
-
-				if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
-				{
-					return node.m_expr != nullptr && IsTerminatingExpressionImpl(*node.m_expr);
-				}
-				else
-				{
-					return false;
-				}
-			},
-			*statement
 		);
 	}
 }
@@ -335,16 +264,6 @@ namespace MidoriAnalysis
 	bool IsIgnoredBindingName(std::string_view name)
 	{
 		return !name.empty() && name[0u] == '_';
-	}
-
-	bool IsTerminatingStatement(const MidoriStatement& statement)
-	{
-		return IsTerminatingStatementImpl(statement);
-	}
-
-	bool IsTerminatingExpression(const MidoriExpression& expression)
-	{
-		return IsTerminatingExpressionImpl(expression);
 	}
 
 	const Token* GetPrimaryToken(const MidoriStatement& statement)

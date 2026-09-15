@@ -78,9 +78,7 @@ def (count, label) = pair;
 ### Functions
 ```midori
 // Simple function
-def square = fn(x: Int) -> Int => {
-    return x * x;
-};
+def square = fn(x: Int) -> Int => x * x;
 
 // Function with type inference
 def add = fn(a: Int, b: Int) -> Int => a + b;
@@ -89,9 +87,7 @@ def add = fn(a: Int, b: Int) -> Int => a + b;
 def identity = fn<T>(value: T) -> T => value;
 
 // Higher-order function
-def apply = fn<T, R>(fn: fn(T) -> R, value: T) -> R => {
-    return fn(value);
-};
+def apply = fn<T, R>(f: fn(T) -> R, value: T) -> R => f(value);
 ```
 
 ### Control Flow
@@ -175,12 +171,10 @@ def coords: IntPair = Pair(1, 2);
 ```midori
 type Result<T, E> = Ok(T) | Err(E);
 
-def handle_result = fn<T>(result: Result<T, Text>) -> Text => {
-    return match result with
+def handle_result = fn<T>(result: Result<T, Text>) -> Text =>
+    match result with
         case Result::Ok(value) => "Success: " ++ (value as Text)
-        case Result::Err(msg) => "Error: " ++ msg
-    ;
-};
+        case Result::Err(msg) => "Error: " ++ msg;
 ```
 
 ### Typeclasses
@@ -192,15 +186,11 @@ class Show<T> {
 
 // Implement for Int
 instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
-        return value as Text;
-    };
+    def show = fn(value: Int) -> Text => value as Text;
 };
 
 // Use with constraints
-def display = fn<T>(value: T) -> Text where Show<T> => {
-    return Show::show(value);
-};
+def display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 
 def message = display(42);  // "42"
 ```
@@ -215,9 +205,7 @@ class Iterable<Iter> {
 };
 
 def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
-    where Iterable<Iter> => {
-    return Iterable::Next(iter);
-};
+    where Iterable<Iter> => Iterable::Next(iter);
 ```
 
 ### Deriving
@@ -305,17 +293,11 @@ In pattern position, `_` is a wildcard that ignores the matched value and does n
 
 ### Closures
 ```midori
-def make_counter = fn() -> fn() -> Int => {
-    def count = 0;
-    return fn() -> Int => {
-        count = count + 1;
-        return count;
-    };
-};
+def make_adder = fn(amount: Int) -> fn(Int) -> Int => fn(n: Int) -> Int => n + amount;
 
-def counter = make_counter();
-def first = counter();   // 1
-def second = counter();  // 2
+def add_ten = make_adder(10);
+def first = add_ten(1);   // 11
+def second = add_ten(5);  // 15
 ```
 
 ## Language Features
@@ -650,7 +632,7 @@ Test fixtures are file-based:
 ### Recursive Fibonacci
 ```midori-test name=readme/recursive_fibonacci path=.doc_examples/readme/recursive_fibonacci.mdr module=ReadmeRecursiveFibonacci
 def fib = fn(n: Int) -> Int => {
-    return if n <= 1 then n else fib(n - 1) + fib(n - 2);
+    if n <= 1 then n else fib(n - 1) + fib(n - 2)
 };
 ```
 
@@ -658,39 +640,33 @@ def fib = fn(n: Int) -> Int => {
 ```midori
 type Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
-def height = fn<T>(tree: Tree<T>) -> Int => {
-    return match tree with
+def height = fn<T>(tree: Tree<T>) -> Int =>
+    match tree with
         case Tree::Leaf(_) => 1
         case Tree::Node(left, right) => {
             def left_height = height(left);
             def right_height = height(right);
-            return 1 + (if left_height > right_height
-                        then left_height
-                        else right_height);
-        }
-    ;
-};
+            1 + (if left_height > right_height
+                 then left_height
+                 else right_height)
+        };
 ```
 
 ### Generic Linked List
 ```midori
 type List<T> = Cons(T, List<T>) | Nil;
 
-def length = fn<T>(list: List<T>) -> Int => {
-    return match list with
+def length = fn<T>(list: List<T>) -> Int =>
+    match list with
         case List::Cons(head, tail) => 1 + length(tail)
-        case List::Nil => 0
-    ;
-};
+        case List::Nil => 0;
 
-def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> => {
-    return match list with
+def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
+    match list with
         case List::Cons(head, tail) =>
             List::Cons(f(head), map(tail, f))
         case List::Nil =>
-            List::Nil()
-    ;
-};
+            List::Nil();
 ```
 
 ## Architecture

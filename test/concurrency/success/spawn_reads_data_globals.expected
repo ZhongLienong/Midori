@@ -1,8 +1,13 @@
-[warning] 1 warning(s) in spawn_reads_data_globals.mdr
+[warning] 2 warning(s) in spawn_reads_data_globals.mdr
 Static Analyzer Warning at test/concurrency/success/spawn_reads_data_globals.mdr:16
    |
 16 | def MakeAdder = fn(amount : Int) -> fn(Int) -> Int => fn(n : Int) -> Int => n + amount;
    |                                                       ^^ Captured anonymous closure escapes its defining scope as a return value.
+   |
+Static Analyzer Warning at test/concurrency/success/spawn_reads_data_globals.mdr:30
+   |
+30 | 	SumTo
+   |  ^^^^^ Captured closure 'SumTo' escapes its defining scope as a return value.
    |
 int: direct=15 worker=15 same
 text: direct=73 worker=73 same

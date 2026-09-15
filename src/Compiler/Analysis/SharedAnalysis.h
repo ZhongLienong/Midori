@@ -23,9 +23,6 @@ namespace MidoriAnalysis
 
 	bool IsIgnoredBindingName(std::string_view name);
 
-	bool IsTerminatingStatement(const MidoriStatement& statement);
-
-	bool IsTerminatingExpression(const MidoriExpression& expression);
 
 	const Token* GetPrimaryToken(const MidoriStatement& statement);
 

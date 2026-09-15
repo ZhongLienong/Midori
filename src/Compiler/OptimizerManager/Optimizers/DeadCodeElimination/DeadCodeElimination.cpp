@@ -5,76 +5,6 @@
 #include <cstddef>
 #include <type_traits>
 
-namespace
-{
-	bool IsTerminatingStatementImpl(const MidoriStatement& statement);
-
-	bool IsTerminatingExpressionImpl(const MidoriExpression& expression)
-	{
-		const MidoriExpression* stripped_expression = MidoriAnalysis::StripRedundantGroups(&expression);
-		if (stripped_expression == nullptr)
-		{
-			return false;
-		}
-
-		return std::visit
-		(
-			[](const auto& node) -> bool
-			{
-				using T = std::decay_t<decltype(node)>;
-
-				if constexpr (std::is_same_v<T, MidoriExpression::Return>)
-				{
-					return true;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::Block>)
-				{
-					for (const std::unique_ptr<MidoriStatement>& statement : node.m_stmts)
-					{
-						if (IsTerminatingStatementImpl(*statement))
-						{
-							return true;
-						}
-					}
-
-					return node.m_final_expr.has_value() && IsTerminatingExpressionImpl(*node.m_final_expr.value());
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::IfElse>)
-				{
-					return IsTerminatingExpressionImpl(*node.m_true_branch)
-						&& IsTerminatingExpressionImpl(*node.m_else_branch);
-				}
-				else
-				{
-					return false;
-				}
-			},
-			**stripped_expression
-		);
-	}
-
-	bool IsTerminatingStatementImpl(const MidoriStatement& statement)
-	{
-		return std::visit
-		(
-			[](const auto& node) -> bool
-			{
-				using T = std::decay_t<decltype(node)>;
-
-				if constexpr (std::is_same_v<T, MidoriStatement::ExpressionStatement>)
-				{
-					return IsTerminatingExpressionImpl(*node.m_expr);
-				}
-				else
-				{
-					return false;
-				}
-			},
-			*statement
-		);
-	}
-}
-
 MidoriResult::OptimizerResult DeadCodeElimination::Optimize(MidoriProgramTree program_tree)
 {
 	ResetPassState();
@@ -120,37 +50,6 @@ void DeadCodeElimination::RemovePureExpressionStatements(std::vector<std::unique
 	}
 }
 
-void DeadCodeElimination::TrimUnreachableBlockTail(MidoriExpression::Block& block)
-{
-	std::optional<std::size_t> terminating_index = std::nullopt;
-	for (std::size_t index = 0u; index < block.m_stmts.size(); index += 1u)
-	{
-		if (IsTerminatingStatement(*block.m_stmts[index]))
-		{
-			terminating_index = index;
-			break;
-		}
-	}
-
-	if (!terminating_index.has_value())
-	{
-		return;
-	}
-
-	const std::size_t reachable_statement_count = terminating_index.value() + 1u;
-	while (block.m_stmts.size() > reachable_statement_count)
-	{
-		block.m_stmts.pop_back();
-		MarkOptimization();
-	}
-
-	if (block.m_final_expr.has_value())
-	{
-		block.m_final_expr.reset();
-		MarkOptimization();
-	}
-}
-
 void DeadCodeElimination::ElideUnusedPureLocalDefinitions(MidoriExpression::Block& block)
 {
 	const MidoriAnalysis::BlockLocalAccessSummary access_summary = MidoriAnalysis::AnalyzeBlockLocalAccess(block);
@@ -187,11 +86,6 @@ void DeadCodeElimination::ElideUnusedPureLocalDefinitions(MidoriExpression::Bloc
 	}
 }
 
-bool DeadCodeElimination::IsTerminatingStatement(const MidoriStatement& statement)
-{
-	return IsTerminatingStatementImpl(statement);
-}
-
 bool DeadCodeElimination::HasNestedCallableBoundaryAfter(const MidoriAnalysis::BlockLocalAccessSummary& access_summary, std::size_t statement_index)
 {
 	const std::size_t start_index = statement_index + 1u;
@@ -224,7 +118,6 @@ void DeadCodeElimination::operator()(MidoriExpression::Block& block)
 		VisitAndReplace(block.m_final_expr.value());
 	}
 
-	TrimUnreachableBlockTail(block);
 	RemovePureExpressionStatements(block.m_stmts);
 	ElideUnusedPureLocalDefinitions(block);
 }

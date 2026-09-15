@@ -10,14 +10,14 @@ type Box<T> where Show<T> = {
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {
-        return value as Text;
+        value as Text
     };
 };
 
 def MakeBox = fn<T>(value: T) -> Box<T> => Box(value);
 
 def ShowBox = fn<T>(box: Box<T>) -> Text => {
-    return Show::show(box.value);
+    Show::show(box.value)
 };
 
 def text = ShowBox(MakeBox(42));

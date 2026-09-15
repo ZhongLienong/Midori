@@ -239,9 +239,7 @@ class Show<T> {
     show: fn(value: T) -> Text;
 };
 
-def Display = fn<T>(value: T) -> Text where Show<T> => {
-    return Show::show(value);
-};
+def Display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 ```
 
 Type definitions can also carry constraints:
@@ -251,9 +249,7 @@ type Box<T> where Show<T> = {
     value: T
 };
 
-def ShowBox = fn<T>(box: Box<T>) -> Text => {
-    return Show::show(box.value);
-};
+def ShowBox = fn<T>(box: Box<T>) -> Text => Show::show(box.value);
 ```
 
 Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
@@ -270,9 +266,7 @@ class Show<T> {
 };
 
 instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
-        return value as Text;
-    };
+    def show = fn(value: Int) -> Text => value as Text;
 };
 ```
 
@@ -323,9 +317,7 @@ Use projection syntax to refer to an associated type in other signatures:
 
 ```midori
 def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
-    where Iterable<Iter> => {
-    return Iterable::Next(iter);
-};
+    where Iterable<Iter> => Iterable::Next(iter);
 ```
 
 Associated types are especially useful when one type parameter logically determines another, while multi-parameter type classes remain available for other cases.
@@ -388,12 +380,10 @@ These are currently defined for integer-style numeric types (`Int`, `Byte`, and 
 Pattern matching is expression-oriented:
 
 ```midori
-def Unwrap = fn(option: Option<Int>) -> Int => {
-    return match option with
+def Unwrap = fn(option: Option<Int>) -> Int =>
+    match option with
         case Option::Some(value) => value
-        case Option::None() => 0
-    ;
-};
+        case Option::None() => 0;
 ```
 
 ### Exhaustiveness Rules

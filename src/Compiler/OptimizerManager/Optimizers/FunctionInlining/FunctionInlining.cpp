@@ -47,7 +47,7 @@ void FunctionInlining::CollectCandidates(const MidoriProgramTree& program_tree)
 			continue;
 		}
 
-		const MidoriExpression* body = UnwrapReturn(*defun.m_body);
+		const MidoriExpression* body = defun.m_body.get();
 		int node_budget = s_max_body_nodes;
 		const int arity = static_cast<int>(defun.m_params.size());
 		InlineCandidate candidate;
@@ -63,16 +63,6 @@ void FunctionInlining::CollectCandidates(const MidoriProgramTree& program_tree)
 
 		m_candidates[defun.m_name.m_lexeme] = std::move(candidate);
 	}
-}
-
-const MidoriExpression* FunctionInlining::UnwrapReturn(const MidoriExpression& body)
-{
-	if (body.IsExpression<MidoriExpression::Return>())
-	{
-		return body.GetExpression<MidoriExpression::Return>().m_value.get();
-	}
-
-	return &body;
 }
 
 bool FunctionInlining::IsInlinableBody(const MidoriExpression& expr, InlineCandidate& candidate, int& node_budget, bool conditional)
@@ -592,12 +582,6 @@ void FunctionInlining::operator()(MidoriExpression::Block& block)
 
 	m_local_depth = saved_depth;
 	m_depth_known = saved_known;
-}
-
-void FunctionInlining::operator()(MidoriExpression::Return& return_expr)
-{
-	VisitAndReplace(return_expr.m_value);
-	TryBindingInline(return_expr.m_value);
 }
 
 void FunctionInlining::operator()(MidoriExpression::Match& match)

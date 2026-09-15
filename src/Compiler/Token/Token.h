@@ -81,7 +81,6 @@ struct Token
 		FOR,
 		IN,
 		IF,
-		RETURN,
 		TRUE,
 		DEF,
 		IMPORT,

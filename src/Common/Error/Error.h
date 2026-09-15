@@ -60,7 +60,6 @@ enum class CompilerWarningCode
 	None,
 	NameShadowing,
 	UnusedLocal,
-	UnreachableCode,
 	CaptureEscape,
 	IntegerOverflow
 };

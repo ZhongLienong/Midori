@@ -97,7 +97,7 @@ def main = fn() -> Int => {
 	def unused = 2;
 	ReadPairA();
 	ReadPairB();
-	return used;
+	used
 };
 )";
 

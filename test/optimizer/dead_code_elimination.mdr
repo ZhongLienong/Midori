@@ -29,13 +29,7 @@ def kept_effectful_statement: Int = {
     4
 };
 
-def early_return = fn() -> Int => {
-    return 3;
-    print_and_return(99);
-};
-
 IO::PrintLine("unused_pure_local=" ++ (unused_pure_local as Text));
 IO::PrintLine("pure_statement_cleanup=" ++ (pure_statement_cleanup as Text));
 IO::PrintLine("kept_effectful_local=" ++ (kept_effectful_local as Text));
 IO::PrintLine("kept_effectful_statement=" ++ (kept_effectful_statement as Text));
-IO::PrintLine("early_return=" ++ (early_return() as Text));

@@ -297,11 +297,6 @@ void MidoriOptimizer::operator()(MidoriExpression::For& for_expr)
 	VisitAndReplace(for_expr.m_body);
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::Return& return_expr)
-{
-	VisitAndReplace(return_expr.m_value);
-}
-
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 int MidoriOptimizer::GetOptimizationsPerformed() const
 {

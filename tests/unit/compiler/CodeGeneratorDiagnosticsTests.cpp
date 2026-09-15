@@ -31,7 +31,7 @@ foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
 def main = fn() -> Int => {
 	ReadPairA();
 	ReadPairB();
-	return 0;
+	0
 };
 )";
 	}

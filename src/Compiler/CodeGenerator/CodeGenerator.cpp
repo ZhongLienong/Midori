@@ -2150,7 +2150,6 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::Case& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Default& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::For& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::Return& arg) const { (*m_self)(arg); }
 	};
 
 	std::visit(ExpressionDispatcher{ this }, *expression);
@@ -4599,42 +4598,30 @@ void CodeGenerator::operator()(MidoriExpression::Block& block)
 		}
 	);
 
-	// Discard everything else when encountered "return"
-	if (!m_builder.m_procedures[m_builder.m_current_procedure_index].IsByteCodeEmpty() && m_builder.m_procedures[m_builder.m_current_procedure_index].ReadByteCode(m_builder.m_procedures[m_builder.m_current_procedure_index].GetByteCodeSize() - 1) == OpCode::RETURN)
+	if (block.m_final_expr.has_value())
 	{
-		if (pushed_shift)
-		{
-			m_operand_block_shifts.pop_back();
-		}
-		return;
+		Visit(*block.m_final_expr);
 	}
 	else
 	{
-		if (block.m_final_expr.has_value())
+		EmitByte(OpCode::OP_UNIT, block.m_right_brace.m_line);
+	}
+
+	while (block.m_local_count > 0)
+	{
+		int count_to_pop = std::min(block.m_local_count, static_cast<int>(UINT8_MAX));
+
+		if (count_to_pop == block.m_local_count)
 		{
-			Visit(*block.m_final_expr);
+			EmitByte(OpCode::POP_BLOCK_SCOPE, block.m_right_brace.m_line);
 		}
 		else
 		{
-			EmitByte(OpCode::OP_UNIT, block.m_right_brace.m_line);
+			EmitByte(OpCode::POP_LOCAL_SCOPE, block.m_right_brace.m_line);
 		}
 
-		while (block.m_local_count > 0)
-		{
-			int count_to_pop = std::min(block.m_local_count, static_cast<int>(UINT8_MAX));
-
-			if (count_to_pop == block.m_local_count)
-			{
-				EmitByte(OpCode::POP_BLOCK_SCOPE, block.m_right_brace.m_line);
-			}
-			else
-			{
-				EmitByte(OpCode::POP_LOCAL_SCOPE, block.m_right_brace.m_line);
-			}
-
-			EmitByte(static_cast<OpCode>(count_to_pop), block.m_right_brace.m_line);
-			block.m_local_count -= count_to_pop;
-		}
+		EmitByte(static_cast<OpCode>(count_to_pop), block.m_right_brace.m_line);
+		block.m_local_count -= count_to_pop;
 	}
 
 	if (pushed_shift)
@@ -5247,13 +5234,6 @@ void CodeGenerator::operator()(MidoriExpression::ArrayComprehension& comp)
 	// Push the result array as the expression value
 	EmitVariable(comp.m_result_array_index, OpCode::GET_LOCAL, line);
 	// Stack: [..., result_array]
-}
-
-void CodeGenerator::operator()(MidoriExpression::Return& return_expr)
-{
-	int line = return_expr.m_keyword.m_line;
-	Visit(return_expr.m_value);
-	EmitByte(OpCode::RETURN, line);
 }
 
 void CodeGenerator::EmitNumericConditionalJump(MidoriExpression::ConditionOperandType operand_type, std::unique_ptr<MidoriExpression>& true_branch, std::unique_ptr<MidoriExpression>& else_branch, int line)

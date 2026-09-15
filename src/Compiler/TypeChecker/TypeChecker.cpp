@@ -3240,16 +3240,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStat
 	return Evaluate(simple.m_expr)
 		.and_then
 		(
-			[&simple, this](std::shared_ptr<MidoriType>&& type) ->MidoriResult::TypeResult
+			[](std::shared_ptr<MidoriType>&&) ->MidoriResult::TypeResult
 			{
-				if (simple.m_expr->IsExpression<MidoriExpression::Return>())
-				{
-					return type;
-				}
-				else
-				{
-					return MidoriType::MakeUndecidedType();
-				}
+				return MidoriType::MakeUndecidedType();
 			}
 		);
 }
@@ -3394,12 +3387,6 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
-
-					// A body containing a return statement is validated by the return itself.
-					if (function.m_body->Contains<MidoriExpression::Return>())
-					{
-						return MidoriType::MakeUndecidedType();
-					}
 
 					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
@@ -3760,25 +3747,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
 
-					// If the body contains a return statement, the return statement itself
-					// validates the return type, so we don't need to check the body's natural type
-					bool body_contains_return = defun.m_body->Contains<MidoriExpression::Return>();
-
-					if (body_contains_return)
-					{
-						return defun.m_return_type;
-					}
-					else
-					{
-						return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
-							.and_then
-							(
-								[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-								{
-									return defun.m_return_type;
-								}
-							);
-					}
+					return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
+						.and_then
+						(
+							[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							{
+								return defun.m_return_type;
+							}
+						);
 				}
 			).or_else
 			(
@@ -6311,13 +6287,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
 
-					// A body containing a return statement is validated by the return itself,
-					// so its natural type does not have to match the declared return type.
-					if (function.m_body->Contains<MidoriExpression::Return>())
-					{
-						return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
-					}
-
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
@@ -6833,23 +6802,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 				);
 		}
 
-		// Check if the last statement is a break or return (which have NeverType)
-		// If so, the block should have NeverType rather than Unit
-		if (!block.m_stmts.empty())
-		{
-			const std::unique_ptr<MidoriStatement>& last_stmt = block.m_stmts.back();
-			if (last_stmt->IsStatement<MidoriStatement::ExpressionStatement>())
-			{
-				const MidoriStatement::ExpressionStatement& simple = last_stmt->GetStatement<MidoriStatement::ExpressionStatement>();
-				if (simple.m_expr->IsExpression<MidoriExpression::Return>())
-				{
-					// Block ends with break or return statement - use NeverType
-					block.m_type_data = simple.m_expr->GetType();
-					return block.m_type_data;
-				}
-			}
-		}
-
 		// Blocks without final expressions have Unit type
 		if (block.m_type_data->IsType<MidoriType::UndecidedType>())
 		{
@@ -6859,32 +6811,4 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 	});
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Return& return_expr)
-{
-	ExpectedTypeGuard guard(*this, m_expected_return_type);
-
-	return Evaluate(return_expr.m_value)
-		.and_then
-		(
-			[&return_expr, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
-			{
-				if (m_expected_return_type)
-				{
-					return Unify(return_expr.m_keyword, m_expected_return_type, type, UnifyDiagnosticMode::ExpectedActual)
-						.and_then
-						(
-							[&return_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-							{
-								return_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::NeverType>();
-								return return_expr.m_type_data;
-							}
-						);
-				}
-				else
-				{
-					return Unify(return_expr.m_keyword, return_expr.m_type_data, type, UnifyDiagnosticMode::ActualExpected);
-				}
-			}
-		);
-}
 

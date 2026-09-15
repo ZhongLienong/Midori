@@ -12,18 +12,18 @@ class Debug<T> {
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {
-        return "Int(" ++ (value as Text) ++ ")";
+        "Int(" ++ (value as Text) ++ ")"
     };
 };
 
 instance Debug<Int> {
     def debug = fn(value: Int) -> Text => {
-        return "Debug(" ++ (value as Text) ++ ")";
+        "Debug(" ++ (value as Text) ++ ")"
     };
 };
 
 def debug_value = fn<T>(x: T) -> Text where Debug<T> => {
-    return Debug::debug(x);
+    Debug::debug(x)
 };
 
 def result = debug_value(7);

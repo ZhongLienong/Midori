@@ -195,14 +195,14 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 
 	CompilerWarning second_alpha_warning = CompilerWarning::WithContext(
 		CompilerStage::StaticAnalyzer,
-		"Unreachable code",
+		"Captured closure escapes",
 		5,
 		"C:/repo/Alpha.mdr",
 		1,
 		6u,
 		std::nullopt,
-		"return 1;",
-		CompilerWarningCode::UnreachableCode);
+		"next",
+		CompilerWarningCode::CaptureEscape);
 
 	CompilerWarning beta_warning = CompilerWarning::WithContext(
 		CompilerStage::Parser,
@@ -237,7 +237,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 	const std::string machine_json = report.MachineReadableJson();
 	CHECK(machine_json.find("\"warnings\":[{") != std::string::npos);
 	CHECK(machine_json.find("\"errors\":[]") != std::string::npos);
-	CHECK(machine_json.find("\"code\":\"UnreachableCode\"") != std::string::npos);
+	CHECK(machine_json.find("\"code\":\"CaptureEscape\"") != std::string::npos);
 	CHECK(machine_json.find("\"message\":\"Shadowed name\"") != std::string::npos);
 }
 

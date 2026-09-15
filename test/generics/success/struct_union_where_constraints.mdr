@@ -15,20 +15,20 @@ type Result<T, E> where Show<T>, Show<E> = Ok(T) | Err(E);
 
 instance Show<Int> {
     def show = fn(value: Int) -> Text => {
-        return value as Text;
+        value as Text
     };
 };
 
 instance Show<Text> {
     def show = fn(value: Text) -> Text => {
-        return value;
+        value
     };
 };
 
 def boxed = Box(10);
 
 def show_box = fn<T>(b: Box<T>) -> Text => {
-    return Show::show(b.value);
+    Show::show(b.value)
 };
 
 def text_result = show_box(boxed);

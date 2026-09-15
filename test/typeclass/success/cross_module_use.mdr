@@ -6,7 +6,7 @@ import { "../../../MidoriPrelude/IO.mdr", "./show_typeclass.mdr" }
 
 // Define a constrained generic function using the imported typeclass
 def display = fn<T>(value: T) -> Text where Show<T> => {
-    return Show::show(value);
+    Show::show(value)
 };
 
 def result = display(42);

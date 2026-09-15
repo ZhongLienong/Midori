@@ -7,7 +7,7 @@ import
 
 def makeAdder = fn(a : Int) -> fn(Int) -> fn(Int) -> Int =>
 {
-  return fn(b : Int) -> fn(Int) -> Int => fn(c : Int) -> Int => a + b + c;
+  fn(b : Int) -> fn(Int) -> Int => fn(c : Int) -> Int => a + b + c
 };
 
 def adder = makeAdder(3)(4);

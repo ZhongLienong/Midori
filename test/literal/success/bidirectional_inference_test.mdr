@@ -13,7 +13,7 @@ IO::PrintLine("Test 1: Empty array with type annotation - PASS");
 
 // Test 2: Empty array in function call (expected type from parameter)
 def take_int_array = fn(arr: Array<Int>) -> Int => {
-    return 42;
+    42
 };
 
 def result = take_int_array([]);
@@ -21,7 +21,7 @@ IO::PrintLine("Test 2: Empty array in function call - PASS");
 
 // Test 3: Empty array in return statement (expected type from function return type)
 def return_empty_int_array = fn() -> Array<Int> => {
-    return [];
+    []
 };
 
 def empty_from_return = return_empty_int_array();
@@ -29,7 +29,7 @@ IO::PrintLine("Test 3: Empty array in return - PASS");
 
 // Test 4: Nested empty arrays
 def take_nested_array = fn(arr: Array<Array<Text>>) -> Int => {
-    return 42;
+    42
 };
 
 def nested_result = take_nested_array([]);
