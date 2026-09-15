@@ -4,13 +4,19 @@ use Result.{
     Result
 }
 public export { WorkerError, JoinedOrPanic }
-// What `join` reports when a worker does not produce its value. `join w` has type
-// Result<T, WorkerError>, so a cancelled or failed worker is an ordinary value the
-// joining code can inspect and recover from, rather than an error that stops it.
-// The compiler requires this declaration's shape: `Cancelled` with no fields and
-// `Failed` carrying the worker's error message.
+// Concurrency::Spawn(argument, F), Concurrency::Join(w) and
+// Concurrency::MakeChannel(capacity) are called like functions from this module,
+// but the compiler provides them: importing this module is what makes them
+// available. Spawn passes one argument, a tuple for a function with several
+// parameters, so a value can be piped in: `(ch, 5) |> Concurrency::Spawn(Producer)`.
+//
+// What Join reports when a worker does not produce its value. `Concurrency::Join(w)`
+// has type Result<T, WorkerError>, so a cancelled or failed worker is an ordinary
+// value the joining code can inspect and recover from, rather than an error that
+// stops it. The compiler requires this declaration's shape: `Cancelled` with no
+// fields and `Failed` carrying the worker's error message.
 type WorkerError = Cancelled | Failed(Text);
-// For code that treats a worker failure as fatal, which is what `join` itself did
+// For code that treats a worker failure as fatal, which is what joining itself did
 // before it returned a Result.
 def JoinedOrPanic = fn < T >(result: Result < T, WorkerError >) -> T => {
     match result with

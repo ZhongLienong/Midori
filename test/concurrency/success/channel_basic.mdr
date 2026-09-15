@@ -12,11 +12,11 @@ def Producer = fn(ch: Channel<Text>) -> Int => {
     0
 };
 
-def ch = channel<Text>(10);
-def w = spawn Producer(ch);
+def ch : Channel<Text> = Concurrency::MakeChannel(10);
+def w = Concurrency::Spawn(ch, Producer);
 def msg1 = <- ch;
 def msg2 = <- ch;
 def msg3 = <- ch;
 PrintLine("Received: " ++ msg1 ++ ", " ++ msg2 ++ ", " ++ msg3);
 close(ch);
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

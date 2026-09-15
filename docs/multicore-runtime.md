@@ -48,7 +48,7 @@ via `ValueTransfer` (direct VM-to-VM copy for `spawn`/`join`) or serialized to
 - Ranges — semantically non-portable
 - `Worker<T>` — joining from a non-owner worker is undefined
 
-Transferability is checked at compile time. Attempting to `spawn` with a
+Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
 
@@ -60,47 +60,54 @@ built. It does not make closures transferable in user code.
 Cycle detection is handled via a `PointerMap` that tracks already-transferred
 traceables.
 
-## Concurrency Syntax
+## Concurrency Functions
 
-Midori provides first-class concurrency expressions instead of FFI wrappers:
+Workers and channels are created with functions from `MidoriPrelude/Concurrency.mdr`.
+They are called like any other function, but the compiler provides them, so
+importing that module is what makes them available:
 
 ```midori
-def w = spawn ComputeRow(42, 800);   // w : Worker<Int>
-def result = join w;                  // result : Result<Int, WorkerError>
+def w = (42, 800) |> Concurrency::Spawn(ComputeRow);     // w : Worker<Int>
+def result = Concurrency::Join(w);                       // result : Result<Int, WorkerError>
 
-def ch = channel<Int>(10);            // ch : Channel<Int>
-ch -> 42;                             // send: Bool (false if closed)
-def val = <- ch;                      // receive: Int (blocks if empty)
+def ch : Channel<Int> = Concurrency::MakeChannel(10);    // ch : Channel<Int>
+ch -> 42;                                                // send: Bool (false if closed)
+def val = <- ch;                                         // receive: Int (blocks if empty)
 ```
 
-- `spawn` resolves the callee at compile time (must be a named `def Name = fn(...)`, not a closure)
-- `join` blocks and evaluates to `Result<T, WorkerError>`: `Ok(value)` when the
-  worker returned, `Err(WorkerError::Cancelled())` when it was cancelled, and
-  `Err(WorkerError::Failed(message))` when it stopped with a runtime error. A file
-  that uses `join` must import `MidoriPrelude/Prelude/Result.mdr` and
-  `MidoriPrelude/Concurrency.mdr`, which declares `WorkerError` and
-  `JoinedOrPanic` for code that treats a worker failure as fatal.
-- `channel<T>(capacity)` creates a typed bounded channel
+- `Concurrency::Spawn(argument, F)` resolves `F` at compile time (it must name a
+  top-level `def Name = fn(...)`, not a closure). The argument comes first so a
+  pipe can supply it. It stands for all of `F`'s parameters: the value itself
+  when `F` takes one, a tuple spread across them when it takes several, and `()`
+  when it takes none.
+- `Concurrency::Join(w)` blocks and evaluates to `Result<T, WorkerError>`:
+  `Ok(value)` when the worker returned, `Err(WorkerError::Cancelled())` when it was
+  cancelled, and `Err(WorkerError::Failed(message))` when it stopped with a runtime
+  error. A file that joins must also import `MidoriPrelude/Prelude/Result.mdr`.
+  `Concurrency.mdr` declares `WorkerError`, and `JoinedOrPanic` for code that
+  treats a worker failure as fatal.
+- `Concurrency::MakeChannel(capacity)` creates a typed bounded channel. It takes its
+  element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
 Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
 
 ## Worker Lifecycle
 
-1. **Spawn**: `spawn Proc(args...)` creates a new `Worker` which:
+1. **Spawn**: `Concurrency::Spawn(args, Proc)` creates a new `Worker` which:
    - Creates a `std::jthread`
    - Constructs a new `VirtualMachine` sharing the executable's bytecode
    - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
    - Validates FFI thread safety before execution
    - Installs a copy of the spawning VM's globals, serialized on the spawning
-     thread at the `spawn`. Globals are defined once and never reassigned, so
+     thread at the spawn. Globals are defined once and never reassigned, so
      the spawned function sees exactly what it would see if called directly.
      Module initializers are not re-run, so their effects happen once per
      program, not once per worker.
    - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
    - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
 
-2. **Join**: `join w` blocks until the worker finishes. The worker's value is
+2. **Join**: `Concurrency::Join(w)` blocks until the worker finishes. The worker's value is
    deserialized from its `SerializedValue` and wrapped in `Ok`; a failure or
    cancellation becomes `Err(WorkerError)` instead. `JOIN_WORKER` builds these
    union values itself, using the constructor tags the compiler reads from the
@@ -125,7 +132,7 @@ Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
 
 - If a worker fails, the `Worker` captures both the error message and the
   originating `RuntimeErrorCode`
-- On `join`, that failure becomes a value, not an error in the joining VM: a
+- On a join, that failure becomes a value, not an error in the joining VM: a
   `WorkerCancelled` code gives `Err(WorkerError::Cancelled())`, and any other
   code gives `Err(WorkerError::Failed(message))`. The joining program keeps
   running and decides what a failed worker means
@@ -156,7 +163,7 @@ thread_safe = true
 
 Channels provide typed message passing between workers:
 
-- `channel<T>(capacity)` — creates a bounded `Channel<T>`
+- `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context
 - `ch -> value` — sends a value (blocks if full, returns `Bool`)
 - `<- ch` — receives a value (blocks if empty, runtime error if closed and empty)
 - `close(ch)` — closes the channel, unblocks all waiters

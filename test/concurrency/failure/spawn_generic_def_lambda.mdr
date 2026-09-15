@@ -1,5 +1,7 @@
 module spawn_generic_def_lambda
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 def Identity = fn<T>(value: T) -> T => value;
 
-def worker = spawn Identity(7);
+def worker = Concurrency::Spawn(7, Identity);

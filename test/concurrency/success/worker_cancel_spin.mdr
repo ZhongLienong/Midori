@@ -1,5 +1,7 @@
 module worker_cancel_spin
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -12,7 +14,7 @@ def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 
 def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 
-def w = spawn Spin(0);
+def w = Concurrency::Spawn(0, Spin);
 Sleep(50);
 def cancelled = cancel(w);
 // Polls the global `w` rather than taking it as a parameter, so the worker

@@ -1,6 +1,6 @@
-Compilation failed :(
-Type Checker Error at test/concurrency/failure/spawn_generic_def_lambda.mdr:5
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/spawn_generic_def_lambda.mdr:7
   |
-5 | def worker = spawn Identity(7);
-  |                    ^^^^^^^^ Spawn expression type error: generic functions must be specialized before spawning
+7 | def worker = Concurrency::Spawn(7, Identity);
+  |                                    ^^^^^^^^ Spawn expression type error: generic functions must be specialized before spawning
   |

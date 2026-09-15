@@ -604,6 +604,8 @@ private:
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
 
+	MidoriResult::ExpressionResult LowerConcurrencyIntrinsic(std::unique_ptr<MidoriExpression>&& expr);
+
 	// A parsed construction never carries explicit type arguments: `new Name<T>(...)` was the
 	// only form that could state them and it is gone. The AST node keeps the flag, because the
 	// deriving synthesiser builds Construct nodes directly with an already-resolved return type.
@@ -619,15 +621,9 @@ private:
 
 	MidoriResult::ExpressionResult ParsePipe();
 
-	MidoriResult::ExpressionResult ParseSpawnExpression(Token& spawn_keyword);
-
-	MidoriResult::ExpressionResult ParseJoinExpression(Token& join_keyword);
-
 	// The type declared under `name` in this module or any module it imports, or
 	// nullptr. For compiler-required declarations such as `Result`.
 	std::shared_ptr<MidoriType> FindDeclaredTypeByName(const std::string& name);
-
-	MidoriResult::ExpressionResult ParseChannelExpression(Token& channel_keyword);
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
 

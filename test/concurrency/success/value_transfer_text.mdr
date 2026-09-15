@@ -14,8 +14,8 @@ def TextWorker = fn(ch : Channel<Text>) -> Int =>
     0
 };
 
-def ch = channel<Text>(4);
-def w = spawn TextWorker(ch);
+def ch : Channel<Text> = Concurrency::MakeChannel(4);
+def w = Concurrency::Spawn(ch, TextWorker);
 
 def v1 = <- ch;
 def v2 = <- ch;
@@ -28,4 +28,4 @@ PrintLine("v3=[" ++ v3 ++ "]");
 PrintLine("v4=[" ++ v4 ++ "]");
 
 close(ch);
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

@@ -1,5 +1,7 @@
 module worker_cancel
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -11,7 +13,7 @@ def LongTask = fn(dummy: Text) -> Int => {
     0
 };
 
-def w = spawn LongTask("x");
+def w = Concurrency::Spawn("x", LongTask);
 def cancelled = cancel(w);
 if cancelled
 then PrintLine("Cancel requested: yes")

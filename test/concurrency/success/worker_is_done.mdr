@@ -13,10 +13,10 @@ def SlowTask = fn(dummy: Text) -> Int => {
     0
 };
 
-def w = spawn SlowTask("x");
+def w = Concurrency::Spawn("x", SlowTask);
 def done_early = is_done(w);
 if done_early
 then PrintLine("Done immediately: yes")
 else PrintLine("Done immediately: no");
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("Done after join");

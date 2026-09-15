@@ -1,12 +1,14 @@
 module JoinRequiresResultImport
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 
-// `join` evaluates to Result<T, WorkerError>, so a file that uses it must be able
+// `Concurrency::Join` evaluates to Result<T, WorkerError>, so a file that uses it must be able
 // to name both types. Without the imports the error says which files to import,
 // rather than failing somewhere inside the type checker.
 
 def Double = fn(n : Int) -> Int => n * 2;
 
-def worker = spawn Double(21);
-def result = join worker;
+def worker = Concurrency::Spawn(21, Double);
+def result = Concurrency::Join(worker);

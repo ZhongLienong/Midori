@@ -14,8 +14,8 @@ def FloatWorker = fn(ch : Channel<Float>) -> Int =>
     0
 };
 
-def ch = channel<Float>(4);
-def w = spawn FloatWorker(ch);
+def ch : Channel<Float> = Concurrency::MakeChannel(4);
+def w = Concurrency::Spawn(ch, FloatWorker);
 
 def v1 = <- ch;
 def v2 = <- ch;
@@ -29,4 +29,4 @@ PrintLine("v4=" ++ (v4 as Text));
 PrintLine("all_received=true");
 
 close(ch);
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

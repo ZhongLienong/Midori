@@ -1,5 +1,7 @@
 module spawn_nontransferable_derived_field
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 
 type BadPayload =
@@ -15,4 +17,4 @@ def increment = fn(value: Int) => {
     value + 1
 };
 
-def worker = spawn UsePayload(BadPayload(increment));
+def worker = Concurrency::Spawn(BadPayload(increment), UsePayload);

@@ -9,8 +9,8 @@ def Produce = fn() -> Int =>
 
 def Rejoin = fn(worker: Worker<Int>) -> Int =>
 {
-    Concurrency::JoinedOrPanic(join worker)
+    Concurrency::JoinedOrPanic(Concurrency::Join(worker))
 };
 
-def produced = spawn Produce();
-def nested = spawn Rejoin(produced);
+def produced = Concurrency::Spawn((), Produce);
+def nested = Concurrency::Spawn(produced, Rejoin);

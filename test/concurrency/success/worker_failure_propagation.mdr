@@ -10,7 +10,7 @@ def GoodWorker = fn(x : Int) -> Int =>
     x * 2 + 20
 };
 
-def w = spawn GoodWorker(11);
-def result = Concurrency::JoinedOrPanic(join w);
+def w = Concurrency::Spawn(11, GoodWorker);
+def result = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("Worker result: " ++ (result as Text));
 PrintLine("No error");

@@ -3697,8 +3697,7 @@ void CodeGenerator::operator()(MidoriExpression::UnarySuffix&)
 void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 {
 	const int line = spawn.m_spawn_keyword.m_line;
-	const int arg_count = static_cast<int>(spawn.m_arguments.size());
-	if (arg_count > MAX_FUNCTION_ARITY)
+	if (spawn.m_callee_arity > MAX_FUNCTION_ARITY)
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, std::format("Too many spawn arguments (max {})", MAX_FUNCTION_ARITY + 1), spawn.m_spawn_keyword, m_file_name, m_source_lines));
 		return;
@@ -3712,16 +3711,19 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 	}
 
 	spawn.m_global_index = global_index.value();
-	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
+	Visit(spawn.m_arguments[0u]);
+	if (spawn.m_callee_arity == 0)
 	{
-		Visit(argument);
-		m_operand_depth += 1;
+		EmitByte(OpCode::POP, line);
 	}
-	m_operand_depth -= static_cast<int>(spawn.m_arguments.size());
+	else if (spawn.m_callee_arity >= 2)
+	{
+		EmitByte(OpCode::UNPACK_TUPLE, line);
+	}
 
 	EmitByte(OpCode::SPAWN_WORKER, line);
 	EmitTwoBytes((spawn.m_global_index >> SHIFT_8_BITS) & BYTE_MASK, spawn.m_global_index & BYTE_MASK, line);
-	EmitByte(static_cast<OpCode>(arg_count), line);
+	EmitByte(static_cast<OpCode>(spawn.m_callee_arity), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::Join& join)

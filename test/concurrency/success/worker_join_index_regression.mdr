@@ -45,11 +45,11 @@ def Run = fn() -> Unit =>
             def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
             def y_start = next_row;
             def y_end = y_start + band_rows;
-            def immediate = Concurrency::JoinedOrPanic(join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0));
+            def immediate = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0), Answer)));
             if immediate[0] == 0
             then ()
             else Panic::Panic("immediate join failed");
-            def worker = spawn Answer(y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci);
+            def worker = Concurrency::Spawn((y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci), Answer);
 
             SpawnBands(ArrayUtil::WithAppended(workers, worker), band_index + 1, y_end)
         };
@@ -62,7 +62,7 @@ def Run = fn() -> Unit =>
         then ()
         else
         {
-            def result = Concurrency::JoinedOrPanic(join workers[join_index]);
+            def result = Concurrency::JoinedOrPanic(Concurrency::Join(workers[join_index]));
             def expected_y_start = join_index * 2;
             def expected_y_end = expected_y_start + 2;
             if result[0] == expected_y_start

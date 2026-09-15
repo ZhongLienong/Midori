@@ -1,5 +1,7 @@
 module ArrowAndFunctionTypeAnnotation
 
+import { "../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -11,7 +13,7 @@ def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
 
 def SendOne = fn(c: Channel<Text>) -> Int => { c -> "sent"; 0 };
 
-def ch = channel<Text>(4);
+def ch : Channel<Text> = Concurrency::MakeChannel(4);
 def sent = SendOne(ch);
 PrintLine(<- ch);
 close(ch);

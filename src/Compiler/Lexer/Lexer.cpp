@@ -45,10 +45,7 @@ const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
 	{"where"s, Token::Name::WHERE},
 	{"type"s, Token::Name::TYPE},
 	{"alias"s, Token::Name::ALIAS},
-	{"deriving"s, Token::Name::DERIVING},
-	{"spawn"s, Token::Name::SPAWN},
-	{"join"s, Token::Name::JOIN},
-	{"channel"s, Token::Name::CHANNEL}
+	{"deriving"s, Token::Name::DERIVING}
 };
 
 template<typename Predicate>

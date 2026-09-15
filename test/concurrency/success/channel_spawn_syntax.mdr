@@ -12,10 +12,10 @@ def Producer = fn(ch: Channel<Text>) -> Int => {
     7
 };
 
-def ch = channel<Text>(2);
-def worker = spawn Producer(ch);
+def ch : Channel<Text> = Concurrency::MakeChannel(2);
+def worker = Concurrency::Spawn(ch, Producer);
 def first = <- ch;
 def second = <- ch;
-def result = Concurrency::JoinedOrPanic(join worker);
+def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 PrintLine(first ++ "," ++ second ++ "," ++ (result as Text));

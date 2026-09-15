@@ -2,9 +2,9 @@ module PipeIntoSpawn
 
 import { "../../MidoriPrelude/Concurrency.mdr", "../../MidoriPrelude/Prelude/Result.mdr" }
 
-// `spawn Name(...)` builds a Spawn node rather than a Call, so it had the same hole as a
-// construction: the pipe wrapped it instead of prepending, and the arity check on the
-// spawned function's arguments then failed.
+// Concurrency::Spawn takes the value to pass first, so a pipe fills it:
+// `x |> Concurrency::Spawn(F)` is `Concurrency::Spawn(x, F)`. A callee with several
+// parameters takes them as one tuple, which the spawn spreads across them.
 
 import
 {
@@ -28,20 +28,20 @@ def Triple = fn(n : Int) -> Int =>
 
 def Main = fn() -> Unit =>
 {
-	def piped = 1 |> spawn Compute(2);
-	IO::PrintLine("piped: " ++ (Concurrency::JoinedOrPanic(join piped) as Text));
+	def piped = (1, 2) |> Concurrency::Spawn(Compute);
+	IO::PrintLine("piped: " ++ (Concurrency::JoinedOrPanic(piped |> Concurrency::Join) as Text));
 
-	// The piped value lands first, so a non-commutative callee shows the order.
-	def ordered = 10 |> spawn Subtract(3);
-	IO::PrintLine("ordered: " ++ (Concurrency::JoinedOrPanic(join ordered) as Text));
+	// The tuple is spread in order, so a non-commutative callee shows the order.
+	def ordered = (10, 3) |> Concurrency::Spawn(Subtract);
+	IO::PrintLine("ordered: " ++ (Concurrency::JoinedOrPanic(ordered |> Concurrency::Join) as Text));
 
 	// A spawn is an ordinary pipeline stage: it can be piped into from a call.
-	def chained = 4 |> Triple |> spawn Compute(1);
-	IO::PrintLine("chained: " ++ (Concurrency::JoinedOrPanic(join chained) as Text));
+	def chained = (4 |> Triple, 1) |> Concurrency::Spawn(Compute);
+	IO::PrintLine("chained: " ++ (Concurrency::JoinedOrPanic(chained |> Concurrency::Join) as Text));
 
 	// A single-parameter callee takes the piped value as its only argument.
-	def only = 7 |> spawn Triple();
-	IO::PrintLine("only: " ++ (Concurrency::JoinedOrPanic(join only) as Text))
+	def only = 7 |> Concurrency::Spawn(Triple);
+	IO::PrintLine("only: " ++ (Concurrency::JoinedOrPanic(only |> Concurrency::Join) as Text))
 };
 
 Main();

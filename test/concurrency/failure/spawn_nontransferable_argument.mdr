@@ -1,5 +1,7 @@
 module spawn_nontransferable_argument
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 def RunCallback = fn(callback: fn(Int) -> Int) -> Int => {
     callback(1)
 };
@@ -8,4 +10,4 @@ def increment = fn(value: Int) => {
     value + 1
 };
 
-def worker = spawn RunCallback(increment);
+def worker = Concurrency::Spawn(increment, RunCallback);

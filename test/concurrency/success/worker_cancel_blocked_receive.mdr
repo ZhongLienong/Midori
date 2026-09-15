@@ -1,5 +1,7 @@
 module worker_cancel_blocked_receive
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -11,8 +13,8 @@ def BlockOnChannel = fn(ch: Channel<Int>) -> Int => {
     v
 };
 
-def ch = channel<Int>(1);
-def w = spawn BlockOnChannel(ch);
+def ch : Channel<Int> = Concurrency::MakeChannel(1);
+def w = Concurrency::Spawn(ch, BlockOnChannel);
 Sleep(50);
 def cancelled = cancel(w);
 // Polls the global `w` rather than taking it as a parameter, so the worker

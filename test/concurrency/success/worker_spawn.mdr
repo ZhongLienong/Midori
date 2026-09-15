@@ -9,7 +9,7 @@ def WorkerTask = fn(msg: Text) -> Int => {
     42
 };
 
-def worker = spawn WorkerTask("hello");
-def result = Concurrency::JoinedOrPanic(join worker);
+def worker = Concurrency::Spawn("hello", WorkerTask);
+def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 PrintLine("Worker result: " ++ (result as Text));

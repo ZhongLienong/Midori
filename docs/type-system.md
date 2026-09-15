@@ -91,7 +91,7 @@ Worker<Int>       // handle to a worker that returns Int
 Channel<Text>     // handle to a channel carrying Text values
 ```
 
-Both are internally represented as `Int` handles but carry compile-time type parameters. `Worker<T>` is produced by `spawn` and consumed by `join`. `Channel<T>` is produced by `channel<T>(capacity)` and used with `->` (send) and `<-` (receive).
+Both are internally represented as `Int` handles but carry compile-time type parameters. `Worker<T>` is produced by `Concurrency::Spawn` and consumed by `Concurrency::Join`. `Channel<T>` is produced by `Concurrency::MakeChannel(capacity)`, which takes `T` from context, and used with `->` (send) and `<-` (receive).
 
 ### Ranges
 

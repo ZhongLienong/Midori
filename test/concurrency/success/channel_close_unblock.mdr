@@ -13,8 +13,8 @@ def Sender = fn(ch : Channel<Text>) -> Int =>
     0
 };
 
-def ch = channel<Text>(2);
-def w = spawn Sender(ch);
+def ch : Channel<Text> = Concurrency::MakeChannel(2);
+def w = Concurrency::Spawn(ch, Sender);
 
 def msg1 = <- ch;
 def msg2 = <- ch;
@@ -22,5 +22,5 @@ def msg2 = <- ch;
 PrintLine("msg1=[" ++ msg1 ++ "]");
 PrintLine("msg2=[" ++ msg2 ++ "]");
 
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("worker_done=true");

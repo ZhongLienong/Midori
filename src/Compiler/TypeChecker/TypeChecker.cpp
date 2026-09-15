@@ -5246,7 +5246,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 
 	if (!has_top_level_definition)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: spawn requires a named top-level function", spawn.m_callee_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: Concurrency::Spawn requires a named top-level function", spawn.m_callee_name, m_file_name, m_source_lines));
 	}
 
 	if (m_generic_functions.contains(callee_name))
@@ -5277,33 +5277,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn.m_callee_name, m_file_name, m_source_lines));
 	}
 
-	if (function_type.m_param_types.size() != spawn.m_arguments.size())
+	if (std::optional<CompilerError> error = CheckSpawnArgument(spawn, function_type))
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Spawn expression type error: incorrect arity", spawn.m_spawn_keyword, m_file_name, m_source_lines));
-	}
-
-	for (size_t index = 0u; index < spawn.m_arguments.size(); index += 1u)
-	{
-		ExpectedTypeGuard guard(*this, function_type.m_param_types[index]);
-		MidoriResult::TypeResult argument_result = Evaluate(spawn.m_arguments[index]);
-		if (!argument_result.has_value())
-		{
-			return argument_result;
-		}
-
-		std::shared_ptr<MidoriType> actual_type = std::move(argument_result.value());
-		std::shared_ptr<MidoriType> expected_type = function_type.m_param_types[index];
-		MidoriResult::TypeResult unify_result = Unify(spawn.m_callee_name, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
-		if (!unify_result.has_value())
-		{
-			return unify_result;
-		}
-
-		std::shared_ptr<MidoriType> resolved_argument_type = ApplySubstitution(actual_type);
-		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_callee_name, resolved_argument_type))
-		{
-			return std::unexpected(std::move(*error));
-		}
+		return std::unexpected(std::move(*error));
 	}
 
 	std::shared_ptr<MidoriType> resolved_return_type = ApplySubstitution(function_type.m_return_type);
@@ -5314,6 +5290,60 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 
 	spawn.m_type_data = MidoriType::MakeWorkerType(resolved_return_type);
 	return spawn.m_type_data;
+}
+
+std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::Spawn& spawn, const MidoriType::FunctionType& function_type)
+{
+	const size_t arity = function_type.m_param_types.size();
+	spawn.m_callee_arity = static_cast<int>(arity);
+
+	std::shared_ptr<MidoriType> expected_type;
+	if (arity == 0u)
+	{
+		expected_type = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+	}
+	else if (arity == 1u)
+	{
+		expected_type = function_type.m_param_types[0u];
+	}
+	else
+	{
+		std::vector<std::shared_ptr<MidoriType>> element_types(function_type.m_param_types.begin(), function_type.m_param_types.end());
+		expected_type = MidoriType::MakeTupleType(std::move(element_types));
+	}
+
+	ExpectedTypeGuard guard(*this, expected_type);
+	MidoriResult::TypeResult argument_result = Evaluate(spawn.m_arguments[0u]);
+	if (!argument_result.has_value())
+	{
+		return std::move(argument_result.error());
+	}
+
+	std::shared_ptr<MidoriType> actual_type = ApplySubstitution(argument_result.value());
+	if (arity >= 2u)
+	{
+		const bool is_matching_tuple = actual_type->IsType<MidoriType::TupleType>() && actual_type->GetType<MidoriType::TupleType>().m_element_types.size() == arity;
+		if (!is_matching_tuple)
+		{
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: '{}' takes {} parameters, so pass them to Concurrency::Spawn as one {}-element tuple", spawn.m_callee_name.m_lexeme, arity, arity), spawn.m_callee_name, m_file_name, m_source_lines, actual_type, expected_type);
+		}
+	}
+
+	MidoriResult::TypeResult unify_result = Unify(spawn.m_callee_name, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+	if (!unify_result.has_value())
+	{
+		return std::move(unify_result.error());
+	}
+
+	for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+	{
+		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_callee_name, ApplySubstitution(param_type)))
+		{
+			return error;
+		}
+	}
+
+	return std::nullopt;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
@@ -5383,6 +5413,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ChannelCreate& channel_create)
 {
+	if (channel_create.m_element_type == nullptr)
+	{
+		// Concurrency::MakeChannel(capacity) names no element type, so it takes the
+		// one its context expects, as a generic constructor does.
+		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
+		if (expected_type == nullptr || !expected_type->IsType<MidoriType::ChannelType>() || expected_type->GetType<MidoriType::ChannelType>().m_element_type->IsType<MidoriType::TypeVariable>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Channel creation type error: Concurrency::MakeChannel cannot tell what the channel carries. Annotate where it is bound, as in 'def ch : Channel<Int> = Concurrency::MakeChannel(4);'", channel_create.m_channel_keyword, m_file_name, m_source_lines));
+		}
+
+		channel_create.m_element_type = expected_type->GetType<MidoriType::ChannelType>().m_element_type;
+	}
+
 	if (std::optional<CompilerError> error = EnsureTransferable(channel_create.m_channel_keyword, channel_create.m_element_type))
 	{
 		return std::unexpected(std::move(*error));
@@ -5534,6 +5577,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 	{
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		const std::string& full_name = callee_name.m_name.m_lexeme;
+		// The parser turns a complete call to one of these into its own node, so a
+		// Call reaching here has the wrong number of arguments.
+		if (full_name == "Concurrency::Spawn")
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Concurrency::Spawn takes two arguments, the value to pass and the function to run, as in 'Concurrency::Spawn(21, Double)'. Pass several values as a tuple.", call.m_paren, m_file_name, m_source_lines));
+		}
+		if (full_name == "Concurrency::Join" || full_name == "Concurrency::MakeChannel")
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
+		}
 		if (full_name == "close")
 		{
 			if (call.m_arguments.size() != 1u)

@@ -45,18 +45,18 @@ def UsesRecursiveClosure = fn(n : Int) -> Int => SumToWithBonus(n);
 def Report = fn(name : Text, direct : Int, worker : Int) -> Unit =>
 	IO::PrintLine(name ++ ": direct=" ++ (direct as Text) ++ " worker=" ++ (worker as Text) ++ (if direct == worker then " same" else " DIFFERENT"));
 
-def int_worker = spawn UsesInt(5);
-def text_worker = spawn UsesText(5);
-def array_worker = spawn UsesArray(5);
-def record_worker = spawn UsesRecord(5);
-def union_worker = spawn UsesUnion(5);
-def closure_worker = spawn UsesCapturingClosure(5);
-def recursive_worker = spawn UsesRecursiveClosure(5);
+def int_worker = Concurrency::Spawn(5, UsesInt);
+def text_worker = Concurrency::Spawn(5, UsesText);
+def array_worker = Concurrency::Spawn(5, UsesArray);
+def record_worker = Concurrency::Spawn(5, UsesRecord);
+def union_worker = Concurrency::Spawn(5, UsesUnion);
+def closure_worker = Concurrency::Spawn(5, UsesCapturingClosure);
+def recursive_worker = Concurrency::Spawn(5, UsesRecursiveClosure);
 
-Report("int", UsesInt(5), Concurrency::JoinedOrPanic(join int_worker));
-Report("text", UsesText(5), Concurrency::JoinedOrPanic(join text_worker));
-Report("array", UsesArray(5), Concurrency::JoinedOrPanic(join array_worker));
-Report("record", UsesRecord(5), Concurrency::JoinedOrPanic(join record_worker));
-Report("union", UsesUnion(5), Concurrency::JoinedOrPanic(join union_worker));
-Report("capturing closure", UsesCapturingClosure(5), Concurrency::JoinedOrPanic(join closure_worker));
-Report("recursive closure", UsesRecursiveClosure(5), Concurrency::JoinedOrPanic(join recursive_worker));
+Report("int", UsesInt(5), Concurrency::JoinedOrPanic(Concurrency::Join(int_worker)));
+Report("text", UsesText(5), Concurrency::JoinedOrPanic(Concurrency::Join(text_worker)));
+Report("array", UsesArray(5), Concurrency::JoinedOrPanic(Concurrency::Join(array_worker)));
+Report("record", UsesRecord(5), Concurrency::JoinedOrPanic(Concurrency::Join(record_worker)));
+Report("union", UsesUnion(5), Concurrency::JoinedOrPanic(Concurrency::Join(union_worker)));
+Report("capturing closure", UsesCapturingClosure(5), Concurrency::JoinedOrPanic(Concurrency::Join(closure_worker)));
+Report("recursive closure", UsesRecursiveClosure(5), Concurrency::JoinedOrPanic(Concurrency::Join(recursive_worker)));

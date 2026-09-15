@@ -11,7 +11,7 @@ def Factorial = fn(n: Int) -> Int => if n <= 1 then 1 else n * Factorial(n - 1);
 
 def ScaleViaHelper = fn(n: Int) -> Int => Increment(n) * 10;
 
-def w1 = spawn Factorial(5);
-def w2 = spawn ScaleViaHelper(4);
-PrintLine("factorial=" ++ ((Concurrency::JoinedOrPanic(join w1)) as Text));
-PrintLine("helper=" ++ ((Concurrency::JoinedOrPanic(join w2)) as Text));
+def w1 = Concurrency::Spawn(5, Factorial);
+def w2 = Concurrency::Spawn(4, ScaleViaHelper);
+PrintLine("factorial=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w1))) as Text));
+PrintLine("helper=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as Text));

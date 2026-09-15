@@ -98,8 +98,8 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` evaluates to `Result<T, WorkerError>`, so a failed or cancelled worker is a value rather than an error in the joiner (needs `Prelude/Result.mdr` and `Concurrency.mdr` imported). Callee must be a named `def Name = fn(...)`. |
-| `channel<T>(cap)` keyword | Stable | `test/concurrency/` | Creates a typed bounded channel. `T` must satisfy `Transferable`. |
+| `Concurrency::Spawn`, `Concurrency::Join` | Stable | `test/concurrency/` | Compiler-provided functions, available once `Concurrency.mdr` is imported. `Spawn(argument, F)` resolves `F` at compile time and spreads a tuple argument across several parameters, so `(a, b) \|> Concurrency::Spawn(F)` pipes. `Join` evaluates to `Result<T, WorkerError>`, so a failed or cancelled worker is a value rather than an error in the joiner (needs `Prelude/Result.mdr` too). Callee must be a named `def Name = fn(...)`. The `spawn`/`join` keywords were removed. |
+| `Concurrency::MakeChannel(cap)` | Stable | `test/concurrency/` | Creates a typed bounded channel, taking `T` from context (`def ch : Channel<Int> = ...`). `T` must satisfy `Transferable`. Replaces the `channel<T>(cap)` keyword. |
 | `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
 | `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |
 | Constrained instances | Stable | `test/typeclass/` | `instance C<T> where D<T>` — an instance may require constraints on its own type parameters, resolved recursively and across module boundaries. |

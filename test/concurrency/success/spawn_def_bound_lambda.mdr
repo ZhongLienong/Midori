@@ -14,15 +14,15 @@ def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int => {
     0
 };
 
-def w1 = spawn Double(21);
-def w2 = spawn Triple(14);
-PrintLine("double=" ++ ((Concurrency::JoinedOrPanic(join w1)) as Text));
-PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(join w2)) as Text));
+def w1 = Concurrency::Spawn(21, Double);
+def w2 = Concurrency::Spawn(14, Triple);
+PrintLine("double=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w1))) as Text));
+PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as Text));
 
-def ch = channel<Text>(2);
-def w3 = spawn SendBand(ch, "left");
+def ch : Channel<Text> = Concurrency::MakeChannel(2);
+def w3 = Concurrency::Spawn((ch, "left"), SendBand);
 PrintLine(<- ch);
 close(ch);
-def _r3 = Concurrency::JoinedOrPanic(join w3);
+def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
 
 PrintLine("direct=" ++ (Double(5) as Text));

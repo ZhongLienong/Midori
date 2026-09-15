@@ -29,7 +29,7 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
 - `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
-- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, and `Channel<T>`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `spawn`, `join`, `channel`, `->`, and `<-`.
+- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, and `Channel<T>`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
 ## Result Naming

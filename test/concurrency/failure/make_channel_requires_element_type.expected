@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/make_channel_requires_element_type.mdr:9
+  |
+9 | def ch = Concurrency::MakeChannel(4);
+  |          ^^^^^^^^^^^ Channel creation type error: Concurrency::MakeChannel cannot tell what the channel carries. Annotate where it is bound, as in 'def ch : Channel<Int> = Concurrency::MakeChannel(4);'
+  |

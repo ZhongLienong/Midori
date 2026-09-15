@@ -74,10 +74,10 @@ TEST_CASE("Joining a cancelled spinning worker yields a cancellation error value
 {}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(dummy: Int) -> Int => SpinFrom(0);
-def w = spawn Spin(0);
+def w = Concurrency::Spawn(0, Spin);
 System::Sleep(50);
 def cancelled = cancel(w);
-def r = join w;
+def r = Concurrency::Join(w);
 {}IO::PrintLine("joiner continued");
 )",
 		JoinImports(), DESCRIBE_JOIN);
@@ -101,10 +101,10 @@ TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error
 		R"(module WorkerCancelTailJoin
 {}
 def SpinTail = fn(i: Int) -> Int => SpinTail(i + 1);
-def w = spawn SpinTail(0);
+def w = Concurrency::Spawn(0, SpinTail);
 System::Sleep(50);
 def cancelled = cancel(w);
-def r = join w;
+def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
 
@@ -129,10 +129,10 @@ TEST_CASE("Joining a cancelled worker reports cancellation, not a generic failur
 {}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
-def w = spawn Spin(0);
+def w = Concurrency::Spawn(0, Spin);
 System::Sleep(50);
 def cancelled = cancel(w);
-def r = join w;
+def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
 
@@ -159,10 +159,10 @@ def SleepLong = fn(_dummy: Int) -> Int => {{
     System::Sleep(30000);
     0
 }};
-def w = spawn SleepLong(0);
+def w = Concurrency::Spawn(0, SleepLong);
 System::Sleep(300);
 def cancelled = cancel(w);
-def r = join w;
+def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
 

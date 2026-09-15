@@ -8,7 +8,7 @@ import
 	"../../../MidoriPrelude/Prelude/Result.mdr"
 }
 
-// `join w` evaluates to Result<Int, WorkerError>. A worker that fails or is
+// `Concurrency::Join(w)` evaluates to Result<Int, WorkerError>. A worker that fails or is
 // cancelled used to terminate the joining program with the worker's error; now
 // the joiner receives Err(...) and carries on, which is what worker isolation is
 // for.
@@ -27,17 +27,17 @@ def Describe = fn(label : Text, result : Result<Int, WorkerError>) -> Unit =>
 		case WorkerError::Cancelled() => IO::PrintLine(label ++ ": Err(Cancelled)")
 		case WorkerError::Failed(message) => IO::PrintLine(label ++ ": Err(Failed: " ++ message ++ ")");
 
-def succeeding = spawn Double(21);
-Describe("succeeding", join succeeding);
+def succeeding = Concurrency::Spawn(21, Double);
+Describe("succeeding", Concurrency::Join(succeeding));
 
-def failing = spawn Fail(7);
-Describe("failing", join failing);
+def failing = Concurrency::Spawn(7, Fail);
+Describe("failing", Concurrency::Join(failing));
 
-def spinning = spawn Spin(0);
+def spinning = Concurrency::Spawn(0, Spin);
 System::Sleep(20);
 def cancelled = cancel(spinning);
-Describe("cancelled", join spinning);
+Describe("cancelled", Concurrency::Join(spinning));
 
 // Still running after two workers went wrong.
 IO::PrintLine("joiner still running; cancel returned " ++ (if cancelled then "true" else "false"));
-IO::PrintLine("JoinedOrPanic: " ++ (Concurrency::JoinedOrPanic(join spawn Double(50)) as Text));
+IO::PrintLine("JoinedOrPanic: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(50, Double))) as Text));

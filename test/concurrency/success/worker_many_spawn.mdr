@@ -1,5 +1,7 @@
 module worker_many_spawn
 
+import { "../../../MidoriPrelude/Concurrency.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -9,12 +11,12 @@ def IdentityWorker = fn(ch: Channel<Int>, val: Int) -> Int => {
 };
 
 def n = 16;
-def ch = channel<Int>(n);
+def ch : Channel<Int> = Concurrency::MakeChannel(n);
 
 // Spawning is an effect, so `for` still suits it.
 for i in 0..1..n
 {
-    def _w = spawn IdentityWorker(ch, i);
+    def _w = Concurrency::Spawn((ch, i), IdentityWorker);
 };
 
 // Receiving accumulates, so it becomes a tail-recursive helper.

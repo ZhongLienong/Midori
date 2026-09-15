@@ -5,8 +5,8 @@ import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelu
 def Outer = fn() -> Int => {
     def offset = 7;
     def Inner = fn(n: Int) -> Int => n + offset;
-    def w = spawn Inner(1);
-    Concurrency::JoinedOrPanic(join w)
+    def w = Concurrency::Spawn(1, Inner);
+    Concurrency::JoinedOrPanic(Concurrency::Join(w))
 };
 
 def result = Outer();

@@ -21,7 +21,7 @@ def list =
         )
     );
 
-def worker = spawn Count(list);
-def result = Concurrency::JoinedOrPanic(join worker);
+def worker = Concurrency::Spawn(list, Count);
+def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 IO::PrintLine("count=" ++ (result as Text));

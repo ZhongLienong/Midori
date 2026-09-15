@@ -9,7 +9,7 @@ def BuildValues = fn() -> Array<Int> => {
     [1, 2, 3, 4]
 };
 
-def worker = spawn BuildValues();
-def values = Concurrency::JoinedOrPanic(join worker);
+def worker = Concurrency::Spawn((), BuildValues);
+def values = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 PrintLine("len=" ++ ((#values) as Text) ++ ",first=" ++ (values[0] as Text) ++ ",last=" ++ (values[3] as Text));

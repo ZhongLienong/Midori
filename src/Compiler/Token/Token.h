@@ -104,9 +104,6 @@ struct Token
 		// being rejected as a module name, silently and with no test to catch it.
 		ALIAS,
 		DERIVING,
-		SPAWN,
-		JOIN,
-		CHANNEL,
 
 		// types
 		FLOAT,

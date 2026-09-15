@@ -14,8 +14,8 @@ def IntWorker = fn(ch : Channel<Int>) -> Int =>
     0
 };
 
-def ch = channel<Int>(4);
-def w = spawn IntWorker(ch);
+def ch : Channel<Int> = Concurrency::MakeChannel(4);
+def w = Concurrency::Spawn(ch, IntWorker);
 
 def v1 = <- ch;
 def v2 = <- ch;
@@ -29,4 +29,4 @@ PrintLine("v4=" ++ (v4 as Text));
 PrintLine("sum=" ++ ((v1 + v2 + v3 + v4) as Text));
 
 close(ch);
-def r = Concurrency::JoinedOrPanic(join w);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

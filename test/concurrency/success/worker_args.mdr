@@ -10,6 +10,6 @@ def Greeter = fn(name: Text, greeting: Text) -> Int => {
     0
 };
 
-def w = spawn Greeter("World", "Hello");
-def r = Concurrency::JoinedOrPanic(join w);
+def w = Concurrency::Spawn(("World", "Hello"), Greeter);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("Worker exited with: " ++ (r as Text));
