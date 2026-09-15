@@ -132,8 +132,15 @@ comprehension was 131-143 ms across five runs (131, 143, 137, 143, 136), all at
 40,000 elements on the same machine, all dominated by roughly 90 ms of process
 startup. `ArrayUtil::WithAppended` in a loop is quadratic and is not the
 replacement. `test/gc/generational_churn` lost its
-old-to-young write-barrier coverage in the process, and nothing replaces it: an
-immutable language cannot express that write.
+old-to-young write-barrier coverage in the process. That coverage was first
+recorded here as irreplaceable, on the grounds that an immutable language cannot
+express that write. That was wrong: the program cannot, but the runtime still
+does. A comprehension appends into an array that a mid-build minor collection
+has already made old, and an in-place `++` (`EXTEND_ARRAY`) copies young elements
+into an old left operand. Since 2026-09-14 both are covered, by
+`test/gc/comprehension_write_barrier` and `test/gc/extend_write_barrier`. Each was
+shown to fail with its barrier removed (19,739 of 20,000 and 50 of 50 elements
+lost, deterministically).
 `test/concurrency/success/gc_stress_arrays` also lost coverage: it used to build
 an array by repeated in-place `Append`, exercising the backing store's
 reallocation-as-it-grows path. Its comprehension replacement allocates the same

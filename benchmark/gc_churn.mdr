@@ -15,12 +15,12 @@ use List.{List, ListReverse, ListToArray}
 //
 // What could not be preserved: the original wrote a fresh text into the old
 // keeper array every 1000 iterations (`keeper[...] = fresh`) to exercise the
-// write barrier and remembered set with old-to-young edges. v2 has no in-place
-// writes, so that edge cannot be expressed. The fresh texts are instead kept in
-// a young cons list and copied into a new keeper once at the end, which yields
-// the same final checksum. See docs/superpowers/specs/2026-09-01-expression-
-// oriented-midori-design.md, which records the same loss for
-// test/gc/generational_churn.
+// write barrier and remembered set with old-to-young edges. A v2 program has no
+// in-place writes, so it cannot make that edge explicitly. The fresh texts are
+// instead kept in a young cons list and copied into a new keeper once at the
+// end, which yields the same final checksum. (The runtime's own old-to-young
+// writes, from comprehension appends and in-place `++`, are covered by
+// test/gc/comprehension_write_barrier and test/gc/extend_write_barrier.)
 
 def Churn = fn(i : Int, limit : Int, fresh : List<Text>) -> List<Text> =>
 {

@@ -12,9 +12,12 @@ def Main = fn() -> Unit =>
 {
 	// Was: a long-lived `keeper` array receiving young pointers by in-place
 	// Append, which is what made this an old-to-young write-barrier test. No
-	// expression can write into an existing object any more, so that coverage is
-	// gone and nothing replaces it. What remains is the allocation churn and the
-	// promotion of a structure that survives the whole run.
+	// expression can write into an existing object any more, so this file no
+	// longer covers the barrier. The runtime still makes such writes on its own
+	// behalf, and those are covered instead by comprehension_write_barrier.mdr
+	// (ADD_BACK_ARRAY) and extend_write_barrier.mdr (EXTEND_ARRAY). What remains
+	// here is the allocation churn and the promotion of a structure that
+	// survives the whole run.
 	//
 	// Cons is O(1), so the accumulation stays linear; the list is converted once
 	// at the end. Churn's recursive call is in tail position, so 32000 iterations
