@@ -189,14 +189,45 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 		return serialized;
 	}
 
+	// Closures and cells are immutable once built (v2 has no assignment), so a
+	// structural copy is the same value. A recursive local closure refers to itself
+	// through its own cell; registering each object in `visited` before recursing
+	// into its fields turns that cycle into a shared reference, as for arrays.
 	if (source->IsTraceable<MidoriClosure>())
 	{
-		return std::unexpected(std::string("Cannot transfer closure values between workers."));
+		const MidoriClosure& src_closure = source->GetTraceable<MidoriClosure>();
+		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Closure{} });
+		visited.emplace(source, serialized);
+
+		SerializedObject::Closure& serialized_closure = std::get<SerializedObject::Closure>(serialized->m_data);
+		serialized_closure.m_proc_index = src_closure.m_proc_index;
+		const int length = src_closure.m_cell_values.GetLength();
+		serialized_closure.m_cells.reserve(static_cast<size_t>(length));
+		for (int index = 0; index < length; index += 1)
+		{
+			std::expected<SerializedValue, std::string> cell = SerializeValue(src_closure.m_cell_values[index], source_vm, visited);
+			if (!cell.has_value())
+			{
+				return std::unexpected(cell.error());
+			}
+			serialized_closure.m_cells.emplace_back(std::move(cell.value()));
+		}
+		return serialized;
 	}
 
 	if (source->IsTraceable<MidoriCellValue>())
 	{
-		return std::unexpected(std::string("Cannot transfer cell values between workers."));
+		const MidoriCellValue& src_cell = source->GetTraceable<MidoriCellValue>();
+		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Cell{} });
+		visited.emplace(source, serialized);
+
+		std::expected<SerializedValue, std::string> value = SerializeValue(src_cell.GetValue(), source_vm, visited);
+		if (!value.has_value())
+		{
+			return std::unexpected(value.error());
+		}
+		std::get<SerializedObject::Cell>(serialized->m_data).m_value = std::move(value.value());
+		return serialized;
 	}
 
 	return std::unexpected(std::string("Cannot transfer unknown traceable value between workers."));
@@ -323,6 +354,47 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 	{
 		MidoriTraceable* transferred = target_vm.AllocateTraceable(MidoriFloatRange(serialized_range->m_start, serialized_range->m_end, serialized_range->m_step));
 		visited.emplace(source.get(), transferred);
+		return transferred;
+	}
+
+	if (const SerializedObject::Closure* serialized_closure = std::get_if<SerializedObject::Closure>(&source->m_data))
+	{
+		// A capture-free function goes through the target VM's static closure
+		// cache, exactly as MAKE_FUNCTION would produce it there.
+		if (serialized_closure->m_cells.empty())
+		{
+			MidoriTraceable* function = target_vm.MakeFunctionValue(serialized_closure->m_proc_index).GetPointer();
+			visited.emplace(source.get(), function);
+			return function;
+		}
+
+		MidoriTraceable* transferred = target_vm.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(static_cast<int>(serialized_closure->m_cells.size())), .m_proc_index = serialized_closure->m_proc_index });
+		visited.emplace(source.get(), transferred);
+
+		MidoriTuple& dst_cells = transferred->GetTraceable<MidoriClosure>().m_cell_values;
+		for (size_t index = 0u; index < serialized_closure->m_cells.size(); index += 1u)
+		{
+			std::expected<MidoriValue, std::string> cell = DeserializeValue(serialized_closure->m_cells[index], target_vm, visited);
+			if (!cell.has_value())
+			{
+				return std::unexpected(cell.error());
+			}
+			dst_cells[static_cast<int>(index)] = cell.value();
+		}
+		return transferred;
+	}
+
+	if (const SerializedObject::Cell* serialized_cell = std::get_if<SerializedObject::Cell>(&source->m_data))
+	{
+		MidoriTraceable* transferred = target_vm.AllocateTraceable(MidoriCellValue());
+		visited.emplace(source.get(), transferred);
+
+		std::expected<MidoriValue, std::string> value = DeserializeValue(serialized_cell->m_value, target_vm, visited);
+		if (!value.has_value())
+		{
+			return std::unexpected(value.error());
+		}
+		transferred->GetTraceable<MidoriCellValue>().GetValue() = value.value();
 		return transferred;
 	}
 

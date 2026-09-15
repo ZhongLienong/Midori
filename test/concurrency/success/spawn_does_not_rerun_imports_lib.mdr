@@ -1,0 +1,11 @@
+module SpawnDoesNotRerunImportsLib
+
+import { "../../../MidoriPrelude/IO.mdr" }
+
+public export { Base }
+
+// A visible effect at module initialization. It must run once per program,
+// not once more inside every spawned worker.
+IO::PrintLine("SpawnDoesNotRerunImportsLib initialized");
+
+def Base : Int = 7;

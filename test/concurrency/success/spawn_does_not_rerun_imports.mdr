@@ -1,0 +1,19 @@
+module SpawnDoesNotRerunImports
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+	"./spawn_does_not_rerun_imports_lib.mdr"
+}
+
+// Each spawned worker used to re-execute every imported module's initializer, so
+// the library's "initialized" line printed once more per spawn. The workers must
+// instead start from the globals the program already has.
+
+def Scaled = fn(n : Int) -> Int => n * SpawnDoesNotRerunImportsLib::Base;
+
+def first = spawn Scaled(1);
+def second = spawn Scaled(2);
+def third = spawn Scaled(3);
+
+IO::PrintLine("results: " ++ ((join first) as Text) ++ " " ++ ((join second) as Text) ++ " " ++ ((join third) as Text));

@@ -1,105 +1,38 @@
 #include "Worker.h"
 
 #include "Common/Cancellation/Cancellation.h"
-#include "Common/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
 
 #include <unordered_map>
 
 namespace
 {
-	struct ProcedureNameParts
+	// Installs the spawning VM's globals, copied at spawn time. A worker used to
+	// rebuild its globals instead: it re-ran every imported module's initializer
+	// (repeating any effect, such as printing, once per spawn) and restored only
+	// the entry module's globals whose names matched a procedure, so data globals
+	// read as zero and pointer-valued ones crashed the worker.
+	std::expected<void, WorkerError> InstallWorkerGlobals(VirtualMachine& worker_vm, const std::vector<SerializedValue>& serialized_globals)
 	{
-		std::string_view m_base_name;
-		std::string_view m_module_name;
-	};
-
-	ProcedureNameParts ParseProcedureName(const std::string& raw_name)
-	{
-		const std::string_view raw_name_view(raw_name);
-		const size_t separator_index = raw_name_view.rfind(ModuleSeparator);
-		if (separator_index == std::string_view::npos)
+		for (size_t global_index = 0uz; global_index < serialized_globals.size(); global_index += 1uz)
 		{
-			return ProcedureNameParts{ raw_name_view, {} };
-		}
-
-		return ProcedureNameParts
-		{
-			raw_name_view.substr(0u, separator_index),
-			raw_name_view.substr(separator_index + 1u)
-		};
-	}
-
-	std::expected<void, WorkerError> ExecuteWorkerInitializer(VirtualMachine& worker_vm, int proc_index)
-	{
-		worker_vm.PrepareWorkerCall(proc_index);
-		VirtualMachine::ExecuteResult init_result = worker_vm.Execute();
-		if (!init_result.has_value())
-		{
-			return std::unexpected(WorkerError{ init_result.error().m_code, std::string(init_result.error().m_message) });
-		}
-
-		return {};
-	}
-
-	std::expected<void, WorkerError> InitializeWorkerGlobals(VirtualMachine& worker_vm, const MidoriExecutable& executable)
-	{
-		std::string_view entry_module_name;
-		if (!executable.m_procedure_names.empty())
-		{
-			entry_module_name = ParseProcedureName(executable.m_procedure_names[0u]).m_module_name;
-		}
-
-		for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)
-		{
-			const ProcedureNameParts parts = ParseProcedureName(executable.m_procedure_names[static_cast<size_t>(proc_index)]);
-			if (parts.m_base_name != MAIN_PROCEDURE_PREFIX || parts.m_module_name.empty() || parts.m_module_name == entry_module_name)
+			std::expected<MidoriValue, std::string> global_value = ValueTransfer::Deserialize(serialized_globals[global_index], worker_vm);
+			if (!global_value.has_value())
 			{
-				continue;
+				return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, global_value.error() });
 			}
-
-			std::expected<void, WorkerError> init_result = ExecuteWorkerInitializer(worker_vm, proc_index);
-			if (!init_result.has_value())
-			{
-				return init_result;
-			}
-		}
-
-		std::unordered_map<std::string, int> global_indices;
-		global_indices.reserve(static_cast<size_t>(executable.GetGlobalVariableCount()));
-		for (int global_index = 0; global_index < executable.GetGlobalVariableCount(); global_index += 1)
-		{
-			global_indices.emplace(executable.GetGlobalVariable(global_index), global_index);
-		}
-
-		for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)
-		{
-			const ProcedureNameParts parts = ParseProcedureName(executable.m_procedure_names[static_cast<size_t>(proc_index)]);
-			if (parts.m_module_name != entry_module_name
-				|| parts.m_base_name.empty()
-				|| parts.m_base_name == MAIN_PROCEDURE_PREFIX
-				|| parts.m_base_name == MODULE_BOOTSTRAP_PREFIX)
-			{
-				continue;
-			}
-
-			const std::unordered_map<std::string, int>::const_iterator global_it = global_indices.find(std::string(parts.m_base_name));
-			if (global_it == global_indices.cend())
-			{
-				continue;
-			}
-
-			worker_vm.SetGlobalValue(global_it->second, worker_vm.MakeFunctionValue(proc_index));
+			worker_vm.SetGlobalValue(static_cast<int>(global_index), global_value.value());
 		}
 
 		return {};
 	}
 }
 
-Worker::Worker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args)
+Worker::Worker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 	: m_executable(std::move(executable))
 	, m_proc_index(proc_index)
 	, m_serialized_args(std::move(serialized_args))
+	, m_serialized_globals(std::move(serialized_globals))
 {
 	m_thread = std::jthread([this](std::stop_token stop_token)
 	{
@@ -154,7 +87,7 @@ void Worker::Execute(std::stop_token stop_token)
 			return;
 		}
 
-		std::expected<void, WorkerError> init_result = InitializeWorkerGlobals(worker_vm, *m_executable);
+		std::expected<void, WorkerError> init_result = InstallWorkerGlobals(worker_vm, m_serialized_globals);
 		if (!init_result.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
@@ -268,12 +201,12 @@ WorkerRegistry& WorkerRegistry::GetInstance()
 	return instance;
 }
 
-int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args)
+int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int worker_id = m_next_id;
 	m_next_id += 1;
-	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), proc_index, std::move(serialized_args)));
+	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), proc_index, std::move(serialized_args), std::move(serialized_globals)));
 	return worker_id;
 }
 

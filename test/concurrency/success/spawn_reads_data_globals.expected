@@ -1,0 +1,13 @@
+[warning] 1 warning(s) in spawn_reads_data_globals.mdr
+Static Analyzer Warning at test/concurrency/success/spawn_reads_data_globals.mdr:14
+   |
+14 | def MakeAdder = fn(amount : Int) -> fn(Int) -> Int => fn(n : Int) -> Int => n + amount;
+   |                                                       ^^ Captured anonymous closure escapes its defining scope as a return value.
+   |
+int: direct=15 worker=15 same
+text: direct=73 worker=73 same
+array: direct=10 worker=10 same
+record: direct=17 worker=17 same
+union: direct=41 worker=41 same
+capturing closure: direct=105 worker=105 same
+recursive closure: direct=1015 worker=1015 same

@@ -22,7 +22,7 @@ Communication between workers happens exclusively through message passing
 | Call stack | No | Per-VM, 10k slots |
 | Heap / Allocator | No | Per-VM `MidoriAllocator` |
 | Garbage collector | No | Per-VM, independent generational collection |
-| Global variables | No | Per-VM, zero-initialized for workers |
+| Global variables | No | Per-VM; a worker starts from a copy of the spawning VM's globals |
 | String literal cache | No | Per-VM |
 | Static closure cache | No | Per-VM |
 
@@ -51,6 +51,11 @@ via `ValueTransfer` (direct VM-to-VM copy for `spawn`/`join`) or serialized to
 Transferability is checked at compile time. Attempting to `spawn` with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
+
+The runtime itself also copies closures and their captured cells, but only
+for one purpose: the globals a worker starts from (see Worker Lifecycle).
+That copy is sound because v2 values, closures included, are immutable once
+built. It does not make closures transferable in user code.
 
 Cycle detection is handled via a `PointerMap` that tracks already-transferred
 traceables.
@@ -82,6 +87,11 @@ Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
    - Constructs a new `VirtualMachine` sharing the executable's bytecode
    - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
    - Validates FFI thread safety before execution
+   - Installs a copy of the spawning VM's globals, serialized on the spawning
+     thread at the `spawn`. Globals are defined once and never reassigned, so
+     the spawned function sees exactly what it would see if called directly.
+     Module initializers are not re-run, so their effects happen once per
+     program, not once per worker.
    - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
    - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
 

@@ -387,8 +387,26 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 			return false;
 		}
 
+		// The worker starts from a copy of this VM's globals, taken here on the
+		// spawning thread because this heap is not safe to read from another one.
+		// Globals are only ever defined once, so the copy is exactly what the
+		// spawned function would see if it were called directly.
+		std::vector<SerializedValue> serialized_globals;
+		serialized_globals.reserve(m_global_vars->size());
+		for (const MidoriValue& global_value : *m_global_vars)
+		{
+			std::expected<SerializedValue, std::string> serialized_global = ValueTransfer::Serialize(global_value, *this);
+			if (!serialized_global.has_value())
+			{
+				m_instruction_pointer = ip;
+				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_global.error(), GetLine())));
+				return false;
+			}
+			serialized_globals.emplace_back(std::move(serialized_global.value()));
+		}
+
 		const MidoriClosure& worker_closure = worker_pointer->GetTraceable<MidoriClosure>();
-		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, worker_closure.m_proc_index, std::move(serialized_args));
+		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, worker_closure.m_proc_index, std::move(serialized_args), std::move(serialized_globals));
 		Push(static_cast<MidoriInteger>(worker_id));
 		return true;
 	}

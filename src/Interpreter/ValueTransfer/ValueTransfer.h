@@ -66,7 +66,21 @@ struct SerializedObject
 		MidoriFloat m_step = 0.0;
 	};
 
-	using Variant = std::variant<Text, Array, Tuple, Struct, Union, IntRange, FloatRange>;
+	// A function value: its procedure plus the cells it captured. Only the
+	// runtime transfers these (the globals a worker starts from); user-visible
+	// transfers are gated by `Transferable`, which closures do not satisfy.
+	struct Closure
+	{
+		int m_proc_index = 0;
+		std::vector<SerializedValue> m_cells;
+	};
+
+	struct Cell
+	{
+		SerializedValue m_value;
+	};
+
+	using Variant = std::variant<Text, Array, Tuple, Struct, Union, IntRange, FloatRange, Closure, Cell>;
 
 	Variant m_data;
 };

@@ -36,11 +36,16 @@ conversation, not from an implementation plan written in isolation.
 
 ## 2. Worker spawn cost
 
-**Gap.** Every `spawn` constructs a fresh `VirtualMachine`, and `InitializeWorkerGlobals`
-(`src/Interpreter/Worker/Worker.cpp`) then walks every procedure and re-runs each
-non-entry module's initializer inside that new VM, then rebuilds a global-index map.
-Each worker also allocates its own value and call stacks (10000 slots each, per
-`s_value_stack_size` / `s_call_stack_size`), allocator, and GC.
+**Partly resolved 2026-09-14.** Workers no longer re-run module initializers:
+`spawn` copies the spawning VM's globals into the new worker instead (the "shape
+of the fix" below). This also fixed a correctness bug the old scheme had, where
+data globals read as zero in workers and pointer-valued ones crashed them.
+
+**Remaining gap.** Every `spawn` still constructs a fresh `VirtualMachine`, and now
+serializes every global on each spawn, so a program holding a large global array
+copies it per worker. Each worker also allocates its own value and call stacks
+(10000 slots each, per `s_value_stack_size` / `s_call_stack_size`), allocator, and
+GC.
 
 **Why it is not urgent.** It is invisible at the handful-of-workers scale current
 programs use, and it is a constant per spawn, not a leak.

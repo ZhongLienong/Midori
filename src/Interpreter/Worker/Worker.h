@@ -23,7 +23,7 @@ struct WorkerError
 class Worker
 {
 public:
-	Worker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args);
+	Worker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
 
 	~Worker();
 
@@ -47,6 +47,7 @@ private:
 	std::shared_ptr<const MidoriExecutable> m_executable;
 	int m_proc_index;
 	std::vector<SerializedValue> m_serialized_args;
+	std::vector<SerializedValue> m_serialized_globals;
 	std::atomic<bool> m_done{ false };
 	std::atomic<bool> m_joined{ false };
 	std::mutex m_result_mutex;
@@ -62,7 +63,7 @@ class WorkerRegistry
 public:
 	static WorkerRegistry& GetInstance();
 
-	int SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args);
+	int SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
 
 	std::expected<SerializedValue, WorkerError> JoinWorkerValue(int worker_id);
 

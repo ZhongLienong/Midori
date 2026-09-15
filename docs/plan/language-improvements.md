@@ -80,7 +80,8 @@ nothing — you cannot observe a failed worker and carry on. Error codes already
 survive the join boundary (commit `868c658`); the remaining work is turning
 `JOIN_WORKER` into a value rather than a termination. Roughly an afternoon.
 
-**2. Stop re-executing module initializers per spawn.**
+**2. Stop re-executing module initializers per spawn.** *Done 2026-09-14:
+workers start from a copy of the spawning VM's globals.*
 `InitializeWorkerGlobals` re-runs every non-entry module's initializer inside
 each new worker VM, so a module whose top level has an observable effect
 performs it again on every spawn. Treat as a correctness bug. Also removes the
