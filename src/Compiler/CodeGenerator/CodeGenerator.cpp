@@ -641,6 +641,8 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			advance = 4;
 			break;
 		case OpCode::JOIN_WORKER:
+			advance = 5;
+			break;
 		case OpCode::CHANNEL_CREATE:
 		case OpCode::CHANNEL_SEND:
 		case OpCode::CHANNEL_RECEIVE:
@@ -3727,7 +3729,21 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 void CodeGenerator::operator()(MidoriExpression::Join& join)
 {
 	Visit(join.m_worker);
-	EmitByte(OpCode::JOIN_WORKER, join.m_join_keyword.m_line);
+
+	const int line = join.m_join_keyword.m_line;
+	if (join.m_ok_tag > MAX_UNION_TAG || join.m_err_tag > MAX_UNION_TAG || join.m_cancelled_tag > MAX_UNION_TAG || join.m_failed_tag > MAX_UNION_TAG)
+	{
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, "Union tag for 'join' result exceeds the supported maximum", line, m_file_name, m_source_lines));
+		return;
+	}
+
+	// JOIN_WORKER builds Result<T, WorkerError> itself: Ok(value), Err(Cancelled)
+	// or Err(Failed(message)). The four tags come from the declarations.
+	EmitByte(OpCode::JOIN_WORKER, line);
+	EmitByte(static_cast<OpCode>(join.m_ok_tag), line);
+	EmitByte(static_cast<OpCode>(join.m_err_tag), line);
+	EmitByte(static_cast<OpCode>(join.m_cancelled_tag), line);
+	EmitByte(static_cast<OpCode>(join.m_failed_tag), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::ChannelCreate& channel_create)

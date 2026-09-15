@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/concurrency/failure/join_requires_result_import.mdr:12
+   |
+12 | def result = join worker;
+   |              ^^^^ 'join' evaluates to Result<T, WorkerError>. Import "MidoriPrelude/Prelude/Result.mdr" and "MidoriPrelude/Concurrency.mdr" to use it.
+   |

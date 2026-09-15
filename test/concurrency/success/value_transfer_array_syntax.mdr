@@ -1,5 +1,7 @@
 module value_transfer_array_syntax
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -8,6 +10,6 @@ def BuildValues = fn() -> Array<Int> => {
 };
 
 def worker = spawn BuildValues();
-def values = join worker;
+def values = Concurrency::JoinedOrPanic(join worker);
 
 PrintLine("len=" ++ ((#values) as Text) ++ ",first=" ++ (values[0] as Text) ++ ",last=" ++ (values[3] as Text));

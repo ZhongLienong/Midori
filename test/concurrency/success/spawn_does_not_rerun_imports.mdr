@@ -1,5 +1,7 @@
 module SpawnDoesNotRerunImports
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import
 {
 	"../../../MidoriPrelude/IO.mdr",
@@ -16,4 +18,4 @@ def first = spawn Scaled(1);
 def second = spawn Scaled(2);
 def third = spawn Scaled(3);
 
-IO::PrintLine("results: " ++ ((join first) as Text) ++ " " ++ ((join second) as Text) ++ " " ++ ((join third) as Text));
+IO::PrintLine("results: " ++ ((Concurrency::JoinedOrPanic(join first)) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(join second)) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(join third)) as Text));

@@ -394,6 +394,22 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
+	void JoinWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	{
+		const int ok_tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		const int err_tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		const int cancelled_tag = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+		const int failed_tag = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+		offset += 5;
+		std::ostringstream formated_str;
+
+		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::format("{} {} {} {}", ok_tag, err_tag, cancelled_tag, failed_tag));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}", ok_tag, err_tag, cancelled_tag, failed_tag));
+		formated_str << '\n';
+		Printer::Print(formated_str.str());
+	}
+
 	void SetTagInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -852,7 +868,7 @@ namespace Disassembler
 			SpawnWorkerInstruction("SPAWN_WORKER", executable, proc_index, offset);
 			break;
 		case OpCode::JOIN_WORKER:
-			SimpleInstruction("JOIN_WORKER", offset);
+			JoinWorkerInstruction("JOIN_WORKER", executable, proc_index, offset);
 			break;
 		case OpCode::CHANNEL_CREATE:
 			SimpleInstruction("CHANNEL_CREATE", offset);

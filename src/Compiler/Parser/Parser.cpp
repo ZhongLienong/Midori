@@ -2076,14 +2076,44 @@ MidoriResult::ExpressionResult Parser::ParseSpawnExpression(Token& spawn_keyword
 		);
 }
 
+std::shared_ptr<MidoriType> Parser::FindDeclaredTypeByName(const std::string& name)
+{
+	std::string lookup_name = name;
+	std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(lookup_name);
+	if (found_scope_it != m_state.m_scopes.crend())
+	{
+		return found_scope_it->m_defined_types.at(lookup_name);
+	}
+
+	for (const std::pair<const std::string, TypeEnvironment>& imported_module : m_context.m_imported_type_signatures)
+	{
+		TypeEnvironment::const_iterator type_it = imported_module.second.find(name);
+		if (type_it != imported_module.second.cend())
+		{
+			return type_it->second;
+		}
+	}
+
+	return nullptr;
+}
+
 MidoriResult::ExpressionResult Parser::ParseJoinExpression(Token& join_keyword)
 {
 	return ParseUnaryArithmetic()
 		.and_then
 		(
-			[&join_keyword](std::unique_ptr<MidoriExpression>&& worker) -> MidoriResult::ExpressionResult
+			[this, &join_keyword](std::unique_ptr<MidoriExpression>&& worker) -> MidoriResult::ExpressionResult
 			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::Join(join_keyword, std::move(worker)));
+				// `join w` evaluates to Result<T, WorkerError>, so both declarations
+				// must be visible where the join is written.
+				std::shared_ptr<MidoriType> result_type = FindDeclaredTypeByName("Result");
+				std::shared_ptr<MidoriType> worker_error_type = FindDeclaredTypeByName("WorkerError");
+				if (result_type == nullptr || worker_error_type == nullptr)
+				{
+					return std::unexpected(GenerateParserError("'join' evaluates to Result<T, WorkerError>. Import \"MidoriPrelude/Prelude/Result.mdr\" and \"MidoriPrelude/Concurrency.mdr\" to use it.", join_keyword));
+				}
+
+				return std::make_unique<MidoriExpression>(MidoriExpression::Join(join_keyword, std::move(worker), std::move(result_type), std::move(worker_error_type)));
 			}
 		);
 }

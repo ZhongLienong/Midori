@@ -1,5 +1,7 @@
 module worker_join_index_regression
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import
 {
     "../../../MidoriPrelude/IO.mdr",
@@ -43,7 +45,7 @@ def Run = fn() -> Unit =>
             def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
             def y_start = next_row;
             def y_end = y_start + band_rows;
-            def immediate = join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0);
+            def immediate = Concurrency::JoinedOrPanic(join spawn Answer(0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0));
             if immediate[0] == 0
             then ()
             else Panic::Panic("immediate join failed");
@@ -60,7 +62,7 @@ def Run = fn() -> Unit =>
         then ()
         else
         {
-            def result = join workers[join_index];
+            def result = Concurrency::JoinedOrPanic(join workers[join_index]);
             def expected_y_start = join_index * 2;
             def expected_y_end = expected_y_start + 2;
             if result[0] == expected_y_start

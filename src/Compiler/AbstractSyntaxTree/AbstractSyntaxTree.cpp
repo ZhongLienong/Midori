@@ -146,9 +146,11 @@ MidoriExpression::Spawn::Spawn(const Token& spawn_keyword, const Token& callee_n
 {
 }
 
-MidoriExpression::Join::Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker)
+MidoriExpression::Join::Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker, std::shared_ptr<MidoriType>&& result_type, std::shared_ptr<MidoriType>&& worker_error_type)
 	: m_join_keyword(join_keyword),
-	m_worker(std::move(worker))
+	m_worker(std::move(worker)),
+	m_result_type(std::move(result_type)),
+	m_worker_error_type(std::move(worker_error_type))
 {
 }
 

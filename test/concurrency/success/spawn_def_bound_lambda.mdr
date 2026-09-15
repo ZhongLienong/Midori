@@ -1,5 +1,7 @@
 module spawn_def_bound_lambda
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -14,13 +16,13 @@ def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int => {
 
 def w1 = spawn Double(21);
 def w2 = spawn Triple(14);
-PrintLine("double=" ++ ((join w1) as Text));
-PrintLine("triple=" ++ ((join w2) as Text));
+PrintLine("double=" ++ ((Concurrency::JoinedOrPanic(join w1)) as Text));
+PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(join w2)) as Text));
 
 def ch = channel<Text>(2);
 def w3 = spawn SendBand(ch, "left");
 PrintLine(<- ch);
 close(ch);
-def _r3 = join w3;
+def _r3 = Concurrency::JoinedOrPanic(join w3);
 
 PrintLine("direct=" ++ (Double(5) as Text));

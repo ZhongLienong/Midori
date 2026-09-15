@@ -1,5 +1,7 @@
 module worker_failure_propagation
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -9,6 +11,6 @@ def GoodWorker = fn(x : Int) -> Int =>
 };
 
 def w = spawn GoodWorker(11);
-def result = join w;
+def result = Concurrency::JoinedOrPanic(join w);
 PrintLine("Worker result: " ++ (result as Text));
 PrintLine("No error");

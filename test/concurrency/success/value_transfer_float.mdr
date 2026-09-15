@@ -1,5 +1,7 @@
 module value_transfer_float
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -27,4 +29,4 @@ PrintLine("v4=" ++ (v4 as Text));
 PrintLine("all_received=true");
 
 close(ch);
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);

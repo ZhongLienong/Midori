@@ -98,7 +98,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` returns the typed result. Callee must be a named `def Name = fn(...)`. |
+| `spawn`, `join` keywords | Stable | `test/concurrency/` | `spawn` resolves procedures at compile time; `join` evaluates to `Result<T, WorkerError>`, so a failed or cancelled worker is a value rather than an error in the joiner (needs `Prelude/Result.mdr` and `Concurrency.mdr` imported). Callee must be a named `def Name = fn(...)`. |
 | `channel<T>(cap)` keyword | Stable | `test/concurrency/` | Creates a typed bounded channel. `T` must satisfy `Transferable`. |
 | `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
 | `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |

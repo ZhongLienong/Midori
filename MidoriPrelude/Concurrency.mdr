@@ -1,0 +1,23 @@
+module Concurrency
+import { "./Prelude/Result.mdr", "./Prelude/Panic.mdr" }
+use Result.{
+    Result
+}
+public export { WorkerError, JoinedOrPanic }
+// What `join` reports when a worker does not produce its value. `join w` has type
+// Result<T, WorkerError>, so a cancelled or failed worker is an ordinary value the
+// joining code can inspect and recover from, rather than an error that stops it.
+// The compiler requires this declaration's shape: `Cancelled` with no fields and
+// `Failed` carrying the worker's error message.
+type WorkerError = Cancelled | Failed(Text);
+// For code that treats a worker failure as fatal, which is what `join` itself did
+// before it returned a Result.
+def JoinedOrPanic = fn < T >(result: Result < T, WorkerError >) -> T => {
+    match result with
+        case Result::Ok(value) => value
+        case Result::Err(error) => {
+        match error with
+            case WorkerError::Cancelled() => Panic::Panic("Worker cancelled.")
+            case WorkerError::Failed(message) => Panic::Panic(message)
+    }
+};

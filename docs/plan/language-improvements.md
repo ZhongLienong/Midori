@@ -73,7 +73,9 @@ corpus-wide migration unless wanted for its own sake.
 
 ## Confirmed work
 
-**1. `join` returns `Result<T, E>` instead of terminating the joiner.**
+**1. `join` returns `Result<T, E>` instead of terminating the joiner.** *Done
+2026-09-14: `join w : Result<T, WorkerError>`, with `WorkerError = Cancelled |
+Failed(Text)` in `MidoriPrelude/Concurrency.mdr`.*
 Highest value-to-effort change available. Today a worker's failure propagates
 into the joining VM and kills it, so the isolation the runtime pays for buys
 nothing — you cannot observe a failed worker and carry on. Error codes already

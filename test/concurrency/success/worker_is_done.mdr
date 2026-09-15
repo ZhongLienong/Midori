@@ -1,5 +1,7 @@
 module worker_is_done
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -16,5 +18,5 @@ def done_early = is_done(w);
 if done_early
 then PrintLine("Done immediately: yes")
 else PrintLine("Done immediately: no");
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);
 PrintLine("Done after join");

@@ -1,5 +1,7 @@
 module channel_producer_consumer
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -39,4 +41,4 @@ def Receive = fn(source: Channel<Text>, received: Int) -> Int =>
 
 PrintLine("Total received: " ++ (Receive(ch, 0) as Text));
 close(ch);
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);

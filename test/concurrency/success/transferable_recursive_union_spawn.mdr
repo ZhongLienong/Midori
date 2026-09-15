@@ -1,5 +1,7 @@
 module TransferableRecursiveUnionSpawn
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 
 type IntList = Nil | Cons(Int, IntList) deriving (Transferable);
@@ -20,6 +22,6 @@ def list =
     );
 
 def worker = spawn Count(list);
-def result = join worker;
+def result = Concurrency::JoinedOrPanic(join worker);
 
 IO::PrintLine("count=" ++ (result as Text));

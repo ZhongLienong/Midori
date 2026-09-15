@@ -1,5 +1,7 @@
 module channel_close_unblock
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -20,5 +22,5 @@ def msg2 = <- ch;
 PrintLine("msg1=[" ++ msg1 ++ "]");
 PrintLine("msg2=[" ++ msg2 ++ "]");
 
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);
 PrintLine("worker_done=true");

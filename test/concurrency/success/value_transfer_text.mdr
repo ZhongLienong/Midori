@@ -1,5 +1,7 @@
 module value_transfer_text
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -26,4 +28,4 @@ PrintLine("v3=[" ++ v3 ++ "]");
 PrintLine("v4=[" ++ v4 ++ "]");
 
 close(ch);
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);

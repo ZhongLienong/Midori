@@ -1,5 +1,7 @@
 module value_transfer_int
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -27,4 +29,4 @@ PrintLine("v4=" ++ (v4 as Text));
 PrintLine("sum=" ++ ((v1 + v2 + v3 + v4) as Text));
 
 close(ch);
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);

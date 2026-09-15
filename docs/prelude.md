@@ -16,6 +16,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
 - `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
+- `Concurrency.mdr` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `join` evaluates to, and `JoinedOrPanic` for code that treats a worker failure as fatal. The compiler requires the `WorkerError` declaration to have exactly that shape.
 
 ## Helper and Typeclass Modules
 

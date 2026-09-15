@@ -1,0 +1,43 @@
+module JoinReturnsResult
+
+import
+{
+	"../../../MidoriPrelude/IO.mdr",
+	"../../../MidoriPrelude/System.mdr",
+	"../../../MidoriPrelude/Concurrency.mdr",
+	"../../../MidoriPrelude/Prelude/Result.mdr"
+}
+
+// `join w` evaluates to Result<Int, WorkerError>. A worker that fails or is
+// cancelled used to terminate the joining program with the worker's error; now
+// the joiner receives Err(...) and carries on, which is what worker isolation is
+// for.
+
+def Double = fn(n : Int) -> Int => n * 2;
+// A runtime error inside the worker: index 7 of a three-element array.
+def Fail = fn(n : Int) -> Int => [1, 2, 3][n];
+def SpinFrom = fn(i : Int) -> Int => SpinFrom(i + 1);
+def Spin = fn(_start : Int) -> Int => SpinFrom(0);
+
+def Describe = fn(label : Text, result : Result<Int, WorkerError>) -> Unit =>
+	match result with
+	case Result::Ok(value) => IO::PrintLine(label ++ ": Ok(" ++ (value as Text) ++ ")")
+	case Result::Err(error) =>
+		match error with
+		case WorkerError::Cancelled() => IO::PrintLine(label ++ ": Err(Cancelled)")
+		case WorkerError::Failed(message) => IO::PrintLine(label ++ ": Err(Failed: " ++ message ++ ")");
+
+def succeeding = spawn Double(21);
+Describe("succeeding", join succeeding);
+
+def failing = spawn Fail(7);
+Describe("failing", join failing);
+
+def spinning = spawn Spin(0);
+System::Sleep(20);
+def cancelled = cancel(spinning);
+Describe("cancelled", join spinning);
+
+// Still running after two workers went wrong.
+IO::PrintLine("joiner still running; cancel returned " ++ (if cancelled then "true" else "false"));
+IO::PrintLine("JoinedOrPanic: " ++ (Concurrency::JoinedOrPanic(join spawn Double(50)) as Text));

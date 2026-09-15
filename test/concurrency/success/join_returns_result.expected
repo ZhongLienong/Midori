@@ -1,0 +1,5 @@
+succeeding: Ok(42)
+failing: Err(Failed: Index out of bounds at index: 7.)
+cancelled: Err(Cancelled)
+joiner still running; cancel returned true
+JoinedOrPanic: 100

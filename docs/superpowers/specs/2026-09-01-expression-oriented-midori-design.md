@@ -555,11 +555,17 @@ surfaced the drift until a deletion forced it.
 ## 10. Prerequisites that survive unchanged
 
 - **Plan item 1** — `join` returning `Result<T, E>` rather than killing the
-  joiner. Highest value-to-effort change available.
+  joiner. Highest value-to-effort change available. **Done 2026-09-14:**
+  `join w : Result<T, WorkerError>`, with `WorkerError = Cancelled | Failed(Text)`
+  in `MidoriPrelude/Concurrency.mdr`. `Result` and `WorkerError` became lang items:
+  the compiler resolves them by name where `join` is written and checks their
+  shape, as `for` already does for `Option`.
 - **Plan item 2** — module initializers re-running inside every spawned VM. A
-  correctness bug.
+  correctness bug. **Done 2026-09-14 (`16a2a88`):** workers start from a copy of
+  the spawning VM's globals. It was worse than recorded here — data globals read
+  as zero in workers, and pointer-valued ones crashed them.
 
-Neither touches the grammar; both can land independently.
+Neither touches the grammar; both landed independently.
 
 ## 11. Migration scope
 

@@ -1,5 +1,7 @@
 module channel_spawn_syntax
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -14,6 +16,6 @@ def ch = channel<Text>(2);
 def worker = spawn Producer(ch);
 def first = <- ch;
 def second = <- ch;
-def result = join worker;
+def result = Concurrency::JoinedOrPanic(join worker);
 
 PrintLine(first ++ "," ++ second ++ "," ++ (result as Text));

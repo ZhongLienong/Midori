@@ -1,5 +1,7 @@
 module worker_multiple
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -17,7 +19,7 @@ def w1 = spawn Counter("A");
 def w2 = spawn Counter("B");
 def w3 = spawn Counter("C");
 
-def r1 = join w1;
-def r2 = join w2;
-def r3 = join w3;
+def r1 = Concurrency::JoinedOrPanic(join w1);
+def r2 = Concurrency::JoinedOrPanic(join w2);
+def r3 = Concurrency::JoinedOrPanic(join w3);
 PrintLine("All workers done");

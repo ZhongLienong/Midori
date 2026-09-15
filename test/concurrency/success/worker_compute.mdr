@@ -1,5 +1,7 @@
 module worker_compute
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -35,7 +37,7 @@ close(ch1);
 close(ch2);
 close(ch3);
 close(ch4);
-def _r1 = join w1;
-def _r2 = join w2;
-def _r3 = join w3;
-def _r4 = join w4;
+def _r1 = Concurrency::JoinedOrPanic(join w1);
+def _r2 = Concurrency::JoinedOrPanic(join w2);
+def _r3 = Concurrency::JoinedOrPanic(join w3);
+def _r4 = Concurrency::JoinedOrPanic(join w4);

@@ -412,24 +412,56 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 	}
 	case OpCode::JOIN_WORKER:
 	{
+		const int ok_tag = static_cast<int>(ReadByte(ip));
+		const int err_tag = static_cast<int>(ReadByte(ip));
+		const int cancelled_tag = static_cast<int>(ReadByte(ip));
+		const int failed_tag = static_cast<int>(ReadByte(ip));
+
+		// `join` evaluates to Result<T, WorkerError>. A worker that failed or was
+		// cancelled becomes Err(...) for the joining code to handle; it no longer
+		// terminates the joining VM.
 		const int worker_id = static_cast<int>(Pop().GetInteger());
 		std::expected<SerializedValue, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
-		if (!worker_result.has_value())
+
+		MidoriValue payload;
+		int result_tag = ok_tag;
+		if (worker_result.has_value())
 		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(worker_result.error().m_code, worker_result.error().m_message, GetLine())));
-			return false;
+			std::expected<MidoriValue, std::string> deserialized_result = ValueTransfer::Deserialize(worker_result.value(), *this);
+			if (!deserialized_result.has_value())
+			{
+				m_instruction_pointer = ip;
+				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_result.error(), GetLine())));
+				return false;
+			}
+			payload = deserialized_result.value();
+		}
+		else
+		{
+			MidoriTraceable* worker_error = AllocateTraceable(MidoriUnion());
+			MidoriUnion& worker_error_ref = worker_error->GetTraceable<MidoriUnion>();
+			if (worker_result.error().m_code == RuntimeErrorCode::WorkerCancelled)
+			{
+				worker_error_ref.m_index = cancelled_tag;
+			}
+			else
+			{
+				MidoriTuple failed_fields(1);
+				failed_fields[0] = AllocateTraceable(MidoriText(worker_result.error().m_message.c_str()));
+				worker_error_ref.m_values = std::move(failed_fields);
+				worker_error_ref.m_index = failed_tag;
+			}
+			payload = worker_error;
+			result_tag = err_tag;
 		}
 
-		std::expected<MidoriValue, std::string> deserialized_result = ValueTransfer::Deserialize(worker_result.value(), *this);
-		if (!deserialized_result.has_value())
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_result.error(), GetLine())));
-			return false;
-		}
-
-		Push(deserialized_result.value());
+		MidoriTraceable* result = AllocateTraceable(MidoriUnion());
+		MidoriUnion& result_ref = result->GetTraceable<MidoriUnion>();
+		MidoriTuple result_fields(1);
+		result_fields[0] = payload;
+		result_ref.m_values = std::move(result_fields);
+		result_ref.m_index = result_tag;
+		Push(result);
 		return true;
 	}
 	case OpCode::CHANNEL_CREATE:

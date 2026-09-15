@@ -425,8 +425,17 @@ public:
 	{
 		Token m_join_keyword;
 		std::unique_ptr<MidoriExpression> m_worker;
+		// `join w` has type Result<T, WorkerError>. The parser resolves both
+		// declarations by name where the join is written; the type checker
+		// instantiates Result and records the constructor tags the VM builds.
+		std::shared_ptr<MidoriType> m_result_type;
+		std::shared_ptr<MidoriType> m_worker_error_type;
+		int m_ok_tag = 0;
+		int m_err_tag = 0;
+		int m_cancelled_tag = 0;
+		int m_failed_tag = 0;
 
-		Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker);
+		Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker, std::shared_ptr<MidoriType>&& result_type, std::shared_ptr<MidoriType>&& worker_error_type);
 	};
 
 	struct ChannelCreate : BaseExpression

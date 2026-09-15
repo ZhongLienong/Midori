@@ -66,7 +66,7 @@ Midori provides first-class concurrency expressions instead of FFI wrappers:
 
 ```midori
 def w = spawn ComputeRow(42, 800);   // w : Worker<Int>
-def result = join w;                  // result : Int
+def result = join w;                  // result : Result<Int, WorkerError>
 
 def ch = channel<Int>(10);            // ch : Channel<Int>
 ch -> 42;                             // send: Bool (false if closed)
@@ -74,7 +74,12 @@ def val = <- ch;                      // receive: Int (blocks if empty)
 ```
 
 - `spawn` resolves the callee at compile time (must be a named `def Name = fn(...)`, not a closure)
-- `join` blocks and returns the typed result (not text)
+- `join` blocks and evaluates to `Result<T, WorkerError>`: `Ok(value)` when the
+  worker returned, `Err(WorkerError::Cancelled())` when it was cancelled, and
+  `Err(WorkerError::Failed(message))` when it stopped with a runtime error. A file
+  that uses `join` must import `MidoriPrelude/Prelude/Result.mdr` and
+  `MidoriPrelude/Concurrency.mdr`, which declares `WorkerError` and
+  `JoinedOrPanic` for code that treats a worker failure as fatal.
 - `channel<T>(capacity)` creates a typed bounded channel
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
@@ -95,10 +100,11 @@ Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
    - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
    - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
 
-2. **Join**: `join w` blocks until the worker finishes and returns the typed
-   result via `SerializedValue` deserialization. If the worker failed, the error
-   propagates as a runtime error in the joining VM, keeping the worker's own
-   error code.
+2. **Join**: `join w` blocks until the worker finishes. The worker's value is
+   deserialized from its `SerializedValue` and wrapped in `Ok`; a failure or
+   cancellation becomes `Err(WorkerError)` instead. `JOIN_WORKER` builds these
+   union values itself, using the constructor tags the compiler reads from the
+   `Result` and `WorkerError` declarations.
 
 3. **Cancel**: `cancel(w)` requests cooperative cancellation via
    `std::jthread::request_stop()`. The worker observes the request at
@@ -119,9 +125,12 @@ Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
 
 - If a worker fails, the `Worker` captures both the error message and the
   originating `RuntimeErrorCode`
-- On `join`, the error propagates as a runtime error in the joining VM carrying
-  that same code, so a cancelled worker surfaces as `error[WorkerCancelled]`
-  rather than being flattened into a generic internal error
+- On `join`, that failure becomes a value, not an error in the joining VM: a
+  `WorkerCancelled` code gives `Err(WorkerError::Cancelled())`, and any other
+  code gives `Err(WorkerError::Failed(message))`. The joining program keeps
+  running and decides what a failed worker means
+- `Panic::Panic` inside a worker is not a worker failure: it exits the whole
+  process, as it does anywhere else
 - If a worker is never joined and failed, the destructor prints the message to
   standard output
 

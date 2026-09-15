@@ -1,10 +1,12 @@
 module spawn_capturing_local_lambda
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 def Outer = fn() -> Int => {
     def offset = 7;
     def Inner = fn(n: Int) -> Int => n + offset;
     def w = spawn Inner(1);
-    join w
+    Concurrency::JoinedOrPanic(join w)
 };
 
 def result = Outer();

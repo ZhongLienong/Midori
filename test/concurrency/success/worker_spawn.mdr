@@ -1,5 +1,7 @@
 module worker_spawn
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -8,6 +10,6 @@ def WorkerTask = fn(msg: Text) -> Int => {
 };
 
 def worker = spawn WorkerTask("hello");
-def result = join worker;
+def result = Concurrency::JoinedOrPanic(join worker);
 
 PrintLine("Worker result: " ++ (result as Text));

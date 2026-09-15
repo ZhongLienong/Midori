@@ -5376,7 +5376,53 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
 					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: expected Worker<T>", join.m_join_keyword, m_file_name, m_source_lines, resolved_worker_type));
 				}
 
-				join.m_type_data = ApplySubstitution(resolved_worker_type->GetType<MidoriType::WorkerType>().m_result_type);
+				std::shared_ptr<MidoriType> worker_result_type = ApplySubstitution(resolved_worker_type->GetType<MidoriType::WorkerType>().m_result_type);
+
+				// The VM builds these values itself, so the declarations it builds them
+				// from must have exactly the shape it assumes.
+				const std::shared_ptr<MidoriType>& result_type = join.m_result_type;
+				if (result_type == nullptr
+					|| !result_type->IsType<MidoriType::UnionType>()
+					|| result_type->GetType<MidoriType::UnionType>().m_generic_params.size() != 2u)
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'Result' must be declared as a union with two type parameters, Ok(T) | Err(E)", join.m_join_keyword, m_file_name, m_source_lines));
+				}
+
+				const MidoriType::UnionType& result_union = result_type->GetType<MidoriType::UnionType>();
+				const std::string ok_name = result_union.m_name + std::string(NameSeparator) + "Ok";
+				const std::string err_name = result_union.m_name + std::string(NameSeparator) + "Err";
+				if (!result_union.m_member_info.contains(ok_name) || result_union.m_member_info.at(ok_name).m_member_types.size() != 1u
+					|| !result_union.m_member_info.contains(err_name) || result_union.m_member_info.at(err_name).m_member_types.size() != 1u)
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'Result' must be declared as Ok(T) | Err(E)", join.m_join_keyword, m_file_name, m_source_lines, result_type));
+				}
+
+				const std::shared_ptr<MidoriType>& worker_error_type = join.m_worker_error_type;
+				if (worker_error_type == nullptr || !worker_error_type->IsType<MidoriType::UnionType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'WorkerError' must be declared as a union, Cancelled | Failed(Text)", join.m_join_keyword, m_file_name, m_source_lines));
+				}
+
+				const MidoriType::UnionType& error_union = worker_error_type->GetType<MidoriType::UnionType>();
+				const std::string cancelled_name = error_union.m_name + std::string(NameSeparator) + "Cancelled";
+				const std::string failed_name = error_union.m_name + std::string(NameSeparator) + "Failed";
+				if (!error_union.m_generic_params.empty()
+					|| !error_union.m_member_info.contains(cancelled_name) || !error_union.m_member_info.at(cancelled_name).m_member_types.empty()
+					|| !error_union.m_member_info.contains(failed_name) || error_union.m_member_info.at(failed_name).m_member_types.size() != 1u
+					|| !error_union.m_member_info.at(failed_name).m_member_types[0u]->IsType<MidoriType::TextType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'WorkerError' must be declared as Cancelled | Failed(Text)", join.m_join_keyword, m_file_name, m_source_lines, worker_error_type));
+				}
+
+				join.m_ok_tag = result_union.m_member_info.at(ok_name).m_tag;
+				join.m_err_tag = result_union.m_member_info.at(err_name).m_tag;
+				join.m_cancelled_tag = error_union.m_member_info.at(cancelled_name).m_tag;
+				join.m_failed_tag = error_union.m_member_info.at(failed_name).m_tag;
+
+				TypeEnvironment substitutions;
+				substitutions[result_union.m_generic_params[0u]] = worker_result_type;
+				substitutions[result_union.m_generic_params[1u]] = worker_error_type;
+				join.m_type_data = ApplySubstitution(MidoriType::SubstituteTypeParams(result_type, substitutions));
 				return join.m_type_data;
 			}
 		);

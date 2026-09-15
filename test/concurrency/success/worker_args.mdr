@@ -1,5 +1,7 @@
 module worker_args
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -9,5 +11,5 @@ def Greeter = fn(name: Text, greeting: Text) -> Int => {
 };
 
 def w = spawn Greeter("World", "Hello");
-def r = join w;
+def r = Concurrency::JoinedOrPanic(join w);
 PrintLine("Worker exited with: " ++ (r as Text));

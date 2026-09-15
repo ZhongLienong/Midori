@@ -1,5 +1,7 @@
 module channel_pipeline
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -63,5 +65,5 @@ Drain(ch_output, 0, count);
 close(ch_input);
 close(ch_mid);
 close(ch_output);
-def _r1 = join w1;
-def _r2 = join w2;
+def _r1 = Concurrency::JoinedOrPanic(join w1);
+def _r2 = Concurrency::JoinedOrPanic(join w2);

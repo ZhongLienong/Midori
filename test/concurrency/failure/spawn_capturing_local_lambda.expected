@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/concurrency/failure/spawn_capturing_local_lambda.mdr:6
+Type Checker Error at test/concurrency/failure/spawn_capturing_local_lambda.mdr:8
   |
-6 |     def w = spawn Inner(1);
+8 |     def w = spawn Inner(1);
   |                   ^^^^^ Spawn expression type error: spawn requires a named top-level function
   |

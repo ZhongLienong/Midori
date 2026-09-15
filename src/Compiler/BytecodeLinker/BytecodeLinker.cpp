@@ -866,6 +866,7 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode) const
 		case OpCode::SPAWN_WORKER:
 			return 4;
 		case OpCode::JOIN_WORKER:
+			return 5;  // opcode + ok, err, cancelled and failed tags
 		case OpCode::CHANNEL_CREATE:
 		case OpCode::CHANNEL_SEND:
 		case OpCode::CHANNEL_RECEIVE:

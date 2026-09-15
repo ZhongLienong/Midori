@@ -1,5 +1,7 @@
 module SpawnReadsDataGlobals
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr", "../../../MidoriPrelude/Countable.mdr" }
 
 // A spawned worker must see the same global values as the code that spawned it.
@@ -51,10 +53,10 @@ def union_worker = spawn UsesUnion(5);
 def closure_worker = spawn UsesCapturingClosure(5);
 def recursive_worker = spawn UsesRecursiveClosure(5);
 
-Report("int", UsesInt(5), join int_worker);
-Report("text", UsesText(5), join text_worker);
-Report("array", UsesArray(5), join array_worker);
-Report("record", UsesRecord(5), join record_worker);
-Report("union", UsesUnion(5), join union_worker);
-Report("capturing closure", UsesCapturingClosure(5), join closure_worker);
-Report("recursive closure", UsesRecursiveClosure(5), join recursive_worker);
+Report("int", UsesInt(5), Concurrency::JoinedOrPanic(join int_worker));
+Report("text", UsesText(5), Concurrency::JoinedOrPanic(join text_worker));
+Report("array", UsesArray(5), Concurrency::JoinedOrPanic(join array_worker));
+Report("record", UsesRecord(5), Concurrency::JoinedOrPanic(join record_worker));
+Report("union", UsesUnion(5), Concurrency::JoinedOrPanic(join union_worker));
+Report("capturing closure", UsesCapturingClosure(5), Concurrency::JoinedOrPanic(join closure_worker));
+Report("recursive closure", UsesRecursiveClosure(5), Concurrency::JoinedOrPanic(join recursive_worker));

@@ -1,5 +1,7 @@
 module gc_stress_arrays
 
+import { "../../../MidoriPrelude/Concurrency.mdr", "../../../MidoriPrelude/Prelude/Result.mdr" }
+
 import { "../../../MidoriPrelude/IO.mdr" }
 use IO.{PrintLine}
 
@@ -36,5 +38,5 @@ PrintLine("match=" ++ (if s1 == s2 then "true" else "false"));
 
 close(ch1);
 close(ch2);
-def _r1 = join w1;
-def _r2 = join w2;
+def _r1 = Concurrency::JoinedOrPanic(join w1);
+def _r2 = Concurrency::JoinedOrPanic(join w2);

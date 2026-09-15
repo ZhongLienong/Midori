@@ -108,7 +108,12 @@ namespace MidoriBuild
     // serialised by their enum VALUE, so every opcode after the first removed
     // one was renumbered. The same rule applies to OpCode as to the FFI table:
     // removing or reordering an enum entry requires a bump, appending does not.
-    inline constexpr uint32_t MbcFormatVersion = 4u;
+    //
+    // Bumped 2026-09-14 (5): JOIN_WORKER gained four operand bytes (the Result
+    // and WorkerError constructor tags), so an older artifact would be decoded
+    // with the wrong instruction length. Changing an instruction's length
+    // requires a bump too.
+    inline constexpr uint32_t MbcFormatVersion = 5u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

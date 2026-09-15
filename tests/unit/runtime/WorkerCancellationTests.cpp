@@ -29,6 +29,30 @@ namespace
 		return path.lexically_normal().generic_string();
 	}
 
+	// The imports a program joining a worker needs: `join` evaluates to
+	// Result<T, WorkerError>, and the program prints what it received.
+	std::string JoinImports()
+	{
+		const std::filesystem::path prelude = RepositoryRoot() / "MidoriPrelude";
+		return std::format(
+			R"(import {{ "{}", "{}", "{}", "{}" }})",
+			MidoriPathLiteral(prelude / "System.mdr"),
+			MidoriPathLiteral(prelude / "IO.mdr"),
+			MidoriPathLiteral(prelude / "Concurrency.mdr"),
+			MidoriPathLiteral(prelude / "Prelude" / "Result.mdr"));
+	}
+
+	// Prints "join: cancelled", "join: failed: <message>" or "join: ok <value>".
+	constexpr const char* DESCRIBE_JOIN = R"(def Describe = fn(result: Result<Int, WorkerError>) -> Text =>
+    match result with
+    case Result::Ok(value) => "ok " ++ (value as Text)
+    case Result::Err(error) =>
+        match error with
+        case WorkerError::Cancelled() => "cancelled"
+        case WorkerError::Failed(message) => "failed: " ++ message;
+IO::PrintLine("join: " ++ Describe(r));
+)";
+
 	const MidoriTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MidoriTest::ExecutedSnippet, CompilerError>& run_result)
 	{
 		if (!run_result.has_value())
@@ -40,96 +64,97 @@ namespace
 	}
 }
 
-TEST_CASE("Joining a cancelled spinning worker reports a cancellation error", "[runtime][worker][cancel]")
+TEST_CASE("Joining a cancelled spinning worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
 	const MidoriTest::TempDir temp_dir("midori-worker-cancel");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelJoin.mdr";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelJoin
-import {{ "{}" }}
+{}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(dummy: Int) -> Int => SpinFrom(0);
 def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn() -> Int => 0;
+{}IO::PrintLine("joiner continued");
 )",
-		MidoriPathLiteral(system_module_path));
+		JoinImports(), DESCRIBE_JOIN);
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
 		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
-	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
-	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
+	CAPTURE(executed.m_output.m_stdout);
+	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("join: cancelled") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("joiner continued") != std::string::npos);
 }
 
-TEST_CASE("Joining a cancelled tail-recursive worker reports a cancellation error", "[runtime][worker][cancel]")
+TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
 	const MidoriTest::TempDir temp_dir("midori-worker-cancel-tail");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mdr";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelTailJoin
-import {{ "{}" }}
+{}
 def SpinTail = fn(i: Int) -> Int => SpinTail(i + 1);
 def w = spawn SpinTail(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn() -> Int => 0;
-)",
-		MidoriPathLiteral(system_module_path));
+{})",
+		JoinImports(), DESCRIBE_JOIN);
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
 		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
-	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
-	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
+	CAPTURE(executed.m_output.m_stdout);
+	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("join: cancelled") != std::string::npos);
 }
 
-TEST_CASE("Joining a cancelled worker preserves the WorkerCancelled error code", "[runtime][worker][cancel]")
+TEST_CASE("Joining a cancelled worker reports cancellation, not a generic failure", "[runtime][worker][cancel]")
 {
-	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
 	const MidoriTest::TempDir temp_dir("midori-worker-cancel-code");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelCode.mdr";
 
+	// The worker's WorkerCancelled code must map to WorkerError::Cancelled, not be
+	// flattened into Failed with some internal message.
 	const std::string source_code = std::format(
 		R"(module WorkerCancelCode
-import {{ "{}" }}
+{}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 def w = spawn Spin(0);
 System::Sleep(50);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn() -> Int => 0;
-)",
-		MidoriPathLiteral(system_module_path));
+{})",
+		JoinImports(), DESCRIBE_JOIN);
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
 		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
-	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
-	REQUIRE(executed.m_output.m_stdout.find("error[WorkerCancelled]") != std::string::npos);
+	CAPTURE(executed.m_output.m_stdout);
+	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("join: cancelled") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("failed") == std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("InternalTypeError") == std::string::npos);
 }
 
 TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime][worker][cancel]")
 {
-	const std::filesystem::path system_module_path = RepositoryRoot() / "MidoriPrelude" / "System.mdr";
 	const MidoriTest::TempDir temp_dir("midori-worker-cancel-sleep");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mdr";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelSleep
-import {{ "{}" }}
+{}
 def SleepLong = fn(_dummy: Int) -> Int => {{
     System::Sleep(30000);
     0
@@ -138,9 +163,8 @@ def w = spawn SleepLong(0);
 System::Sleep(300);
 def cancelled = cancel(w);
 def r = join w;
-def main = fn() -> Int => 0;
-)",
-		MidoriPathLiteral(system_module_path));
+{})",
+		JoinImports(), DESCRIBE_JOIN);
 
 	const std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
@@ -148,7 +172,8 @@ def main = fn() -> Int => 0;
 	const std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start_time;
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
-	REQUIRE(executed.m_exit_code != EXIT_SUCCESS);
-	REQUIRE(executed.m_output.m_stdout.find("cancelled") != std::string::npos);
+	CAPTURE(executed.m_output.m_stdout);
+	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout.find("join: cancelled") != std::string::npos);
 	REQUIRE(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() < 10);
 }

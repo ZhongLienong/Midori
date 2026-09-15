@@ -623,6 +623,10 @@ private:
 
 	MidoriResult::ExpressionResult ParseJoinExpression(Token& join_keyword);
 
+	// The type declared under `name` in this module or any module it imports, or
+	// nullptr. For compiler-required declarations such as `Result`.
+	std::shared_ptr<MidoriType> FindDeclaredTypeByName(const std::string& name);
+
 	MidoriResult::ExpressionResult ParseChannelExpression(Token& channel_keyword);
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
