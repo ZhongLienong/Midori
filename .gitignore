@@ -397,3 +397,7 @@ build*
 # Bytecode artifacts `midori build` writes beside a program
 *.mbc
 *.mbc.json
+
+# Coding agent plans
+docs/plan/
+docs/superpowers/
