@@ -35,7 +35,7 @@ Describe("failing", Concurrency::Join(failing));
 
 def spinning = Concurrency::Spawn(0, Spin);
 System::Sleep(20);
-def cancelled = cancel(spinning);
+def cancelled = Concurrency::Cancel(spinning);
 Describe("cancelled", Concurrency::Join(spinning));
 
 // Still running after two workers went wrong.

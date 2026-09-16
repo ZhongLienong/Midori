@@ -50,10 +50,10 @@ PrintLine("s3=" ++ (s3 as Text));
 PrintLine("s4=" ++ (s4 as Text));
 PrintLine("all_equal=" ++ (if s1 == s2 then (if s2 == s3 then (if s3 == s4 then "true" else "false") else "false") else "false"));
 
-close(ch1);
-close(ch2);
-close(ch3);
-close(ch4);
+Concurrency::Close(ch1);
+Concurrency::Close(ch2);
+Concurrency::Close(ch3);
+Concurrency::Close(ch4);
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));

@@ -36,7 +36,7 @@ PrintLine("s1=" ++ (s1 as Text));
 PrintLine("s2=" ++ (s2 as Text));
 PrintLine("match=" ++ (if s1 == s2 then "true" else "false"));
 
-close(ch1);
-close(ch2);
+Concurrency::Close(ch1);
+Concurrency::Close(ch2);
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));

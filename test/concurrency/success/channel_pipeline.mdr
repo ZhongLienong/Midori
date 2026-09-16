@@ -62,8 +62,8 @@ def Drain = fn(source: Channel<Int>, i: Int, limit: Int) -> Unit =>
 
 Drain(ch_output, 0, count);
 
-close(ch_input);
-close(ch_mid);
-close(ch_output);
+Concurrency::Close(ch_input);
+Concurrency::Close(ch_mid);
+Concurrency::Close(ch_output);
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));

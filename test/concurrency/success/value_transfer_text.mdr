@@ -27,5 +27,5 @@ PrintLine("v2=[" ++ v2 ++ "]");
 PrintLine("v3=[" ++ v3 ++ "]");
 PrintLine("v4=[" ++ v4 ++ "]");
 
-close(ch);
+Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

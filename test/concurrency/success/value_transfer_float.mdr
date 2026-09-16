@@ -28,5 +28,5 @@ PrintLine("v3=" ++ (v3 as Text));
 PrintLine("v4=" ++ (v4 as Text));
 PrintLine("all_received=true");
 
-close(ch);
+Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

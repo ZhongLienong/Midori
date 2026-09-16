@@ -5536,11 +5536,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 		{
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
 		}
-		if (full_name == "close")
+		if (full_name == "Concurrency::Close")
 		{
 			if (call.m_arguments.size() != 1u)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: close expects exactly one argument", call.m_paren, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Concurrency::Close takes exactly one argument", call.m_paren, m_file_name, m_source_lines));
 			}
 
 			MidoriResult::TypeResult channel_result = Evaluate(call.m_arguments[0u]);
@@ -5552,18 +5552,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 			std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_result.value());
 			if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: close expects Channel<T>", call.m_paren, m_file_name, m_source_lines, resolved_channel_type));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: Concurrency::Close takes a Channel<T>", call.m_paren, m_file_name, m_source_lines, resolved_channel_type));
 			}
 
 			call.m_is_foreign = false;
 			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
 			return call.m_type_data;
 		}
-		if (full_name == "is_done" || full_name == "cancel")
+		if (full_name == "Concurrency::IsDone" || full_name == "Concurrency::Cancel")
 		{
 			if (call.m_arguments.size() != 1u)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} expects exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
 			}
 
 			MidoriResult::TypeResult worker_result = Evaluate(call.m_arguments[0u]);
@@ -5575,7 +5575,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 			std::shared_ptr<MidoriType> resolved_worker_type = ApplySubstitution(worker_result.value());
 			if (!resolved_worker_type->IsType<MidoriType::WorkerType>())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} expects Worker<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_worker_type));
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} takes a Worker<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_worker_type));
 			}
 
 			call.m_is_foreign = false;

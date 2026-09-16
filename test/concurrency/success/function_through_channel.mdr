@@ -26,4 +26,4 @@ def worker = Concurrency::Spawn(channel, fn(ch : Channel<fn(Int) -> Int>) -> Int
 def from_worker = <- channel;
 IO::PrintLine("from the worker: " ++ (from_worker(5) as Text));
 IO::PrintLine("joined: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(worker)) as Text));
-close(channel);
+Concurrency::Close(channel);

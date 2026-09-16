@@ -40,10 +40,10 @@ PrintLine("fortytwo=" ++ ((<- ch2) as Text));
 PrintLine("negative=" ++ ((<- ch3) as Text));
 PrintLine("compute(7)=" ++ ((<- ch4) as Text));
 
-close(ch1);
-close(ch2);
-close(ch3);
-close(ch4);
+Concurrency::Close(ch1);
+Concurrency::Close(ch2);
+Concurrency::Close(ch3);
+Concurrency::Close(ch4);
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));

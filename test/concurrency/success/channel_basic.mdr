@@ -18,5 +18,5 @@ def msg1 = <- ch;
 def msg2 = <- ch;
 def msg3 = <- ch;
 PrintLine("Received: " ++ msg1 ++ ", " ++ msg2 ++ ", " ++ msg3);
-close(ch);
+Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

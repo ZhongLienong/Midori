@@ -76,7 +76,7 @@ def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(dummy: Int) -> Int => SpinFrom(0);
 def w = Concurrency::Spawn(0, Spin);
 System::Sleep(50);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {}IO::PrintLine("joiner continued");
 )",
@@ -103,7 +103,7 @@ TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error
 def SpinTail = fn(i: Int) -> Int => SpinTail(i + 1);
 def w = Concurrency::Spawn(0, SpinTail);
 System::Sleep(50);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
@@ -131,7 +131,7 @@ def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
 def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 def w = Concurrency::Spawn(0, Spin);
 System::Sleep(50);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
@@ -161,7 +161,7 @@ def SleepLong = fn(_dummy: Int) -> Int => {{
 }};
 def w = Concurrency::Spawn(0, SleepLong);
 System::Sleep(300);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);

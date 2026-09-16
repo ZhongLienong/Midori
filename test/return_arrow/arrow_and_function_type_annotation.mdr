@@ -16,7 +16,7 @@ def SendOne = fn(c: Channel<Text>) -> Int => { c -> "sent"; 0 };
 def ch : Channel<Text> = Concurrency::MakeChannel(4);
 def sent = SendOne(ch);
 PrintLine(<- ch);
-close(ch);
+Concurrency::Close(ch);
 
 PrintLine(if Predicate(3) then "positive" else "not positive");
 PrintLine(Apply(fn(x: Int) -> Int => x * 3, 5) as Text);

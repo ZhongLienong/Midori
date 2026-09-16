@@ -14,7 +14,7 @@ def LongTask = fn(dummy: Text) -> Int => {
 };
 
 def w = Concurrency::Spawn("x", LongTask);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 if cancelled
 then PrintLine("Cancel requested: yes")
 else PrintLine("Cancel requested: no");

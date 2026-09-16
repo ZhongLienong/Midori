@@ -3812,19 +3812,19 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		function_name = callee_name.m_name.m_lexeme;
 
-		if (function_name == "close" && call.m_arguments.size() == 1u)
+		if (function_name == "Concurrency::Close" && call.m_arguments.size() == 1u)
 		{
 			Visit(call.m_arguments[0u]);
 			EmitByte(OpCode::CHANNEL_CLOSE, line);
 			return;
 		}
-		if (function_name == "is_done" && call.m_arguments.size() == 1u)
+		if (function_name == "Concurrency::IsDone" && call.m_arguments.size() == 1u)
 		{
 			Visit(call.m_arguments[0u]);
 			EmitByte(OpCode::WORKER_IS_DONE, line);
 			return;
 		}
-		if (function_name == "cancel" && call.m_arguments.size() == 1u)
+		if (function_name == "Concurrency::Cancel" && call.m_arguments.size() == 1u)
 		{
 			Visit(call.m_arguments[0u]);
 			EmitByte(OpCode::WORKER_CANCEL, line);

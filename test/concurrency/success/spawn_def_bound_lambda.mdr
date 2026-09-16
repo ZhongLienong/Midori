@@ -22,7 +22,7 @@ PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as T
 def ch : Channel<Text> = Concurrency::MakeChannel(2);
 def w3 = Concurrency::Spawn((ch, "left"), SendBand);
 PrintLine(<- ch);
-close(ch);
+Concurrency::Close(ch);
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
 
 PrintLine("direct=" ++ (Double(5) as Text));

@@ -16,11 +16,11 @@ def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 
 def w = Concurrency::Spawn(0, Spin);
 Sleep(50);
-def cancelled = cancel(w);
+def cancelled = Concurrency::Cancel(w);
 // Polls the global `w` rather than taking it as a parameter, so the worker
 // handle type does not have to be named.
 def WaitUntilDone = fn(attempts: Int) -> Unit =>
-    if is_done(w) || (attempts >= 500)
+    if Concurrency::IsDone(w) || (attempts >= 500)
     then ()
     else
     {
@@ -29,6 +29,6 @@ def WaitUntilDone = fn(attempts: Int) -> Unit =>
     };
 
 WaitUntilDone(0);
-if cancelled && is_done(w)
+if cancelled && Concurrency::IsDone(w)
 then PrintLine("spin worker cancelled")
 else PrintLine("spin worker still running");

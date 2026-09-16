@@ -38,11 +38,11 @@ PrintLine("sq(9)=" ++ ((<- ch3) as Text));
 PrintLine("add(100,200)=" ++ ((<- ch4) as Text));
 PrintLine("mul(11,11)=" ++ ((<- ch5) as Text));
 
-close(ch1);
-close(ch2);
-close(ch3);
-close(ch4);
-close(ch5);
+Concurrency::Close(ch1);
+Concurrency::Close(ch2);
+Concurrency::Close(ch3);
+Concurrency::Close(ch4);
+Concurrency::Close(ch5);
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));

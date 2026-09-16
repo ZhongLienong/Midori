@@ -40,5 +40,5 @@ def Receive = fn(source: Channel<Text>, received: Int) -> Int =>
 };
 
 PrintLine("Total received: " ++ (Receive(ch, 0) as Text));
-close(ch);
+Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

@@ -89,7 +89,9 @@ namespace
 		}
 	}
 
-	bool IsCompilerIntrinsicName(std::string_view name)
+	// `close`, `is_done` and `cancel` were unqualified builtins while everything else
+	// concurrency moved under Concurrency::. Writing one now names its replacement.
+	bool IsRemovedConcurrencyBuiltin(std::string_view name)
 	{
 		return name == "close" || name == "is_done" || name == "cancel";
 	}
@@ -101,10 +103,14 @@ namespace
 	constexpr std::string_view SpawnIntrinsicName = "Concurrency::Spawn";
 	constexpr std::string_view JoinIntrinsicName = "Concurrency::Join";
 	constexpr std::string_view MakeChannelIntrinsicName = "Concurrency::MakeChannel";
+	constexpr std::string_view CloseIntrinsicName = "Concurrency::Close";
+	constexpr std::string_view IsDoneIntrinsicName = "Concurrency::IsDone";
+	constexpr std::string_view CancelIntrinsicName = "Concurrency::Cancel";
 
 	bool IsConcurrencyIntrinsicName(std::string_view name)
 	{
-		return name == SpawnIntrinsicName || name == JoinIntrinsicName || name == MakeChannelIntrinsicName;
+		return name == SpawnIntrinsicName || name == JoinIntrinsicName || name == MakeChannelIntrinsicName
+			|| name == CloseIntrinsicName || name == IsDoneIntrinsicName || name == CancelIntrinsicName;
 	}
 
 	void CollectTypeConstraints(
@@ -596,9 +602,15 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		);
 	}
 
-	if (IsCompilerIntrinsicName(lookup_name))
+	if (IsRemovedConcurrencyBuiltin(lookup_name))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
+		static const std::unordered_map<std::string_view, std::string_view> replacements
+		{
+			{ "close", "Concurrency::Close" },
+			{ "is_done", "Concurrency::IsDone" },
+			{ "cancel", "Concurrency::Cancel" }
+		};
+		return std::unexpected(GenerateParserError(std::format("'{}' is no longer supported. Write '{}', which needs \"MidoriPrelude/Concurrency.mdr\" imported like the rest of the concurrency surface.", lookup_name, replacements.at(lookup_name)), name_token));
 	}
 
 	// `loop`, `break`, `continue` and `return` are no longer keywords, so a file

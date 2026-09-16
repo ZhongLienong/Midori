@@ -8,7 +8,7 @@ use IO.{PrintLine}
 def Producer = fn(ch: Channel<Text>) -> Int => {
     ch -> "left";
     ch -> "right";
-    close(ch);
+    Concurrency::Close(ch);
     7
 };
 

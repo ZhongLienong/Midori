@@ -28,5 +28,5 @@ PrintLine("v3=" ++ (v3 as Text));
 PrintLine("v4=" ++ (v4 as Text));
 PrintLine("sum=" ++ ((v1 + v2 + v3 + v4) as Text));
 
-close(ch);
+Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

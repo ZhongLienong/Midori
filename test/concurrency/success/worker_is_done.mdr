@@ -14,7 +14,7 @@ def SlowTask = fn(dummy: Text) -> Int => {
 };
 
 def w = Concurrency::Spawn("x", SlowTask);
-def done_early = is_done(w);
+def done_early = Concurrency::IsDone(w);
 if done_early
 then PrintLine("Done immediately: yes")
 else PrintLine("Done immediately: no");

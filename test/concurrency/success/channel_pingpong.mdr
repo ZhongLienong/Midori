@@ -21,6 +21,6 @@ ping_ch -> "ping";
 def reply = <- pong_ch;
 PrintLine("Main received: " ++ reply);
 
-close(ping_ch);
-close(pong_ch);
+Concurrency::Close(ping_ch);
+Concurrency::Close(pong_ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

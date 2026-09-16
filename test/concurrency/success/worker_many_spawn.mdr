@@ -30,4 +30,4 @@ PrintLine("sum=" ++ (sum as Text));
 PrintLine("expected=" ++ (((n * (n - 1)) / 2) as Text));
 PrintLine("match=" ++ (if sum == ((n * (n - 1)) / 2) then "true" else "false"));
 
-close(ch);
+Concurrency::Close(ch);

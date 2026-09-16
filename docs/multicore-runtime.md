@@ -94,7 +94,9 @@ def val = <- ch;                                         // receive: Int (blocks
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
-Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
+Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
+`Concurrency::Cancel(w)`. Like the three above, they are compiler-provided and
+need `Concurrency.mdr` imported.
 
 `Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one
 worker per chunk. It is ordinary Midori in `MidoriPrelude/Concurrency.mdr`, not a
@@ -124,7 +126,7 @@ with it.
    union values itself, using the constructor tags the compiler reads from the
    `Result` and `WorkerError` declarations.
 
-3. **Cancel**: `cancel(w)` requests cooperative cancellation via
+3. **Cancel**: `Concurrency::Cancel(w)` requests cooperative cancellation via
    `std::jthread::request_stop()`. The worker observes the request at
    safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), and the
    return of any foreign call. A worker blocked in `ch -> v` or `<- ch` is woken
@@ -137,7 +139,7 @@ with it.
    reads and third-party dynamic FFI — still run to completion first. See
    `src/Common/Cancellation/Cancellation.h`.
 
-4. **Poll**: `is_done(w)` checks if the worker has completed without blocking.
+4. **Poll**: `Concurrency::IsDone(w)` checks if the worker has completed without blocking.
 
 ## Failure Propagation
 
@@ -177,7 +179,7 @@ Channels provide typed message passing between workers:
 - `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context
 - `ch -> value` — sends a value (blocks if full, returns `Bool`)
 - `<- ch` — receives a value (blocks if empty, runtime error if closed and empty)
-- `close(ch)` — closes the channel, unblocks all waiters
+- `Concurrency::Close(ch)` — closes the channel, unblocks all waiters
 
 There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
