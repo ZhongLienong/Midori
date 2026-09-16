@@ -1611,15 +1611,9 @@ MidoriResult::ExpressionResult Parser::LowerConcurrencyIntrinsic(std::unique_ptr
 	const Token& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
 	if (callee_name.m_lexeme == SpawnIntrinsicName && call.m_arguments.size() == 2u)
 	{
-		if (!call.m_arguments[1u]->IsExpression<MidoriExpression::NameAccess>())
-		{
-			return std::unexpected(GenerateParserError("The second argument to 'Concurrency::Spawn' must name a top-level function, such as 'Concurrency::Spawn(21, Double)'.", callee_name));
-		}
-
-		Token function_name = call.m_arguments[1u]->GetExpression<MidoriExpression::NameAccess>().m_name;
 		std::vector<std::unique_ptr<MidoriExpression>> arguments;
 		arguments.emplace_back(std::move(call.m_arguments[0u]));
-		return std::make_unique<MidoriExpression>(MidoriExpression::Spawn(callee_name, function_name, std::move(arguments)));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Spawn(callee_name, std::move(call.m_arguments[1u]), std::move(arguments)));
 	}
 
 	if (callee_name.m_lexeme == JoinIntrinsicName && call.m_arguments.size() == 1u)
@@ -1841,7 +1835,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
 
-						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && m_context.m_imported_symbols.contains(std::string(ConcurrencyModuleName)))
+						const bool concurrency_is_visible = m_context.m_imported_symbols.contains(std::string(ConcurrencyModuleName))
+							|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == ConcurrencyModuleName);
+						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && concurrency_is_visible)
 						{
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
@@ -2369,10 +2365,13 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				static int s_for_counter = 0;
 				BeginScope();
 
-				// Add loop variable to scope
+				// Add loop variable to scope. Every index here is the slot within this
+				// function's frame, which is what the code generator emits: the running
+				// m_total_variables count is absolute across nested functions, so using it
+				// addressed slots past the frame once a loop sat inside a nested lambda.
 				std::string var_name(loop_variable.m_lexeme);
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
-				int var_index = m_state.m_total_variables - 1; // The index that was just assigned
+				int var_index = local_index.value_or(m_state.m_total_variables - 1);
 
 				// Reserve additional local variable slots for hidden loop state values
 				// These are not actual variables that can be referenced by name, but they need
@@ -2380,14 +2379,11 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				// For range iteration: step and end
 				// For array iteration: current index, length, and array reference
 				// Names use '$' prefix which is not valid in user identifiers
-				RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_for_counter));
-				int hidden_step_index = m_state.m_total_variables - 1;
+				int hidden_step_index = RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
 
-				RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_for_counter));
-				int hidden_end_index = m_state.m_total_variables - 1;
+				int hidden_end_index = RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
 
-				RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter));
-				int hidden_array_index = m_state.m_total_variables - 1;
+				int hidden_array_index = RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
 				s_for_counter += 1;
 
 				// NOW set the loop local count, after the 4 for loop variables are registered
@@ -2526,21 +2522,18 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		scope_open = true;
 
 		// Register the loop variable before parsing the transform expression so
-		// comprehensions like `[i for i in range]` resolve `i` correctly.
-		RegisterOrUpdateLocalVariable(std::string(loop_variable.m_lexeme));
-		var_index = m_state.m_total_variables - 1;
+		// comprehensions like `[i for i in range]` resolve `i` correctly. Each index is
+		// the slot within this function's frame; m_total_variables counts across nested
+		// functions, so using it addressed slots past the frame from inside a lambda.
+		var_index = RegisterOrUpdateLocalVariable(std::string(loop_variable.m_lexeme)).value_or(m_state.m_total_variables - 1);
 
-		RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter));
-		hidden_step_index = m_state.m_total_variables - 1;
+		hidden_step_index = RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
 
-		RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter));
-		hidden_end_index = m_state.m_total_variables - 1;
+		hidden_end_index = RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
 
-		RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter));
-		hidden_array_index = m_state.m_total_variables - 1;
+		hidden_array_index = RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
 
-		RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter));
-		result_array_index = m_state.m_total_variables - 1;
+		result_array_index = RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
 
 		s_comp_counter += 1;
 	}

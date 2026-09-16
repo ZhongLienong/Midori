@@ -17,7 +17,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Iter.mdr` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
-- `Concurrency.mdr` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `join` evaluates to, and `JoinedOrPanic` for code that treats a worker failure as fatal. The compiler requires the `WorkerError` declaration to have exactly that shape.
+- `Concurrency.mdr` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to, `JoinedOrPanic` for code that treats a worker failure as fatal, and `ParallelMap`, which is written in Midori rather than provided by the compiler. The compiler requires the `WorkerError` declaration to have exactly that shape.
 
 ## Helper and Typeclass Modules
 
@@ -30,7 +30,7 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
 - `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
-- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, and `Channel<T>`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`.
+- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, `Channel<T>`, and function types — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Midori. A closure's captures are not part of its type, so they are not checked: a closure that captured a `Worker<T>` crosses with a handle that means nothing on the other side. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
 ## Sequence Pipelines

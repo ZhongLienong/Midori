@@ -468,6 +468,7 @@ character wider than `union` and two wider than `struct`.
 | assignment | **deleted** | 2026-09-11/12, see the delete-assignment and delete-in-place-mutation plans |
 | `return` | **deleted** | 2026-09-15. 64 sites migrated with the compiler still accepting `return`, so the suite proved each rewrite kept its output before the node was removed. It took the unreachable-code warning and dead-code trimming with it: only a `return` could make code unreachable. |
 | `default` | **deleted** | 2026-09-15. 38 arms became `case _ =>`. Exhaustiveness now accepts any unguarded irrefutable arm for every scrutinee type, not only a lone one for non-unions, and an unguarded `case _` compiles to the same bytecode `default` did. Derived union instances build a wildcard case instead of a `Default` node. `default` is an ordinary identifier again. |
+| `Iter::*` pipelines | **added** | 2026-09-15. `MidoriPrelude/Iter.mdr`: lazy `Map`, `Filter`, `Take` over any `Iterable`, source-first so stages pipe. It needed equality constraints to *solve* (`Iterable::Item<S> ~ A` binds `A`) and `for`/comprehensions to call a constrained instance's `Next` by monomorphising it. |
 | `spawn`, `join`, `channel` | **deleted** | 2026-09-15. Replaced by `Concurrency::Spawn(argument, F)`, `Concurrency::Join(w)` and `Concurrency::MakeChannel(capacity)`. They are call syntax, but not yet ordinary functions: the parser turns a complete call into the existing Spawn / Join / ChannelCreate node, so the compile-time Transferable and top-level-function checks are unchanged. Spawn takes one argument first, spread across `F`'s parameters when it is a tuple, so a value pipes in. MakeChannel takes its element type from context. Writing them in-language would need functions as spawnable values and a way to name the channel element type, neither of which exists. |
 
 Suite **367/367**, unit tests **1024 assertions / 176 cases**. Each removed keyword
@@ -606,7 +607,14 @@ The rewrite is done when:
    immutability does not make NaN reflexive.
 4. `#` resolves only through `Countable`, and `HasNameSuffix` is gone from
    `CodeGenerator.cpp`.
-5. `ParallelMap` is writable in-language.
+5. `ParallelMap` is writable in-language. **Met 2026-09-15.** It needed two rules
+   lifted: a spawned function is now an ordinary value rather than a name, and
+   function types are `Transferable`, since a function already crossed as a
+   procedure index plus a copy of its captured cells. `Concurrency::ParallelMap`
+   lives in `MidoriPrelude/Concurrency.mdr` as ordinary Midori. The cost is that a
+   closure's captures are not in its type and so are not checked: a closure that
+   captured a `Worker<T>` crosses, and the handle is meaningless on the other side.
+   That is the only transferability decided outside the type checker.
 6. The existing test suite passes, migrated.
 
 ---

@@ -139,9 +139,9 @@ MidoriExpression::UnarySuffix::UnarySuffix(const Token& op, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Spawn::Spawn(const Token& spawn_keyword, const Token& callee_name, std::vector<std::unique_ptr<MidoriExpression>>&& arguments)
+MidoriExpression::Spawn::Spawn(const Token& spawn_keyword, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments)
 	: m_spawn_keyword(spawn_keyword),
-	m_callee_name(callee_name),
+	m_callee(std::move(callee)),
 	m_arguments(std::move(arguments))
 {
 }

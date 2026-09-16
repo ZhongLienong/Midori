@@ -2,6 +2,6 @@ Compilation failed :(
 Type Checker Error at test/concurrency/failure/spawn_nontransferable_range_argument.mdr:9
   |
 9 | def worker = Concurrency::Spawn(0..1..10, ConsumeRange);
-  |                                           ^^^^^^^^^^^^ Type Range<Int> does not satisfy constraint Transferable<Range<Int>> - no matching instance found
+  |              ^^^^^^^^^^^ Type Range<Int> does not satisfy constraint Transferable<Range<Int>> - no matching instance found
   |
   | Range values are not transferable.

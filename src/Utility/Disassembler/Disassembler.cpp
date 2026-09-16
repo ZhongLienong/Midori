@@ -425,20 +425,16 @@ namespace
 
 	void SpawnWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
-		const int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		const int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		const int global_index = (high_byte << 8) | low_byte;
-		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 
 		std::ostringstream formatted_str;
 		formatted_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formatted_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
 		formatted_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arg_count));
-		formatted_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global " + std::to_string(global_index) + ", argc " + std::to_string(arg_count));
+		formatted_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// argc " + std::to_string(arg_count) + ", function on the stack");
 		formatted_str << '\n';
 		Printer::Print(formatted_str.str());
 
-		offset += 4;
+		offset += 2;
 	}
 }
 

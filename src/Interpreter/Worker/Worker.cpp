@@ -28,9 +28,9 @@ namespace
 	}
 }
 
-Worker::Worker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
+Worker::Worker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 	: m_executable(std::move(executable))
-	, m_proc_index(proc_index)
+	, m_serialized_function(std::move(serialized_function))
 	, m_serialized_args(std::move(serialized_args))
 	, m_serialized_globals(std::move(serialized_globals))
 {
@@ -98,7 +98,18 @@ void Worker::Execute(std::stop_token stop_token)
 			return;
 		}
 
-		worker_vm.PrepareWorkerCall(m_proc_index);
+		std::expected<MidoriValue, std::string> worker_function = ValueTransfer::Deserialize(m_serialized_function, worker_vm);
+		if (!worker_function.has_value())
+		{
+			std::lock_guard<std::mutex> lock(m_result_mutex);
+			m_error = worker_function.error();
+			m_error_code = RuntimeErrorCode::InternalTypeError;
+			m_had_error = true;
+			m_done.store(true);
+			return;
+		}
+
+		worker_vm.PrepareWorkerCall(worker_function.value());
 		for (const SerializedValue& serialized_arg : m_serialized_args)
 		{
 			std::expected<MidoriValue, std::string> deserialized_arg = ValueTransfer::Deserialize(serialized_arg, worker_vm);
@@ -201,12 +212,12 @@ WorkerRegistry& WorkerRegistry::GetInstance()
 	return instance;
 }
 
-int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, int proc_index, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
+int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int worker_id = m_next_id;
 	m_next_id += 1;
-	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), proc_index, std::move(serialized_args), std::move(serialized_globals)));
+	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), std::move(serialized_function), std::move(serialized_args), std::move(serialized_globals)));
 	return worker_id;
 }
 

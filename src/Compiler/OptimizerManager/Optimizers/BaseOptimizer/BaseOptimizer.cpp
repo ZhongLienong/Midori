@@ -192,6 +192,8 @@ void MidoriOptimizer::operator()(MidoriExpression::Spawn& spawn)
 	{
 		VisitAndReplace(argument);
 	}
+
+	VisitAndReplace(spawn.m_callee);
 }
 
 void MidoriOptimizer::operator()(MidoriExpression::Join& join)

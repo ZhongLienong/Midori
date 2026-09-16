@@ -133,7 +133,7 @@ public:
 
 	void SetGlobalValue(int global_index, MidoriValue value) noexcept { (*m_global_vars)[global_index] = value; }
 
-    void PrepareWorkerCall(int proc_index) noexcept;
+    void PrepareWorkerCall(MidoriValue worker_function) noexcept;
 
     void SetStopToken(std::stop_token stop_token) noexcept
     {

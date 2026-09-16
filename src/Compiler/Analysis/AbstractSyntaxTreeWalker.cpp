@@ -226,6 +226,8 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Spawn& spawn)
 	{
 		VisitExpression(argument);
 	}
+
+	VisitExpression(spawn.m_callee);
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Join& join)

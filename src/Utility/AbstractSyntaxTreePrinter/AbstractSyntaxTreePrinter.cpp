@@ -225,7 +225,8 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnarySuffix& un
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Spawn& spawn, int depth) const
 {
 	PrintWithIndentation(depth, "Spawn {");
-	PrintWithIndentation(depth + 1, "Callee: " + spawn.m_callee_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "Callee: ");
+	Visit(spawn.m_callee, depth + 2);
 	PrintWithIndentation(depth + 1, "Args: ");
 	std::ranges::for_each
 	(

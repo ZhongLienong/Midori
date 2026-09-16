@@ -314,18 +314,25 @@ VirtualMachine::VirtualMachine(std::shared_ptr<const MidoriExecutable> shared_ex
 	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
-void VirtualMachine::PrepareWorkerCall(int proc_index) noexcept
+void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 {
 	m_value_stack_pointer = m_value_stack_begin;
 	m_value_stack_base_pointer = m_value_stack_begin;
 	m_call_stack_pointer = m_call_stack_begin;
-	m_curr_closure_traceable = nullptr;
-	m_curr_environment = nullptr;
 	m_last_error.reset();
 
-	m_instruction_pointer = GetProcEntry(proc_index);
+	// The spawned function is a transferred closure rather than a procedure index:
+	// it is not on this VM's stack, so it is rooted here, and its cells are the
+	// environment the worker's first frame runs in - which is what lets a lambda
+	// that captured something be spawned.
+	MidoriTraceable* closure_pointer = worker_function.GetPointer();
+	MidoriClosure& closure = closure_pointer->GetTraceable<MidoriClosure>();
+	m_curr_closure_traceable = closure_pointer;
+	m_curr_environment = &closure.m_cell_values;
 
-	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr);
+	m_instruction_pointer = GetProcEntry(closure.m_proc_index);
+
+	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], m_curr_environment);
 	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
@@ -357,10 +364,27 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 	{
 	case OpCode::SPAWN_WORKER:
 	{
-		int high_byte = static_cast<int>(ReadByte(ip));
-		int low_byte = static_cast<int>(ReadByte(ip));
-		int global_idx = (high_byte << 8) | low_byte;
 		int arg_count = static_cast<int>(ReadByte(ip));
+
+		// The function is an ordinary value on the stack, above its arguments, and
+		// crosses to the worker like any other transferred value: its procedure index
+		// plus a copy of whatever cells it captured.
+		MidoriValue worker_function = Pop();
+		std::expected<SerializedValue, std::string> serialized_function = ValueTransfer::Serialize(worker_function, *this);
+		if (!serialized_function.has_value())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_function.error(), GetLine())));
+			return false;
+		}
+
+		MidoriTraceable* worker_pointer = worker_function.GetPointer();
+		if (worker_pointer == nullptr || !worker_pointer->IsTraceable<MidoriClosure>())
+		{
+			m_instruction_pointer = ip;
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "SPAWN_WORKER expected a function value.", GetLine())));
+			return false;
+		}
 
 		std::vector<SerializedValue> serialized_args;
 		serialized_args.reserve(static_cast<size_t>(arg_count));
@@ -377,15 +401,6 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 			serialized_args.emplace_back(std::move(serialized_argument.value()));
 		}
 		std::reverse(serialized_args.begin(), serialized_args.end());
-
-		MidoriValue worker_function = (*m_global_vars)[global_idx];
-		MidoriTraceable* worker_pointer = worker_function.GetPointer();
-		if (worker_pointer == nullptr || !worker_pointer->IsTraceable<MidoriClosure>())
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "SPAWN_WORKER expected a function closure in globals.", GetLine())));
-			return false;
-		}
 
 		// The worker starts from a copy of this VM's globals, taken here on the
 		// spawning thread because this heap is not safe to read from another one.
@@ -405,8 +420,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 			serialized_globals.emplace_back(std::move(serialized_global.value()));
 		}
 
-		const MidoriClosure& worker_closure = worker_pointer->GetTraceable<MidoriClosure>();
-		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, worker_closure.m_proc_index, std::move(serialized_args), std::move(serialized_globals));
+		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, std::move(serialized_function.value()), std::move(serialized_args), std::move(serialized_globals));
 		Push(static_cast<MidoriInteger>(worker_id));
 		return true;
 	}

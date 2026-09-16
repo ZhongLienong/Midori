@@ -1049,7 +1049,14 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 
 	if (resolved_type->IsType<MidoriType::FunctionType>())
 	{
-		return fail("Function and closure values are not transferable.");
+		// A function value crosses as its procedure index plus a copy of its captured
+		// cells, which is what lets `Concurrency::Spawn` take a function at all, and
+		// what makes an in-language ParallelMap writable. What a closure captured is
+		// not part of its type, so the captures themselves are not checked here: a
+		// closure that captured a Worker crosses and the worker handle is meaningless
+		// on the other side. That is the one place transferability is not decided at
+		// compile time.
+		return std::nullopt;
 	}
 
 	if (resolved_type->IsType<MidoriType::GenericParam>() ||
@@ -5239,65 +5246,32 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnarySuffix&)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 {
-	const std::string& callee_name = spawn.m_callee_name.m_lexeme;
-
-	bool has_top_level_definition = callee_name.find(NameSeparator) != std::string::npos;
-	if (!has_top_level_definition)
+	// The function is an ordinary value: it is evaluated here and transferred to the
+	// worker, captured cells and all, so a lambda closing over the enclosing scope
+	// works and a function held in a parameter can be spawned.
+	// The ambient expected type belongs to the spawn's own result, Worker<T>, and
+	// would otherwise be pushed onto a lambda written in callee position.
+	MidoriResult::TypeResult callee_result;
 	{
-		for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
-		{
-			if (!statement->IsStatement<MidoriStatement::FunctionDefinition>())
-			{
-				continue;
-			}
-
-			const MidoriStatement::FunctionDefinition& definition = statement->GetStatement<MidoriStatement::FunctionDefinition>();
-			if (definition.m_name.m_lexeme == callee_name && !definition.m_local_index.has_value())
-			{
-				has_top_level_definition = true;
-				break;
-			}
-		}
+		ExpectedTypeGuard guard(*this, nullptr);
+		callee_result = Evaluate(spawn.m_callee);
 	}
 
-	const MidoriExpression::Function* bound_lambda = nullptr;
-	if (!has_top_level_definition)
+	if (!callee_result.has_value())
 	{
-		bound_lambda = FindTopLevelBoundLambda(callee_name);
-		has_top_level_definition = bound_lambda != nullptr;
+		return callee_result;
 	}
 
-	if (!has_top_level_definition)
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: Concurrency::Spawn requires a named top-level function", spawn.m_callee_name, m_file_name, m_source_lines));
-	}
-
-	if (m_generic_functions.contains(callee_name))
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: generic functions must be specialized before spawning", spawn.m_callee_name, m_file_name, m_source_lines));
-	}
-
-	if (bound_lambda != nullptr && bound_lambda->m_captured_count > 0)
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: a spawned function cannot capture its enclosing scope, because captured values do not cross a worker boundary", spawn.m_callee_name, m_file_name, m_source_lines));
-	}
-
-	const std::shared_ptr<MidoriType>* binding = FindNameType(callee_name);
-	if (binding == nullptr)
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Spawn expression type error: function not found", spawn.m_callee_name, m_file_name, m_source_lines));
-	}
-
-	std::shared_ptr<MidoriType> callee_type = ApplySubstitution(*binding);
+	std::shared_ptr<MidoriType> callee_type = ApplySubstitution(callee_result.value());
 	if (!callee_type->IsType<MidoriType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Spawn expression type error: callee is not a function", spawn.m_callee_name, m_file_name, m_source_lines, callee_type));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Spawn expression type error: the second argument to Concurrency::Spawn must be a function", spawn.m_spawn_keyword, m_file_name, m_source_lines, callee_type));
 	}
 
 	MidoriType::FunctionType& function_type = callee_type->GetType<MidoriType::FunctionType>();
 	if (function_type.m_is_foreign)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn.m_callee_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn.m_spawn_keyword, m_file_name, m_source_lines));
 	}
 
 	if (std::optional<CompilerError> error = CheckSpawnArgument(spawn, function_type))
@@ -5348,11 +5322,11 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 		const bool is_matching_tuple = actual_type->IsType<MidoriType::TupleType>() && actual_type->GetType<MidoriType::TupleType>().m_element_types.size() == arity;
 		if (!is_matching_tuple)
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: '{}' takes {} parameters, so pass them to Concurrency::Spawn as one {}-element tuple", spawn.m_callee_name.m_lexeme, arity, arity), spawn.m_callee_name, m_file_name, m_source_lines, actual_type, expected_type);
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: the spawned function takes {} parameters, so pass them to Concurrency::Spawn as one {}-element tuple", arity, arity), spawn.m_spawn_keyword, m_file_name, m_source_lines, actual_type, expected_type);
 		}
 	}
 
-	MidoriResult::TypeResult unify_result = Unify(spawn.m_callee_name, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+	MidoriResult::TypeResult unify_result = Unify(spawn.m_spawn_keyword, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
 	if (!unify_result.has_value())
 	{
 		return std::move(unify_result.error());
@@ -5360,7 +5334,7 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 
 	for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
 	{
-		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_callee_name, ApplySubstitution(param_type)))
+		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_spawn_keyword, ApplySubstitution(param_type)))
 		{
 			return error;
 		}

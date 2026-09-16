@@ -115,7 +115,7 @@ namespace
 						return true;
 					}
 				}
-				return false;
+				return ContainsRecursiveCallImpl(*node.m_callee, m_function_name);
 			}
 
 			bool operator()(const MidoriExpression::Join& node) const

@@ -414,16 +414,17 @@ public:
 	struct Spawn : BaseExpression
 	{
 		Token m_spawn_keyword;
-		Token m_callee_name;
+		// Any expression of function type, evaluated on the spawning side and
+		// transferred to the worker: a name, a lambda, or a parameter holding one.
+		std::unique_ptr<MidoriExpression> m_callee;
 		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
-		int m_global_index = -1;
 		// Concurrency::Spawn(argument, F): m_arguments holds the one argument, which
 		// stands for all of F's parameters - the value itself for one parameter, a
 		// tuple spread across them for several, and a Unit that is discarded for none.
 		// The type checker records F's arity so the code generator knows which.
 		int m_callee_arity = -1;
 
-		Spawn(const Token& spawn_keyword, const Token& callee_name, std::vector<std::unique_ptr<MidoriExpression>>&& arguments);
+		Spawn(const Token& spawn_keyword, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments);
 	};
 
 	struct Join : BaseExpression

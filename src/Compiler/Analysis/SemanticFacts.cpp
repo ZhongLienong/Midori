@@ -1214,6 +1214,8 @@ namespace
 			{
 				VisitExpression(*argument);
 			}
+
+			VisitExpression(*node.m_callee);
 		}
 
 		void Visit(const MidoriExpression::Join& node)

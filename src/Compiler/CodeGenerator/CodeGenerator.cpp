@@ -638,7 +638,7 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			advance = 3;
 			break;
 		case OpCode::SPAWN_WORKER:
-			advance = 4;
+			advance = 2;
 			break;
 		case OpCode::JOIN_WORKER:
 			advance = 5;
@@ -3731,14 +3731,8 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 		return;
 	}
 
-	std::optional<int> global_index = ResolveResolvedNameGlobalIndex(spawn.m_callee_name.m_lexeme, line);
-	if (!global_index.has_value())
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Spawn code generation error: could not resolve spawned function", spawn.m_callee_name, m_file_name, m_source_lines));
-		return;
-	}
-
-	spawn.m_global_index = global_index.value();
+	// The arguments, then the function itself: SPAWN_WORKER takes its callee from
+	// the stack like a call, so any expression of function type can be spawned.
 	Visit(spawn.m_arguments[0u]);
 	if (spawn.m_callee_arity == 0)
 	{
@@ -3747,10 +3741,18 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 	else if (spawn.m_callee_arity >= 2)
 	{
 		EmitByte(OpCode::UNPACK_TUPLE, line);
+		m_operand_depth += spawn.m_callee_arity - 1;
+	}
+
+	m_operand_depth += spawn.m_callee_arity > 0 ? 1 : 0;
+	Visit(spawn.m_callee);
+	m_operand_depth -= spawn.m_callee_arity > 0 ? 1 : 0;
+	if (spawn.m_callee_arity >= 2)
+	{
+		m_operand_depth -= spawn.m_callee_arity - 1;
 	}
 
 	EmitByte(OpCode::SPAWN_WORKER, line);
-	EmitTwoBytes((spawn.m_global_index >> SHIFT_8_BITS) & BYTE_MASK, spawn.m_global_index & BYTE_MASK, line);
 	EmitByte(static_cast<OpCode>(spawn.m_callee_arity), line);
 }
 

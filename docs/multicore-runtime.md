@@ -44,9 +44,14 @@ via `ValueTransfer` (direct VM-to-VM copy for `spawn`/`join`) or serialized to
 - Tuples are transferable if all element types satisfy `Transferable`
 
 **Never transferable** (no `Transferable` instance):
-- Closures (`fn(A) -> B`) — capture VM-specific `MidoriCellValue` pointers
 - Ranges — semantically non-portable
 - `Worker<T>` — joining from a non-owner worker is undefined
+
+**Functions** (`fn(A) -> B`) are transferable: a function crosses as its procedure
+index plus a copy of the cells it captured. What a closure captured is not part of
+its type, so the captures themselves are not checked at compile time — a closure
+that captured a `Worker<T>` crosses, and the handle is meaningless on the other
+side. This is the one place transferability is not decided at compile time.
 
 Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
@@ -75,9 +80,9 @@ ch -> 42;                                                // send: Bool (false if
 def val = <- ch;                                         // receive: Int (blocks if empty)
 ```
 
-- `Concurrency::Spawn(argument, F)` resolves `F` at compile time (it must name a
-  top-level `def Name = fn(...)`, not a closure). The argument comes first so a
-  pipe can supply it. It stands for all of `F`'s parameters: the value itself
+- `Concurrency::Spawn(argument, F)` takes `F` as an ordinary value: a name, a
+  lambda, or a parameter holding one. The argument comes first so a pipe can
+  supply it. It stands for all of `F`'s parameters: the value itself
   when `F` takes one, a tuple spread across them when it takes several, and `()`
   when it takes none.
 - `Concurrency::Join(w)` blocks and evaluates to `Result<T, WorkerError>`:
@@ -92,9 +97,16 @@ def val = <- ch;                                         // receive: Int (blocks
 
 Auxiliary operations: `close(ch)`, `is_done(w)`, `cancel(w)`.
 
+`Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one
+worker per chunk. It is ordinary Midori in `MidoriPrelude/Concurrency.mdr`, not a
+compiler builtin: the per-chunk worker is a lambda that captured `work` and crosses
+with it.
+
 ## Worker Lifecycle
 
 1. **Spawn**: `Concurrency::Spawn(args, Proc)` creates a new `Worker` which:
+   - Transfers the spawned function itself, so the worker starts in that function's
+     own environment and a captured value is available inside it
    - Creates a `std::jthread`
    - Constructs a new `VirtualMachine` sharing the executable's bytecode
    - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
