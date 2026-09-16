@@ -7,7 +7,7 @@ use IO.{PrintLine}
 
 def GoodWorker = fn(x : Int) -> Int =>
 {
-    x * 2 + 20
+    (x * 2) + 20
 };
 
 def w = Concurrency::Spawn(11, GoodWorker);

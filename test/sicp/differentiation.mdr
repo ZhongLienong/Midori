@@ -36,7 +36,7 @@ def make_variable = fn(name : Text) -> Term => Term(name, 0, true);
 def make_number = fn(num : Int) -> Term => Term("", num, false);
 def is_variable = fn(t : Term) -> Bool => t.is_var;
 def is_number = fn(t : Term) -> Bool => !t.is_var;
-def is_same_variable = fn(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && v1.variable == v2.variable;
+def is_same_variable = fn(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && (v1.variable == v2.variable);
 
 def make_sum = fn(v1 : Term, v2 : Term) -> Expr => 
 {

@@ -38,8 +38,8 @@ def nested = match Step::Continue(3) with
 IO::PrintLine("nested=" ++ nested);
 
 def many_bindings = match (1, (2, 3), [4, 5]) with
-	case (a, (b, c), [d, e]) if a + b + c + d + e > 100 => 0
-	case (a, (b, c), [d, e]) if a + b + c + d + e > 10 => a * b * c * d * e
+	case (a, (b, c), [d, e]) if (a + b + c + d + e) > 100 => 0
+	case (a, (b, c), [d, e]) if (a + b + c + d + e) > 10 => a * b * c * d * e
 	case _ => -1
 ;
 

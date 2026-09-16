@@ -9,7 +9,7 @@ type Point = {
 
 instance Equatable<Point>
 {
-    def Equals = fn(a: Point, b: Point) -> Bool => a.x == b.x && a.y == b.y;
+    def Equals = fn(a: Point, b: Point) -> Bool => (a.x == b.x) && (a.y == b.y);
 };
 
 instance Orderable<Point>

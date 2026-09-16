@@ -109,6 +109,17 @@ for i in 10..-1..0 {
 
 Custom iteration is expressed through the `Iterable` type class and its associated `Item` type.
 
+## Operator Grouping
+
+Operators that do not bind equally cannot be mixed in one expression without
+parentheses. `a + b * c` is an error; write `a + (b * c)`. A chain of operators
+that bind equally needs none, so `a + b - c` and `x && y && z` are unchanged.
+
+The classes are `*` `/` `%`; `+` `-`; `++`; `<<` `>>`; `<` `<=` `>` `>=`;
+`==` `!=`; `&`; `^`; `|`; `&&`; `||`. Concatenation is its own class, so
+`"n = " ++ (count as Text)` stays explicit about what is concatenated and what is
+arithmetic.
+
 ## Algebraic Data Types
 
 ### Records

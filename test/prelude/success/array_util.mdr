@@ -28,9 +28,9 @@ Expect(ArrayUtil::Length(slice) == 4, "ArrayUtil::Slice should return the reques
 Expect(slice[0] == 2, "ArrayUtil::Slice should preserve the first sliced value");
 Expect(slice[3] == 5, "ArrayUtil::Slice should preserve the last sliced value");
 Expect(ArrayUtil::Length(clamped_start) == 2, "ArrayUtil::Slice should clamp negative start bounds");
-Expect(clamped_start[0] == 1 && clamped_start[1] == 2, "ArrayUtil::Slice should keep ordering when the start bound is clamped");
+Expect((clamped_start[0] == 1) && (clamped_start[1] == 2), "ArrayUtil::Slice should keep ordering when the start bound is clamped");
 Expect(ArrayUtil::Length(clamped_end) == 2, "ArrayUtil::Slice should clamp end bounds past the array length");
-Expect(clamped_end[0] == 5 && clamped_end[1] == 6, "ArrayUtil::Slice should keep ordering when the end bound is clamped");
+Expect((clamped_end[0] == 5) && (clamped_end[1] == 6), "ArrayUtil::Slice should keep ordering when the end bound is clamped");
 Expect(ArrayUtil::Length(empty_slice) == 0, "ArrayUtil::Slice should return an empty array for an empty range");
 Expect(reversed[0] == 6, "ArrayUtil::Reverse should place the last element first");
 Expect(reversed[5] == 1, "ArrayUtil::Reverse should place the first element last");

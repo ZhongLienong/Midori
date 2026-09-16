@@ -136,11 +136,15 @@ namespace
 	}
 }
 
-TEST_CASE("Parser preserves arithmetic precedence and tuple element grouping", "[parser]")
+TEST_CASE("Parser requires parentheses between operators that do not bind equally", "[parser]")
 {
+	// Operators of different precedence used to bind by a table the reader had to
+	// remember. Parentheses say it instead, so a chain of one operator parses as
+	// before and a mixed one is rejected.
 	const std::string source_code =
 		R"(module ParserPrecedence
-def arithmetic = 1 + 2 * 3;
+def chain = 1 + 2 - 3;
+def grouped = 1 + (2 * 3);
 def tuple_value = (1 + 2, 3);
 )";
 
@@ -151,19 +155,30 @@ def tuple_value = (1 + 2, 3);
 	}
 
 	const MidoriProgramTree& program = parse_result->m_program;
-	REQUIRE(program.size() == 2u);
+	REQUIRE(program.size() == 3u);
 
-	const MidoriStatement::VariableDefinition& arithmetic_definition = RequireVariableDefinition(program, 0u, "arithmetic");
-	const MidoriExpression::Binary& arithmetic_expr = RequireExpression<MidoriExpression::Binary>(arithmetic_definition.m_value);
-	REQUIRE(arithmetic_expr.m_op.m_token_name == Token::Name::SINGLE_PLUS);
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(arithmetic_expr.m_left).m_token.m_lexeme == "1");
+	// `1 + 2 - 3` is one precedence class, so it still nests to the left.
+	const MidoriStatement::VariableDefinition& chain_definition = RequireVariableDefinition(program, 0u, "chain");
+	const MidoriExpression::Binary& chain_expr = RequireExpression<MidoriExpression::Binary>(chain_definition.m_value);
+	REQUIRE(chain_expr.m_op.m_token_name == Token::Name::SINGLE_MINUS);
+	const MidoriExpression::Binary& chain_left = RequireExpression<MidoriExpression::Binary>(chain_expr.m_left);
+	REQUIRE(chain_left.m_op.m_token_name == Token::Name::SINGLE_PLUS);
+	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_left.m_left).m_token.m_lexeme == "1");
+	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_left.m_right).m_token.m_lexeme == "2");
+	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_expr.m_right).m_token.m_lexeme == "3");
 
-	const MidoriExpression::Binary& multiplied_expr = RequireExpression<MidoriExpression::Binary>(arithmetic_expr.m_right);
+	// `1 + (2 * 3)` keeps the multiplication in its own group.
+	const MidoriStatement::VariableDefinition& grouped_definition = RequireVariableDefinition(program, 1u, "grouped");
+	const MidoriExpression::Binary& grouped_expr = RequireExpression<MidoriExpression::Binary>(grouped_definition.m_value);
+	REQUIRE(grouped_expr.m_op.m_token_name == Token::Name::SINGLE_PLUS);
+	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(grouped_expr.m_left).m_token.m_lexeme == "1");
+	const MidoriExpression::Group& grouped_right = RequireExpression<MidoriExpression::Group>(grouped_expr.m_right);
+	const MidoriExpression::Binary& multiplied_expr = RequireExpression<MidoriExpression::Binary>(grouped_right.m_expr_in);
 	REQUIRE(multiplied_expr.m_op.m_token_name == Token::Name::STAR);
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(multiplied_expr.m_left).m_token.m_lexeme == "2");
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(multiplied_expr.m_right).m_token.m_lexeme == "3");
 
-	const MidoriStatement::VariableDefinition& tuple_definition = RequireVariableDefinition(program, 1u, "tuple_value");
+	const MidoriStatement::VariableDefinition& tuple_definition = RequireVariableDefinition(program, 2u, "tuple_value");
 	const MidoriExpression::Tuple& tuple_expr = RequireExpression<MidoriExpression::Tuple>(tuple_definition.m_value);
 	REQUIRE(tuple_expr.m_elements.size() == 2u);
 
@@ -172,6 +187,18 @@ def tuple_value = (1 + 2, 3);
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_first_element.m_left).m_token.m_lexeme == "1");
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_first_element.m_right).m_token.m_lexeme == "2");
 	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_expr.m_elements[1u]).m_token.m_lexeme == "3");
+
+	// The same expression without parentheses is an error that names both operators.
+	const std::string mixed_source =
+		R"(module ParserMixed
+def mixed = 1 + 2 * 3;
+)";
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> mixed_result = MidoriTest::ParseSnippet(mixed_source, "ParserMixed.mdr");
+	REQUIRE_FALSE(mixed_result.has_value());
+	const std::string rendered(mixed_result.error().Rendered());
+	REQUIRE(rendered.find("do not bind equally") != std::string::npos);
+	REQUIRE(rendered.find("'+'") != std::string::npos);
+	REQUIRE(rendered.find("'*'") != std::string::npos);
 }
 
 TEST_CASE("Parser accepts nested generic closers in type contexts without affecting shift expressions", "[parser]")

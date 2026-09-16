@@ -16,6 +16,6 @@ def Join = fn<T>(left: T, right: T) -> T
 def combined = Chunk("mid") ++ Chunk("ori");
 def joined = Join(Chunk("type"), Chunk("class"));
 
-if combined.text == "midori" && joined.text == "typeclass"
+if (combined.text == "midori") && (joined.text == "typeclass")
 then IO::PrintLine("concatenable_operator: PASS")
 else IO::PrintLine("concatenable_operator: FAIL");

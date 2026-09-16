@@ -42,7 +42,7 @@ def Show = fn<S>(s: S, index: Int) -> Text where Stepper<S>, Stepper::Item<S> ~ 
         case Option::Some(v) => v as Text
         case Option::None() => "-";
 
-def evens = Filtered(Counter(6), fn(x: Int) -> Bool => x % 2 == 0);
+def evens = Filtered(Counter(6), fn(x: Int) -> Bool => (x % 2) == 0);
 def scaled = Mapped(evens, fn(x: Int) -> Int => x * 10);
 
 IO::PrintLine(Show(scaled, 0));

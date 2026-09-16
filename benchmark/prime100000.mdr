@@ -10,11 +10,11 @@ def IsPrime = fn(n : Int) -> Bool =>
 {
 	def IsPrimeHelper = fn(candidate : Int, divisor : Int) -> Bool =>
 	{
-		if divisor * divisor > candidate
+		if (divisor * divisor) > candidate
 		then true
 		else
 		{
-			if candidate % divisor == 0
+			if (candidate % divisor) == 0
 			then false
 			else IsPrimeHelper(candidate, divisor + 1)
 		}

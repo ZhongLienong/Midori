@@ -223,6 +223,15 @@ private:
 							return std::unexpected(std::move(right.error()));
 						}
 
+						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *lower_expr))
+						{
+							return std::unexpected(std::move(error.value()));
+						}
+						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right.value()))
+						{
+							return std::unexpected(std::move(error.value()));
+						}
+
 						lower_expr = std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
 					}
 
@@ -605,6 +614,13 @@ private:
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
 
 	MidoriResult::ExpressionResult LowerConcurrencyIntrinsic(std::unique_ptr<MidoriExpression>&& expr);
+
+	// Operators of different precedence bind by a table the reader has to remember,
+	// so mixing them in one expression needs parentheses instead. Returns the class
+	// an operator belongs to, or nullopt for one the rule does not cover.
+	static std::optional<int> BinaryOperatorClass(Token::Name name);
+
+	std::optional<CompilerError> CheckOperatorMixing(const Token& op, const MidoriExpression& operand);
 
 	// A parsed construction never carries explicit type arguments: `new Name<T>(...)` was the
 	// only form that could state them and it is gone. The AST node keeps the flag, because the

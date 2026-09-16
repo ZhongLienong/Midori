@@ -21,7 +21,7 @@ def integral = fn(f : fn(Float) -> Float, a : Float, b : Float, dx : Float) -> F
 {
     def add_dx = fn(x : Float) -> Float => x + dx;
 
-    sum(f, a + dx / 2.0, add_dx, b) * dx
+    sum(f, a + (dx / 2.0), add_dx, b) * dx
 };
 
 def simpson = fn(f : fn(Float) -> Float, a : Float, b : Float, n : Int) -> Float =>
@@ -31,11 +31,11 @@ def simpson = fn(f : fn(Float) -> Float, a : Float, b : Float, n : Int) -> Float
     {
         def y = fn(k : Float) -> Float =>
         {
-            if k == 0.0 || k == (n as Float)
-            then f(a + k * h)
-            else if k % 2.0 == 0.0 
-            then 2.0 * f(a + k * h)
-            else 4.0 * f(a + k * h)
+            if (k == 0.0) || (k == (n as Float))
+            then f(a + (k * h))
+            else if (k % 2.0) == 0.0 
+            then 2.0 * f(a + (k * h))
+            else 4.0 * f(a + (k * h))
         };
 
         (h / 3.0) * sum(y, 0.0, inc, n as Float)

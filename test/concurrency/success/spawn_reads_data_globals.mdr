@@ -34,11 +34,11 @@ def SumToWithBonus = MakeSumTo(1000);
 def UsesInt = fn(n : Int) -> Int => n + base;
 def UsesText = fn(n : Int) -> Int => n + #label;
 def UsesArray = fn(n : Int) -> Int => n + weights[0] + weights[3];
-def UsesRecord = fn(n : Int) -> Int => n + origin.x * origin.y;
+def UsesRecord = fn(n : Int) -> Int => n + (origin.x * origin.y);
 def UsesUnion = fn(n : Int) -> Int =>
 	match shape with
 	case Shape::Circle(r) => n + r
-	case Shape::Square(s) => n + s * s;
+	case Shape::Square(s) => n + (s * s);
 def UsesCapturingClosure = fn(n : Int) -> Int => AddHundred(n);
 def UsesRecursiveClosure = fn(n : Int) -> Int => SumToWithBonus(n);
 

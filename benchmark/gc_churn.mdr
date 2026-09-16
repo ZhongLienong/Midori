@@ -34,7 +34,7 @@ def Churn = fn(i : Int, limit : Int, fresh : List<Text>) -> List<Text> =>
 		def third = second ++ "-y";
 		def scratch = [first, second, third, third ++ "-z"];
 
-		Churn(i + 1, limit, if i % 1000 == 0 then List::Cons("fresh-" ++ (i as Text) ++ "-" ++ scratch[3], fresh) else fresh)
+		Churn(i + 1, limit, if (i % 1000) == 0 then List::Cons("fresh-" ++ (i as Text) ++ "-" ++ scratch[3], fresh) else fresh)
 	}
 };
 

@@ -10,7 +10,7 @@ def InsertRange = fn(map: Map::Map < Int, Int >, next: Int, stop: Int) -> Map::M
 def CheckRange = fn(map: Map::Map < Int, Int >, next: Int, stop: Int) -> Bool =>
     if next >= stop
     then true
-    else if Map::GetOr(map, next, - 1) == next * 10 then CheckRange(map, next + 1, stop) else false;
+    else if Map::GetOr(map, next, - 1) == (next * 10) then CheckRange(map, next + 1, stop) else false;
 
 def empty : Map::Map < Int, Text > = Map::Empty();
 

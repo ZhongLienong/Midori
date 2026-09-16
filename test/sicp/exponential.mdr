@@ -7,7 +7,7 @@ import
 
 def fast_expt = fn(x : Int, n : Int) -> Int =>
 {
-	def is_even = fn(x : Int) -> Bool => x % 2 == 0;
+	def is_even = fn(x : Int) -> Bool => (x % 2) == 0;
 
 	def fast_expt_iter = fn(acc_odd : Int, acc_even : Int, count : Int) -> Int =>
 	{

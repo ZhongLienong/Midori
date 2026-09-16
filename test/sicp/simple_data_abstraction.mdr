@@ -44,7 +44,7 @@ def midpoint_segment = fn(seg : LineSegment) -> Point =>
 	def end_pt = end_segment(seg);
 	def x_diff = x_point(end_pt) - x_point(start_pt);
 	def y_diff = y_point(end_pt) - y_point(start_pt);
-	make_point(x_point(start_pt) + x_diff / 2.0, y_point(start_pt) + y_diff / 2.0)
+	make_point(x_point(start_pt) + (x_diff / 2.0), y_point(start_pt) + (y_diff / 2.0))
 };
 
 def make_rect = fn(top_left : Point, bottom_right : Point) -> Rectangle =>
@@ -66,7 +66,7 @@ def height_rect = fn(rect : Rectangle) -> Float =>
 
 def perimeter_rect = fn(rect : Rectangle) -> Float =>
 {
-	abs(2.0 * width_rect(rect) + 2.0 * height_rect(rect))
+	abs((2.0 * width_rect(rect)) + (2.0 * height_rect(rect)))
 };
 
 def pair = fn(x : Int, y : Int) -> fn(fn(Int, Int) -> Int) -> Int =>

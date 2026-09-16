@@ -23,9 +23,9 @@ type Complex =
 	Imag : Float
 };
 
-def ComplexAbs = fn(value : Complex) -> Float => Math::SquareRoot(value.Real * value.Real + value.Imag * value.Imag);
+def ComplexAbs = fn(value : Complex) -> Float => Math::SquareRoot((value.Real * value.Real) + (value.Imag * value.Imag));
 def ComplexAdd = fn(left : Complex, right : Complex) -> Complex => Complex(left.Real + right.Real, left.Imag + right.Imag);
-def ComplexSquare = fn(value : Complex) -> Complex => Complex(value.Real * value.Real - value.Imag * value.Imag, 2.0 * value.Real * value.Imag);
+def ComplexSquare = fn(value : Complex) -> Complex => Complex((value.Real * value.Real) - (value.Imag * value.Imag), 2.0 * value.Real * value.Imag);
 
 // How many squarings it takes to escape, up to the limit.
 def EscapeCount = fn(z : Complex, c : Complex, iterations : Int, limit : Int) -> Int =>
@@ -45,10 +45,10 @@ def ColorOf = fn(iterations : Int, limit : Int) -> Text =>
 def Join = fn(pieces : Array<Text>) -> Text => Iter::Fold(Iter::OfArray(pieces), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece);
 
 def MandelbrotRow = fn(y : Int, width : Int, height : Int, limit : Int) -> Text =>
-	Join([ColorOf(EscapeCount(Complex(0.0, 0.0), Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float)), 0, limit), limit) for x in 0..1..width]);
+	Join([ColorOf(EscapeCount(Complex(0.0, 0.0), Complex(-2.05 + ((x as Float) * 2.6 / (width as Float)), -1.2 + ((y as Float) * 2.4 / (height as Float))), 0, limit), limit) for x in 0..1..width]);
 
 def JuliaRow = fn(y : Int, width : Int, height : Int, limit : Int, c : Complex) -> Text =>
-	Join([ColorOf(EscapeCount(Complex(-2.5 + (x as Float) / (width as Float) * 5.0, -1.2 + (y as Float) / (height as Float) * 2.4), c, 0, limit), limit) for x in 0..1..width]);
+	Join([ColorOf(EscapeCount(Complex(-2.5 + ((x as Float) / (width as Float) * 5.0), -1.2 + ((y as Float) / (height as Float) * 2.4)), c, 0, limit), limit) for x in 0..1..width]);
 
 def Header = fn(width : Int, height : Int) -> Text => "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
 

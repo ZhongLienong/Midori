@@ -64,12 +64,12 @@ Expect(Math::IsInf(Math::Log(0.0)), "IsInf should detect infinite values");
 Expect(Math::IsFinite(Math::SquareRoot(16.0)), "IsFinite should report finite values");
 
 def random_value = Math::Random();
-Expect(random_value >= 0.0 && random_value <= 1.0, "Random should stay within the 0.0-1.0 range");
+Expect((random_value >= 0.0) && (random_value <= 1.0), "Random should stay within the 0.0-1.0 range");
 
 def random_int = Math::RandomInt(5, 9);
-Expect(random_int >= 5 && random_int <= 9, "RandomInt should stay within the requested inclusive range");
+Expect((random_int >= 5) && (random_int <= 9), "RandomInt should stay within the requested inclusive range");
 
 def random_float = Math::RandomFloat(-2.5, -1.5);
-Expect(random_float >= -2.5 && random_float <= -1.5, "RandomFloat should stay within the requested range");
+Expect((random_float >= -2.5) && (random_float <= -1.5), "RandomFloat should stay within the requested range");
 
 IO::PrintLine("prelude_math_wrappers: PASS");

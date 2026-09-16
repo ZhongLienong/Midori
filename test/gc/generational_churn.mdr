@@ -40,7 +40,7 @@ def Main = fn() -> Unit =>
 			def churned = ArrayUtil::Length(scratch);
 			if churned == 4 then () else Panic::Panic("scratch should hold four strings; update this check if that changes");
 
-			Churn(i + 1, limit, if i % 1000 == 0 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
+			Churn(i + 1, limit, if (i % 1000) == 0 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
 		};
 
 	def keeper = ArrayUtil::Reverse(List::ListToArray(Churn(0, 32000, List::Nil())));

@@ -115,13 +115,24 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 ### Counts
 
-| | before | target | actual, 2026-09-06 | **actual, 2026-09-12** |
-|---|---|---|---|---|
-| Expression nodes | 41 | 18 | 42 | **36** |
-| Statement nodes | 11 | 5 | 11 | **10** |
-| Built-in type kinds | 17 | 8 | 17 | *not re-measured* |
-| Reserved words | 37 | ~25 | 34 | **31** |
-| Callable concepts | 7 | 1 | 7 | *unchanged* |
+| | before | target | actual, 2026-09-06 | actual, 2026-09-12 | **actual, 2026-09-15** |
+|---|---|---|---|---|---|
+| Expression nodes | 41 | 18 | 42 | 36 | **34** |
+| Statement nodes | 11 | 5 | 11 | 10 | **10** |
+| Built-in type kinds | 17 | 8 | 17 | *not re-measured* | **17** |
+| Reserved words | 37 | ~25 | 34 | 31 | **26** |
+| Callable concepts | 7 | 1 | 7 | *unchanged* | *unchanged* |
+
+Counted on 2026-09-15 from `MidoriExpression::ExpressionUnion`,
+`MidoriStatement::StatementUnion`, `MidoriType::MidoriTypeUnion` (its 22 entries
+less the five that are inference machinery rather than language types:
+`UndecidedType`, `GenericParam`, `TypeVariable`, `AssociatedType` and
+`ClassConstraint`) and the keyword table in `Lexer.cpp`. Reserved words reached the target:
+`else false for in if true def fn as import foreign case then with match module
+export public private use class instance where type alias deriving`. Expression
+nodes are still double the target; the remaining excess is concentrated in
+literals (seven nodes), the concurrency four (`Spawn`, `Join`, `ChannelCreate`,
+`Send`, `Receive`) and the range pair.
 
 In-place mutation was removed on 2026-09-12. The replacement idioms are a
 comprehension or a cons `List` converted once, both linear and both within ~2x
@@ -536,8 +547,14 @@ surfaced the drift until a deletion forced it.
   for exports; making it a stated rule turns a confusing lookup failure into a
   clear diagnostic. Not a blocker for the prelude migration — the prelude exports
   only functions.
-- **Operator precedence.** Declared (`infixl 5`) versus requiring parentheses for
-  mixed operators. The second deletes a feature and a class of bugs.
+- **Operator precedence. Settled 2026-09-15: parentheses.** Operators that do not
+  bind equally cannot be mixed without them, so the grouping is written rather
+  than remembered. A chain of one class still needs none: `a + b - c`,
+  `x && y && z`. The eleven classes are the parser's existing levels, with `++`
+  split off from `+`/`-` so concatenation and arithmetic cannot be mixed silently.
+  The corpus needed 201 sites parenthesised, two of which a line-based fixer could
+  not see and were done by hand. Declared precedence (`infixl 5`) is therefore not
+  needed, and the operator-binding half of section 4's `Indexable` entry is dropped.
 - **Named arguments.** Positional-only construction is awkward at five or six
   fields. Either named arguments on calls generally, or lean on
   `{ Config::Default with … }`.

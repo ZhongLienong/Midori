@@ -26,7 +26,7 @@ Expect(split[0] == "alpha", "TextUtil::Split should preserve the first segment")
 Expect(split[1] == "beta", "TextUtil::Split should preserve the middle segment");
 Expect(split[2] == "", "TextUtil::Split should preserve the trailing empty segment");
 Expect(#split_code_points == 2, "TextUtil::Split should split into code points when the delimiter is empty");
-Expect(split_code_points[0] == "g" && split_code_points[1] == "o", "TextUtil::Split should preserve per-character ordering for an empty delimiter");
+Expect((split_code_points[0] == "g") && (split_code_points[1] == "o"), "TextUtil::Split should preserve per-character ordering for an empty delimiter");
 Expect(TextUtil::Replace("one two one", "one", "1") == "1 two 1", "TextUtil::Replace should replace every match");
 Expect(TextUtil::Trim(" \t hi \n") == "hi", "TextUtil::Trim should strip ASCII edge whitespace");
 Expect(TextUtil::Reverse("stressed") == "desserts", "TextUtil::Reverse should reverse the text");

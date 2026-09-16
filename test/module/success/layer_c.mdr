@@ -2,4 +2,4 @@
 module LayerC
 public export { calculate }
 
-def calculate = fn(x: Int) -> Int => x * x + x;
+def calculate = fn(x: Int) -> Int => (x * x) + x;

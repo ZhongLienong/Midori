@@ -27,7 +27,7 @@ def NodeGet = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) ->
     match node with
         case Node::Nothing() => Option::None ()
         case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if leaf_hash == hash && Equatable::Equals(leaf_key, key) then Option::Some (leaf_value) else Option::None ()
+            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key) then Option::Some (leaf_value) else Option::None ()
         case Node::Collision(collision_hash, entries) =>
             if collision_hash == hash then CollisionGet(entries, key, 0) else Option::None ()
         case Node::Branch(bitmap, children) => {
@@ -57,7 +57,7 @@ def NodeWith = fn < K, V >(node: Node < K, V >, hash: Int, key: K, value: V, dep
     match node with
         case Node::Nothing() => (Node::Leaf (hash, key, value), 1)
         case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if leaf_hash == hash && Equatable::Equals(leaf_key, key)
+            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
             then (Node::Leaf (hash, key, value), 0)
             else if leaf_hash == hash
             then (Node::Collision (hash, [Entry (leaf_key, leaf_value), Entry (key, value)]), 1)
@@ -100,7 +100,7 @@ def NodeWithout = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int
     match node with
         case Node::Nothing() => (Node::Nothing (), 0)
         case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if leaf_hash == hash && Equatable::Equals(leaf_key, key)
+            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
             then (Node::Nothing (), - 1)
             else (Node::Leaf (leaf_hash, leaf_key, leaf_value), 0)
         case Node::Collision(collision_hash, entries) =>

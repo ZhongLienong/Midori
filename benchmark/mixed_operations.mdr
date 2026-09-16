@@ -21,13 +21,13 @@ def ConcatAll = fn(texts : Array<Text>, j : Int, acc : Text) -> Text =>
 // Joins parts[low..high) by halves, so each character is copied O(log n) times.
 def JoinRange = fn(parts : Array<Text>, low : Int, high : Int) -> Text =>
 {
-	if high - low <= 0
+	if (high - low) <= 0
 	then ""
-	else if high - low == 1
+	else if (high - low) == 1
 	then parts[low]
 	else
 	{
-		def mid = low + (high - low) / 2;
+		def mid = low + ((high - low) / 2);
 		JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
 	}
 };
@@ -41,7 +41,7 @@ def KeepEven = fn(arr : Array<Int>, index : Int, kept : List<Int>) -> List<Int> 
 	else
 	{
 		def value = arr[index];
-		KeepEven(arr, index - 1, if value % 2 == 0 then List::Cons(value, kept) else kept)
+		KeepEven(arr, index - 1, if (value % 2) == 0 then List::Cons(value, kept) else kept)
 	}
 };
 
@@ -138,7 +138,7 @@ def TestMemoryIntensive = fn() -> Unit =>
 {
 	def start = DateTime::NowUnixMillis();
 
-	def arrays = [[row * 1000 + column for column in 0..1..1000] for row in 0..1..100];
+	def arrays = [[(row * 1000) + column for column in 0..1..1000] for row in 0..1..100];
 
 	def end = DateTime::NowUnixMillis();
 

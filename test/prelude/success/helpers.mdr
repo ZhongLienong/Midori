@@ -22,7 +22,7 @@ def to_some = fn(x: Int) -> Option<Int> => {
     else Option::None()
 };
 
-def is_even = fn(x: Int) -> Bool => x % 2 == 0;
+def is_even = fn(x: Int) -> Bool => (x % 2) == 0;
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
@@ -114,11 +114,11 @@ def list2_values = ListToArray(list2);
 def list4_values = ListToArray(list4);
 
 Expect(ListLength(list4) == 3, "ListFilter should keep only the matching values");
-Expect(#list2_values == 3 && list2_values[0] == 2 && list2_values[1] == 3 && list2_values[2] == 4, "ListMap should preserve order while transforming elements");
-Expect(#list4_values == 3 && list4_values[0] == 2 && list4_values[1] == 2 && list4_values[2] == 4, "ListToArray should preserve the filtered order");
+Expect((#list2_values == 3) && (list2_values[0] == 2) && (list2_values[1] == 3) && (list2_values[2] == 4), "ListMap should preserve order while transforming elements");
+Expect((#list4_values == 3) && (list4_values[0] == 2) && (list4_values[1] == 2) && (list4_values[2] == 4), "ListToArray should preserve the filtered order");
 
 def reversed_values = ListToArray(ListReverse(list1));
-Expect(#reversed_values == 3 && reversed_values[0] == 3 && reversed_values[1] == 2 && reversed_values[2] == 1, "ListReverse should invert element order");
+Expect((#reversed_values == 3) && (reversed_values[0] == 3) && (reversed_values[1] == 2) && (reversed_values[2] == 1), "ListReverse should invert element order");
 
 Expect(ListFold(list1, 0, fn(total: Int, value: Int) -> Int => total + value) == 6, "ListFold should accumulate values from left to right");
 // Arguments are unified left to right, so a construction in the first argument is checked
@@ -129,7 +129,7 @@ Expect(ListFold(empty_list, 5, fn(total: Int, value: Int) -> Int => total + valu
 def from_array_values = ListFromArray([4, 5, 6]);
 def from_array_roundtrip = ListToArray(from_array_values);
 Expect(ListLength(from_array_values) == 3, "ListFromArray should create one list node per array element");
-Expect(#from_array_roundtrip == 3 && from_array_roundtrip[0] == 4 && from_array_roundtrip[1] == 5 && from_array_roundtrip[2] == 6, "ListFromArray and ListToArray should round-trip array ordering");
+Expect((#from_array_roundtrip == 3) && (from_array_roundtrip[0] == 4) && (from_array_roundtrip[1] == 5) && (from_array_roundtrip[2] == 6), "ListFromArray and ListToArray should round-trip array ordering");
 
 def even_sum = ListFold(ListFilter(ListFromArray([1, 2, 3, 4, 5]), is_even), 0, fn(total: Int, value: Int) -> Int => total + value);
 Expect(even_sum == 6, "The new List helpers should compose for ordinary data-processing code");

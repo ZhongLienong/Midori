@@ -17,13 +17,13 @@ def AppendRepeated = fn(i : Int, limit : Int, piece : Text, acc : Text) -> Text 
 // Joins parts[low..high) by halves, so each character is copied O(log n) times.
 def JoinRange = fn(parts : Array<Text>, low : Int, high : Int) -> Text =>
 {
-	if high - low <= 0
+	if (high - low) <= 0
 	then ""
-	else if high - low == 1
+	else if (high - low) == 1
 	then parts[low]
 	else
 	{
-		def mid = low + (high - low) / 2;
+		def mid = low + ((high - low) / 2);
 		JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
 	}
 };

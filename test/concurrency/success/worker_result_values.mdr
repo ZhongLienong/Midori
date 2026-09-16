@@ -21,7 +21,7 @@ def ReturnNegative = fn(ch: Channel<Int>) -> Int => {
 };
 
 def ComputeReturn = fn(ch: Channel<Int>, x: Int) -> Int => {
-    ch -> (x * x + 1);
+    ch -> ((x * x) + 1);
     0
 };
 

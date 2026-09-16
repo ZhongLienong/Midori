@@ -20,7 +20,7 @@ def cancelled = cancel(w);
 // Polls the global `w` rather than taking it as a parameter, so the worker
 // handle type does not have to be named.
 def WaitUntilDone = fn(attempts: Int) -> Unit =>
-    if is_done(w) || attempts >= 500
+    if is_done(w) || (attempts >= 500)
     then ()
     else
     {

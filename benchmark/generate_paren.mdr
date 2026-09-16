@@ -17,9 +17,9 @@ def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text, output : List
 {
 	if left < right
 	then output
-	else if left > len || right > len
+	else if (left > len) || (right > len)
 	then output
-	else if left == len && right == len
+	else if (left == len) && (right == len)
 	then List::Cons(acc, output)
 	else BackTrack(len, left, right + 1, acc ++ ")", BackTrack(len, left + 1, right, acc ++ "(", output))
 };

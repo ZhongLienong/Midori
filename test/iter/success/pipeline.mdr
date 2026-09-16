@@ -12,7 +12,7 @@ import
 // comprehension. Nothing is computed until a consumer asks for an element.
 
 def Double = fn(n : Int) -> Int => n * 2;
-def IsEven = fn(n : Int) -> Bool => n % 2 == 0;
+def IsEven = fn(n : Int) -> Bool => (n % 2) == 0;
 def Join = fn(values : Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc : Text, n : Int) -> Text => acc ++ (n as Text) ++ " ");
 
 def values = [1, 2, 3, 4, 5, 6];

@@ -14,7 +14,7 @@ def Expect = fn(condition: Bool, message: Text) -> Unit => {
 };
 
 def ExpectRange = fn(value: Int, minimum: Int, maximum: Int, message: Text) -> Unit => {
-    Expect(value >= minimum && value <= maximum, message)
+    Expect((value >= minimum) && (value <= maximum), message)
 };
 
 def local = DateTime::LocalNow();

@@ -36,7 +36,7 @@ def MakeItem = fn(i : Int) -> Text =>
 def CountWrong = fn(items : Array<Text>, index : Int, wrong : Int) -> Int =>
 	if index >= ArrayUtil::Length(items)
 	then wrong
-	else CountWrong(items, index + 1, if items[index] == Prefix ++ (index as Text) then wrong else wrong + 1);
+	else CountWrong(items, index + 1, if items[index] == (Prefix ++ (index as Text)) then wrong else wrong + 1);
 
 // Forces collections (promoting the pending left operand), then returns a small
 // array whose elements are all allocated after them, so they are young.
