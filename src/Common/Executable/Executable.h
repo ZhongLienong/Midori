@@ -181,6 +181,7 @@ enum class OpCode : uint8_t
 	TAIL_CALL,
 	CONSTRUCT_STRUCT,
 	CONSTRUCT_UNION,
+	LOAD_EMPTY_UNION,
 
 	// Closure Operations
 	MAKE_CLOSURE,

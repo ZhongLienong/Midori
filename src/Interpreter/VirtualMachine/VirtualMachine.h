@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/Constant/Constant.h"
 #include "Common/Error/Error.h"
 #include "Common/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
@@ -101,6 +102,9 @@ private:
 
     // Cold Caches & Results
 	std::vector<MidoriTraceable*> m_static_closure_cache;
+	// A union variant with no fields carries nothing but its tag, and v2 values are
+	// immutable, so every occurrence of one can be the same object.
+	std::array<MidoriTraceable*, static_cast<size_t>(MAX_UNION_TAG) + 1u> m_empty_union_cache{};
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
 
     void* m_value_stack_region = nullptr;

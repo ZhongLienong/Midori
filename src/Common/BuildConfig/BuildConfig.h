@@ -113,7 +113,7 @@ namespace MidoriBuild
     // and WorkerError constructor tags), so an older artifact would be decoded
     // with the wrong instruction length. Changing an instruction's length
     // requires a bump too.
-    inline constexpr uint32_t MbcFormatVersion = 6u;
+    inline constexpr uint32_t MbcFormatVersion = 7u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

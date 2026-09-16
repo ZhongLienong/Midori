@@ -902,6 +902,7 @@ int BytecodeLinker::CalculateInstructionSize(OpCode opcode) const
 		case OpCode::TAIL_CALL:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:
+		case OpCode::LOAD_EMPTY_UNION:
 		case OpCode::SET_TAG:
 			return 2;
 		case OpCode::CALL_0:

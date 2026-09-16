@@ -982,6 +982,9 @@ namespace Disassembler
 		case OpCode::CONSTRUCT_UNION:
 			DataInstruction("CONSTRUCT_UNION", executable, proc_index, offset);
 			break;
+		case OpCode::LOAD_EMPTY_UNION:
+			DataInstruction("LOAD_EMPTY_UNION", executable, proc_index, offset);
+			break;
 		case OpCode::MAKE_CLOSURE:
 			AllocateClosureInstruction("MAKE_CLOSURE", executable, proc_index, offset);
 			break;

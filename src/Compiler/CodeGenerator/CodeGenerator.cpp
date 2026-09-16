@@ -692,6 +692,7 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::TAIL_CALL:
 		case OpCode::CONSTRUCT_STRUCT:
 		case OpCode::CONSTRUCT_UNION:
+		case OpCode::LOAD_EMPTY_UNION:
 		case OpCode::SET_TAG:
 			advance = 2;
 			break;
@@ -4318,26 +4319,30 @@ void CodeGenerator::operator()(MidoriExpression::Construct& construct)
 	if (is_struct)
 	{
 		EmitByte(OpCode::CONSTRUCT_STRUCT, line);
+		EmitByte(size, line);
+		return;
 	}
-	else
+
+	const int tag = std::get<MidoriExpression::Construct::Union>(construct.m_construct_ctx).m_index;
+	if (tag > MAX_UNION_TAG)
 	{
-		EmitByte(OpCode::CONSTRUCT_UNION, line);
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), construct.m_data_name, m_file_name, m_source_lines));
+		return;
 	}
-	EmitByte(size, line);
 
-	if (!is_struct)
+	// A variant with no fields is nothing but its tag, so every occurrence loads one
+	// shared value instead of allocating: `Option::None()`, `List::Nil()`.
+	if (static_cast<int>(size) == 0)
 	{
-		int tag = std::get<MidoriExpression::Construct::Union>(construct.m_construct_ctx).m_index;
-
-		if (tag > MAX_UNION_TAG)
-		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), construct.m_data_name, m_file_name, m_source_lines));
-			return;
-		}
-
-		EmitByte(OpCode::SET_TAG, line);
+		EmitByte(OpCode::LOAD_EMPTY_UNION, line);
 		EmitByte(static_cast<OpCode>(tag), line);
+		return;
 	}
+
+	EmitByte(OpCode::CONSTRUCT_UNION, line);
+	EmitByte(size, line);
+	EmitByte(OpCode::SET_TAG, line);
+	EmitByte(static_cast<OpCode>(tag), line);
 }
 
 void CodeGenerator::operator()(MidoriExpression::RecordUpdate& record_update)

@@ -942,6 +942,14 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		}
 	}
 
+	for (MidoriTraceable* cached_union : m_empty_union_cache)
+	{
+		if (cached_union)
+		{
+			roots.emplace_back(cached_union);
+		}
+	}
+
 	for (const auto& [key, value] : m_small_string_pool)
 	{
 		if (value)
@@ -2790,6 +2798,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 			members = std::move(args);
 
 			Push(sp, new_union);
+			break;
+		}
+		case OpCode::LOAD_EMPTY_UNION:
+		{
+			const size_t tag = static_cast<size_t>(ReadByte(ip));
+			MidoriTraceable*& cached = m_empty_union_cache[tag];
+			if (cached == nullptr)
+			{
+				cached = AllocateTraceable(MidoriUnion());
+				cached->GetTraceable<MidoriUnion>().m_index = static_cast<int>(tag);
+			}
+
+			Push(sp, cached);
 			break;
 		}
 		case OpCode::MAKE_CLOSURE:
