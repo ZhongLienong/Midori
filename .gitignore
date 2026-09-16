@@ -393,3 +393,7 @@ build*
 
 # Images the misc/ demos render when run
 *.ppm
+
+# Bytecode artifacts `midori build` writes beside a program
+*.mbc
+*.mbc.json
