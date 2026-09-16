@@ -1,0 +1,14 @@
+module ReadmeRecords
+
+type Point = {
+    x: Float,
+    y: Float,
+};
+
+type Box<T> = {
+    value: T,
+};
+
+def origin = Point(0.0, 0.0);
+def boxed = Box(42);
+def x_coord = origin.x;

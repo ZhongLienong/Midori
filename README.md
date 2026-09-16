@@ -61,7 +61,7 @@ IO::PrintLine("Hello, Midori!");
 ```
 
 ### Basic Types & Variables
-```midori
+```midori-test name=readme/primitive_types path=.doc_examples/readme_primitive_types.mdr module=ReadmePrimitiveTypes
 def number : Int = 42;
 def pi : Float = 3.14159;
 def message : Text = "Hello";
@@ -76,7 +76,7 @@ def (count, label) = pair;
 ```
 
 ### Functions
-```midori
+```midori-test name=readme/functions path=.doc_examples/readme_functions.mdr module=ReadmeFunctions
 // Simple function
 def square = fn(x: Int) -> Int => x * x;
 
@@ -91,7 +91,11 @@ def apply = fn<T, R>(f: fn(T) -> R, value: T) -> R => f(value);
 ```
 
 ### Control Flow
-```midori
+```midori-test name=readme/control_flow path=.doc_examples/readme_control_flow.mdr module=ReadmeControlFlow
+import { "../MidoriPrelude/IO.mdr" }
+
+def x = 3;
+
 // If-else expression
 def result = if x > 0 then "positive" else "non-positive";
 
@@ -110,16 +114,16 @@ for name in names {
 def arr = [1, 2, 3, 4, 5];
 def len = #arr;  // 5
 
-// Loop with break
-def sum = loop {
-    if count >= 10 then break total else ();
-    total = total + count;
-    count = count + 1;
-};
+// A loop that carries state is a named recursive helper: there is no `loop`,
+// `break` or assignment to reach for.
+def SumTo = fn(count: Int, limit: Int, total: Int) -> Int =>
+    if count >= limit then total else SumTo(count + 1, limit, total + count);
+
+def sum = SumTo(0, 10, 0);  // 45
 ```
 
 ### Records (Product Types)
-```midori
+```midori-test name=readme/records path=.doc_examples/readme_records.mdr module=ReadmeRecords
 type Point = {
     x: Float,
     y: Float,
@@ -135,7 +139,7 @@ def x_coord = origin.x;
 ```
 
 ### Sums (Union Types)
-```midori
+```midori-test name=readme/unions path=.doc_examples/readme_unions.mdr module=ReadmeUnions
 type Option<T> = None | Some(T);
 
 type List<T> = Cons(T, List<T>) | Nil;
@@ -145,40 +149,46 @@ def empty_value : Option<Int> = Option::None();
 def empty_list : List<Int> = List::Nil();
 ```
 
-### Type Aliases
-```midori
-// Basic type aliases
-type UserId = Int;
-type Name = Text;
+### Type Aliases and Distinct Types
+
+`alias` abbreviates a type expression: the name and what it stands for are
+interchangeable. `type Name = Existing` introduces a *distinct* type over that
+representation, which does not mix with it by accident.
+
+```midori-test name=readme/type_aliases path=.doc_examples/readme_type_aliases.mdr module=ReadmeTypeAliases
+// An alias is transparent: UserId and Int are the same type.
+alias UserId = Int;
+alias Name = Text;
 
 def user_id: UserId = 42;
 def user_name: Name = "Alice";
 
-// Type alias for a record
-type Point = { x: Float, y: Float };
-type Position = Point;
-
-def pos: Position = Point(10.0, 20.0);
-
-// Generic type alias
+// Aliases abbreviate any type expression, generic ones included.
 type Pair<A, B> = { first: A, second: B };
-type IntPair = Pair<Int, Int>;
+alias IntPair = Pair<Int, Int>;
 
 def coords: IntPair = Pair(1, 2);
+
+// `type` over an existing type is distinct, not transparent: a Meters is not an
+// Int until it is converted, which is what keeps the two from being mixed up.
+type Meters = Int;
+
+def distance: Meters = 12 as Meters;
+def raw: Int = distance as Int;
 ```
 
 ### Pattern Matching
-```midori
+```midori-test name=readme/pattern_matching path=.doc_examples/readme_pattern_matching.mdr module=ReadmePatternMatching
 type Result<T, E> = Ok(T) | Err(E);
 
-def handle_result = fn<T>(result: Result<T, Text>) -> Text =>
+def handle_result = fn(result: Result<Int, Text>) -> Text =>
     match result with
         case Result::Ok(value) => "Success: " ++ (value as Text)
         case Result::Err(msg) => "Error: " ++ msg;
 ```
 
 ### Typeclasses
-```midori
+```midori-test name=readme/typeclasses path=.doc_examples/readme_typeclasses.mdr module=ReadmeTypeclasses
 // Define a typeclass
 class Show<T> {
     show: fn(value: T) -> Text;
@@ -196,20 +206,24 @@ def message = display(42);  // "42"
 ```
 
 ### Associated Types
-```midori
+```midori-test name=readme/associated_types path=.doc_examples/readme/associated_types.mdr module=ReadmeAssociatedTypes
 type Option<T> = None | Some(T);
 
+// Next yields the item and the rest of the sequence, so an iterator is a value
+// rather than something that advances in place.
 class Iterable<Iter> {
     type Item;
-    Next: fn(iter: Iter) -> Option<Item>;
+    Next: fn(iter: Iter) -> Option<(Item, Iter)>;
 };
 
-def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
+def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
     where Iterable<Iter> => Iterable::Next(iter);
 ```
 
 ### Deriving
-```midori
+```midori-test name=readme/deriving path=.doc_examples/readme_deriving.mdr module=ReadmeDeriving
+import { "../MidoriPrelude/Equatable.mdr", "../MidoriPrelude/Hashable.mdr" }
+
 type Point = {
     x: Int,
     y: Int
@@ -269,7 +283,7 @@ def result = PackageName::NativeFunction(arg1, arg2);
 See [Package System](docs/package-system.md) for the current manifest fields, dynamic-loading behavior, and FFI ABI limits.
 
 ### Pipe Operator
-```midori
+```midori-test name=readme/pipelines path=.doc_examples/readme_pipelines.mdr module=ReadmePipelines
 def double = fn(x: Int) -> Int => x * 2;
 type Result<T, E> = Ok(T) | Err(E);
 
@@ -292,7 +306,7 @@ def result =
 In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a normal identifier.
 
 ### Closures
-```midori
+```midori-test name=readme/closures path=.doc_examples/readme_closures.mdr module=ReadmeClosures
 def make_adder = fn(amount: Int) -> fn(Int) -> Int => fn(n: Int) -> Int => n + amount;
 
 def add_ten = make_adder(10);
@@ -637,7 +651,7 @@ def fib = fn(n: Int) -> Int => {
 ```
 
 ### Binary Tree
-```midori
+```midori-test name=readme/tree_height path=.doc_examples/readme_tree_height.mdr module=ReadmeTreeHeight
 type Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
 def height = fn<T>(tree: Tree<T>) -> Int =>
@@ -653,7 +667,7 @@ def height = fn<T>(tree: Tree<T>) -> Int =>
 ```
 
 ### Generic Linked List
-```midori
+```midori-test name=readme/list_recursion path=.doc_examples/readme_list_recursion.mdr module=ReadmeListRecursion
 type List<T> = Cons(T, List<T>) | Nil;
 
 def length = fn<T>(list: List<T>) -> Int =>

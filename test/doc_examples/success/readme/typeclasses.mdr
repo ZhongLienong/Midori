@@ -1,0 +1,16 @@
+module ReadmeTypeclasses
+
+// Define a typeclass
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+// Implement for Int
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => value as Text;
+};
+
+// Use with constraints
+def display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
+
+def message = display(42);  // "42"

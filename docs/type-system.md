@@ -215,19 +215,30 @@ Current support is intentionally narrow:
 - `Transferable` deriving works on structs and unions including recursive union shapes
 - Container deriving maps only the first type parameter and supports pass-through variants, single-value variants, and recursive self fields
 
-## Type Aliases
+## Type Aliases and Distinct Types
 
-Type aliases are transparent compile-time names for existing types:
+`alias` gives a type expression a shorter name. The alias and what it stands for are the same type:
 
 ```midori
-type UserId = Int;
-type Name = Text;
+alias UserId = Int;
+alias Name = Text;
 
-type IntPair = Pair<Int, Int>;
-type IntArray = Array<Int>;
+alias IntPair = Pair<Int, Int>;
+alias IntArray = Array<Int>;
 ```
 
 Aliases can be imported and exported like other symbols. They are fully interchangeable with the underlying type and have no runtime cost.
+
+`type Name = Existing` is the other half of that pair and does the opposite: it introduces a **distinct** type over the representation, so the two do not mix by accident. Conversion is explicit, through `as`, and costs nothing at runtime:
+
+```midori
+type Meters = Int;
+
+def distance : Meters = 12 as Meters;
+def raw : Int = distance as Int;
+```
+
+A distinct type gets its own typeclass instances, because instance lookup is keyed on the type's name rather than its representation.
 
 ## Generics and Constraints
 

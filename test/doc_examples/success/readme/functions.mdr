@@ -1,0 +1,13 @@
+module ReadmeFunctions
+
+// Simple function
+def square = fn(x: Int) -> Int => x * x;
+
+// Function with type inference
+def add = fn(a: Int, b: Int) -> Int => a + b;
+
+// Generic function
+def identity = fn<T>(value: T) -> T => value;
+
+// Higher-order function
+def apply = fn<T, R>(f: fn(T) -> R, value: T) -> R => f(value);

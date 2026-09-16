@@ -70,13 +70,18 @@ Workers and channels are created with functions from `MidoriPrelude/Concurrency.
 They are called like any other function, but the compiler provides them, so
 importing that module is what makes them available:
 
-```midori
+```midori-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mdr module=MulticoreConcurrencySurface
+import { "./MidoriPrelude/Concurrency.mdr", "./MidoriPrelude/Prelude/Result.mdr" }
+
+def ComputeRow = fn(row: Int, width: Int) -> Int => row * width;
+
 def w = (42, 800) |> Concurrency::Spawn(ComputeRow);     // w : Worker<Int>
 def result = Concurrency::Join(w);                       // result : Result<Int, WorkerError>
 
 def ch : Channel<Int> = Concurrency::MakeChannel(10);    // ch : Channel<Int>
 ch -> 42;                                                // send: Bool (false if closed)
 def val = <- ch;                                         // receive: Int (blocks if empty)
+Concurrency::Close(ch);
 ```
 
 - `Concurrency::Spawn(argument, F)` takes `F` as an ordinary value: a name, a
