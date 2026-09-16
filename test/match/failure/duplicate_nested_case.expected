@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/match/failure/duplicate_nested_case.mdr:15
+   |
+15 | 		case Result::Err(Code::Alpha) => "alpha again"
+   |        ^^^^^^ Duplicate case in match statement.
+   |

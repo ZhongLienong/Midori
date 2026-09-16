@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <format>
 #include <fstream>
 #include <limits>
 #include <queue>
+#include <ranges>
 #include <sstream>
 
 #include "Common/Constant/Constant.h"
@@ -91,6 +93,68 @@ namespace
 
 	// `close`, `is_done` and `cancel` were unqualified builtins while everything else
 	// concurrency moved under Concurrency::. Writing one now names its replacement.
+	// A case arm covers its whole constructor only when every argument it carries
+	// matches anything. `Err(_)` covers `Err`; `Err(Alpha)` discriminates within it,
+	// so a later `Err(Beta)` is a different case rather than a duplicate.
+	bool IsCatchAllPattern(const MidoriPattern& pattern)
+	{
+		if (pattern.IsPattern<MidoriPattern::Binding>() || pattern.IsPattern<MidoriPattern::Wildcard>())
+		{
+			return true;
+		}
+
+		if (pattern.IsPattern<MidoriPattern::Tuple>())
+		{
+			const MidoriPattern::Tuple& tuple = pattern.GetPattern<MidoriPattern::Tuple>();
+			return std::ranges::all_of(tuple.m_elements, [](const std::unique_ptr<MidoriPattern>& element) { return IsCatchAllPattern(*element); });
+		}
+
+		return false;
+	}
+
+	// A rendering that two arms share exactly when they match the same values, used
+	// to keep reporting the arm that really is written twice. A binding and a
+	// wildcard render alike because they accept alike.
+	std::string PatternSignature(const MidoriPattern& pattern)
+	{
+		if (pattern.IsPattern<MidoriPattern::Binding>() || pattern.IsPattern<MidoriPattern::Wildcard>())
+		{
+			return "_";
+		}
+
+		if (pattern.IsPattern<MidoriPattern::Literal>())
+		{
+			return pattern.GetPattern<MidoriPattern::Literal>().m_token.m_lexeme;
+		}
+
+		const auto join = [](const std::vector<std::unique_ptr<MidoriPattern>>& parts) -> std::string
+		{
+			std::string rendered;
+			for (const std::unique_ptr<MidoriPattern>& part : parts)
+			{
+				if (!rendered.empty())
+				{
+					rendered.append(", ");
+				}
+				rendered.append(PatternSignature(*part));
+			}
+			return rendered;
+		};
+
+		if (pattern.IsPattern<MidoriPattern::Tuple>())
+		{
+			return "(" + join(pattern.GetPattern<MidoriPattern::Tuple>().m_elements) + ")";
+		}
+
+		if (pattern.IsPattern<MidoriPattern::Array>())
+		{
+			return "[" + join(pattern.GetPattern<MidoriPattern::Array>().m_elements) + "]";
+		}
+
+		const MidoriPattern::Constructor& constructor = pattern.GetPattern<MidoriPattern::Constructor>();
+		return constructor.m_name + "(" + join(constructor.m_args) + ")";
+	}
+
 	bool IsRemovedConcurrencyBuiltin(std::string_view name)
 	{
 		return name == "close" || name == "is_done" || name == "cancel";
@@ -4349,12 +4413,26 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
 		if (constructor.m_is_union)
 		{
+			const bool covers_constructor = std::ranges::all_of(constructor.m_args, [](const std::unique_ptr<MidoriPattern>& arg) { return IsCatchAllPattern(*arg); });
+			const std::string signature = PatternSignature(*pattern);
+
 			if (visited_members.contains(constructor.m_name))
+			{
+				EndScope();
+				return std::unexpected(GenerateParserError(std::format("An earlier case already matches every '{}', so this one can never run.", constructor.m_name), constructor.m_name_token));
+			}
+
+			if (visited_members.contains(signature))
 			{
 				EndScope();
 				return std::unexpected(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
 			}
-			visited_members.emplace(constructor.m_name);
+
+			visited_members.emplace(signature);
+			if (covers_constructor)
+			{
+				visited_members.emplace(constructor.m_name);
+			}
 		}
 	}
 
