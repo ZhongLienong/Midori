@@ -1908,32 +1908,6 @@ const std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& 
 	return nullptr;
 }
 
-const MidoriExpression::Function* TypeChecker::FindTopLevelBoundLambda(const std::string& name) const
-{
-	for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
-	{
-		if (!statement->IsStatement<MidoriStatement::VariableDefinition>())
-		{
-			continue;
-		}
-
-		const MidoriStatement::VariableDefinition& definition = statement->GetStatement<MidoriStatement::VariableDefinition>();
-		if (definition.m_name.m_lexeme != name || definition.m_local_index.has_value())
-		{
-			continue;
-		}
-
-		if (definition.m_value == nullptr || !definition.m_value->IsExpression<MidoriExpression::Function>())
-		{
-			continue;
-		}
-
-		return &definition.m_value->GetExpression<MidoriExpression::Function>();
-	}
-
-	return nullptr;
-}
-
 MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriStatement>& statement)
 {
 	return VisitNode
@@ -4589,37 +4563,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 				std::string var_name(for_expr.m_loop_variable.m_lexeme);
 				m_name_type_table.back()[var_name] = element_type;
 
-				std::shared_ptr<MidoriType> outer_break_type = m_expected_break_type;
-
-				m_expected_break_type = for_expr.m_type_data;
-
 				return Evaluate(for_expr.m_body)
 					.and_then
 					(
-						[&for_expr, outer_break_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+						[&for_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 						{
-							// The for loop's type is determined by the expected break type
-							// If no breaks occurred, the loop completes normally and returns Unit
-							if (m_expected_break_type->IsType<MidoriType::UndecidedType>())
-							{
-								for_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
-							}
-							else
-							{
-								for_expr.m_type_data = m_expected_break_type;
-							}
-
-							m_expected_break_type = outer_break_type;
-
+							// A `for` loop consumes an iterable for its effects, so it is Unit.
+							// It used to take its type from whatever `break` carried out of it.
+							for_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
 							return for_expr.m_type_data;
-						}
-					)
-					.or_else
-					(
-						[outer_break_type, this](CompilerError&& error) -> MidoriResult::TypeResult
-						{
-							m_expected_break_type = outer_break_type;
-							return std::unexpected(std::move(error));
 						}
 					);
 			}

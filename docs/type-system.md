@@ -205,7 +205,7 @@ type Point =
 type Result = Ok(Int) | Err(Text) deriving (Transferable);
 ```
 
-`Transferable` generates field-by-field serialization for structs and tag+payload serialization for unions. All fields/variants must themselves satisfy `Transferable`. Types that cannot be transferable (closures, ranges, `Worker<T>`) produce a compile-time constraint-failure error.
+`Transferable` generates field-by-field serialization for structs and tag+payload serialization for unions. All fields/variants must themselves satisfy `Transferable`. Types that cannot be transferable (ranges, `Worker<T>`) produce a compile-time constraint-failure error. Functions are transferable: one crosses as its procedure index plus a copy of its captured cells. What a closure captured is not part of its type, so those captures are not checked.
 
 Current support is intentionally narrow:
 

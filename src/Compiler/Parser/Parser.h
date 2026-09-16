@@ -2,7 +2,6 @@
 
 #include <expected>
 #include <queue>
-#include <stack>
 #include <string_view>
 #include <unordered_map>
 
@@ -118,7 +117,6 @@ private:
 		TypeclassInstanceAssociatedTypeBindingMap m_class_instance_associated_type_bindings;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
-		std::stack<int> m_local_count_before_loop;
 		std::vector<int> m_function_base_variable_index{0};
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;

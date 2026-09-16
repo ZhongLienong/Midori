@@ -3741,16 +3741,12 @@ void CodeGenerator::operator()(MidoriExpression::Spawn& spawn)
 	else if (spawn.m_callee_arity >= 2)
 	{
 		EmitByte(OpCode::UNPACK_TUPLE, line);
-		m_operand_depth += spawn.m_callee_arity - 1;
 	}
 
-	m_operand_depth += spawn.m_callee_arity > 0 ? 1 : 0;
+	// The arguments are pending operands while the function expression is evaluated.
+	m_operand_depth += spawn.m_callee_arity;
 	Visit(spawn.m_callee);
-	m_operand_depth -= spawn.m_callee_arity > 0 ? 1 : 0;
-	if (spawn.m_callee_arity >= 2)
-	{
-		m_operand_depth -= spawn.m_callee_arity - 1;
-	}
+	m_operand_depth -= spawn.m_callee_arity;
 
 	EmitByte(OpCode::SPAWN_WORKER, line);
 	EmitByte(static_cast<OpCode>(spawn.m_callee_arity), line);

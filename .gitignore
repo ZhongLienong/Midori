@@ -390,3 +390,6 @@ reference_package/lib/macos/*.dylib
 
 # Build
 build*
+
+# Images the misc/ demos render when run
+*.ppm

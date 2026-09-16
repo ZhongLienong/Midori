@@ -117,7 +117,6 @@ private:
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;
-	std::shared_ptr<MidoriType> m_expected_break_type;
 	std::shared_ptr<MidoriType> m_expected_expr_type; 
 	int m_next_type_var_id;
 	static const std::array<Token::Name, 5u> kBinaryArithmeticOperators;
@@ -160,8 +159,6 @@ private:
 	std::shared_ptr<MidoriType>* FindNameType(const std::string& name);
 
 	const std::shared_ptr<MidoriType>* FindNameType(const std::string& name) const;
-
-	const MidoriExpression::Function* FindTopLevelBoundLambda(const std::string& name) const;
 
 	std::shared_ptr<MidoriType> FreshTypeVar();
 

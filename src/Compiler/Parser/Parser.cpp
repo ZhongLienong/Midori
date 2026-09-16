@@ -2447,10 +2447,6 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				int hidden_array_index = RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
 				s_for_counter += 1;
 
-				// NOW set the loop local count, after the 4 for loop variables are registered
-				// This ensures continue/break don't try to pop these loop control variables
-				m_state.m_local_count_before_loop.emplace(m_state.m_total_variables);
-
 				return ParseExpression()
 					.and_then
 					(
@@ -2458,7 +2454,6 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 						{
 							EndScope();
 
-							m_state.m_local_count_before_loop.pop();
 							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
 							MidoriExpression::For& for_expr_ref = for_expr->GetExpression<MidoriExpression::For>();
 							for_expr_ref.m_loop_variable_index = var_index;

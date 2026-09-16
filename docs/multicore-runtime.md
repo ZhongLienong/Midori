@@ -57,10 +57,9 @@ Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
 
-The runtime itself also copies closures and their captured cells, but only
-for one purpose: the globals a worker starts from (see Worker Lifecycle).
-That copy is sound because v2 values, closures included, are immutable once
-built. It does not make closures transferable in user code.
+Copying a closure and its captured cells is sound because v2 values, closures
+included, are immutable once built. The same copy carries a worker's globals, the
+spawned function itself, and any function sent through a channel.
 
 Cycle detection is handled via a `PointerMap` that tracks already-transferred
 traceables.
