@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Compile every benchmark program so the benchmarks cannot silently rot.
+Compile every program under benchmark/ and misc/ so neither can silently rot.
 
-The benchmarks under benchmark/ are not part of the regression suite: they print
-timings, so they have no stable snapshot. Nothing used to compile them, and on
-the v2 branch every one of them stopped compiling unnoticed when the language
-dropped `loop`, assignment and in-place `Appendable`. This check runs
-`midori check` (the full compile pipeline, without executing) on each one and
-fails on any compile error or warning.
+Neither directory is part of the regression suite: the benchmarks print timings
+and the misc/ programs write image files, so neither has a stable snapshot.
+Nothing used to compile them, and on the v2 branch every one of them stopped
+compiling unnoticed when the language dropped `loop`, assignment and in-place
+`Appendable`. This check runs `midori check` (the full compile pipeline, without
+executing) on each one and fails on any compile error or warning.
 
 Examples:
     python scripts/check_benchmarks.py --build Development
@@ -33,7 +33,7 @@ def repo_root() -> Path:
 
 
 def discover_benchmarks(root: Path) -> list[Path]:
-    return sorted((root / "benchmark").glob("*.mdr"))
+    return sorted((root / "benchmark").glob("*.mdr")) + sorted((root / "misc").glob("*.mdr"))
 
 
 def build_environment(root: Path) -> dict[str, str]:
@@ -104,7 +104,7 @@ def run_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, 
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Compile (and optionally run) every benchmark under benchmark/.")
+    parser = argparse.ArgumentParser(description="Compile (and optionally run) every program under benchmark/ and misc/.")
     parser.add_argument(
         "--build",
         default="Development",
@@ -114,7 +114,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--run",
         action="store_true",
-        help="Also execute each benchmark and print its output. Timings are only meaningful with --build Release.",
+        help="Also execute each program and print its output. Timings are only meaningful with --build Release.",
     )
     parser.add_argument(
         "--timeout",
@@ -132,7 +132,7 @@ def main(argv: list[str]) -> int:
     root = repo_root()
     benchmarks = discover_benchmarks(root)
     if len(benchmarks) == 0:
-        print("[FAIL] No benchmarks found under benchmark/.")
+        print("[FAIL] No programs found under benchmark/ or misc/.")
         return 1
 
     runner = TestRunner(build_config=args.build, verbose=args.verbose)
@@ -156,11 +156,11 @@ def main(argv: list[str]) -> int:
             print(f"[FAIL] {name} {failure}")
 
     if failures:
-        print(f"\n[FAILED] {failures} of {len(benchmarks)} benchmark(s) failed.")
+        print(f"\n[FAILED] {failures} of {len(benchmarks)} program(s) failed.")
         return 1
 
     action = "compiled and ran" if args.run else "compiled cleanly"
-    print(f"\n[SUCCESS] {len(benchmarks)} benchmark(s) {action}.")
+    print(f"\n[SUCCESS] {len(benchmarks)} program(s) {action}.")
     return 0
 
 

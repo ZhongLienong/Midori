@@ -3,188 +3,73 @@ module mandelbrot
 import
 {
 	"../MidoriPrelude/IO.mdr",
-    "../MidoriPrelude/Math.mdr",
-    "../MidoriPrelude/DateTime.mdr",
-    "../MidoriPrelude/Appendable.mdr"
+	"../MidoriPrelude/Math.mdr",
+	"../MidoriPrelude/DateTime.mdr",
+	"../MidoriPrelude/Iter.mdr",
+	"../MidoriPrelude/Concurrency.mdr",
+	"../MidoriPrelude/Prelude/Result.mdr"
 }
+
+// Renders a Mandelbrot set and a Julia set to PPM files, one worker per band.
+//
+// The v1 version of this program was three nested `loop`s writing into a mutable
+// Text buffer. In v2 the escape test is a recursive function, a row is a
+// comprehension, and the bands are a Concurrency::ParallelMap over the band
+// indices: the per-band worker is a lambda that captured the image parameters.
 
 type Complex =
 {
-    Real : Float,
-    Imag : Float,
+	Real : Float,
+	Imag : Float
 };
 
-def complex_abs = fn(x : Complex) -> Float => Math::SquareRoot(x.Real * x.Real + x.Imag * x.Imag);
-def complex_add = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real + b.Real, a.Imag + b.Imag);
-def complex_mul = fn(a : Complex, b : Complex) -> Complex => Complex(a.Real * b.Real - a.Imag * b.Imag, a.Real * b.Imag + a.Imag * b.Real);
-def complex_square = fn(a : Complex) -> Complex => complex_mul(a, a);
+def ComplexAbs = fn(value : Complex) -> Float => Math::SquareRoot(value.Real * value.Real + value.Imag * value.Imag);
+def ComplexAdd = fn(left : Complex, right : Complex) -> Complex => Complex(left.Real + right.Real, left.Imag + right.Imag);
+def ComplexSquare = fn(value : Complex) -> Complex => Complex(value.Real * value.Real - value.Imag * value.Imag, 2.0 * value.Real * value.Imag);
 
-def append_color = fn(buf : Text, iterations : Int, max_iterations: Int) -> Unit =>
-{
-    if iterations == max_iterations
-    then Appendable::Append(buf, "0 0 0\n")
-    else
-    {
-        def r = (iterations * 5) % 256;
-        def g = (iterations * 10) % 256;
-        def b = (iterations * 15) % 256;
-        Appendable::Append(buf, (r as Text) ++ " " ++ (g as Text) ++ " " ++ (b as Text) ++ "\n");
-    }
-};
+// How many squarings it takes to escape, up to the limit.
+def EscapeCount = fn(z : Complex, c : Complex, iterations : Int, limit : Int) -> Int =>
+	if iterations >= limit
+	then limit
+	else
+	{
+		def next = ComplexAdd(ComplexSquare(z), c);
+		if ComplexAbs(next) >= 2.0 then iterations else EscapeCount(next, c, iterations + 1, limit)
+	};
 
-def ComputeMandelbrotBand = fn(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int) -> Int =>
-{
-    def band_data = "";
-    def y = y_start;
-    loop
-    {
-        def x = 0;
-        loop
-        {
-            def c = Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float));
-            def z = Complex(0.0, 0.0);
-            def iterations = 0;
-            loop
-            {
-                if iterations >= limit then break () else ();
-                z = complex_add(complex_square(z), c);
-                if complex_abs(z) >= 2.0 then break () else ();
-                iterations = iterations + 1;
-            };
-            append_color(band_data, iterations, limit);
-            x = x + 1;
-            if x >= width then break () else ();
-        };
-        y = y + 1;
-        if y >= y_end then break () else ();
-    };
+def ColorOf = fn(iterations : Int, limit : Int) -> Text =>
+	if iterations >= limit
+	then "0 0 0\n"
+	else ((iterations * 5) % 256 as Text) ++ " " ++ ((iterations * 10) % 256 as Text) ++ " " ++ ((iterations * 15) % 256 as Text) ++ "\n";
 
-    ch -> band_data;
-    0
-};
+def Join = fn(pieces : Array<Text>) -> Text => Iter::Fold(Iter::OfArray(pieces), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece);
 
-def ComputeJuliaBand = fn(ch : Channel<Text>, y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, c_real : Float, c_imag : Float) -> Int =>
-{
-    def c = Complex(c_real, c_imag);
+def MandelbrotRow = fn(y : Int, width : Int, height : Int, limit : Int) -> Text =>
+	Join([ColorOf(EscapeCount(Complex(0.0, 0.0), Complex(-2.05 + (x as Float) * 2.6 / (width as Float), -1.2 + (y as Float) * 2.4 / (height as Float)), 0, limit), limit) for x in 0..1..width]);
 
-    def real_min = -2.5;
-    def real_max = 2.5;
-    def imag_min = -1.2;
-    def imag_max = 1.2;
+def JuliaRow = fn(y : Int, width : Int, height : Int, limit : Int, c : Complex) -> Text =>
+	Join([ColorOf(EscapeCount(Complex(-2.5 + (x as Float) / (width as Float) * 5.0, -1.2 + (y as Float) / (height as Float) * 2.4), c, 0, limit), limit) for x in 0..1..width]);
 
-    def band_data = "";
-    def y = y_start;
-    loop
-    {
-        def x = 0;
-        loop
-        {
-            def real = real_min + (x as Float) / (width as Float) * (real_max - real_min);
-            def imag = imag_min + (y as Float) / (height as Float) * (imag_max - imag_min);
-            def z = Complex(real, imag);
-            def iterations = 0;
-            loop
-            {
-                if iterations >= limit then break () else ();
-                z = complex_add(complex_square(z), c);
-                if complex_abs(z) >= 2.0 then break () else ();
-                iterations = iterations + 1;
-            };
-            append_color(band_data, iterations, limit);
-            x = x + 1;
-            if x >= width then break () else ();
-        };
-        y = y + 1;
-        if y >= y_end then break () else ();
-    };
+def Header = fn(width : Int, height : Int) -> Text => "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
 
-    ch -> band_data;
-    0
-};
+// One worker per band of rows. The lambda captures width, height and limit, which
+// cross to the worker with it.
+def RenderMandelbrot = fn(width : Int, height : Int, limit : Int, band_height : Int) -> Text =>
+	Header(width, height) ++ Join(Concurrency::ParallelMap([y for y in 0..1..height], fn(y : Int) -> Text => MandelbrotRow(y, width, height, limit), band_height));
 
-def parallel_mandelbrot_ppm = fn(width : Int, height : Int, limit : Int, num_workers : Int) -> Text =>
-{
-    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
-    def band_height = height / num_workers;
+def RenderJulia = fn(width : Int, height : Int, limit : Int, band_height : Int, c : Complex) -> Text =>
+	Header(width, height) ++ Join(Concurrency::ParallelMap([y for y in 0..1..height], fn(y : Int) -> Text => JuliaRow(y, width, height, limit, c), band_height));
 
-    def channels: Array<Channel<Text>> = [];
-    def workers: Array<Worker> = [];
-
-    def i = 0;
-    loop
-    {
-        def ch = channel<Text>(1);
-        channels = channels ++ [ch];
-        def y_start = i * band_height;
-        def y_end = if i == num_workers - 1 then height else (i + 1) * band_height;
-        def w = spawn ComputeMandelbrotBand(ch, y_start, y_end, width, height, limit);
-        workers = workers ++ [w];
-        i = i + 1;
-        if i >= num_workers then break () else ();
-    };
-
-    def ppm_data = "";
-    def j = 0;
-    loop
-    {
-        def band = <- channels[j];
-        Appendable::Append(ppm_data, band);
-        close(channels[j]);
-        def result = join workers[j];
-        j = j + 1;
-        if j >= num_workers then break () else ();
-    };
-
-    ppm_header ++ ppm_data
-};
-
-def parallel_julia_ppm = fn(width : Int, height : Int, c_real : Float, c_imag : Float, limit : Int, num_workers : Int) -> Text =>
-{
-    def ppm_header = "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
-    def band_height = height / num_workers;
-
-    def channels: Array<Channel<Text>> = [];
-    def workers: Array<Worker> = [];
-
-    def i = 0;
-    loop
-    {
-        def ch = channel<Text>(1);
-        channels = channels ++ [ch];
-        def y_start = i * band_height;
-        def y_end = if i == num_workers - 1 then height else (i + 1) * band_height;
-        def w = spawn ComputeJuliaBand(ch, y_start, y_end, width, height, limit, c_real, c_imag);
-        workers = workers ++ [w];
-        i = i + 1;
-        if i >= num_workers then break () else ();
-    };
-
-    def ppm_data = "";
-    def j = 0;
-    loop
-    {
-        def band = <- channels[j];
-        Appendable::Append(ppm_data, band);
-        close(channels[j]);
-        def result = join workers[j];
-        j = j + 1;
-        if j >= num_workers then break () else ();
-    };
-
-    ppm_header ++ ppm_data
-};
-
+def width = 480;
+def height = 270;
 def limit = 20;
-def num_workers = 4;
+def band_height = 68;
 
 def start = DateTime::NowUnixMillis();
 
-def mandelbrot_output = parallel_mandelbrot_ppm(1920, 1080, limit, num_workers);
-def wrote_m = IO::TryWriteFile("D:/Xuexi/mandelbrot.ppm", mandelbrot_output);
+def _wrote_mandelbrot = IO::TryWriteFile("mandelbrot.ppm", RenderMandelbrot(width, height, limit, band_height));
+def _wrote_julia = IO::TryWriteFile("julia.ppm", RenderJulia(width, height, limit, band_height, Complex(-0.8, 0.156)));
 
-def julia_output = parallel_julia_ppm(1920, 1080, -0.8, 0.156, limit, num_workers);
-def wrote_j = IO::TryWriteFile("D:/Xuexi/julia.ppm", julia_output);
+def finish = DateTime::NowUnixMillis();
 
-def end = DateTime::NowUnixMillis();
-
-IO::PrintLine("Time: " ++ ((end - start) as Text));
+IO::PrintLine("Rendered " ++ (width as Text) ++ "x" ++ (height as Text) ++ " in " ++ ((finish - start) as Text) ++ " ms");
