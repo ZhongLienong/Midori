@@ -1218,6 +1218,46 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 	return *pattern == *concrete;
 }
 
+bool CodeGenerator::EmitIterableNextInvocation(const std::string& resolved_name, const std::shared_ptr<MidoriType>& iter_type, int line)
+{
+	// A constrained instance's Next - `instance Iterable<Mapped<S, A, B>> where
+	// Iterable<S>` - is monomorphised at each call site and so has no global to load.
+	// Specialize it for this iterator type and call the procedure, which is what an
+	// ordinary call to it does.
+	std::optional<std::string> generic_key = FindGenericFunctionKey(resolved_name);
+	if (generic_key.has_value())
+	{
+		const int specialized_proc_index = SpecializeGenericFunction(generic_key.value(), { iter_type }, line);
+		if (specialized_proc_index == -1)
+		{
+			return false;
+		}
+
+		const int captured_count = m_generic_functions[generic_key.value()].m_captured_count;
+		if (captured_count == 0)
+		{
+			EmitCallProc(specialized_proc_index, 1, line);
+			return true;
+		}
+
+		EmitByte(OpCode::MAKE_CLOSURE, line);
+		EmitByte(static_cast<OpCode>(specialized_proc_index), line);
+		NoteCaptureBinding(captured_count, line);
+		EmitByte(OpCode::BIND_CAPTURES, line);
+		EmitByte(static_cast<OpCode>(captured_count), line);
+		EmitCall(1, line);
+		return true;
+	}
+
+	if (EmitResolvedNameGetGlobal(resolved_name, line))
+	{
+		EmitCall(1, line);
+		return true;
+	}
+
+	return false;
+}
+
 bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter_type, const std::shared_ptr<MidoriType>& item_type, int line)
 {
 	if (!iter_type || !item_type)
@@ -1244,13 +1284,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 					return false;
 				}
 
-				if (EmitResolvedNameGetGlobal(candidate.m_resolved_name, line))
-				{
-					EmitCall(1, line);
-					return true;
-				}
-
-				return false;
+				return EmitIterableNextInvocation(candidate.m_resolved_name, iter_type, line);
 			}
 		}
 	}
@@ -1298,13 +1332,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 
 		if (resolved_name.has_value())
 		{
-			if (EmitResolvedNameGetGlobal(resolved_name.value(), line))
-			{
-				EmitCall(1, line);
-				return true;
-			}
-
-			return false;
+			return EmitIterableNextInvocation(resolved_name.value(), iter_type, line);
 		}
 
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable::Next instance for iterator type '"s + iter_type->ToString() + "' not found"s, line, m_file_name, m_source_lines));

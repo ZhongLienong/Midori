@@ -1224,6 +1224,29 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 	return resolved_match;
 }
 
+std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Token& token, const MidoriType::ClassConstraint& constraint, const std::shared_ptr<MidoriType>& resolved_lhs, const std::shared_ptr<MidoriType>& resolved_rhs)
+{
+	if (*resolved_lhs == *resolved_rhs)
+	{
+		return std::nullopt;
+	}
+
+	// An equality constraint also *solves*: `Iterable::Item<S> ~ A` with `A` still
+	// unbound is what tells the call site what A is. `Iter::ToArray` has no other
+	// argument mentioning A, so without this it could never be called.
+	if (resolved_lhs->IsType<MidoriType::TypeVariable>() || resolved_rhs->IsType<MidoriType::TypeVariable>())
+	{
+		std::shared_ptr<MidoriType> lhs = resolved_lhs;
+		std::shared_ptr<MidoriType> rhs = resolved_rhs;
+		if (Unify(token, lhs, rhs).has_value())
+		{
+			return std::nullopt;
+		}
+	}
+
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_lhs->ToString(), resolved_rhs->ToString()), token, m_file_name, m_source_lines);
+}
+
 bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint)
 {
 	return std::ranges::any_of
@@ -1258,12 +1281,12 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 		{
 			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(constraint.m_equality_lhs);
 			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(constraint.m_equality_rhs);
-			if (*resolved_equality_lhs == *resolved_equality_rhs)
+			if (std::optional<CompilerError> error = DischargeEqualityConstraint(token, constraint, resolved_equality_lhs, resolved_equality_rhs))
 			{
-				continue;
+				return std::unexpected(std::move(*error));
 			}
 
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_equality_lhs->ToString(), resolved_equality_rhs->ToString()), token, m_file_name, m_source_lines));
+			continue;
 		}
 		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());
@@ -1304,12 +1327,12 @@ MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 		{
 			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_lhs, substitutions));
 			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_rhs, substitutions));
-			if (*resolved_equality_lhs == *resolved_equality_rhs)
+			if (std::optional<CompilerError> error = DischargeEqualityConstraint(token, constraint, resolved_equality_lhs, resolved_equality_rhs))
 			{
-				continue;
+				return std::unexpected(std::move(*error));
 			}
 
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_equality_lhs->ToString(), resolved_equality_rhs->ToString()), token, m_file_name, m_source_lines));
+			continue;
 		}
 		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());

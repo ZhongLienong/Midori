@@ -207,6 +207,8 @@ private:
 
 	MidoriResult::TypeResult ResolveIndexableElementType(const Token& op, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type);
 
+	std::optional<CompilerError> DischargeEqualityConstraint(const Token& token, const MidoriType::ClassConstraint& constraint, const std::shared_ptr<MidoriType>& resolved_lhs, const std::shared_ptr<MidoriType>& resolved_rhs);
+
 	bool IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint);
 
 	MidoriResult::TypeResult ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type);

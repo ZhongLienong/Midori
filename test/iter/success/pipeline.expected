@@ -1,0 +1,15 @@
+doubled: 2 4 6 8 10 12 
+kept: 2 4 6 
+chained: 4 8 
+retyped: <1><2><3>
+total: 42
+count: 3
+taken beyond end: 1 2 3 4 5 6 
+  evaluating 1
+  evaluating 2
+lazy: 1 2 
+for: 2
+for: 4
+for: 6
+comprehension: 1 4 9 16 
+from list: 14 16 18 

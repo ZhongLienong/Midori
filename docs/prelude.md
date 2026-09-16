@@ -15,6 +15,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `IO.mdr`, `System.mdr`, and `DateTime.mdr` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
 - `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
+- `Iter.mdr` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
 - `Concurrency.mdr` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `join` evaluates to, and `JoinedOrPanic` for code that treats a worker failure as fatal. The compiler requires the `WorkerError` declaration to have exactly that shape.
 
@@ -31,6 +32,34 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
 - `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, and `Channel<T>`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
+
+## Sequence Pipelines
+
+`Iter.mdr` turns a sequence into a pipeline. Every stage takes its source as its
+first argument, so stages compose with the pipe operator:
+
+```midori
+def evens = values
+	|> Iter::OfArray
+	|> Iter::Filter(IsEven)
+	|> Iter::Map(Double)
+	|> Iter::ToArray;
+```
+
+- Sources: `OfArray(values)`, or any value with an `Iterable` instance, such as
+  `List::ListIterNew(list)`, a `MapIter` or a `SetIter`.
+- Stages: `Map(source, f)`, `Filter(source, keep)`, `Take(source, count)`. Each is
+  a value with its own `Iterable` instance, so `for` loops and comprehensions
+  consume one directly.
+- Consumers: `ToArray(source)`, `Fold(source, initial, step)`, `Count(source)`.
+
+Stages are lazy. Nothing runs until a consumer asks for an element, and a `Take`
+in front of a `Map` means the mapped function runs only for the elements taken.
+
+A stage's element type is tied to its source by an equality constraint
+(`Iterable::Item<S> ~ A`). That constraint both solves — it is what tells
+`Iter::ToArray` what it is collecting — and checks: a `Map` whose function takes
+`Text` over a source of `Int` is a compile error.
 
 ## Result Naming
 
