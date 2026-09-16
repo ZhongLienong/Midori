@@ -154,8 +154,10 @@ with it.
   `WorkerCancelled` code gives `Err(WorkerError::Cancelled())`, and any other
   code gives `Err(WorkerError::Failed(message))`. The joining program keeps
   running and decides what a failed worker means
-- `Panic::Panic` inside a worker is not a worker failure: it exits the whole
-  process, as it does anywhere else
+- `Panic::Panic` inside a worker fails that worker and nothing else. Panic exits
+  the process, and a worker may not do that to a program it only borrows a thread
+  from, so the runtime stops the worker with `WorkerExited` and the joiner gets
+  `Err(WorkerError::Failed(...))`. The panic message still goes to standard error
 - If a worker is never joined and failed, the destructor prints the message to
   standard output
 

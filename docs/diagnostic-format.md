@@ -211,6 +211,7 @@ Current `RuntimeErrorCode` values:
 - `DivisionByZero`
 - `InternalTypeError`
 - `WorkerCancelled`
+- `WorkerExited`
 - `InternalFFITypeError`
 
 ## Warning Codes

@@ -114,6 +114,9 @@ private:
     size_t m_stack_page_size = 0u;
 	std::optional<RuntimeError> m_last_error = std::nullopt;
 	int m_worker_proc_index = -1;
+	// Set by PrepareWorkerCall, which only a worker goes through. A worker that
+	// exits must fail itself rather than the process it shares with everyone else.
+	bool m_is_worker = false;
 	std::stop_token m_stop_token;
 	bool m_stop_possible = false;
 

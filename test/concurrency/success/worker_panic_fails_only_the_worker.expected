@@ -1,0 +1,4 @@
+panicking worker: Err(Failed)
+next worker: Ok(42)
+joiner still running
+worker panicked

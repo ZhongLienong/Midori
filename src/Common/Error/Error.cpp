@@ -140,6 +140,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "UnsupportedPlatformOperation";
 	case RuntimeErrorCode::WorkerCancelled:
 		return "WorkerCancelled";
+	case RuntimeErrorCode::WorkerExited:
+		return "WorkerExited";
 	default:
 		return "None";
 	}

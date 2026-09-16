@@ -100,6 +100,7 @@ Current `RuntimeErrorCode` values:
 - `DivisionByZero`
 - `InternalTypeError`
 - `WorkerCancelled`
+- `WorkerExited`
 - `InternalFFITypeError`
 
 `RuntimeErrorCodeName(...)` provides the stable string form used in rendered and

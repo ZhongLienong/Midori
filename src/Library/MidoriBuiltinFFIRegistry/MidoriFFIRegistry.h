@@ -167,6 +167,22 @@ public:
 	static constexpr int ABI_VERSION = 1;
 	static constexpr size_t BUILTIN_COUNT = s_entries.size();
 
+	// Exiting the process is the one builtin a worker must not perform: it would
+	// take the whole program down from a thread. The VM needs its position to
+	// intercept the call, and the position is known here at compile time.
+	static consteval size_t ExitBuiltinIndex()
+	{
+		for (size_t index = 0u; index < s_entries.size(); index += 1u)
+		{
+			if (std::string_view(s_entries[index].m_name) == std::string_view("MIDORI_FFI_Exit"))
+			{
+				return index;
+			}
+		}
+
+		throw "MIDORI_FFI_Exit is missing from the builtin table";
+	}
+
 	static const FFIEntry& GetEntry(size_t index);
 	static std::optional<size_t> FindIndex(std::string_view name);
 	static constexpr size_t GetTableSize();

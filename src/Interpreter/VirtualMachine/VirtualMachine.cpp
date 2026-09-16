@@ -320,6 +320,7 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 	m_value_stack_base_pointer = m_value_stack_begin;
 	m_call_stack_pointer = m_call_stack_begin;
 	m_last_error.reset();
+	m_is_worker = true;
 
 	// The spawned function is a transferred closure rather than a procedure index:
 	// it is not on this VM's stack, so it is rooted here, and its cells are the
@@ -2324,6 +2325,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.GetCString());
 			if (ffi_idx.has_value())
 			{
+				if (m_is_worker && ffi_idx.value() == MidoriFFIRegistry::ExitBuiltinIndex())
+				{
+					SyncMachineState(ip, sp, bp, env);
+					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
+				}
+
 				proc = m_ffi_table[ffi_idx.value()];
 			}
 			else
@@ -2439,6 +2446,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			uint8_t ffi_index = static_cast<uint8_t>(ReadByte(ip));
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
+
+			if (m_is_worker && static_cast<size_t>(ffi_index) == MidoriFFIRegistry::ExitBuiltinIndex())
+			{
+				SyncMachineState(ip, sp, bp, env);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
+			}
 
 			const FFIEntry& ffi_entry = MidoriFFIRegistry::GetEntry(ffi_index);
 			FFIFunction proc = m_ffi_table[ffi_index];
