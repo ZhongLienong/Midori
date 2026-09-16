@@ -89,7 +89,8 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 - `new` — constructors are ordinary functions.
 - `default` — a `_` wildcard pattern, which also nests.
 - `spawn`, `join`, `channel` — ordinary functions over library structs.
-- `true`, `false` — union constructors, subject to section 8.
+- ~~`true`, `false` — union constructors, subject to section 8.~~ **Kept**, on the
+  measurement in section 8: they stay literals and `Bool` stays a built-in type.
 - The `#` name-suffix dispatch in `CodeGenerator.cpp:3330-3370`.
 - Six redundant prelude names: `MapSize`, `SetSize`, `ArrayUtil::Length`,
   `TextUtil::Length`, and the `ArrayUtil::Append` / `Prepend` / `Extend`
@@ -536,8 +537,21 @@ surfaced the drift until a deletion forced it.
 
 ## 8. Open calls — pin while writing, not blockers
 
-- **`Bool` as a library union.** Deletes four things for the price of one
-  hardcoded type reference in `if`. Recommended.
+- **`Bool` as a library union. Settled 2026-09-16: declined.** It would delete
+  four things — the `true` and `false` keywords, the `BoolLiteral` node and the
+  `BoolType` kind — for one hardcoded type reference in `if`, which is why this
+  was recommended. Measured before deciding: a two-variant union standing in for
+  `true`/`false`, over 3,000,000 iterations of a loop that builds one and branches
+  on it, ran 250/252/268 ms against 66/69/70 ms for the same loop on the built-in
+  `Bool`. Making a field-free variant load a shared value rather than allocate one
+  (`8ef0ec7`) brought that to 149/151/159 ms. The remaining 2.2x is
+  representational: a union value is a pointer to dereference, a `Bool` is
+  immediate, and every branch in the language pays it. Closing that would need
+  unboxed tagged immediates in `MidoriValue`, reaching into the garbage collector,
+  the FFI boundary and worker value transfer — far more machinery than the four
+  deletions it would pay for. `Bool` therefore stays a built-in, and section 6
+  keeps it as a lang item. Revisit only if that representation work is wanted for
+  its own sake, since it would also make `Option` and `List` cheaper.
 - **Arithmetic and bitwise via typeclasses.** Safe only with hard literal
   defaulting — integer literals always `Int`, float literals always `Float` —
   since the type checker has no generalization.

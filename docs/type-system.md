@@ -26,7 +26,7 @@ The type system provides:
 | `Float` | 64-bit IEEE 754 double |
 | `Byte` | 8-bit unsigned integer |
 | `Word` | 64-bit unsigned integer |
-| `Bool` | `true` or `false` |
+| `Bool` | `true` or `false`, a built-in rather than a library union — see the design spec's section 8 for the measurement behind that |
 | `Text` | UTF-8 string |
 | `Unit` | Unit value type |
 
