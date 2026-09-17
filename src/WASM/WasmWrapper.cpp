@@ -83,7 +83,7 @@ namespace
 	}
 }
 
-ExecutionResult ExecuteMidoriCode(const std::string& source_code)
+ExecutionResult ExecuteMarmotCode(const std::string& source_code)
 {
 	ExecutionResult result;
 	result.success = false;
@@ -154,7 +154,7 @@ EMSCRIPTEN_BINDINGS(midori_module)
 		.field("error", &ExecutionResult::error)
 		.field("exitCode", &ExecutionResult::exit_code);
 
-	emscripten::function("executeMidoriCode", &ExecuteMidoriCode);
+	emscripten::function("executeMarmotCode", &ExecuteMarmotCode);
 }
 
 #endif // __EMSCRIPTEN__
