@@ -1,4 +1,4 @@
-# ミドリ (Marmot)
+# Marmot
 
 A statically-typed functional programming language featuring algebraic data types, pattern matching, typeclasses, and a module system. Compiles to bytecode for the Marmot Virtual Machine with garbage-collected memory management.
 

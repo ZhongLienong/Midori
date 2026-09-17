@@ -2439,13 +2439,30 @@ void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 		return;
 	}
 
-	Visit(def_tuple.m_value);
-	EmitByte(OpCode::UNPACK_TUPLE, line);
-
 	if (all_local)
 	{
+		// Reserve every binding's slot before evaluating the initializer, as a single
+		// VariableDefinition does. A match or comprehension in the initializer numbers
+		// its hidden locals after these bindings, so the slots must already be on the
+		// stack or it reads and writes past them.
+		for (size_t i = 0u; i < def_tuple.m_local_indices.size(); i += 1u)
+		{
+			EmitByte(OpCode::PUSH_PLACEHOLDER, line);
+		}
+
+		Visit(def_tuple.m_value);
+		EmitByte(OpCode::UNPACK_TUPLE, line);
+
+		for (int i = static_cast<int>(def_tuple.m_local_indices.size()) - 1; i >= 0; i -= 1)
+		{
+			EmitVariable(def_tuple.m_local_indices[static_cast<size_t>(i)].value(), OpCode::SET_LOCAL, line);
+			EmitByte(OpCode::POP, line);
+		}
 		return;
 	}
+
+	Visit(def_tuple.m_value);
+	EmitByte(OpCode::UNPACK_TUPLE, line);
 
 	for (int i = static_cast<int>(def_tuple.m_names.size()) - 1; i >= 0; i -= 1)
 	{
