@@ -217,7 +217,7 @@ Important opcode families in the current executable format:
 - Small integer constants: `INT_MINUS_1`, `INT_0`, `INT_1`, `INT_2`, `INT_3`, `INT_4`, `INT_5`, `INT_10`
 - Arrays and tuples: `CREATE_ARRAY`, `CREATE_TUPLE`, `GET_ARRAY`, `GET_TUPLE`, `UNPACK_TUPLE`, `ADD_BACK_ARRAY`, `GET_ARRAY_LENGTH`
 - Ranges: `CREATE_INT_RANGE`, `CREATE_FLOAT_RANGE`, `GET_RANGE_START`, `GET_RANGE_END`, `GET_RANGE_STEP`
-- Casts: `INT_TO_FLOAT`, `TEXT_TO_FLOAT`, `FLOAT_TO_INT`, `TEXT_TO_INT`, `FLOAT_TO_TEXT`, `INT_TO_TEXT`, `BYTE_TO_INT`, `INT_TO_BYTE`, `BYTE_TO_WORD`, `WORD_TO_BYTE`, `WORD_TO_INT`, `INT_TO_WORD`, `BYTE_TO_FLOAT`, `FLOAT_TO_BYTE`, `WORD_TO_FLOAT`, `FLOAT_TO_WORD`
+- Casts: `INT_TO_FLOAT`, `TEXT_TO_FLOAT`, `FLOAT_TO_INT`, `TEXT_TO_INT`, `FLOAT_TO_TEXT`, `INT_TO_TEXT`, `WORD_TO_TEXT`, `BYTE_TO_INT`, `INT_TO_BYTE`, `BYTE_TO_WORD`, `WORD_TO_BYTE`, `WORD_TO_INT`, `INT_TO_WORD`, `BYTE_TO_FLOAT`, `FLOAT_TO_BYTE`, `WORD_TO_FLOAT`, `FLOAT_TO_WORD`
 - Arithmetic and bit operations: `ADD_*`, `SUBTRACT_*`, `MULTIPLY_*`, `DIVIDE_*`, `MODULO_*`, `LEFT_SHIFT`, `RIGHT_SHIFT`, `BITWISE_AND`, `BITWISE_OR`, `BITWISE_XOR`, `BITWISE_NOT`
 - Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (produced only when the code generator splits a fused `ADD_LOCAL_INT` back apart because that local became a captured cell; the language has no compound assignment)
 - Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`

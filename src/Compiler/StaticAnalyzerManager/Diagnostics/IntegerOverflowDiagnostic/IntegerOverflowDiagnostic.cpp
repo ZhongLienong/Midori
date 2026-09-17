@@ -18,18 +18,7 @@ namespace
 
 		if (current->IsLiteral(MidoriExpression::LiteralKind::Integer))
 		{
-			try
-			{
-				return std::stoll(current->GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
-			}
-			catch (const std::invalid_argument&)
-			{
-				return std::nullopt;
-			}
-			catch (const std::out_of_range&)
-			{
-				return std::nullopt;
-			}
+			return ParseIntegerLiteral(current->GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
 		}
 
 		if (current->IsExpression<MidoriExpression::UnaryPrefix>())

@@ -1798,42 +1798,33 @@ void CodeGenerator::EmitPatternLiteralConstant(const MidoriPattern::Literal& lit
 			EmitFloatConstant(std::stod(lexeme), line);
 			break;
 		case MidoriPattern::LiteralKind::Integer:
-			EmitIntegerConstant(std::stoll(lexeme), line);
+		{
+			const std::optional<MidoriInteger> value = ParseIntegerLiteral(lexeme);
+			if (!value.has_value())
+			{
+				throw std::out_of_range(lexeme);
+			}
+			EmitIntegerConstant(value.value(), line);
 			break;
+		}
 		case MidoriPattern::LiteralKind::Byte:
 		{
-			uint64_t value = 0u;
-			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+			const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
+			if (!value.has_value() || value.value() > 0xFFu)
 			{
-				value = std::stoull(lexeme, nullptr, 16);
+				throw std::out_of_range(lexeme);
 			}
-			else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-			{
-				value = std::stoull(lexeme, nullptr, 2);
-			}
-			else
-			{
-				value = std::stoull(lexeme);
-			}
-			EmitByteConstant(static_cast<MidoriByte>(value), line);
+			EmitByteConstant(static_cast<MidoriByte>(value.value()), line);
 			break;
 		}
 		case MidoriPattern::LiteralKind::Word:
 		{
-			uint64_t value = 0u;
-			if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+			const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
+			if (!value.has_value())
 			{
-				value = std::stoull(lexeme, nullptr, 16);
+				throw std::out_of_range(lexeme);
 			}
-			else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-			{
-				value = std::stoull(lexeme, nullptr, 2);
-			}
-			else
-			{
-				value = std::stoull(lexeme);
-			}
-			EmitWordConstant(value, line);
+			EmitWordConstant(value.value(), line);
 			break;
 		}
 		case MidoriPattern::LiteralKind::Text:
@@ -2901,8 +2892,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		}
 		else if (from_type->IsType<MidoriType::WordType>())
 		{
-			EmitByte(OpCode::WORD_TO_INT, line);
-			EmitByte(OpCode::INT_TO_TEXT, line);
+			EmitByte(OpCode::WORD_TO_TEXT, line);
 		}
 		else if (from_type->IsType<MidoriType::TextType>())
 		{
@@ -2948,15 +2938,12 @@ std::optional<MidoriInteger> CodeGenerator::GetFusibleSmallInt(const MidoriExpre
 		return std::nullopt;
 	}
 
-	MidoriInteger value = 0;
-	try
-	{
-		value = std::stoll(expr.GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
-	}
-	catch (...)
+	const std::optional<MidoriInteger> parsed = ParseIntegerLiteral(expr.GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
+	if (!parsed.has_value())
 	{
 		return std::nullopt;
 	}
+	MidoriInteger value = parsed.value();
 
 	// Restricted to values with dedicated small-constant opcodes so the fused
 	// form stays rewritable into the unfused sequence.
@@ -4226,87 +4213,38 @@ void CodeGenerator::EmitFloatLiteral(const MidoriExpression::Literal& float_lite
 
 void CodeGenerator::EmitIntegerLiteral(const MidoriExpression::Literal& integer)
 {
-	int line = integer.m_token.m_line;
-	try
-	{
-		EmitIntegerConstant(std::stoll(integer.m_token.m_lexeme), line);
-	}
-	catch (const std::out_of_range&)
+	const std::optional<MidoriInteger> value = ParseIntegerLiteral(integer.m_token.m_lexeme);
+	if (!value.has_value())
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775807.", integer.m_token, m_file_name, m_source_lines));
+		return;
 	}
-	catch (const std::invalid_argument&)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid integer literal '" + integer.m_token.m_lexeme + "'", integer.m_token, m_file_name, m_source_lines));
-	}
+
+	EmitIntegerConstant(value.value(), integer.m_token.m_line);
 }
 
 void CodeGenerator::EmitByteLiteral(const MidoriExpression::Literal& byte_literal)
 {
-	int line = byte_literal.m_token.m_line;
-	const std::string& lexeme = byte_literal.m_token.m_lexeme;
-	try
+	const std::optional<uint64_t> value = ParseUnsignedLiteral(byte_literal.m_token.m_lexeme);
+	if (!value.has_value() || value.value() > 0xFFu)
 	{
-		uint64_t value = 0u;
-		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
-		{
-			value = std::stoull(lexeme, nullptr, 16);
-		}
-		else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-		{
-			value = std::stoull(lexeme, nullptr, 2);
-		}
-		else
-		{
-			value = std::stoull(lexeme);
-		}
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + byte_literal.m_token.m_lexeme + "' is out of range. Maximum value is 255 (0xFF).", byte_literal.m_token, m_file_name, m_source_lines));
+		return;
+	}
 
-		if (value > 0xFF)
-		{
-			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + lexeme + "' is out of range. Maximum value is 255 (0xFF).", byte_literal.m_token, m_file_name, m_source_lines));
-			return;
-		}
-		EmitByteConstant(static_cast<MidoriByte>(value), line);
-	}
-	catch (const std::out_of_range&)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + lexeme + "' is out of range. Maximum value is 255 (0xFF).", byte_literal.m_token, m_file_name, m_source_lines));
-	}
-	catch (const std::invalid_argument&)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid byte literal '" + lexeme + "'", byte_literal.m_token, m_file_name, m_source_lines));
-	}
+	EmitByteConstant(static_cast<MidoriByte>(value.value()), byte_literal.m_token.m_line);
 }
 
 void CodeGenerator::EmitWordLiteral(const MidoriExpression::Literal& word_literal)
 {
-	int line = word_literal.m_token.m_line;
-	const std::string& lexeme = word_literal.m_token.m_lexeme;
-	try
+	const std::optional<uint64_t> value = ParseUnsignedLiteral(word_literal.m_token.m_lexeme);
+	if (!value.has_value())
 	{
-		uint64_t value = 0u;
-		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
-		{
-			value = std::stoull(lexeme, nullptr, 16);
-		}
-		else if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-		{
-			value = std::stoull(lexeme, nullptr, 2);
-		}
-		else
-		{
-			value = std::stoull(lexeme);
-		}
-		EmitWordConstant(value, line);
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Word literal '" + word_literal.m_token.m_lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", word_literal.m_token, m_file_name, m_source_lines));
+		return;
 	}
-	catch (const std::out_of_range&)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Word literal '" + lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", word_literal.m_token, m_file_name, m_source_lines));
-	}
-	catch (const std::invalid_argument&)
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Invalid word literal '" + lexeme + "'", word_literal.m_token, m_file_name, m_source_lines));
-	}
+
+	EmitWordConstant(value.value(), word_literal.m_token.m_line);
 }
 
 void CodeGenerator::EmitUnitLiteral(const MidoriExpression::Literal& unit)

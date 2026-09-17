@@ -302,6 +302,8 @@ public:
 
 	static MidoriText FromInteger(MidoriInteger value);
 
+	static MidoriText FromWord(MidoriWord value);
+
 	static MidoriText FromFloat(MidoriFloat value);
 
 	static MidoriText Concatenate(const MidoriText& a, const MidoriText& b);

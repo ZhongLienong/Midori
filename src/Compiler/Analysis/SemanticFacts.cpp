@@ -16,18 +16,7 @@ namespace
 
 	std::optional<MidoriInteger> SafeParseInteger(const std::string& lexeme)
 	{
-		try
-		{
-			return std::stoll(lexeme);
-		}
-		catch (const std::invalid_argument&)
-		{
-			return std::nullopt;
-		}
-		catch (const std::out_of_range&)
-		{
-			return std::nullopt;
-		}
+		return ParseIntegerLiteral(lexeme);
 	}
 
 	std::optional<MidoriFloat> SafeParseFloat(const std::string& lexeme)
@@ -48,34 +37,17 @@ namespace
 
 	std::optional<MidoriByte> SafeParseByte(const std::string& lexeme)
 	{
-		try
-		{
-			return static_cast<MidoriByte>(std::stoul(lexeme, nullptr, 0));
-		}
-		catch (const std::invalid_argument&)
+		const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
+		if (!value.has_value() || value.value() > 0xFFu)
 		{
 			return std::nullopt;
 		}
-		catch (const std::out_of_range&)
-		{
-			return std::nullopt;
-		}
+		return static_cast<MidoriByte>(value.value());
 	}
 
 	std::optional<MidoriWord> SafeParseWord(const std::string& lexeme)
 	{
-		try
-		{
-			return std::stoull(lexeme, nullptr, 0);
-		}
-		catch (const std::invalid_argument&)
-		{
-			return std::nullopt;
-		}
-		catch (const std::out_of_range&)
-		{
-			return std::nullopt;
-		}
+		return ParseUnsignedLiteral(lexeme);
 	}
 
 	std::optional<bool> TryGetBoolValue(const ConstantValue& value)

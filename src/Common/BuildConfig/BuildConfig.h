@@ -113,7 +113,11 @@ namespace MidoriBuild
     // and WorkerError constructor tags), so an older artifact would be decoded
     // with the wrong instruction length. Changing an instruction's length
     // requires a bump too.
-    inline constexpr uint32_t MbcFormatVersion = 7u;
+    //
+    // Bumped 2026-09-16 (8): WORD_TO_TEXT was inserted after INT_TO_TEXT, which
+    // renumbered every later opcode. `Word as Text` used to lower to
+    // WORD_TO_INT + INT_TO_TEXT and print values above 2^63 - 1 as negative.
+    inline constexpr uint32_t MbcFormatVersion = 8u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

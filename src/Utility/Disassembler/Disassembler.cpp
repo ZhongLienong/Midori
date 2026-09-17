@@ -587,6 +587,9 @@ namespace Disassembler
 		case OpCode::INT_TO_TEXT:
 			SimpleInstruction("INT_TO_TEXT", offset);
 			break;
+		case OpCode::WORD_TO_TEXT:
+			SimpleInstruction("WORD_TO_TEXT", offset);
+			break;
 		case OpCode::BYTE_TO_INT:
 			SimpleInstruction("BYTE_TO_INT", offset);
 			break;

@@ -53,6 +53,7 @@ enum class OpCode : uint8_t
 	TEXT_TO_INT,
 	FLOAT_TO_TEXT,
 	INT_TO_TEXT,
+	WORD_TO_TEXT,
 	BYTE_TO_INT,
 	INT_TO_BYTE,
 	BYTE_TO_WORD,

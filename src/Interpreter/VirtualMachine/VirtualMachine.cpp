@@ -1409,6 +1409,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek(sp) = AllocateTraceable(MidoriText::FromInteger(Peek(sp).GetInteger()));
 			break;
 		}
+		case OpCode::WORD_TO_TEXT:
+		{
+			Peek(sp) = AllocateTraceable(MidoriText::FromWord(Peek(sp).GetWord()));
+			break;
+		}
 		case OpCode::BYTE_TO_INT:
 		{
 			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetByte());

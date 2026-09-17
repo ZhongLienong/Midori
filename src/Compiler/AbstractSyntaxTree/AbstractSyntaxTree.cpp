@@ -1,5 +1,55 @@
 #include "AbstractSyntaxTree.h"
 
+#include <charconv>
+#include <limits>
+
+std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
+{
+	int base = 10;
+	if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X'))
+	{
+		base = 16;
+		lexeme.remove_prefix(2u);
+	}
+	else if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+	{
+		base = 2;
+		lexeme.remove_prefix(2u);
+	}
+
+	uint64_t value = 0u;
+	const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value, base);
+	if (lexeme.empty() || result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
+	{
+		return std::nullopt;
+	}
+
+	return value;
+}
+
+std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme)
+{
+	if (!lexeme.empty() && lexeme[0u] == '-')
+	{
+		int64_t value = 0;
+		const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
+		if (result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
+		{
+			return std::nullopt;
+		}
+
+		return value;
+	}
+
+	const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
+	if (!value.has_value() || value.value() > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+	{
+		return std::nullopt;
+	}
+
+	return static_cast<int64_t>(value.value());
+}
+
 namespace
 {
 	struct TypeDataAccessor

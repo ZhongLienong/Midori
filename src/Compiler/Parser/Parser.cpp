@@ -346,15 +346,8 @@ namespace
 		const std::string& lexeme = token.m_lexeme;
 		if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
 		{
-			uint64_t value = 0u;
-			if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
-			{
-				value = std::stoull(lexeme, nullptr, 16);
-			}
-			else
-			{
-				value = std::stoull(lexeme, nullptr, 2);
-			}
+			// A lexeme too large for 64 bits is classified as Word; code generation reports it.
+			const uint64_t value = ParseUnsignedLiteral(lexeme).value_or(std::numeric_limits<uint64_t>::max());
 
 			if (value <= 0xFF)
 			{
@@ -2013,15 +2006,8 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		// Check if it's a hex or binary literal
 		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
 		{
-			uint64_t value = 0u;
-			if (lexeme[1u] == 'x' || lexeme[1u] == 'X')
-			{
-				value = std::stoull(lexeme, nullptr, 16);
-			}
-			else
-			{
-				value = std::stoull(lexeme, nullptr, 2);
-			}
+			// A lexeme too large for 64 bits is classified as Word; code generation reports it.
+			const uint64_t value = ParseUnsignedLiteral(lexeme).value_or(std::numeric_limits<uint64_t>::max());
 
 			// Determine type based on value
 			if (value <= 0xFF)

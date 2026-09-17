@@ -1,0 +1,7 @@
+module HexLiteralWiderThan64Bits
+
+// Regression: a hex literal wider than 64 bits crashed the parser with
+// "internal failure in the parser stage: stoull argument out of range".
+// It must be an ordinary out-of-range diagnostic.
+
+def too_wide = 0x1FFFFFFFFFFFFFFFF;

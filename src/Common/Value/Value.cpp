@@ -297,7 +297,7 @@ MidoriText MidoriValue::ToText() const
 		case MidoriValue::BYTE:
 			return MidoriText::FromInteger(static_cast<MidoriInteger>(GetByte()));
 		case MidoriValue::WORD:
-			return MidoriText::FromInteger(static_cast<MidoriInteger>(GetWord()));
+			return MidoriText::FromWord(GetWord());
 		case MidoriValue::BOOL:
 			return GetBool() ? "true" : "false";
 		case MidoriValue::UNIT:
@@ -1770,6 +1770,18 @@ MidoriFloat MidoriText::ToFloat() const
 }
 
 MidoriText MidoriText::FromInteger(MidoriInteger value)
+{
+	char buffer[32];
+	std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
+	if (result.ec != std::errc())
+	{
+		return MidoriText();
+	}
+	*result.ptr = '\0';
+	return MidoriText(buffer);
+}
+
+MidoriText MidoriText::FromWord(MidoriWord value)
 {
 	char buffer[32];
 	std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);

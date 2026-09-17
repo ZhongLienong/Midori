@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <functional>
 #include <memory>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,6 +26,15 @@ enum class MidoriLiteralKind
 	Text,
 	Unit
 };
+
+// Value of an Integer, Byte or Word literal lexeme: decimal, `0x` hexadecimal or `0b`
+// binary. Nothing when the lexeme is malformed or does not fit in 64 unsigned bits.
+std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
+
+// Value of an Integer literal lexeme. Also accepts a leading '-', which the optimizer
+// writes when it folds a negative constant back into a literal. Nothing when the value
+// does not fit in a signed 64-bit integer.
+std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
 
 class MidoriStatement
 {

@@ -1,0 +1,6 @@
+max=18446744073709551615
+high_bit=9223372036854775808
+max_over_two=9223372036854775807
+max_mod_radix=255
+max_greater=true
+small=2

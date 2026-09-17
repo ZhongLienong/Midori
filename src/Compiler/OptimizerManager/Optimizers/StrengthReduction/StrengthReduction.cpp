@@ -10,18 +10,7 @@ namespace
 {
 	std::optional<MidoriInteger> SafeParseInteger(const std::string& str)
 	{
-		try
-		{
-			return std::stoll(str);
-		}
-		catch (const std::out_of_range&)
-		{
-			return std::nullopt;
-		}
-		catch (const std::invalid_argument&)
-		{
-			return std::nullopt;
-		}
+		return ParseIntegerLiteral(str);
 	}
 
 	bool IntegerEquals(const std::string& str, MidoriInteger expected)
