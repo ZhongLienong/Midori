@@ -1,0 +1,20 @@
+module ConstrainedInstance
+
+import { "../../../MarmotPrelude/IO.mmt", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+type Boxed<T> = { item: T };
+
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+instance Show<Boxed<T>> where Show<T> {
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def inner = Boxed(7);
+IO::PrintLine(Show::show(inner));

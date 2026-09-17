@@ -1,0 +1,60 @@
+module GenericConstructionInMethodArgument
+
+// The same inference as test/generics/success/generic_construction_in_call_argument.mmt,
+// but the callee is a class method rather than an ordinary generic function. The two
+// travel different paths in TypeChecker::operator()(MidoriExpression::Call&) and failed
+// for different reasons, so they are pinned separately.
+//
+// Instance selection is argument-directed: `Collect` has an Array instance and a Text
+// instance, so no parameter type is known until the arguments have been checked, and the
+// arguments were therefore checked with no expected type at all. NarrowClassMethodType
+// narrows the instances against the arguments already settled - once the container has
+// fixed the instance, the element parameter is known and the construction infers from it.
+//
+// This used Appendable, which had exactly this shape. Appendable was deleted for
+// mutating in place, and no prelude class has two type parameters and two
+// instances any more, so the test carries its own.
+//
+// The Text instance is not decorative. NarrowClassMethodType matches every
+// instance vacuously at argument index 0, where no argument type is known yet,
+// so a class with only one instance resolves there immediately and never
+// reaches the no-expected-type path this test pins. The second instance is
+// what makes the index-0 candidate set ambiguous. Do not remove it.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+class Collect < C, Elem >
+{
+	Append: fn(container: C, elem: Elem) -> C;
+};
+
+instance Collect < Array < T >, T >
+{
+	def Append = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
+};
+
+instance Collect < Text, Text >
+{
+	def Append = fn(container: Text, elem: Text) -> Text => container ++ elem;
+};
+
+def empty : Array<Slot<Int, Text>> = [];
+def slots = Collect::Append(Collect::Append(empty, Slot::Empty()), Slot::Occupied(2, "two"));
+
+IO::PrintLine("slots: " ++ (#slots as Text));
+
+// The Text instance of the same class still selects on its own arguments.
+def greeting = Collect::Append("hello", " world");
+
+IO::PrintLine("text: " ++ greeting);
+
+match slots[1] with
+	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
+	case Slot::Empty => IO::PrintLine("empty")
+;

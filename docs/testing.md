@@ -1,9 +1,9 @@
 # Testing Guide
 
-Midori has two complementary test layers:
+Marmot has two complementary test layers:
 
 - `tests/` contains in-process implementation tests built with Catch2 and linked against `MidoriCore`.
-- `test/` contains file-based language regression tests run through `Midori.exe test` and the legacy Python runners.
+- `test/` contains file-based language regression tests run through `Marmot.exe test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
 
@@ -18,10 +18,10 @@ Add a test under `tests/` when the behavior is best validated in-process:
 
 Add a test under `test/` when the behavior is best validated as a user-visible program run:
 
-- the scenario naturally lives as one or more `.mdr` files on disk
+- the scenario naturally lives as one or more `.mmt` files on disk
 - the regression depends on the executable boundary, startup behavior, or file layout
 - the assertion is exit status, `.expected` output, or `.warnings.json`
-- the test should exercise the same path that `Midori.exe` users take
+- the test should exercise the same path that `Marmot.exe` users take
 
 Default rule:
 
@@ -45,22 +45,22 @@ Regression tests:
 - add `<name>.expected` when stdout/stderr or compile-fail diagnostics must match a snapshot
 - `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
-- when a `.warnings.json` file is present, `Midori.exe test` compares the emitted warning JSON against that snapshot
-- `Midori.exe test` enforces `[test].timeout_ms` by running each fixture in an isolated worker process
-- `scripts/run_tests.py` still supports the legacy `MIDORI_TEST_WARNING_FORMAT=machine` path during the transition
-- CLI contract checks that do not fit the plain `test/<category>/*.mdr` model run through `scripts/check_cli_contracts.py`
+- when a `.warnings.json` file is present, `Marmot.exe test` compares the emitted warning JSON against that snapshot
+- `Marmot.exe test` enforces `[test].timeout_ms` by running each fixture in an isolated worker process
+- `scripts/run_tests.py` still supports the legacy `MARMOT_TEST_WARNING_FORMAT=machine` path during the transition
+- CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/check_cli_contracts.py`
 
 `<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the CLI diagnostic schema:
 
 ```json
 [
   {
-    "source": "midori",
+    "source": "marmot",
     "severity": "warning",
     "stage": "StaticAnalyzer",
     "code": "UnusedLocal",
-    "file": "test/static_analyzer/success/unused_local_warning.mdr",
-    "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+    "file": "test/static_analyzer/success/unused_local_warning.mmt",
+    "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
     "line": 4,
     "column": 4,
     "endLine": 4,
@@ -77,10 +77,10 @@ Keep the object order stable when warning order matters; the runner compares the
 
 Documentation examples:
 
-- runnable Markdown examples use fenced blocks whose info string starts with `midori-test`
+- runnable Markdown examples use fenced blocks whose info string starts with `marmot-test`
 - `scripts/check_doc_examples.py` extracts those fences, verifies their mirrors under `test/doc_examples/`, and compiles them from repo-aware temporary paths
 - the tracked mirrors under `test/doc_examples/` are sync targets for review; `scripts/run_tests.py` does not execute them directly
-- `python scripts/check_doc_examples.py --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `midori-test` fence
+- `python scripts/check_doc_examples.py --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `marmot-test` fence
 - use `name=<category>/<example>` for the stable mirror path under `test/doc_examples/<kind>/`
 - use `path=<repo-relative-temp-file>` for the actual extraction target used during compilation
 - use `module=<ModuleName>` when the snippet intentionally omits the required `module` declaration
@@ -102,13 +102,13 @@ The helpers in `tests/support/` exist to keep new tests short and deterministic.
 - `ExecuteSnippet(source, file_name)` compiles and runs a snippet in-process and captures stdout/stderr
 - `CollectTokenNames(tokens)` turns a token stream into a concise sequence for lexer assertions
 
-`CompileSnippet` and `ExecuteSnippet` already force Midori test mode, so most unit tests do not need to set `MIDORI_TEST_MODE` manually.
+`CompileSnippet` and `ExecuteSnippet` already force Marmot test mode, so most unit tests do not need to set `MARMOT_TEST_MODE` manually.
 
 Filesystem and environment helpers:
 
 - [`tests/support/TempDir.h`](../tests/support/TempDir.h) creates an isolated temporary directory and removes it on scope exit
 - [`tests/support/TempProject.h`](../tests/support/TempProject.h) builds small module trees for import and build-graph tests
-- [`tests/support/ScopedEnvVar.h`](../tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MIDORI_PATH`
+- [`tests/support/ScopedEnvVar.h`](../tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MARMOT_PATH`
 - [`tests/support/OutputCapture.h`](../tests/support/OutputCapture.h) captures native stdout/stderr when a test cannot use `ExecuteSnippet`
 
 Diagnostic helpers:
@@ -121,7 +121,7 @@ Example patterns:
 
 ```cpp
 const std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result =
-	MidoriTest::LexSnippet("def value = 1;\n", "Value.mdr");
+	MidoriTest::LexSnippet("def value = 1;\n", "Value.mmt");
 
 REQUIRE(lex_result.has_value());
 REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token::Name>
@@ -137,8 +137,8 @@ REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token
 ```cpp
 const MidoriTest::TempProject project
 ({
-	MidoriTest::TempProjectFile("Main.mdr", "module Main\nimport { \"./Lib.mdr\" }\ndef main = fn() -> Int => 0;\n"),
-	MidoriTest::TempProjectFile("Lib.mdr", "module Lib\ndef value = 1;\n")
+	MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"./Lib.mmt\" }\ndef main = fn() -> Int => 0;\n"),
+	MidoriTest::TempProjectFile("Lib.mmt", "module Lib\ndef value = 1;\n")
 });
 ```
 
@@ -192,14 +192,14 @@ Run the formatter idempotency check directly:
 
 ```powershell
 python scripts/check_format.py --build Development
-python scripts/check_format.py --build Development --root test --root MidoriPrelude
+python scripts/check_format.py --build Development --root test --root MarmotPrelude
 python scripts/check_format.py --build Development --enforce-clean
 ```
 
 `python scripts/test_project.py --mode regression` also runs `scripts/check_format.py` unless you pass `--skip-format-check`. The check verifies that
-`midori fmt` is idempotent across the test corpus, the prelude, and the
+`marmot fmt` is idempotent across the test corpus, the prelude, and the
 reference package. The optional `--enforce-clean` flag additionally requires
-`midori fmt --check` to pass on each scanned root.
+`marmot fmt --check` to pass on each scanned root.
 
 Compile every benchmark program, and optionally run them:
 
@@ -210,7 +210,7 @@ python scripts/check_benchmarks.py --build Release --run
 
 The programs under `benchmark/` print timings, so they have no snapshots and
 are not part of the regression suite. `scripts/check_benchmarks.py` runs
-`midori check` on each one and fails on any compile error or warning, so a
+`marmot check` on each one and fails on any compile error or warning, so a
 language change cannot leave them uncompilable unnoticed (it did once: every
 benchmark stopped compiling when v2 removed `loop`, assignment and in-place
 `Appendable`). `--run` also executes each one; its timings are only meaningful
@@ -222,24 +222,24 @@ Configure and build implementation tests on Windows:
 
 ```powershell
 cmake --preset x64-debug
-cmake --build --preset x64-debug --target MidoriUnitTests
+cmake --build --preset x64-debug --target MarmotUnitTests
 
 cmake --preset x64-development
-cmake --build --preset x64-development --target MidoriUnitTests
+cmake --build --preset x64-development --target MarmotUnitTests
 ```
 
 Configure and build implementation tests on Linux:
 
 ```bash
 cmake --preset linux-debug
-cmake --build --preset linux-debug --target MidoriUnitTests
+cmake --build --preset linux-debug --target MarmotUnitTests
 ```
 
 Release builds leave `MIDORI_BUILD_TESTS` off by default. Opt in explicitly when needed:
 
 ```powershell
 cmake --preset x64-release -DMIDORI_BUILD_TESTS=ON
-cmake --build --preset x64-release --target MidoriUnitTests
+cmake --build --preset x64-release --target MarmotUnitTests
 ```
 
 Run all registered Catch2 suites through CTest:
@@ -263,20 +263,20 @@ ctest --test-dir out/build/ninja/x64-debug --output-on-failure -R ImportResolver
 Run the Catch2 executable directly when you want tag filtering:
 
 ```powershell
-.\out\build\ninja\x64-debug\out\MidoriUnitTests.exe [runtime]
-.\out\build\ninja\x64-debug\out\MidoriUnitTests.exe [module][import]
+.\out\build\ninja\x64-debug\out\MarmotUnitTests.exe [runtime]
+.\out\build\ninja\x64-debug\out\MarmotUnitTests.exe [module][import]
 ```
 
 ```bash
-./out/build/ninja/linux-debug/out/MidoriUnitTests [runtime]
+./out/build/ninja/linux-debug/out/MarmotUnitTests [runtime]
 ```
 
 Run the file-based regression suite through the native CLI:
 
 ```powershell
-.\out\build\ninja\x64-development\out\Midori.exe test
-.\out\build\ninja\x64-development\out\Midori.exe test closure
-.\out\build\ninja\x64-development\out\Midori.exe test --pattern recursive
+.\out\build\ninja\x64-development\out\Marmot.exe test
+.\out\build\ninja\x64-development\out\Marmot.exe test closure
+.\out\build\ninja\x64-development\out\Marmot.exe test --pattern recursive
 ```
 
 Legacy Python runner:
@@ -298,7 +298,7 @@ Filter regression tests:
 python scripts/run_tests.py --category closure --build Development
 python scripts/run_tests.py --category static_analyzer --build Development
 python scripts/run_tests.py --pattern recursive --build Development
-python scripts/run_tests.py --test closure/simple.mdr --build Development
+python scripts/run_tests.py --test closure/simple.mmt --build Development
 ```
 
 ## Authoring Checklist

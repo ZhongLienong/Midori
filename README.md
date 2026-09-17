@@ -1,6 +1,6 @@
-# ミドリ (Midori)
+# ミドリ (Marmot)
 
-A statically-typed functional programming language featuring algebraic data types, pattern matching, typeclasses, and a module system. Compiles to bytecode for the Midori Virtual Machine with garbage-collected memory management.
+A statically-typed functional programming language featuring algebraic data types, pattern matching, typeclasses, and a module system. Compiles to bytecode for the Marmot Virtual Machine with garbage-collected memory management.
 
 ## Key Features
 
@@ -23,7 +23,7 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 ## Installation (Windows)
 ```powershell
-# From the repo root (after building Midori.exe):
+# From the repo root (after building Marmot.exe):
 python .\scripts\install.py --copy-binaries
 
 # This prefers a Release preset build if present,
@@ -36,32 +36,32 @@ python .\scripts\install.py --copy-binaries
 
 ## Getting Started
 
-After `Midori.exe` is on your `PATH`, a basic workflow uses only the CLI:
+After `Marmot.exe` is on your `PATH`, a basic workflow uses only the CLI:
 
 ```powershell
-midori init hello-world
+marmot init hello-world
 cd hello-world
 
-midori check src/Main.mdr
-midori fmt src -w
-midori run src/Main.mdr
-midori test
+marmot check src/Main.mmt
+marmot fmt src -w
+marmot run src/Main.mmt
+marmot test
 ```
 
-Every `.mdr` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
+Every `.mmt` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
 
 ### Hello World
-```midori-test name=readme/hello_world path=.doc_examples/readme_hello_world.mdr
+```marmot-test name=readme/hello_world path=.doc_examples/readme_hello_world.mmt
 module Main
 
 // Path import (relative or absolute)
-import { "../MidoriPrelude/IO.mdr" }
+import { "../MarmotPrelude/IO.mmt" }
 
-IO::PrintLine("Hello, Midori!");
+IO::PrintLine("Hello, Marmot!");
 ```
 
 ### Basic Types & Variables
-```midori-test name=readme/primitive_types path=.doc_examples/readme_primitive_types.mdr module=ReadmePrimitiveTypes
+```marmot-test name=readme/primitive_types path=.doc_examples/readme_primitive_types.mmt module=ReadmePrimitiveTypes
 def number : Int = 42;
 def pi : Float = 3.14159;
 def message : Text = "Hello";
@@ -70,13 +70,13 @@ def items : Array<Int> = [1, 2, 3, 4, 5];
 ```
 
 ### Tuples and Destructuring
-```midori-test name=readme/tuples_destructuring path=.doc_examples/readme/tuples_destructuring.mdr module=ReadmeTuplesDestructuring
+```marmot-test name=readme/tuples_destructuring path=.doc_examples/readme/tuples_destructuring.mmt module=ReadmeTuplesDestructuring
 def pair = (42, "answer");
 def (count, label) = pair;
 ```
 
 ### Functions
-```midori-test name=readme/functions path=.doc_examples/readme_functions.mdr module=ReadmeFunctions
+```marmot-test name=readme/functions path=.doc_examples/readme_functions.mmt module=ReadmeFunctions
 // Simple function
 def square = fn(x: Int) -> Int => x * x;
 
@@ -91,8 +91,8 @@ def apply = fn<T, R>(f: fn(T) -> R, value: T) -> R => f(value);
 ```
 
 ### Control Flow
-```midori-test name=readme/control_flow path=.doc_examples/readme_control_flow.mdr module=ReadmeControlFlow
-import { "../MidoriPrelude/IO.mdr" }
+```marmot-test name=readme/control_flow path=.doc_examples/readme_control_flow.mmt module=ReadmeControlFlow
+import { "../MarmotPrelude/IO.mmt" }
 
 def x = 3;
 
@@ -123,7 +123,7 @@ def sum = SumTo(0, 10, 0);  // 45
 ```
 
 ### Records (Product Types)
-```midori-test name=readme/records path=.doc_examples/readme_records.mdr module=ReadmeRecords
+```marmot-test name=readme/records path=.doc_examples/readme_records.mmt module=ReadmeRecords
 type Point = {
     x: Float,
     y: Float,
@@ -139,7 +139,7 @@ def x_coord = origin.x;
 ```
 
 ### Sums (Union Types)
-```midori-test name=readme/unions path=.doc_examples/readme_unions.mdr module=ReadmeUnions
+```marmot-test name=readme/unions path=.doc_examples/readme_unions.mmt module=ReadmeUnions
 type Option<T> = None | Some(T);
 
 type List<T> = Cons(T, List<T>) | Nil;
@@ -155,7 +155,7 @@ def empty_list : List<Int> = List::Nil();
 interchangeable. `type Name = Existing` introduces a *distinct* type over that
 representation, which does not mix with it by accident.
 
-```midori-test name=readme/type_aliases path=.doc_examples/readme_type_aliases.mdr module=ReadmeTypeAliases
+```marmot-test name=readme/type_aliases path=.doc_examples/readme_type_aliases.mmt module=ReadmeTypeAliases
 // An alias is transparent: UserId and Int are the same type.
 alias UserId = Int;
 alias Name = Text;
@@ -178,7 +178,7 @@ def raw: Int = distance as Int;
 ```
 
 ### Pattern Matching
-```midori-test name=readme/pattern_matching path=.doc_examples/readme_pattern_matching.mdr module=ReadmePatternMatching
+```marmot-test name=readme/pattern_matching path=.doc_examples/readme_pattern_matching.mmt module=ReadmePatternMatching
 type Result<T, E> = Ok(T) | Err(E);
 
 def handle_result = fn(result: Result<Int, Text>) -> Text =>
@@ -188,7 +188,7 @@ def handle_result = fn(result: Result<Int, Text>) -> Text =>
 ```
 
 ### Typeclasses
-```midori-test name=readme/typeclasses path=.doc_examples/readme_typeclasses.mdr module=ReadmeTypeclasses
+```marmot-test name=readme/typeclasses path=.doc_examples/readme_typeclasses.mmt module=ReadmeTypeclasses
 // Define a typeclass
 class Show<T> {
     show: fn(value: T) -> Text;
@@ -206,7 +206,7 @@ def message = display(42);  // "42"
 ```
 
 ### Associated Types
-```midori-test name=readme/associated_types path=.doc_examples/readme/associated_types.mdr module=ReadmeAssociatedTypes
+```marmot-test name=readme/associated_types path=.doc_examples/readme/associated_types.mmt module=ReadmeAssociatedTypes
 type Option<T> = None | Some(T);
 
 // Next yields the item and the rest of the sequence, so an iterator is a value
@@ -221,8 +221,8 @@ def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
 ```
 
 ### Deriving
-```midori-test name=readme/deriving path=.doc_examples/readme_deriving.mdr module=ReadmeDeriving
-import { "../MidoriPrelude/Equatable.mdr", "../MidoriPrelude/Hashable.mdr" }
+```marmot-test name=readme/deriving path=.doc_examples/readme_deriving.mmt module=ReadmeDeriving
+import { "../MarmotPrelude/Equatable.mmt", "../MarmotPrelude/Hashable.mmt" }
 
 type Point = {
     x: Int,
@@ -233,8 +233,8 @@ type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 ```
 
 ### Module System
-```midori
-// Define a module (MyModule.mdr)
+```marmot
+// Define a module (MyModule.mmt)
 module MyModule
 public export { add, multiply }
 
@@ -244,9 +244,9 @@ def internal = fn() -> Int => 100;  // Not exported
 
 // Use in another file
 // Path import (relative or absolute)
-import { "./MyModule.mdr" }
+import { "./MyModule.mmt" }
 
-// Or search in MIDORI_PATH (semicolon-separated on Windows, colon-separated on Unix)
+// Or search in MARMOT_PATH (semicolon-separated on Windows, colon-separated on Unix)
 // import { <MyModule> }
 
 def result = MyModule::add(5, 3);
@@ -254,27 +254,27 @@ def result = MyModule::add(5, 3);
 
 ### Package System
 
-Midori has early package support for manifest-discovered modules and optional native FFI libraries loaded at import time. This is not yet a full package manager.
+Marmot has early package support for manifest-discovered modules and optional native FFI libraries loaded at import time. This is not yet a full package manager.
 
 **Package structure:**
 ```text
 PackageName/
-  package.midori
-  PackageName.mdr
+  package.marmot
+  PackageName.mmt
   lib/
     windows/x64/packagename.dll
 ```
 
-`ModuleManager` discovers `package.midori` next to the imported module file. Actual exported symbols still come from the module's `public export` / `private export` blocks.
+`ModuleManager` discovers `package.marmot` next to the imported module file. Actual exported symbols still come from the module's `public export` / `private export` blocks.
 
 **Using a package:**
 ```bash
-# Set MIDORI_PATH to include package roots.
+# Set MARMOT_PATH to include package roots.
 # Use ';' on Windows and ':' on Unix-like systems.
-export MIDORI_PATH="/path/to/packages/PackageName:/path/to/MidoriPrelude"
+export MARMOT_PATH="/path/to/packages/PackageName:/path/to/MarmotPrelude"
 ```
 
-```midori
+```marmot
 import { <PackageName> }
 
 def result = PackageName::NativeFunction(arg1, arg2);
@@ -283,7 +283,7 @@ def result = PackageName::NativeFunction(arg1, arg2);
 See [Package System](docs/package-system.md) for the current manifest fields, dynamic-loading behavior, and FFI ABI limits.
 
 ### Pipe Operator
-```midori-test name=readme/pipelines path=.doc_examples/readme_pipelines.mdr module=ReadmePipelines
+```marmot-test name=readme/pipelines path=.doc_examples/readme_pipelines.mmt module=ReadmePipelines
 def double = fn(x: Int) -> Int => x * 2;
 type Result<T, E> = Ok(T) | Err(E);
 
@@ -306,7 +306,7 @@ def result =
 In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a normal identifier.
 
 ### Closures
-```midori-test name=readme/closures path=.doc_examples/readme_closures.mdr module=ReadmeClosures
+```marmot-test name=readme/closures path=.doc_examples/readme_closures.mmt module=ReadmeClosures
 def make_adder = fn(amount: Int) -> fn(Int) -> Int => fn(n: Int) -> Int => n + amount;
 
 def add_ten = make_adder(10);
@@ -358,7 +358,7 @@ There is no assignment operator, compound or otherwise, and no in-place
 mutation: `def` binds a name once and the name never changes value.
 Concatenating onto an existing binding produces a new value under a new name:
 
-```midori
+```marmot
 def updated_items = items ++ [value];
 def updated_text = text ++ suffix;
 ```
@@ -376,12 +376,12 @@ def updated_text = text ++ suffix;
 
 ## Standard Library
 
-`MidoriPrelude` is the standard-library layer that ships with the repo. The main module groups are:
+`MarmotPrelude` is the standard-library layer that ships with the repo. The main module groups are:
 
-- **Core ADTs** - `Prelude/Option.mdr`, `Prelude/Result.mdr`, `Prelude/List.mdr`
-- **Collections** - `Collections/Map.mdr`, `Collections/Set.mdr`
-- **Effects** - `IO.mdr`, `System.mdr`, `DateTime.mdr`
-- **Built-in helpers** - `TextUtil.mdr`, `ArrayUtil.mdr`, `Math.mdr`
+- **Core ADTs** - `Prelude/Option.mmt`, `Prelude/Result.mmt`, `Prelude/List.mmt`
+- **Collections** - `Collections/Map.mmt`, `Collections/Set.mmt`
+- **Effects** - `IO.mmt`, `System.mmt`, `DateTime.mmt`
+- **Built-in helpers** - `TextUtil.mmt`, `ArrayUtil.mmt`, `Math.mmt`
 - **Helper / typeclass modules** - `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
@@ -392,13 +392,13 @@ The public IO and system surface now prefers typed wrappers over sentinel values
 - `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`
 - `ArrayUtil::WithAppended`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse` (arrays are immutable; these return new arrays)
 
-`Prelude/Result.mdr` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are removed from the public prelude API.
+`Prelude/Result.mmt` uses `Result::Ok` and `Result::Err`. The older `Result::OK` and `Result::Error` spellings are removed from the public prelude API.
 
 See [Prelude](docs/prelude.md) for module-by-module notes and examples covering the typed `IO`, `System`, `DateTime`, `TextUtil`, `ArrayUtil`, and helper/typeclass modules.
 
 ## Foreign Function Interface (FFI)
 
-Midori has two FFI call paths:
+Marmot has two FFI call paths:
 
 - `CALL_FOREIGN_INDEXED` for built-in runtime functions registered in `MidoriFFIRegistry`
 - `CALL_FOREIGN` for generic external functions, including package-provided dynamic libraries
@@ -409,7 +409,7 @@ The examples below describe the generic `CALL_FOREIGN` ABI used by ordinary exte
 
 Use the `foreign` keyword to declare external functions:
 
-```midori
+```marmot
 // Declare a foreign function
 foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
 
@@ -484,7 +484,7 @@ const int64_t ptr = reinterpret_cast<int64_t>(result);
 std::memcpy(ret, &ptr, sizeof(int64_t));
 ```
 
-The VM copies returned text into Midori-managed storage and then frees the original string.
+The VM copies returned text into Marmot-managed storage and then frees the original string.
 
 #### Array Type
 
@@ -523,14 +523,14 @@ const int64_t ptr = reinterpret_cast<int64_t>(result);
 std::memcpy(ret, &ptr, sizeof(int64_t));
 ```
 
-For flat scalar arrays, each element slot should use Midori's 8-byte runtime value layout.
+For flat scalar arrays, each element slot should use Marmot's 8-byte runtime value layout.
 
 ### Memory Management Rules
 
 - Use `malloc` / `free` compatible allocation for returned text and arrays.
 - Do not free returned buffers after writing their pointer into `ret`; the VM takes ownership.
 - Returned arrays are wrapped through `MidoriArray::FromFFI`.
-- Short returned arrays are copied into Midori small-object storage and their original FFI buffer is freed.
+- Short returned arrays are copied into Marmot small-object storage and their original FFI buffer is freed.
 - Longer returned arrays are adopted directly without an element copy.
 - The outer `FFIArray` wrapper itself is always freed by the VM.
 - FFI code should not access the VM's garbage collector or internal runtime objects directly.
@@ -540,43 +540,43 @@ See [Package System](docs/package-system.md) for the current manifest-driven loa
 
 ## Development
 
-### Building Midori
+### Building Marmot
 
-Midori uses CMake presets for native builds.
+Marmot uses CMake presets for native builds.
 
 Configure and build a Development binary:
 ```bash
 cmake --preset x64-development
-cmake --build --preset x64-development --target Midori
+cmake --build --preset x64-development --target Marmot
 ```
 
 Other common presets:
 ```bash
 cmake --preset x64-debug
-cmake --build --preset x64-debug --target Midori
+cmake --build --preset x64-debug --target Marmot
 
 cmake --preset x64-release
-cmake --build --preset x64-release --target Midori
+cmake --build --preset x64-release --target Marmot
 ```
 
-Native preset builds write the executable to `out/build/ninja/<preset>/out/Midori.exe`.
+Native preset builds write the executable to `out/build/ninja/<preset>/out/Marmot.exe`.
 
 ### Running Programs
 
 ```bash
-# Run a Midori program built with the Development preset
-.\out\build\ninja\x64-development\out\Midori.exe run path\to\program.mdr
+# Run a Marmot program built with the Development preset
+.\out\build\ninja\x64-development\out\Marmot.exe run path\to\program.mmt
 
 # Shorthand form
-.\out\build\ninja\x64-development\out\Midori.exe path\to\program.mdr
+.\out\build\ninja\x64-development\out\Marmot.exe path\to\program.mmt
 
 # Type-check only
-.\out\build\ninja\x64-development\out\Midori.exe check path\to\program.mdr
+.\out\build\ninja\x64-development\out\Marmot.exe check path\to\program.mmt
 
 # Compile without executing
-.\out\build\ninja\x64-development\out\Midori.exe build path\to\program.mdr
+.\out\build\ninja\x64-development\out\Marmot.exe build path\to\program.mmt
 
-# This emits path\to\program.mbc.json next to the source file
+# This emits path\to\program.mmc.json next to the source file
 ```
 
 ### Running Unit Tests
@@ -593,7 +593,7 @@ python scripts/test_project.py
 Configure and build the unit test target:
 ```bash
 cmake --preset x64-debug
-cmake --build --preset x64-debug --target MidoriUnitTests
+cmake --build --preset x64-debug --target MarmotUnitTests
 ```
 
 Run the registered Catch2 suites through CTest:
@@ -604,7 +604,7 @@ ctest --test-dir out/build/ninja/x64-debug --output-on-failure
 You can also build and run the Development preset:
 ```bash
 cmake --preset x64-development
-cmake --build --preset x64-development --target MidoriUnitTests
+cmake --build --preset x64-development --target MarmotUnitTests
 ctest --test-dir out/build/ninja/x64-development --output-on-failure
 ```
 
@@ -614,15 +614,15 @@ See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` i
 
 Run all file-based language regression tests:
 ```bash
-.\out\build\ninja\x64-development\out\Midori.exe test
+.\out\build\ninja\x64-development\out\Marmot.exe test
 ```
 
 Run specific regression tests:
 ```bash
-.\out\build\ninja\x64-development\out\Midori.exe test --test closure/simple.mdr
-.\out\build\ninja\x64-development\out\Midori.exe test typeclass
-.\out\build\ninja\x64-development\out\Midori.exe test static_analyzer
-.\out\build\ninja\x64-development\out\Midori.exe test --pattern recursive
+.\out\build\ninja\x64-development\out\Marmot.exe test --test closure/simple.mmt
+.\out\build\ninja\x64-development\out\Marmot.exe test typeclass
+.\out\build\ninja\x64-development\out\Marmot.exe test static_analyzer
+.\out\build\ninja\x64-development\out\Marmot.exe test --pattern recursive
 ```
 
 Legacy Python runners are still available:
@@ -634,7 +634,7 @@ python scripts/test_project.py
 
 Test fixtures are file-based:
 ```bash
-# Add a new program test under test/<category>/<name>.mdr
+# Add a new program test under test/<category>/<name>.mmt
 # Put tests under a failure/ directory when they should fail compilation
 # Add <name>.expected to assert stdout/stderr or compile-fail diagnostic snapshots
 # Snapshot comparison strips ANSI codes and repo-root path prefixes first
@@ -644,14 +644,14 @@ Test fixtures are file-based:
 ## Example Programs
 
 ### Recursive Fibonacci
-```midori-test name=readme/recursive_fibonacci path=.doc_examples/readme/recursive_fibonacci.mdr module=ReadmeRecursiveFibonacci
+```marmot-test name=readme/recursive_fibonacci path=.doc_examples/readme/recursive_fibonacci.mmt module=ReadmeRecursiveFibonacci
 def fib = fn(n: Int) -> Int => {
     if n <= 1 then n else fib(n - 1) + fib(n - 2)
 };
 ```
 
 ### Binary Tree
-```midori-test name=readme/tree_height path=.doc_examples/readme_tree_height.mdr module=ReadmeTreeHeight
+```marmot-test name=readme/tree_height path=.doc_examples/readme_tree_height.mmt module=ReadmeTreeHeight
 type Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
 def height = fn<T>(tree: Tree<T>) -> Int =>
@@ -667,7 +667,7 @@ def height = fn<T>(tree: Tree<T>) -> Int =>
 ```
 
 ### Generic Linked List
-```midori-test name=readme/list_recursion path=.doc_examples/readme_list_recursion.mdr module=ReadmeListRecursion
+```marmot-test name=readme/list_recursion path=.doc_examples/readme_list_recursion.mmt module=ReadmeListRecursion
 type List<T> = Cons(T, List<T>) | Nil;
 
 def length = fn<T>(list: List<T>) -> Int =>
@@ -711,4 +711,4 @@ See the [docs](docs/) folder for detailed technical documentation:
 
 Editor assets:
 
-- `tools/vscode/midori-lang/` - sample VSCode extension with syntax highlighting and on-save diagnostics
+- `tools/vscode/marmot-lang/` - sample VSCode extension with syntax highlighting and on-save diagnostics

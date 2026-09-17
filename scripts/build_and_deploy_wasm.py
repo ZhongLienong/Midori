@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Build and deploy Midori WebAssembly
+Build and deploy Marmot WebAssembly
 
 This script builds the WASM module using Emscripten and deploys it
-to the website's public folder along with the MidoriPrelude files.
+to the website's public folder along with the MarmotPrelude files.
 """
 
 import multiprocessing
@@ -21,9 +21,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 BUILD_DIR = PROJECT_ROOT / 'build-wasm'
 OUTPUT_DIR = BUILD_DIR / 'out'
-PRELUDE_DIR = PROJECT_ROOT / 'MidoriPrelude'
+PRELUDE_DIR = PROJECT_ROOT / 'MarmotPrelude'
 WEBSITE_PUBLIC = Path('C:/Users/jk381/OneDrive/Documents/GitHub/ZhongLienong.github.io/public')
-WASM_FILES = ['midori.js', 'midori.wasm']
+WASM_FILES = ['marmot.js', 'marmot.wasm']
 
 
 @dataclass(frozen=True)
@@ -236,21 +236,21 @@ def deploy() -> bool:
 		shutil.copy2(src, dst)
 		print(f"  {filename} ({format_size(src.stat().st_size)})")
 
-	prelude_dest = WEBSITE_PUBLIC / 'MidoriPrelude'
+	prelude_dest = WEBSITE_PUBLIC / 'MarmotPrelude'
 	if prelude_dest.exists():
 		shutil.rmtree(prelude_dest)
 	shutil.copytree(PRELUDE_DIR, prelude_dest)
 
-	prelude_manifest = sorted(path.relative_to(prelude_dest).as_posix() for path in prelude_dest.rglob('*.mdr'))
+	prelude_manifest = sorted(path.relative_to(prelude_dest).as_posix() for path in prelude_dest.rglob('*.mmt'))
 	(prelude_dest / 'manifest.json').write_text(json.dumps(prelude_manifest, indent=2) + '\n', encoding='utf-8')
 	mdr_count = len(prelude_manifest)
-	print(f"  MidoriPrelude/ ({mdr_count} files)")
+	print(f"  MarmotPrelude/ ({mdr_count} files)")
 
 	return True
 
 
 def main() -> int:
-	print("Midori WebAssembly - Build and Deploy")
+	print("Marmot WebAssembly - Build and Deploy")
 	print("=" * 50)
 
 	tools = check_emscripten()

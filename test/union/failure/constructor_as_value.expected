@@ -1,5 +1,5 @@
 Compilation failed :(
-Parser Error at test/union/failure/constructor_as_value.mdr:9
+Parser Error at test/union/failure/constructor_as_value.mmt:9
   |
 9 | def bad = Opt::None;
   |           ^^^ Constructor 'Opt::None' cannot be used as a value; it is monomorphised at each construction site and has no single procedure to pass around. Write 'Opt::None(...)' to construct, or wrap it in a lambda.

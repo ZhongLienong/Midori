@@ -1,17 +1,17 @@
 # FFI ABI
 
-Midori currently exposes `FFI ABI v1`.
+Marmot currently exposes `FFI ABI v1`.
 
-Dynamic native packages must declare the ABI they target in `package.midori`:
+Dynamic native packages must declare the ABI they target in `package.marmot`:
 
 ```toml
 [ffi]
 enabled = true
-library_name = "midori_image"
+library_name = "marmot_image"
 abi_version = 1
 
 [ffi.functions]
-"Image::ReadInfo" = "midori_image_read_info"
+"Image::ReadInfo" = "marmot_image_read_info"
 ```
 
 If `abi_version` does not match the runtime's current ABI version, manifest load
@@ -34,7 +34,7 @@ Call contract:
 
 - `args` points to the argument slots for the current call
 - only the first `arity` slots are meaningful
-- `ret` points to storage owned by the Midori VM for the return value
+- `ret` points to storage owned by the Marmot VM for the return value
 - native code must not keep `args` or `ret` pointers after the call returns
 
 ## Argument Marshalling
@@ -44,8 +44,8 @@ native code.
 
 ### `RawValue`
 
-- The slot contains the raw Midori value bits for scalar values.
-- This is the lowest-level form and assumes the callee understands Midori's
+- The slot contains the raw Marmot value bits for scalar values.
+- This is the lowest-level form and assumes the callee understands Marmot's
   in-memory value representation.
 
 ### `CString`
@@ -71,7 +71,7 @@ struct FFIArray
 
 ### `TraceableHandle`
 
-- The slot contains a `MidoriTraceable*` managed by the Midori GC.
+- The slot contains a `MidoriTraceable*` managed by the Marmot GC.
 - The handle is borrowed and only valid during the call.
 
 ### `ValueHandle`
@@ -80,7 +80,7 @@ struct FFIArray
 - The pointee is borrowed and only valid during the call.
 
 Manifest-driven dynamic FFI currently uses the same physical call signature, but
-does not yet expose per-function `FFIArgumentKind` metadata in `package.midori`.
+does not yet expose per-function `FFIArgumentKind` metadata in `package.marmot`.
 The runtime therefore uses the generic dynamic-call marshalling path for those
 functions.
 
@@ -90,29 +90,29 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 ### `RawValue`
 
-- Native code writes a Midori-compatible raw value into `ret`.
+- Native code writes a Marmot-compatible raw value into `ret`.
 - Ownership remains with the VM.
 
 ### `CString`
 
 - Native code stores a `char*` in `ret`.
-- Midori copies the text into managed `Text` storage and then frees the native
+- Marmot copies the text into managed `Text` storage and then frees the native
   buffer with `std::free`.
 - Return buffers must therefore be allocated with a `malloc`-compatible
-  allocator that is safe to free from the Midori process.
+  allocator that is safe to free from the Marmot process.
 
 ### `ArrayValues`
 
 - Native code stores an `FFIArray*` in `ret`.
 - `FFIArray::data` must point to a `MidoriValue*` buffer.
-- Midori takes ownership of that buffer, wraps it as a Midori array, and frees
+- Marmot takes ownership of that buffer, wraps it as a Marmot array, and frees
   the outer `FFIArray` wrapper.
 
 ### `ArrayStrings`
 
 - Native code stores an `FFIArray*` in `ret`.
 - `FFIArray::data` must point to `char**`.
-- Midori copies each string into managed `Text`, frees each `char*`, then frees
+- Marmot copies each string into managed `Text`, frees each `char*`, then frees
   the string pointer array and the outer `FFIArray` wrapper.
 
 ### `Value`
@@ -125,21 +125,21 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 - Incoming arguments are borrowed.
 - Returned `CString`, `ArrayValues`, and `ArrayStrings` transfer ownership to
-  Midori.
+  Marmot.
 - Returned buffers must be allocated in a way that is compatible with
   `std::free` in the current process.
-- Native code must not retain raw pointers into Midori-managed arrays, texts, or
+- Native code must not retain raw pointers into Marmot-managed arrays, texts, or
   traceables after the call returns.
 
 ## Threading
 
-- The current Midori runtime is single-threaded at the VM boundary.
+- The current Marmot runtime is single-threaded at the VM boundary.
 - Native calls run on the VM thread.
 - No concurrent re-entry guarantee is provided for FFI packages in ABI v1.
 
 ## Load-Time Validation
 
-For manifest-driven dynamic packages, Midori validates at load time:
+For manifest-driven dynamic packages, Marmot validates at load time:
 
 - `abi_version` matches the runtime's supported ABI version
 - the native library can be loaded

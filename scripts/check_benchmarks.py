@@ -6,7 +6,7 @@ Neither directory is part of the regression suite: the benchmarks print timings
 and the misc/ programs write image files, so neither has a stable snapshot.
 Nothing used to compile them, and on the v2 branch every one of them stopped
 compiling unnoticed when the language dropped `loop`, assignment and in-place
-`Appendable`. This check runs `midori check` (the full compile pipeline, without
+`Appendable`. This check runs `marmot check` (the full compile pipeline, without
 executing) on each one and fails on any compile error or warning.
 
 Examples:
@@ -33,15 +33,15 @@ def repo_root() -> Path:
 
 
 def discover_benchmarks(root: Path) -> list[Path]:
-    return sorted((root / "benchmark").glob("*.mdr")) + sorted((root / "misc").glob("*.mdr"))
+    return sorted((root / "benchmark").glob("*.mmt")) + sorted((root / "misc").glob("*.mmt"))
 
 
 def build_environment(root: Path) -> dict[str, str]:
     env = os.environ.copy()
     separator = ";" if os.name == "nt" else ":"
-    prelude_path = str((root / "MidoriPrelude").resolve())
-    existing = env.get("MIDORI_PATH", "")
-    env["MIDORI_PATH"] = prelude_path if existing == "" else separator.join([prelude_path, existing])
+    prelude_path = str((root / "MarmotPrelude").resolve())
+    existing = env.get("MARMOT_PATH", "")
+    env["MARMOT_PATH"] = prelude_path if existing == "" else separator.join([prelude_path, existing])
     return env
 
 
@@ -62,7 +62,7 @@ def check_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str
     try:
         payload = json.loads(completed.stdout)
     except json.JSONDecodeError:
-        return f"could not parse `midori check` output (exit {completed.returncode}):\n{completed.stdout}{completed.stderr}"
+        return f"could not parse `marmot check` output (exit {completed.returncode}):\n{completed.stdout}{completed.stderr}"
 
     report = payload.get("report", {})
     errors = report.get("errors", [])
@@ -109,7 +109,7 @@ def main(argv: list[str]) -> int:
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Midori.exe (default: Development).",
+        help="Build configuration used to locate Marmot.exe (default: Development).",
     )
     parser.add_argument(
         "--run",

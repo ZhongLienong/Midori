@@ -33,13 +33,13 @@ namespace
 	// Result<T, WorkerError>, and the program prints what it received.
 	std::string JoinImports()
 	{
-		const std::filesystem::path prelude = RepositoryRoot() / "MidoriPrelude";
+		const std::filesystem::path prelude = RepositoryRoot() / "MarmotPrelude";
 		return std::format(
 			R"(import {{ "{}", "{}", "{}", "{}" }})",
-			MidoriPathLiteral(prelude / "System.mdr"),
-			MidoriPathLiteral(prelude / "IO.mdr"),
-			MidoriPathLiteral(prelude / "Concurrency.mdr"),
-			MidoriPathLiteral(prelude / "Prelude" / "Result.mdr"));
+			MidoriPathLiteral(prelude / "System.mmt"),
+			MidoriPathLiteral(prelude / "IO.mmt"),
+			MidoriPathLiteral(prelude / "Concurrency.mmt"),
+			MidoriPathLiteral(prelude / "Prelude" / "Result.mmt"));
 	}
 
 	// Prints "join: cancelled", "join: failed: <message>" or "join: ok <value>".
@@ -66,8 +66,8 @@ IO::PrintLine("join: " ++ Describe(r));
 
 TEST_CASE("Joining a cancelled spinning worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("midori-worker-cancel");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelJoin.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-worker-cancel");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelJoin.mmt";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelJoin
@@ -94,8 +94,8 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("midori-worker-cancel-tail");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-tail");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mmt";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelTailJoin
@@ -119,8 +119,8 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Joining a cancelled worker reports cancellation, not a generic failure", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("midori-worker-cancel-code");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelCode.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-code");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelCode.mmt";
 
 	// The worker's WorkerCancelled code must map to WorkerError::Cancelled, not be
 	// flattened into Failed with some internal message.
@@ -149,8 +149,8 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("midori-worker-cancel-sleep");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-sleep");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mmt";
 
 	const std::string source_code = std::format(
 		R"(module WorkerCancelSleep

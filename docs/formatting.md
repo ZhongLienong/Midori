@@ -1,9 +1,9 @@
 # Formatting
 
-Midori ships a first-party formatter through:
+Marmot ships a first-party formatter through:
 
 ```powershell
-Midori.exe fmt <file|dir>
+Marmot.exe fmt <file|dir>
 ```
 
 ## Commands
@@ -11,31 +11,31 @@ Midori.exe fmt <file|dir>
 Format a single file to stdout:
 
 ```powershell
-Midori.exe fmt src/Main.mdr
+Marmot.exe fmt src/Main.mmt
 ```
 
 Rewrite files in place:
 
 ```powershell
-Midori.exe fmt src -w
+Marmot.exe fmt src -w
 ```
 
 Check whether formatting would change anything:
 
 ```powershell
-Midori.exe fmt test --check
+Marmot.exe fmt test --check
 ```
 
 Machine-readable summary:
 
 ```powershell
-Midori.exe fmt src --check --format json
+Marmot.exe fmt src --check --format json
 ```
 
 ## Canonical Style
 
-The canonical Midori style is opinionated and not configurable. The formatter is
-the source of truth; the rules below document what `Midori.exe fmt` produces.
+The canonical Marmot style is opinionated and not configurable. The formatter is
+the source of truth; the rules below document what `Marmot.exe fmt` produces.
 
 ### Indentation
 
@@ -88,7 +88,7 @@ Imports inside a single `import { ... }` block are grouped by category in this
 order, and ordered alphabetically within each group:
 
 1. `<Module>` brace-style references to package-resolved modules
-2. `"path/to/Module.mdr"` quoted relative paths
+2. `"path/to/Module.mmt"` quoted relative paths
 
 A file may contain multiple `import` blocks; the formatter does not merge them,
 but it preserves blank-line separation between top-level directives so authors
@@ -104,7 +104,7 @@ can group related imports manually.
 - the trailing `;` that closes the `match` expression appears on its own
   position immediately after the last arm
 
-```midori
+```marmot
 def name = match value with
     case (Some(x), 0) => x
     case (Some(x), _) => x + 1
@@ -152,7 +152,7 @@ Attachment rules:
 - **inline block comments** that sit between tokens on the same line stay
   inline, surrounded by single spaces
 
-`Midori.exe fmt` is intended to be idempotent for both comment-free and
+`Marmot.exe fmt` is intended to be idempotent for both comment-free and
 comment-bearing source files. Any non-idempotent output is treated as a bug.
 
 ## CI Integration
@@ -161,8 +161,8 @@ To enforce formatting in CI, run the formatter in `--check` mode against the
 source tree:
 
 ```powershell
-Midori.exe fmt src --check
-Midori.exe fmt test --check
+Marmot.exe fmt src --check
+Marmot.exe fmt test --check
 ```
 
 `--check` exits with a non-zero status when any file would change. Combine with

@@ -1,10 +1,10 @@
 # Module System
 
-Midori modules provide namespace isolation, explicit visibility, and dependency-driven multi-file compilation.
+Marmot modules provide namespace isolation, explicit visibility, and dependency-driven multi-file compilation.
 
 ## Core Rules
 
-Every `.mdr` file must satisfy these rules:
+Every `.mmt` file must satisfy these rules:
 
 - It must contain exactly one explicit `module` declaration.
 - That `module` declaration must be the first top-level statement in the file.
@@ -24,7 +24,7 @@ After the `module` declaration, top-level module statements are flexible:
 
 ### Module Declaration
 
-```midori
+```marmot
 module Math.Vector
 ```
 
@@ -32,7 +32,7 @@ Module names use dot-separated identifiers and define the qualification prefix u
 
 ### Export Blocks
 
-```midori
+```marmot
 module Math.Vector
 public export { add, dot }
 private export { debug_helper }
@@ -46,43 +46,43 @@ Visibility levels:
 
 ### Import Forms
 
-System import through `MIDORI_PATH`:
+System import through `MARMOT_PATH`:
 
-```midori
+```marmot
 import { <IO> }
 import { <Math.Vector> }
 ```
 
 Path import relative to the importing file:
 
-```midori
-import { "./helpers.mdr" }
-import { "../lib/database.mdr" }
+```marmot
+import { "./helpers.mmt" }
+import { "../lib/database.mmt" }
 ```
 
 Multiple imports can share a block:
 
-```midori
-import { <IO>, "./helpers.mdr" }
+```marmot
+import { <IO>, "./helpers.mmt" }
 ```
 
 ### Use Forms
 
 Single imported symbol:
 
-```midori
+```marmot
 use Math.Vector.add
 ```
 
 Braced list:
 
-```midori
+```marmot
 use Math.Vector.{add, multiply}
 ```
 
 Without `use`, cross-module access stays qualified:
 
-```midori
+```marmot
 def result = Math.Vector::add(v1, v2);
 ```
 
@@ -90,7 +90,7 @@ def result = Math.Vector::add(v1, v2);
 
 Only `module` is fixed in position. Other module statements can be scattered:
 
-```midori-test name=module-system/flexible_placement path=.doc_examples/module_system/flexible_placement.mdr
+```marmot-test name=module-system/flexible_placement path=.doc_examples/module_system/flexible_placement.mmt
 module Example
 
 def LocalHelper = fn(x: Int) -> Int => x + 1;
@@ -115,12 +115,12 @@ This matches the current implementation and the regression fixtures under `test/
 
 `ImportResolver` resolves:
 
-- `<Module.Name>` by converting it to `Module/Name.mdr` and searching `MIDORI_PATH`
-- `"relative/path.mdr"` relative to the importing file
+- `<Module.Name>` by converting it to `Module/Name.mmt` and searching `MARMOT_PATH`
+- `"relative/path.mmt"` relative to the importing file
 
 Platform notes:
 
-- `MIDORI_PATH` uses `;` on Windows and `:` on Unix-like systems.
+- `MARMOT_PATH` uses `;` on Windows and `:` on Unix-like systems.
 - Resolved import paths are normalized to absolute paths.
 
 ### Build Graph Construction
@@ -153,7 +153,7 @@ Two different files cannot declare the same module name. The build graph rejects
 
 Cross-module names use `::`:
 
-```midori-test name=module-system/qualified_access path=.doc_examples/module_system/qualified_access.mdr module=ModuleQualifiedAccess
+```marmot-test name=module-system/qualified_access path=.doc_examples/module_system/qualified_access.mmt module=ModuleQualifiedAccess
 import { <IO> }
 
 def main = fn() -> Int => {
@@ -164,7 +164,7 @@ def main = fn() -> Int => {
 
 ### Unqualified Access via `use`
 
-```midori-test name=module-system/use_access path=.doc_examples/module_system/use_access.mdr module=ModuleUseAccess
+```marmot-test name=module-system/use_access path=.doc_examples/module_system/use_access.mmt module=ModuleUseAccess
 import { <IO> }
 use IO.{PrintLine}
 
@@ -187,7 +187,7 @@ Examples:
 
 Types must be exported to be used from another module through qualified access.
 
-```midori
+```marmot
 module MyLib
 public export { PublicType, GetValue }
 
@@ -254,4 +254,4 @@ The declared entry module name is preserved for bootstrap and debug labeling whe
 
 ## Package Interaction
 
-If an imported module's directory contains `package.midori`, `ModuleManager` loads that manifest during graph construction. If `[ffi].enabled = true` and the declared library exists, the dynamic FFI registry loads it before compilation continues. See [Package System](package-system.md).
+If an imported module's directory contains `package.marmot`, `ModuleManager` loads that manifest during graph construction. If `[ffi].enabled = true` and the declared library exists, the dynamic FFI registry loads it before compilation continues. See [Package System](package-system.md).

@@ -34,7 +34,7 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 		R"(def values = [42, 0x2A, 0b1010, 3.5, "line\n\t\"\\q"];
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LiteralForms.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LiteralForms.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -79,7 +79,7 @@ still in the comment */
 def other = 2;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Comments.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Comments.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -119,7 +119,7 @@ def value = /* inline */ 1;
 
 	MidoriResult::LexerResult lex_result = Lexer(
 		std::string(source_code),
-		"PreserveComments.mdr",
+		"PreserveComments.mmt",
 		Lexer::Options{ .m_preserve_comments = true }).Lex();
 	if (!lex_result.has_value())
 	{
@@ -157,7 +157,7 @@ TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
 		R"(def alpha = alpha + alpha;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "TokenSpans.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "TokenSpans.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -190,7 +190,7 @@ inverted = ~mask;
 stream |> sink;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Operators.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Operators.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -274,7 +274,7 @@ TEST_CASE("Lexer reports dedicated migration diagnostics for legacy shift operat
 		CAPTURE(test_case.m_legacy_operator);
 
 		const std::string source_code = "def value = bits " + std::string(test_case.m_legacy_operator) + " 1;\n";
-		std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LegacyShiftSyntax.mdr");
+		std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LegacyShiftSyntax.mmt");
 
 		REQUIRE_FALSE(lex_result.has_value());
 
@@ -285,7 +285,7 @@ TEST_CASE("Lexer reports dedicated migration diagnostics for legacy shift operat
 		REQUIRE(error.m_stage == CompilerStage::Lexer);
 		REQUIRE(error.m_location.has_value());
 		REQUIRE(error.m_suggestion.has_value());
-		CHECK(error.m_location->m_file_name == "LegacyShiftSyntax.mdr");
+		CHECK(error.m_location->m_file_name == "LegacyShiftSyntax.mmt");
 		CHECK(error.m_location->m_line == 1);
 		CHECK(error.m_message == expected_message);
 		CHECK(*error.m_suggestion == expected_suggestion);
@@ -304,19 +304,19 @@ TEST_CASE("Lexer reports the dedicated =+ typo diagnostic", "[lexer]")
 		R"(def value =+ 1;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "EqualPlusTypo.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "EqualPlusTypo.mmt");
 
 	REQUIRE_FALSE(lex_result.has_value());
 
 	const CompilerError& error = lex_result.error();
 	REQUIRE(error.m_stage == CompilerStage::Lexer);
 	REQUIRE(error.m_location.has_value());
-	CHECK(error.m_location->m_file_name == "EqualPlusTypo.mdr");
+	CHECK(error.m_location->m_file_name == "EqualPlusTypo.mmt");
 	CHECK(error.m_location->m_line == 1);
 
 	const std::string rendered_error = std::string(error.Rendered());
 	CHECK_THAT(rendered_error, ContainsSubstring("Lexer Error"));
 	CHECK_THAT(rendered_error, ContainsSubstring("Unexpected character '=+' (did you mean '=++'?)"));
-	CHECK_THAT(rendered_error, ContainsSubstring("EqualPlusTypo.mdr:1"));
+	CHECK_THAT(rendered_error, ContainsSubstring("EqualPlusTypo.mmt:1"));
 	CHECK_THAT(rendered_error, ContainsSubstring("def value =+ 1;"));
 }

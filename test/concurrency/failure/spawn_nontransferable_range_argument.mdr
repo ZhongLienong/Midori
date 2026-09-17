@@ -1,9 +1,0 @@
-module spawn_nontransferable_range_argument
-
-import { "../../../MidoriPrelude/Concurrency.mdr" }
-
-def ConsumeRange = fn(values: Range<Int>) -> Int => {
-    0
-};
-
-def worker = Concurrency::Spawn(0..1..10, ConsumeRange);

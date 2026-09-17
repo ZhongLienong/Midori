@@ -1002,7 +1002,7 @@ namespace
 
 	void DumpOpcodeProfile()
 	{
-		std::FILE* file = std::fopen("midori_opcode_profile.txt", "w");
+		std::FILE* file = std::fopen("marmot_opcode_profile.txt", "w");
 		if (file == nullptr)
 		{
 			return;

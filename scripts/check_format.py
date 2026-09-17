@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Format-idempotency check for the Midori source tree.
+Format-idempotency check for the Marmot source tree.
 
-For every `.mdr` file under the configured roots, runs `Midori.exe fmt <file>`
+For every `.mmt` file under the configured roots, runs `Marmot.exe fmt <file>`
 twice and verifies that:
 
 - the formatter succeeds on the original source
@@ -10,13 +10,13 @@ twice and verifies that:
   (`fmt(fmt(x)) == fmt(x)`)
 
 Exits with a non-zero status when any file fails either check. Optionally also
-runs `Midori.exe fmt <root> --check` to enforce that the corpus is already
+runs `Marmot.exe fmt <root> --check` to enforce that the corpus is already
 formatted - controlled by `--enforce-clean`.
 
 Usage:
     python scripts/check_format.py
     python scripts/check_format.py --build Debug
-    python scripts/check_format.py --root test --root MidoriPrelude
+    python scripts/check_format.py --root test --root MarmotPrelude
     python scripts/check_format.py --enforce-clean
 """
 
@@ -33,7 +33,7 @@ from run_tests import TestRunner
 
 DEFAULT_ROOTS: tuple[str, ...] = (
     "test",
-    "MidoriPrelude",
+    "MarmotPrelude",
     "reference_package",
 )
 
@@ -47,10 +47,10 @@ def collect_mdr_files(roots: Sequence[Path]) -> list[Path]:
     for root in roots:
         if not root.exists():
             continue
-        if root.is_file() and root.suffix == ".mdr":
+        if root.is_file() and root.suffix == ".mmt":
             files.append(root)
             continue
-        for path in root.rglob("*.mdr"):
+        for path in root.rglob("*.mmt"):
             if path.is_file():
                 files.append(path)
     return sorted(set(files))
@@ -153,13 +153,13 @@ def main(argv: list[str]) -> int:
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Midori.exe (default: Development).",
+        help="Build configuration used to locate Marmot.exe (default: Development).",
     )
     parser.add_argument(
         "--root",
         action="append",
         default=None,
-        help="Source tree root to scan for .mdr files. May be repeated. Defaults to the canonical roots.",
+        help="Source tree root to scan for .mmt files. May be repeated. Defaults to the canonical roots.",
     )
     parser.add_argument(
         "--enforce-clean",
@@ -189,7 +189,7 @@ def main(argv: list[str]) -> int:
 
     files = collect_mdr_files(roots)
     if not files:
-        print("No .mdr files found under the requested roots.")
+        print("No .mmt files found under the requested roots.")
         return 0
 
     idempotency_exit_code = check_idempotency(runner, files, args.verbose)

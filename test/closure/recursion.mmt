@@ -1,0 +1,10 @@
+module Recursion
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+def factorial = fn(n : Int) -> Int => if n <= 1 then 1 else n * factorial(n-1);
+
+IO::PrintLine(factorial(5) as Text);  // Should print 120

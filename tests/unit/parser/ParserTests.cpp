@@ -155,7 +155,7 @@ def grouped = 1 + (2 * 3);
 def tuple_value = (1 + 2, 3);
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserPrecedence.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserPrecedence.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -200,7 +200,7 @@ def tuple_value = (1 + 2, 3);
 		R"(module ParserMixed
 def mixed = 1 + 2 * 3;
 )";
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> mixed_result = MidoriTest::ParseSnippet(mixed_source, "ParserMixed.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> mixed_result = MidoriTest::ParseSnippet(mixed_source, "ParserMixed.mmt");
 	REQUIRE_FALSE(mixed_result.has_value());
 	const std::string rendered(mixed_result.error().Rendered());
 	REQUIRE(rendered.find("do not bind equally") != std::string::npos);
@@ -229,7 +229,7 @@ def boxed : Box<Array<Array<Text>>> = Box(nested);
 def shift = fn(value: Int, data: Array<Array<Text>>) -> Int where Show<Array<Array<Text>>> => value >> 1;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedGenericClosers.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -261,7 +261,7 @@ class Iterable<Iter> {
 def NextValue = fn(iter: Array<Array<Int>>) -> Iterable::Item<Array<Array<Int>>> where Iterable<Array<Array<Int>>> => iter;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserNestedAssociatedTypes.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -275,27 +275,27 @@ TEST_CASE("Parser exposes module exports and use imports extracted from the modu
 	const MidoriTest::TempProject project
 	({
 		MidoriTest::TempProjectFile(
-			"Helper.mdr",
+			"Helper.mmt",
 			R"(module Helper
 public export { increment, decrement }
 def increment = 1;
 def decrement = 0;
 )"),
 		MidoriTest::TempProjectFile(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
 public export { local_value }
-import { "Helper.mdr" }
+import { "Helper.mmt" }
 use Helper.{increment, decrement}
 def local_value = 1;
 )")
 	});
 
-	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::filesystem::path main_path = project.Path("Main.mmt");
 	const std::string main_source_code =
 		R"(module Main
 public export { local_value }
-import { "Helper.mdr" }
+import { "Helper.mmt" }
 use Helper.{increment, decrement}
 def local_value = 1;
 )";
@@ -330,7 +330,7 @@ TEST_CASE("Parser errors preserve parser stage and exact source metadata", "[par
 def value = ;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserFailure.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserFailure.mmt");
 	REQUIRE_FALSE(parse_result.has_value());
 
 	const CompilerError& error = parse_result.error();
@@ -340,11 +340,11 @@ def value = ;
 		{
 			.m_stage = CompilerStage::Parser,
 			.m_line = 2,
-			.m_rendered_substrings = { "Parser Error", "ParserFailure.mdr:2", "def value = ;" }
+			.m_rendered_substrings = { "Parser Error", "ParserFailure.mmt:2", "def value = ;" }
 		});
 
 	REQUIRE(error.m_location.has_value());
-	CHECK(error.m_location->m_file_name == "ParserFailure.mdr");
+	CHECK(error.m_location->m_file_name == "ParserFailure.mmt");
 	CHECK(error.m_location->m_line == 2);
 	CHECK(error.m_location->m_column == 12);
 	CHECK(error.m_location->m_caret_length == 1u);
@@ -360,7 +360,7 @@ TEST_CASE("Parser reports array comprehension near-miss syntax before name resol
 def value = [i i in 0..1..10];
 )";
 
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingFor.mdr");
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingFor.mmt");
 		REQUIRE_FALSE(parse_result.has_value());
 		const CompilerError& error = parse_result.error();
 		RequireErrorMatches(
@@ -370,7 +370,7 @@ def value = [i i in 0..1..10];
 				.m_stage = CompilerStage::Parser,
 				.m_line = 2,
 				.m_message_substrings = { "Expected 'for' in array comprehension." },
-				.m_rendered_substrings = { "SyntaxMissingFor.mdr:2", "def value = [i i in 0..1..10];" }
+				.m_rendered_substrings = { "SyntaxMissingFor.mmt:2", "def value = [i i in 0..1..10];" }
 			});
 
 		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
@@ -386,7 +386,7 @@ def value = [i i in 0..1..10];
 def value = [i for i 0..1..10];
 )";
 
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingIn.mdr");
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SyntaxMissingIn.mmt");
 		REQUIRE_FALSE(parse_result.has_value());
 		const CompilerError& error = parse_result.error();
 		RequireErrorMatches(
@@ -396,7 +396,7 @@ def value = [i for i 0..1..10];
 				.m_stage = CompilerStage::Parser,
 				.m_line = 2,
 				.m_message_substrings = { "Expected 'in' after loop variable in array comprehension." },
-				.m_rendered_substrings = { "SyntaxMissingIn.mdr:2", "def value = [i for i 0..1..10];" }
+				.m_rendered_substrings = { "SyntaxMissingIn.mmt:2", "def value = [i for i 0..1..10];" }
 			});
 
 		CHECK(error.m_message.find("Undefined name.") == std::string::npos);
@@ -413,7 +413,7 @@ TEST_CASE("Parser keeps arrays whose first element is a for-expression out of th
 def value = [for i in 0..1..10 i];
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrayForLiteral.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrayForLiteral.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -456,7 +456,7 @@ def value = 1
 				sync_case.m_next_declaration
 			);
 
-			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, std::format("ParserRecovery_{}.mdr", sync_case.m_name));
+			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, std::format("ParserRecovery_{}.mmt", sync_case.m_name));
 			if (!prepared_result.has_value())
 			{
 				FAIL(std::string(prepared_result.error().Rendered()));
@@ -481,7 +481,7 @@ class Next<T> {
 };
 )";
 
-	std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, "ParserRecoveryLimited.mdr");
+	std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared_result = PrepareParser(source_code, "ParserRecoveryLimited.mmt");
 	if (!prepared_result.has_value())
 	{
 		FAIL(std::string(prepared_result.error().Rendered()));
@@ -499,24 +499,24 @@ TEST_CASE("Parser rejects qualified access to private exports outside the curren
 	const MidoriTest::TempProject project
 	({
 		MidoriTest::TempProjectFile(
-			"Secrets.mdr",
+			"Secrets.mmt",
 			R"(module Secrets
 private export { hidden }
 def hidden = 7;
 )"),
 		MidoriTest::TempProjectFile(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
-import { "./Secrets.mdr" }
+import { "./Secrets.mmt" }
 def value = Secrets::hidden;
 def main = fn() -> Int => value;
 )")
 	});
 
-	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::filesystem::path main_path = project.Path("Main.mmt");
 	const std::string main_source_code =
 		R"(module Main
-import { "./Secrets.mdr" }
+import { "./Secrets.mmt" }
 def value = Secrets::hidden;
 def main = fn() -> Int => value;
 )";
@@ -535,7 +535,7 @@ TEST_CASE("Parser resolves dotted use imports against the full module name", "[p
 	({
 		MidoriTest::TempProjectFile
 		(
-			"MathVector.mdr",
+			"MathVector.mmt",
 			R"(module Math.Vector
 public export { add }
 def add = fn() -> Int => 41;
@@ -543,19 +543,19 @@ def add = fn() -> Int => 41;
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
-import { "./MathVector.mdr" }
+import { "./MathVector.mmt" }
 use Math.Vector.{add}
 def main = fn() -> Int => add();
 )"
 		)
 	});
 
-	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::filesystem::path main_path = project.Path("Main.mmt");
 	const std::string main_source_code =
 		R"(module Main
-import { "./MathVector.mdr" }
+import { "./MathVector.mmt" }
 use Math.Vector.{add}
 def main = fn() -> Int => add();
 )";
@@ -570,7 +570,7 @@ TEST_CASE("Parser rejects ambiguous use imports from different modules", "[parse
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Left.mdr",
+			"Left.mmt",
 			R"(module Left
 public export { value }
 def value = fn() -> Int => 1;
@@ -578,7 +578,7 @@ def value = fn() -> Int => 1;
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Right.mdr",
+			"Right.mmt",
 			R"(module Right
 public export { value }
 def value = fn() -> Int => 2;
@@ -586,9 +586,9 @@ def value = fn() -> Int => 2;
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
-import { "./Left.mdr", "./Right.mdr" }
+import { "./Left.mmt", "./Right.mmt" }
 use Left.{value}
 use Right.{value}
 def main = fn() -> Int => value();
@@ -596,10 +596,10 @@ def main = fn() -> Int => value();
 		)
 	});
 
-	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::filesystem::path main_path = project.Path("Main.mmt");
 	const std::string main_source_code =
 		R"(module Main
-import { "./Left.mdr", "./Right.mdr" }
+import { "./Left.mmt", "./Right.mmt" }
 use Left.{value}
 use Right.{value}
 def main = fn() -> Int => value();
@@ -619,7 +619,7 @@ TEST_CASE("Parser treats duplicate same-module use imports as idempotent", "[par
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Helper.mdr",
+			"Helper.mmt",
 			R"(module Helper
 public export { value }
 def value = fn() -> Int => 7;
@@ -627,9 +627,9 @@ def value = fn() -> Int => 7;
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
-import { "./Helper.mdr" }
+import { "./Helper.mmt" }
 use Helper.{value}
 use Helper.{value}
 def main = fn() -> Int => value();
@@ -637,10 +637,10 @@ def main = fn() -> Int => value();
 		)
 	});
 
-	const std::filesystem::path main_path = project.Path("Main.mdr");
+	const std::filesystem::path main_path = project.Path("Main.mmt");
 	const std::string main_source_code =
 		R"(module Main
-import { "./Helper.mdr" }
+import { "./Helper.mmt" }
 use Helper.{value}
 use Helper.{value}
 def main = fn() -> Int => value();
@@ -657,11 +657,11 @@ TEST_CASE("Compiler uses the declared entry module name for linked executable me
 def main = fn() -> Int => 0;
 )";
 
-	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "EntryPoint.mdr");
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "EntryPoint.mmt");
 	REQUIRE(compile_result.has_value());
 
 	const MidoriExecutable& executable = compile_result.value();
-	CHECK(std::filesystem::path(executable.GetFileName()).filename() == "EntryPoint.mdr");
+	CHECK(std::filesystem::path(executable.GetFileName()).filename() == "EntryPoint.mmt");
 	REQUIRE_FALSE(executable.m_procedure_names.empty());
 	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
 }
@@ -677,7 +677,7 @@ def result = match Option::Some(7) with
 ;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserMatch.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserMatch.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -706,7 +706,7 @@ TEST_CASE("Parser tells a record update apart from a block", "[parser]")
 {
 	// '{' opens a block. The record-update probe scans at depth 0 for the first ';', '}'
 	// or 'with'. The pending-match counter is what keeps `{ match x with case ... }` a
-	// block: simulating the probe over the whole .mdr corpus misclassifies 0 braces with
+	// block: simulating the probe over the whole .mmt corpus misclassifies 0 braces with
 	// that counter and 51 without it. These cases pin that behaviour.
 	const std::string source_code =
 		R"(module ParserRecordUpdate
@@ -725,7 +725,7 @@ def nested_source = { { p with x = 1 } with y = 2 };
 def projected = { p with x = 9 }.x;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdate.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdate.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -780,7 +780,7 @@ def PortOf = fn(c : Config) -> Int => { c with port = 1 }.port;
 def BlockBodied = fn() -> Int => { def local = 2; local };
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParserRecordUpdateBody.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -814,7 +814,7 @@ TEST_CASE("Parser lowers a type record onto a Struct node", "[parser]")
 type FromType = { x: Int, y: Text };
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeRecordLowering.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeRecordLowering.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -851,7 +851,7 @@ TEST_CASE("Parser lowers a type sum onto a Union node", "[parser]")
 type FromType<T> = Empty | Full(T);
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeSumLowering.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "TypeSumLowering.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -909,7 +909,7 @@ type Meters = Int;
 alias Feet = Int;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "NewtypeLowering.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "NewtypeLowering.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -941,7 +941,7 @@ TEST_CASE("Parser still reads a leading-bar single-variant sum as a union", "[pa
 type Solo = | Only(Int);
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "LeadingBarSum.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "LeadingBarSum.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -967,7 +967,7 @@ class Container<T> {
 type Meters = Int;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "AssociatedTypeBoundary.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "AssociatedTypeBoundary.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1004,7 +1004,7 @@ instance Container<Int> {
 type Meters = Int;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstanceAssociatedTypeBoundary.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstanceAssociatedTypeBoundary.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1042,7 +1042,7 @@ alias IntKeyed<V> = Pair<Int, V>;
 def keyed : IntKeyed<Text> = Pair(1, "one");
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ParameterisedAlias.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1087,7 +1087,7 @@ alias Swapped<A, B> = Pair<B, A>;
 def swapped : Swapped<Int, Text> = Pair("one", 2);
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SwappedAlias.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SwappedAlias.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1121,7 +1121,7 @@ type Box<T> =
 alias BoxAlias<T> where Show<T> = Box<T>;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ConstrainedAlias.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ConstrainedAlias.mmt");
 	REQUIRE_FALSE(parse_result.has_value());
 
 	RequireErrorMatches(
@@ -1148,7 +1148,7 @@ alias IntBox = Box<Int>;
 def boxed : IntBox = Box(1);
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstantiatedAlias.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "InstantiatedAlias.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1174,7 +1174,7 @@ def lambda = fn(x: Int) -> Int => x;
 def inferred = fn(x) => x;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ReturnSeparator.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ReturnSeparator.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1206,7 +1206,7 @@ TEST_CASE("Parser names the removal for ':' in return position", "[parser][diagn
 def Twice = fn(x: Int) : Int => x * 2;
 )";
 
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemoved.mdr");
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemoved.mmt");
 		REQUIRE_FALSE(parse_result.has_value());
 
 		const CompilerError& error = parse_result.error();
@@ -1217,7 +1217,7 @@ def Twice = fn(x: Int) : Int => x * 2;
 				.m_stage = CompilerStage::Parser,
 				.m_line = 2,
 				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
-				.m_rendered_substrings = { "ColonReturnRemoved.mdr:2" }
+				.m_rendered_substrings = { "ColonReturnRemoved.mmt:2" }
 			});
 
 		// The old spelling must not degrade into a report about the missing body.
@@ -1236,7 +1236,7 @@ instance Show<Int> {
 };
 )";
 
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemovedInstance.mdr");
+		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemovedInstance.mmt");
 		REQUIRE_FALSE(parse_result.has_value());
 
 		const CompilerError& error = parse_result.error();
@@ -1247,7 +1247,7 @@ instance Show<Int> {
 				.m_stage = CompilerStage::Parser,
 				.m_line = 6,
 				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
-				.m_rendered_substrings = { "ColonReturnRemovedInstance.mdr:6" }
+				.m_rendered_substrings = { "ColonReturnRemovedInstance.mmt:6" }
 			});
 	}
 }
@@ -1273,7 +1273,7 @@ def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 def Describe = fn(config: Config, label: Text) -> Text => label ++ config.host;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonAscription.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonAscription.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1304,7 +1304,7 @@ TEST_CASE("Parser separates a function-type annotation from an arrow return type
 def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowAnnotation.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowAnnotation.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));
@@ -1325,7 +1325,7 @@ TEST_CASE("Parser keeps '->' available as the channel send operator", "[parser]"
 def Send = fn(c: Channel<Text>) -> Int => { c -> "value"; 0 };
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowSend.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ArrowSend.mmt");
 	if (!parse_result.has_value())
 	{
 		FAIL(std::string(parse_result.error().Rendered()));

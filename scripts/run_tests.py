@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Midori Test Runner
+Marmot Test Runner
 
 Runs all tests in the test/ directory and reports results.
 Supports:
@@ -66,10 +66,10 @@ class TestRunner:
         self.executable_notice: Optional[str] = None
         self.executable_search_errors: List[str] = []
 
-        # Find the Midori executable
+        # Find the Marmot executable
         self.midori_exe = self.find_executable()
         if not self.midori_exe:
-            print(f"{Color.RED}Error: Could not find Midori executable{Color.RESET}")
+            print(f"{Color.RED}Error: Could not find Marmot executable{Color.RESET}")
             for message in self.executable_search_errors:
                 print(f"{Color.YELLOW}  - {message}{Color.RESET}")
             sys.exit(1)
@@ -78,7 +78,7 @@ class TestRunner:
         self.results: List[TestResult] = []
 
     def find_executable(self) -> Optional[Path]:
-        """Find the Midori executable based on build configuration."""
+        """Find the Marmot executable based on build configuration."""
         requested_candidates = self.get_executable_candidates(self.requested_build_config)
         requested_errors: List[str] = []
 
@@ -121,8 +121,8 @@ class TestRunner:
     def get_executable_candidates(self, build_config: str) -> List[Path]:
         build_name = build_config.lower()
         return [
-            self.root_dir / f"out/build/ninja/x64-{build_name}/out/Midori.exe",
-            self.root_dir / f"out/build/x64-{build_name}/out/Midori.exe",
+            self.root_dir / f"out/build/ninja/x64-{build_name}/out/Marmot.exe",
+            self.root_dir / f"out/build/x64-{build_name}/out/Marmot.exe",
         ]
 
     def validate_executable(self, path: Path, expected_build_config: Optional[str] = None) -> Optional[str]:
@@ -228,7 +228,7 @@ class TestRunner:
         non_warning_lines: List[str] = []
 
         for line in output.splitlines():
-            if line.startswith("MIDORI_WARNING\t"):
+            if line.startswith("MARMOT_WARNING\t"):
                 payload = line.split("\t", 1)[1]
                 warning = json.loads(payload)
                 if not isinstance(warning, dict):
@@ -254,9 +254,9 @@ class TestRunner:
             import time
             start = time.time()
             env = os.environ.copy()
-            env["MIDORI_TEST_MODE"] = "1"
+            env["MARMOT_TEST_MODE"] = "1"
             if expected_warnings is not None:
-                env["MIDORI_TEST_WARNING_FORMAT"] = "machine"
+                env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
 
             result = subprocess.run(
                 [str(self.midori_exe), command_path],
@@ -352,17 +352,17 @@ class TestRunner:
                 # Try relative to test directory
                 test_path = self.test_dir / test_file
                 if not test_path.exists():
-                    # Try with .mdr extension
-                    test_path = self.test_dir / f"{test_file}.mdr"
+                    # Try with .mmt extension
+                    test_path = self.test_dir / f"{test_file}.mmt"
                     if not test_path.exists():
                         # Try finding by name pattern
-                        for candidate in self.test_dir.rglob("*.mdr"):
-                            if candidate.name == test_file or candidate.name == f"{test_file}.mdr":
+                        for candidate in self.test_dir.rglob("*.mmt"):
+                            if candidate.name == test_file or candidate.name == f"{test_file}.mmt":
                                 return [candidate]
                         return []
             return [test_path]
 
-        for test_file in self.test_dir.rglob("*.mdr"):
+        for test_file in self.test_dir.rglob("*.mmt"):
             relative_test_path = test_file.relative_to(self.test_dir)
 
             # Documentation examples are compiled through scripts/check_doc_examples.py
@@ -371,7 +371,7 @@ class TestRunner:
                 continue
 
             # Skip non-test files
-            if test_file.name in ['minimal_test.mdr', 'test.mdr', 'simple_test.mdr', 'test_backup.mdr']:
+            if test_file.name in ['minimal_test.mmt', 'test.mmt', 'simple_test.mmt', 'test_backup.mmt']:
                 if test_file.parent == self.test_dir:
                     continue
 
@@ -419,7 +419,7 @@ class TestRunner:
         # Auto-enable verbose output for single/few tests
         show_full_output = len(tests) <= 3
 
-        print(f"{Color.BOLD}Midori Test Suite{Color.RESET}")
+        print(f"{Color.BOLD}Marmot Test Suite{Color.RESET}")
         print(f"{Color.GRAY}{'=' * 60}{Color.RESET}")
         print(f"Executable: {Color.CYAN}{self.midori_exe}{Color.RESET}")
         print(f"Build: {Color.CYAN}{self.build_config}{Color.RESET}")
@@ -489,13 +489,13 @@ class TestRunner:
         sys.exit(0 if failed == 0 else 1)
 
 def main():
-    parser = argparse.ArgumentParser(description='Run Midori test suite')
+    parser = argparse.ArgumentParser(description='Run Marmot test suite')
     parser.add_argument('--build', default='Development',
                         choices=['Debug', 'Development', 'Release'],
                         help='Build configuration to use (default: Development)')
     parser.add_argument('--category', help='Run only tests in specified category (e.g., closure)')
     parser.add_argument('--pattern', help='Run only tests matching pattern')
-    parser.add_argument('--test', help='Run specific test file (e.g., closure/simple.mdr or just simple)')
+    parser.add_argument('--test', help='Run specific test file (e.g., closure/simple.mmt or just simple)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
 
     args = parser.parse_args()

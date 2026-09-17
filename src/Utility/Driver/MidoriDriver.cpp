@@ -34,7 +34,7 @@ namespace
 #ifdef _WIN32
 		char* warning_format = nullptr;
 		size_t warning_format_length = 0u;
-		const errno_t result = _dupenv_s(&warning_format, &warning_format_length, "MIDORI_TEST_WARNING_FORMAT");
+		const errno_t result = _dupenv_s(&warning_format, &warning_format_length, "MARMOT_TEST_WARNING_FORMAT");
 		if (result != 0 || warning_format == nullptr)
 		{
 			return false;
@@ -44,7 +44,7 @@ namespace
 		free(warning_format);
 		return enabled;
 #else
-		const char* warning_format = std::getenv("MIDORI_TEST_WARNING_FORMAT");
+		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
 		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 #endif
 	}

@@ -1,6 +1,6 @@
 # Error Reporting
 
-Midori's diagnostic pipeline is structured. Compiler stages produce
+Marmot's diagnostic pipeline is structured. Compiler stages produce
 `CompilerError` and `CompilerWarning` values, runtime execution produces
 `RuntimeError`, and rendering is deferred until the driver or CLI boundary.
 
@@ -140,7 +140,7 @@ Compiler diagnostics render with:
 Example compiler shape:
 
 ```text
-Parser Error at Format.mdr:2
+Parser Error at Format.mmt:2
   |
 2 | def value = ;
   |     ^^^ Expected expression
@@ -160,13 +160,13 @@ Example runtime shape:
 
 ```text
 error[IndexOutOfBounds]: Index out of bounds at index: 4.
- --> Runtime.mdr:2
+ --> Runtime.mmt:2
   |
 2 | def value = [1, 2][4];
   | Index out of bounds at index: 4.
   |
 stack trace:
-  at main [module Runtime] in Runtime.mdr:3
+  at main [module Runtime] in Runtime.mmt:3
 ```
 
 Exit codes:
@@ -217,7 +217,7 @@ There are three relevant machine-readable surfaces.
 `SerializeMachineReadableWarning(...)` emits:
 
 ```text
-MIDORI_WARNING\t{"stage":"StaticAnalyzer", ...}
+MARMOT_WARNING\t{"stage":"StaticAnalyzer", ...}
 ```
 
 This path exists mainly for legacy test harnesses that still want warnings as a
@@ -249,19 +249,19 @@ Runtime failures serialize with:
 
 Runtime JSON extends the compiler schema with:
 
-- `source: "midori-runtime"`
+- `source: "marmot-runtime"`
 - `kind`
 - `sourceLine`
 - `exitCode`
 - `stack`
 
-`midori run --format json` merges the optional runtime diagnostic into the same
+`marmot run --format json` merges the optional runtime diagnostic into the same
 report envelope used by compiler diagnostics. The runtime failure is appended to
 `report.diagnostics` and `report.errors`.
 
 ## Test Harness Toggle
 
-If `MIDORI_TEST_WARNING_FORMAT=machine` is present in the environment, the
+If `MARMOT_TEST_WARNING_FORMAT=machine` is present in the environment, the
 driver prints machine-readable warning lines alongside the normal
 human-readable warning output.
 

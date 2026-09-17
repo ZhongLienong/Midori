@@ -154,7 +154,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 			std::filesystem::path import_path(include_absolute_path_str);
 			std::filesystem::path package_dir = import_path.parent_path();
-			std::filesystem::path package_manifest_path = package_dir / "package.midori";
+			std::filesystem::path package_manifest_path = package_dir / "package.marmot";
 
 			if (std::filesystem::exists(package_manifest_path))
 			{
@@ -596,7 +596,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 			MidoriError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationMissing,
-				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
+				"Module declaration required. Each .mmt file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
 				1,
 				m_main_file_name
 			)
@@ -610,7 +610,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 			MidoriError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationDuplicate,
-				"Multiple module declarations found. Each .mdr file must contain exactly one 'module ModuleName' declaration.",
+				"Multiple module declarations found. Each .mmt file must contain exactly one 'module ModuleName' declaration.",
 				module_spans[1]->m_line,
 				m_main_file_name
 			)
@@ -759,7 +759,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 			MidoriError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationMissing,
-				"Module declaration required. Each .mdr file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
+				"Module declaration required. Each .mmt file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
 				1,
 				m_main_file_name
 			)
@@ -833,7 +833,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<std::pair<std::string, int>> import_paths;
-	const std::string_view import_suggestion = R"(Use 'import { <IO> }' for system modules or 'import { "./File.mdr" }' for path imports.)";
+	const std::string_view import_suggestion = R"(Use 'import { <IO> }' for system modules or 'import { "./File.mmt" }' for path imports.)";
 
 	const auto make_import_error = [this, import_suggestion](std::string_view message, const Token& token) -> CompilerError
 	{

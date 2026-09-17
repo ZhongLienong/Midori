@@ -17,8 +17,8 @@
 
 namespace
 {
-	constexpr const char* ProjectManifestFileName = "project.midori";
-	constexpr const char* PackageManifestFileName = "package.midori";
+	constexpr const char* ProjectManifestFileName = "project.marmot";
+	constexpr const char* PackageManifestFileName = "package.marmot";
 
 	struct ProjectSettings
 	{
@@ -108,9 +108,9 @@ namespace
 				settings.m_packages_dir = toml::find_or<std::string>(*project_table, "packages_dir", "");
 				settings.m_prelude_dir = toml::find_or<std::string>(*project_table, "prelude_dir", "");
 
-				if (project_table->contains("midori_path"))
+				if (project_table->contains("marmot_path"))
 				{
-					settings.m_extra_paths = ReadPathArray(project_table->at("midori_path"));
+					settings.m_extra_paths = ReadPathArray(project_table->at("marmot_path"));
 				}
 			}
 			else if (manifest_path.filename() == PackageManifestFileName)
@@ -124,7 +124,7 @@ namespace
 				settings.m_name = toml::find_or<std::string>(*package_table, "name", settings.m_name);
 				settings.m_source_dir = ".";
 				settings.m_packages_dir = "packages";
-				settings.m_prelude_dir = "MidoriPrelude";
+				settings.m_prelude_dir = "MarmotPrelude";
 
 				if (const toml::value* modules_table = FindTable(*package_table, "modules"))
 				{
@@ -354,7 +354,7 @@ namespace
 
 		const std::filesystem::path default_source = settings.m_root / "src";
 		const std::filesystem::path default_packages = settings.m_root / "packages";
-		const std::filesystem::path default_prelude = settings.m_root / "MidoriPrelude";
+		const std::filesystem::path default_prelude = settings.m_root / "MarmotPrelude";
 
 		if (!settings.m_source_dir.empty())
 		{
@@ -521,7 +521,7 @@ namespace
 		const std::optional<MidoriProject::ManifestConfiguration> configuration = MidoriProject::FindManifestConfiguration(input_path);
 		if (!configuration.has_value())
 		{
-			error_message = "Could not find project.midori or package.midori.";
+			error_message = "Could not find project.marmot or package.marmot.";
 			return std::nullopt;
 		}
 
@@ -589,7 +589,7 @@ namespace MidoriProject
 
 		if (!package_environment->m_search_paths.empty())
 		{
-			SetEnvironmentVariable("MIDORI_PATH", JoinSearchPaths(package_environment->m_search_paths, separator));
+			SetEnvironmentVariable("MARMOT_PATH", JoinSearchPaths(package_environment->m_search_paths, separator));
 		}
 	}
 
@@ -638,11 +638,11 @@ namespace MidoriProject
 		const std::filesystem::path src_dir = root / "src";
 		const std::filesystem::path packages_dir = root / "packages";
 		const std::filesystem::path test_dir = root / "test";
-		const std::filesystem::path main_path = src_dir / "Main.mdr";
+		const std::filesystem::path main_path = src_dir / "Main.mmt";
 
 		if (std::filesystem::exists(manifest_path, ec))
 		{
-			error_message = std::format("project.midori already exists at {}", manifest_path.string());
+			error_message = std::format("project.marmot already exists at {}", manifest_path.string());
 			return false;
 		}
 
@@ -685,10 +685,10 @@ namespace MidoriProject
 		(
 			"[project]\n"
 			"name = \"{}\"\n"
-			"entry = \"src/Main.mdr\"\n"
+			"entry = \"src/Main.mmt\"\n"
 			"source_dir = \"src\"\n"
 			"packages_dir = \"packages\"\n"
-			"prelude_dir = \"MidoriPrelude\"\n"
+			"prelude_dir = \"MarmotPrelude\"\n"
 			"\n"
 			"[test]\n"
 			"dir = \"test\"\n"
@@ -866,13 +866,13 @@ namespace MidoriPackage
 		const std::filesystem::path manifest_path = root / PackageManifestFileName;
 		if (std::filesystem::exists(manifest_path, ec))
 		{
-			error_message = std::format("package.midori already exists at {}", manifest_path.string());
+			error_message = std::format("package.marmot already exists at {}", manifest_path.string());
 			return false;
 		}
 
 		const std::string resolved_name = package_name.empty() ? DerivePackageName(root) : std::string(package_name);
 		const std::string module_name = SanitizeModuleName(resolved_name);
-		const std::string module_file = module_name + ".mdr";
+		const std::string module_file = module_name + ".mmt";
 		const std::filesystem::path module_path = root / module_file;
 
 		if (std::filesystem::exists(module_path, ec))
@@ -892,7 +892,7 @@ namespace MidoriPackage
 			"authors = []\n"
 			"description = \"\"\n"
 			"license = \"MIT\"\n"
-			"midori_version = \">=1.0.0\"\n"
+			"marmot_version = \">=1.0.0\"\n"
 			"\n"
 			"[package.modules]\n"
 			"main = \"{}\"\n"

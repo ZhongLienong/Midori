@@ -8,7 +8,7 @@ TEST_CASE("LexSnippet returns concise token sequences for expression tests", "[l
 	const std::string source_code =
 		"def value = 1 + 2 * 3;\n";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LexerSupport.mdr");
+	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LexerSupport.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));

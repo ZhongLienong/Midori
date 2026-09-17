@@ -3,12 +3,12 @@
 Extract, sync-check, and compile runnable documentation examples.
 
 Runnable examples are marked with fenced code blocks whose info string starts
-with `midori-test`. Example:
+with `marmot-test`. Example:
 
-```midori-test name=readme/hello_world path=.doc_examples/readme/hello_world.mdr
+```marmot-test name=readme/hello_world path=.doc_examples/readme/hello_world.mmt
 module Main
-import { "../MidoriPrelude/IO.mdr" }
-IO::PrintLine("Hello, Midori!");
+import { "../MarmotPrelude/IO.mmt" }
+IO::PrintLine("Hello, Marmot!");
 ```
 
 Required metadata:
@@ -71,24 +71,24 @@ def docs_to_scan(root: Path) -> list[Path]:
 def parse_metadata(raw: str, source_path: Path, line_number: int) -> dict[str, str]:
     metadata: dict[str, str] = {}
     if raw.strip() == "":
-        raise ValueError(f"{source_path}:{line_number} midori-test fence requires metadata.")
+        raise ValueError(f"{source_path}:{line_number} marmot-test fence requires metadata.")
 
     for token in shlex.split(raw):
         if "=" not in token:
             raise ValueError(
-                f"{source_path}:{line_number} invalid midori-test token '{token}'. "
+                f"{source_path}:{line_number} invalid marmot-test token '{token}'. "
                 "Use key=value metadata."
             )
 
         key, value = token.split("=", 1)
         if key == "" or value == "":
-            raise ValueError(f"{source_path}:{line_number} invalid midori-test token '{token}'.")
+            raise ValueError(f"{source_path}:{line_number} invalid marmot-test token '{token}'.")
         metadata[key] = value
 
     if "name" not in metadata:
-        raise ValueError(f"{source_path}:{line_number} midori-test fence is missing name=...")
+        raise ValueError(f"{source_path}:{line_number} marmot-test fence is missing name=...")
     if "path" not in metadata:
-        raise ValueError(f"{source_path}:{line_number} midori-test fence is missing path=...")
+        raise ValueError(f"{source_path}:{line_number} marmot-test fence is missing path=...")
 
     kind = metadata.get("kind", "success")
     if kind not in {"success", "failure"}:
@@ -107,11 +107,11 @@ def parse_doc_examples(source_path: Path, root: Path) -> list[DocExample]:
 
     while index < len(lines):
         line = lines[index]
-        if not line.startswith("```midori-test"):
+        if not line.startswith("```marmot-test"):
             index += 1
             continue
 
-        metadata = parse_metadata(line[len("```midori-test"):].strip(), source_path, index + 1)
+        metadata = parse_metadata(line[len("```marmot-test"):].strip(), source_path, index + 1)
         block_start_line = index + 2
         index += 1
         block_lines: list[str] = []
@@ -121,7 +121,7 @@ def parse_doc_examples(source_path: Path, root: Path) -> list[DocExample]:
             index += 1
 
         if index >= len(lines):
-            raise ValueError(f"{source_path}:{block_start_line} unterminated midori-test fence.")
+            raise ValueError(f"{source_path}:{block_start_line} unterminated marmot-test fence.")
 
         snippet_source = "\n".join(block_lines).rstrip() + "\n"
         compile_path = (root / metadata["path"]).resolve()
@@ -162,7 +162,7 @@ def discover_examples(root: Path) -> list[DocExample]:
 
 
 def mirror_path(root: Path, example: DocExample) -> Path:
-    return root / "test" / "doc_examples" / example.kind / f"{example.name}.mdr"
+    return root / "test" / "doc_examples" / example.kind / f"{example.name}.mmt"
 
 
 def expected_snapshot_path(root: Path, example: DocExample) -> Path:
@@ -274,8 +274,8 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
 
 def build_midori_path(root: Path) -> str:
     separator = ";" if os.name == "nt" else ":"
-    prelude_path = str((root / "MidoriPrelude").resolve())
-    existing = os.environ.get("MIDORI_PATH", "")
+    prelude_path = str((root / "MarmotPrelude").resolve())
+    existing = os.environ.get("MARMOT_PATH", "")
     if existing == "":
         return prelude_path
     return separator.join([prelude_path, existing])
@@ -319,10 +319,10 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
 
     write_text(compile_path, compile_source)
     env = os.environ.copy()
-    env["MIDORI_TEST_MODE"] = "1"
-    env["MIDORI_PATH"] = build_midori_path(root)
+    env["MARMOT_TEST_MODE"] = "1"
+    env["MARMOT_PATH"] = build_midori_path(root)
     if expected_warnings is not None:
-        env["MIDORI_TEST_WARNING_FORMAT"] = "machine"
+        env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
 
     command_path = str(compile_path.relative_to(root))
     try:
@@ -383,12 +383,12 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Sync-check and compile runnable Markdown Midori examples.")
+    parser = argparse.ArgumentParser(description="Sync-check and compile runnable Markdown Marmot examples.")
     parser.add_argument(
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Midori.exe (default: Development).",
+        help="Build configuration used to locate Marmot.exe (default: Development).",
     )
     parser.add_argument(
         "--sync",
@@ -410,7 +410,7 @@ def main(argv: list[str]) -> int:
     root = repo_root()
     examples = discover_examples(root)
     if len(examples) == 0:
-        print("No midori-test fences found.")
+        print("No marmot-test fences found.")
         return 0
 
     sync_errors = sync_check_or_update(root, examples, args.sync)

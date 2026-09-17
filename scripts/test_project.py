@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Midori project test runner.
+Marmot project test runner.
 
 Wraps the existing unit-test and regression-test entry points so contributors can
 configure, build, and run the test layers from one command.
@@ -128,14 +128,14 @@ def run_command(command: list[str], root: Path) -> int:
 
 def build_targets_for_mode(mode: str) -> list[str]:
     if mode == "unit":
-        return ["MidoriUnitTests"]
+        return ["MarmotUnitTests"]
     if mode == "regression":
-        return ["Midori"]
-    return ["Midori", "MidoriUnitTests"]
+        return ["Marmot"]
+    return ["Marmot", "MarmotUnitTests"]
 
 
 def unit_test_executable(binary_dir: Path) -> Path:
-    executable_name = "MidoriUnitTests.exe" if is_windows() else "MidoriUnitTests"
+    executable_name = "MarmotUnitTests.exe" if is_windows() else "MarmotUnitTests"
     return binary_dir / "out" / executable_name
 
 
@@ -153,7 +153,7 @@ def build_config_for_regressions(build_config: str) -> str:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Configure, build, and run Midori unit tests, regression tests, or both."
+        description="Configure, build, and run Marmot unit tests, regression tests, or both."
     )
     parser.add_argument(
         "--mode",
@@ -190,7 +190,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--unit-tag",
         default="",
-        help="Catch2 tag expression for unit tests, for example '[runtime]'. Runs MidoriUnitTests directly.",
+        help="Catch2 tag expression for unit tests, for example '[runtime]'. Runs MarmotUnitTests directly.",
     )
     parser.add_argument(
         "--category",

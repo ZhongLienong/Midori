@@ -1,0 +1,22 @@
+module worker_is_done
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+import { "../../../MarmotPrelude/System.mmt" }
+use System.{Sleep}
+
+def SlowTask = fn(dummy: Text) -> Int => {
+    Sleep(100);
+    0
+};
+
+def w = Concurrency::Spawn("x", SlowTask);
+def done_early = Concurrency::IsDone(w);
+if done_early
+then PrintLine("Done immediately: yes")
+else PrintLine("Done immediately: no");
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
+PrintLine("Done after join");

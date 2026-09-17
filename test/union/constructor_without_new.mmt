@@ -1,0 +1,61 @@
+module UnionConstructorWithoutNew
+
+// Calling the variant is how a union value is built, qualified by its union: `Opt::Some(5)`.
+// Zero-arity variants keep their parentheses — `Opt::None()`, never a bare `Opt::None` —
+// so there is exactly one spelling for a construction. `new` was the other and is gone.
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+type Opt<T> = Some(T) | None;
+
+type Shape = Circle(Int) | Rect(Int, Int);
+
+type List = Nil | Cons(Int, List);
+
+def ShowOpt = fn(o : Opt<Int>) -> Text =>
+{
+	match o with
+	case Opt::Some(v) => "some " ++ (v as Text)
+	case Opt::None() => "none"
+};
+
+def Area = fn(s : Shape) -> Int =>
+{
+	match s with
+	case Shape::Circle(r) => r * r * 3
+	case Shape::Rect(w, h) => w * h
+};
+
+def Sum = fn(l : List) -> Int =>
+{
+	match l with
+	case List::Nil() => 0
+	case List::Cons(head, tail) => head + Sum(tail)
+};
+
+def WrapInner = fn<T>(value : T) -> Opt<T> =>
+{
+	Opt::Some(value)
+};
+
+def bare_some = Opt::Some(5);
+IO::PrintLine("bare_some: " ++ ShowOpt(bare_some));
+
+// A zero-arity generic variant has no argument to infer from, so the annotation on the
+// binding is what fixes T. No explicit-type-argument form is left to state it with.
+def bare_none : Opt<Int> = Opt::None();
+IO::PrintLine("bare_none: " ++ ShowOpt(bare_none));
+
+IO::PrintLine("circle: " ++ (Area(Shape::Circle(2)) as Text));
+IO::PrintLine("rect: " ++ (Area(Shape::Rect(3, 4)) as Text));
+
+// Nested constructions, recursively.
+def digits = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
+IO::PrintLine("digits: " ++ (Sum(digits) as Text));
+
+// Generic inference through a generic function, bare spelling inside the body.
+def wrapped = WrapInner(42);
+IO::PrintLine("wrapped: " ++ ShowOpt(wrapped));

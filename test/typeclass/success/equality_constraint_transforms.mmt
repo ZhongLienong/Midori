@@ -1,0 +1,34 @@
+module EqualityConstraintTransforms
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+
+use Option.{ Option }
+
+class Stepper<S> {
+    type Item;
+    Step: fn(state: S) -> Option<Item>;
+};
+
+type Counter = { current: Int, limit: Int };
+type Doubled<S> = { inner: S };
+
+instance Stepper<Counter> {
+    type Item = Int;
+    def Step = fn(state: Counter) -> Option<Int> =>
+        if state.current >= state.limit
+        then Option::None()
+        else Option::Some(state.current);
+};
+
+instance Stepper<Doubled<S>> where Stepper<S>, Stepper::Item<S> ~ Int {
+    type Item = Int;
+    def Step = fn(state: Doubled<S>) -> Option<Int> =>
+        match Stepper::Step(state.inner) with
+            case Option::Some(v) => Option::Some(v * 2)
+            case Option::None() => Option::None();
+};
+
+def w2 = Doubled(Counter(4, 10));
+match Stepper::Step(w2) with
+    case Option::Some(v) => IO::PrintLine(v as Text)
+    case Option::None() => IO::PrintLine("none");

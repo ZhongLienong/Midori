@@ -1,8 +1,8 @@
-# Midori Type System
+# Marmot Type System
 
-Midori uses a Hindley-Milner based, nominal type system with bidirectional inference. The implementation follows Algorithm W and extends it with algebraic data types, type classes, associated types, deriving, type-definition constraints, and exhaustive pattern matching.
+Marmot uses a Hindley-Milner based, nominal type system with bidirectional inference. The implementation follows Algorithm W and extends it with algebraic data types, type classes, associated types, deriving, type-definition constraints, and exhaustive pattern matching.
 
-Unless a snippet explicitly shows a full file, the examples below focus on the type-system surface only. Complete `.mdr` source files still need an explicit `module` declaration.
+Unless a snippet explicitly shows a full file, the examples below focus on the type-system surface only. Complete `.mmt` source files still need an explicit `module` declaration.
 
 ## Overview
 
@@ -36,27 +36,27 @@ The type system provides:
 
 Homogeneous arrays use `Array<T>`:
 
-```midori
+```marmot
 Array<Int>
 Array<Array<Text>>
 ```
 
 Empty array literals require context:
 
-```midori
+```marmot
 def values : Array<Int> = [];
 ```
 
 Use `#` to get the length:
 
-```midori
+```marmot
 def arr = [1, 2, 3, 4, 5];
 def len = #arr;
 ```
 
 Arrays are iterable:
 
-```midori
+```marmot
 for name in ["Alice", "Bob", "Charlie"] {
     IO::PrintLine(name);
 };
@@ -66,7 +66,7 @@ for name in ["Alice", "Bob", "Charlie"] {
 
 Tuples are fixed-size heterogeneous values:
 
-```midori
+```marmot
 (Int, Text)
 (Bool, Int, Float)
 ```
@@ -75,7 +75,7 @@ Tuples are fixed-size heterogeneous values:
 
 Function types are first-class:
 
-```midori
+```marmot
 fn(Int) -> Bool
 fn(Int, Int) -> Int
 fn() -> Unit
@@ -86,7 +86,7 @@ fn(fn(Int) -> Int) -> Int
 
 `Worker<T>` and `Channel<T>` are opaque handle types for the concurrency system:
 
-```midori
+```marmot
 Worker<Int>       // handle to a worker that returns Int
 Channel<Text>     // handle to a channel carrying Text values
 ```
@@ -97,7 +97,7 @@ Both are internally represented as `Int` handles but carry compile-time type par
 
 Ranges are used directly in `for` loops:
 
-```midori
+```marmot
 for i in 0..1..10 {
     IO::PrintLine(i as Text);
 };
@@ -126,7 +126,7 @@ arithmetic.
 
 Records are nominal product types:
 
-```midori
+```marmot
 type Point =
 {
     x: Int,
@@ -143,7 +143,7 @@ type Box<T> =
 
 Unions are nominal tagged sums:
 
-```midori
+```marmot
 type Option<T> = None | Some(T);
 type Result<T, E> = Ok(T) | Err(E);
 ```
@@ -154,7 +154,7 @@ A generic constructor takes its type arguments from the constructor arguments an
 surrounding expected type. There is no form for stating them, so every type parameter has
 to be reachable from one of those two:
 
-```midori
+```marmot
 def some_int = Option::Some(42);
 def empty_int : Option<Int> = Option::None();
 
@@ -166,18 +166,18 @@ annotation on the binding is the usual way to supply one, as `empty_int` does ab
 
 Inference must resolve every omitted type parameter. If no argument or expected type pins it down, construction fails:
 
-```midori-test name=type-system/unresolved_none kind=failure path=.doc_examples/type_system/unresolved_none.mdr module=TypeSystemUnresolvedNone
+```marmot-test name=type-system/unresolved_none kind=failure path=.doc_examples/type_system/unresolved_none.mmt module=TypeSystemUnresolvedNone
 type Option<T> = None | Some(T);
 def unresolved = Option::None();  // error: missing type context
 ```
 
 ### Deriving
 
-Midori supports `deriving` on structs and unions for a focused set of generated operations.
+Marmot supports `deriving` on structs and unions for a focused set of generated operations.
 
 Structural deriving:
 
-```midori
+```marmot
 type Point =
 {
     x: Int,
@@ -187,7 +187,7 @@ type Point =
 
 Container deriving on unions:
 
-```midori
+```marmot
 type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 
 def mapped = OptionBoxMap(OptionBox::Full(5), fn(x) => { x + 1 });
@@ -195,7 +195,7 @@ def mapped = OptionBoxMap(OptionBox::Full(5), fn(x) => { x + 1 });
 
 Transferable deriving for concurrency:
 
-```midori
+```marmot
 type Point =
 {
     x: Float,
@@ -219,7 +219,7 @@ Current support is intentionally narrow:
 
 `alias` gives a type expression a shorter name. The alias and what it stands for are the same type:
 
-```midori
+```marmot
 alias UserId = Int;
 alias Name = Text;
 
@@ -231,7 +231,7 @@ Aliases can be imported and exported like other symbols. They are fully intercha
 
 `type Name = Existing` is the other half of that pair and does the opposite: it introduces a **distinct** type over the representation, so the two do not mix by accident. Conversion is explicit, through `as`, and costs nothing at runtime:
 
-```midori
+```marmot
 type Meters = Int;
 
 def distance : Meters = 12 as Meters;
@@ -244,7 +244,7 @@ A distinct type gets its own typeclass instances, because instance lookup is key
 
 Functions, structs, unions, and aliases can all be parameterized:
 
-```midori
+```marmot
 def identity = fn<T>(value: T) -> T => value;
 
 type Pair<A, B> =
@@ -256,7 +256,7 @@ type Pair<A, B> =
 
 Functions can require type class constraints:
 
-```midori
+```marmot
 class Show<T> {
     show: fn(value: T) -> Text;
 };
@@ -266,7 +266,7 @@ def Display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
 
 Type definitions can also carry constraints:
 
-```midori
+```marmot
 type Box<T> where Show<T> = {
     value: T
 };
@@ -278,11 +278,11 @@ Constraints attached to a struct or union are checked when the type is instantia
 
 ## Type Classes
 
-Midori supports both single-parameter and multi-parameter type classes.
+Marmot supports both single-parameter and multi-parameter type classes.
 
 ### Class Definitions and Instances
 
-```midori
+```marmot
 class Show<T> {
     show: fn(value: T) -> Text;
 };
@@ -294,7 +294,7 @@ instance Show<Int> {
 
 Methods are accessed through qualified syntax:
 
-```midori
+```marmot
 def text = Show::show(42);
 ```
 
@@ -302,7 +302,7 @@ def text = Show::show(42);
 
 Associated types let a class determine a related type from its instance head:
 
-```midori
+```marmot
 class Iterable<Iter>
 {
     type Item;
@@ -312,7 +312,7 @@ class Iterable<Iter>
 
 Instances bind the associated type:
 
-```midori
+```marmot
 type Counter =
 {
     current: Int,
@@ -337,7 +337,7 @@ instance Iterable<Counter>
 
 Use projection syntax to refer to an associated type in other signatures:
 
-```midori
+```marmot
 def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
     where Iterable<Iter> => Iterable::Next(iter);
 ```
@@ -356,7 +356,7 @@ Several operators are wired into the type checker and code generator so they can
 
 Examples:
 
-```midori
+```marmot
 def ConvertIt = fn<From, To>(value: From) -> To
     where Convertable<From, To> => {
     value as To
@@ -401,7 +401,7 @@ These are currently defined for integer-style numeric types (`Int`, `Byte`, and 
 
 Pattern matching is expression-oriented:
 
-```midori
+```marmot
 def Unwrap = fn(option: Option<Int>) -> Int =>
     match option with
         case Option::Some(value) => value
@@ -425,7 +425,7 @@ Coverage is currently tracked at the top-level pattern. For unions, matching a v
 
 The pipe operator can feed directly into a `match`:
 
-```midori
+```marmot
 def pipeline_result =
     5
     |> fn(x) => { x + 1 }
@@ -440,7 +440,7 @@ In pattern position, `_` is a wildcard that ignores the matched value and does n
 
 ## Type Inference
 
-Midori uses Hindley-Milner inference with unification and an occurs check.
+Marmot uses Hindley-Milner inference with unification and an occurs check.
 
 ### Core Inference Flow
 
@@ -458,20 +458,20 @@ Expected-type context is used in two especially common places:
 
 Examples:
 
-```midori
+```marmot
 def doubler : fn(Int) -> Int = fn(x) => { x * 2 };
 def mapped = OptionMap(Option::Some(1), fn(x) => { x + 1 });
 ```
 
 Lambdas still need a surrounding function type when annotations are omitted:
 
-```midori-test name=type-system/lambda_missing_context kind=failure path=.doc_examples/type_system/lambda_missing_context.mdr module=TypeSystemLambdaMissingContext
+```marmot-test name=type-system/lambda_missing_context kind=failure path=.doc_examples/type_system/lambda_missing_context.mmt module=TypeSystemLambdaMissingContext
 def identity = fn(x) => { x };  // error: no expected function type
 ```
 
 The fully explicit lambda syntax remains valid:
 
-```midori
+```marmot
 fn(x: Int) -> Int => { x + 1 }
 ```
 

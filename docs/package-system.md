@@ -1,23 +1,23 @@
 # Package System
 
-Midori now has a local package dependency system built around `package.midori`,
-`project.midori`, `midori.lock`, and project-local vendoring into `packages/`.
+Marmot now has a local package dependency system built around `package.marmot`,
+`project.marmot`, `marmot.lock`, and project-local vendoring into `packages/`.
 The current implementation resolves from package directories that already exist
 on disk. Remote registry fetch and publish support are still deferred.
 
 ## What Exists Today
 
 - semantic version parsing and comparison, including prerelease and build metadata
-- dependency constraints in `project.midori` and `package.midori`
-- compiler version validation through `package.midori` `midori_version`
+- dependency constraints in `project.marmot` and `package.marmot`
+- compiler version validation through `package.marmot` `marmot_version`
 - local package index scanning across project, cache, and path roots
 - dependency resolution with cycle and version-conflict diagnostics
 - project-local vendoring into `packages/<name>-<version>/`
-- `midori.lock` generation and reuse
+- `marmot.lock` generation and reuse
 - package source checksum recording in the lockfile
 - checksum verification for selected prebuilt native libraries
-- FFI ABI version validation through `package.midori` `[ffi].abi_version`
-- CLI package commands: `midori install`, `midori update`, `midori remove`, `midori list`
+- FFI ABI version validation through `package.marmot` `[ffi].abi_version`
+- CLI package commands: `marmot install`, `marmot update`, `marmot remove`, `marmot list`
 - import-triggered dynamic FFI loading for resolved packages
 
 ## Still Deferred
@@ -25,7 +25,7 @@ on disk. Remote registry fetch and publish support are still deferred.
 - remote registry fetch and publish workflows
 - automatic native builds from `native/` or `[build]`
 - manifest-driven export enforcement beyond normal module `public export`
-- targeted `midori update <package>` resolution; the current command refreshes the whole graph
+- targeted `marmot update <package>` resolution; the current command refreshes the whole graph
 - full garbage collection of every newly orphaned transitive vendored package directory
 
 Because registry fetching is not implemented yet, fully reproducible installs on
@@ -34,18 +34,18 @@ other local package root already being available.
 
 ## Package Discovery
 
-Resolution is based on a local package index. Midori scans these roots, in this
+Resolution is based on a local package index. Marmot scans these roots, in this
 order:
 
 1. the active project's `packages_dir` or `packages/`
 2. the global cache directory
-3. `project.midori` `midori_path` entries
-4. existing `MIDORI_PATH` entries
+3. `project.marmot` `marmot_path` entries
+4. existing `MARMOT_PATH` entries
 
 Each root contributes:
 
-- the root itself, if it contains `package.midori`
-- any immediate child directories that contain `package.midori`
+- the root itself, if it contains `package.marmot`
+- any immediate child directories that contain `package.marmot`
 
 Available versions are sorted by:
 
@@ -56,30 +56,30 @@ Available versions are sorted by:
 That means a newer compatible version in a lower-priority root still wins over
 an older version in a higher-priority root.
 
-On Windows the global cache root is `%LOCALAPPDATA%/Midori/cache` when
-available. On other systems Midori falls back to `~/.midori/cache`.
+On Windows the global cache root is `%LOCALAPPDATA%/Marmot/cache` when
+available. On other systems Marmot falls back to `~/.marmot/cache`.
 
 ## Resolution And Installation
 
-When Midori prepares a project package environment, it:
+When Marmot prepares a project package environment, it:
 
-1. loads the active manifest from `project.midori`, or from `package.midori`
+1. loads the active manifest from `project.marmot`, or from `package.marmot`
    when no project manifest exists
 2. parses direct dependencies and version constraints
-3. prefers `midori.lock` when the root manifest checksum still matches and the
+3. prefers `marmot.lock` when the root manifest checksum still matches and the
    locked package directories are available
 4. otherwise scans the local index, resolves the highest compatible versions,
    and vendors them into `packages/<name>-<version>/`
-5. writes a new `midori.lock`
-6. rebuilds `MIDORI_PATH` from the resolved package graph and project settings
+5. writes a new `marmot.lock`
+6. rebuilds `MARMOT_PATH` from the resolved package graph and project settings
 
 The effective search path order inside a project is:
 
 1. `source_dir`
 2. resolved package directories in dependency order
-3. `midori_path` entries from the active manifest
+3. `marmot_path` entries from the active manifest
 4. `prelude_dir`
-5. existing `MIDORI_PATH` entries from the environment
+5. existing `MARMOT_PATH` entries from the environment
 
 Missing directories are skipped and duplicate paths are removed.
 
@@ -90,12 +90,12 @@ versioned folder name.
 
 ```text
 MyApp/
-  project.midori
-  midori.lock
+  project.marmot
+  marmot.lock
   packages/
     Greeter-1.2.0/
-      package.midori
-      Greeter.mdr
+      package.marmot
+      Greeter.mmt
       lib/
         windows/x64/greeter.dll
 ```
@@ -105,30 +105,30 @@ package location.
 
 ## CLI Workflow
 
-- `midori install`
+- `marmot install`
   Resolve current dependencies, vendor packages locally, and update
-  `midori.lock`.
-- `midori install <package> [--version <constraint>]`
+  `marmot.lock`.
+- `marmot install <package> [--version <constraint>]`
   Add a direct dependency to the active manifest, then resolve and install.
-  If `--version` is omitted, Midori looks up the highest locally available
+  If `--version` is omitted, Marmot looks up the highest locally available
   version and writes a caret constraint such as `^1.2.0`.
-- `midori update [package]`
-  Force a fresh resolve and rewrite `midori.lock`. The optional package name is
+- `marmot update [package]`
+  Force a fresh resolve and rewrite `marmot.lock`. The optional package name is
   currently validated, but the command still refreshes the full dependency
   graph.
-- `midori remove <package>`
+- `marmot remove <package>`
   Remove a direct dependency from the active manifest, refresh the lockfile, and
   remove unused vendored directories for that package name.
-- `midori list`
-  Print the resolved dependency tree. Midori prefers `midori.lock` and falls
+- `marmot list`
+  Print the resolved dependency tree. Marmot prefers `marmot.lock` and falls
   back to a fresh resolve when needed.
 
 All four commands operate on the active manifest from the current directory:
-`project.midori` if present, otherwise `package.midori`.
+`project.marmot` if present, otherwise `package.marmot`.
 
 ## Manifest Format
 
-`package.midori` is parsed by `PackageManifest`.
+`package.marmot` is parsed by `PackageManifest`.
 
 ### `[package]`
 
@@ -140,13 +140,13 @@ Recognized fields:
 - `description`
 - `license`
 - `repository`
-- `midori_version`
+- `marmot_version`
 
 Current validation:
 
 - `version` must parse as semantic versioning
-- `midori_version` must parse as a version constraint
-- the current compiler version must satisfy `midori_version`
+- `marmot_version` must parse as a version constraint
+- the current compiler version must satisfy `marmot_version`
 
 ### `[package.modules]`
 
@@ -186,7 +186,7 @@ Recognized fields:
 - `abi_version`
 - `functions`
 
-`functions` maps Midori foreign names to concrete exported symbol names inside
+`functions` maps Marmot foreign names to concrete exported symbol names inside
 the shared library.
 
 Current validation:
@@ -195,7 +195,7 @@ Current validation:
 - enabled packages must target the current runtime ABI version
 - declared symbols are validated against the loaded library before registration
 - at compile time, a `foreign "Name"` declaration must name either a builtin
-  runtime function or a key of `functions` in the `package.midori` in the same
+  runtime function or a key of `functions` in the `package.marmot` in the same
   directory as the declaring file; anything else is the compile error
   `CodeGeneratorUnknownForeignFunction`, rather than a failed call at run time
 
@@ -206,7 +206,7 @@ Recognized fields:
 - `cmake_minimum_version`
 - `cpp_standard`
 
-This section is still metadata only. Midori does not invoke a native build tool
+This section is still metadata only. Marmot does not invoke a native build tool
 from the manifest today.
 
 ### `[prebuilt]`
@@ -223,17 +223,17 @@ Each entry contains:
 - `path`
 - `checksum`
 
-When a matching prebuilt entry exists, Midori uses that path for the native
+When a matching prebuilt entry exists, Marmot uses that path for the native
 library and verifies its checksum before loading.
 
 ## Lockfile
 
-The lockfile is `midori.lock` in the project root.
+The lockfile is `marmot.lock` in the project root.
 
 ```toml
-# Auto-generated by Midori. Do not edit manually.
+# Auto-generated by Marmot. Do not edit manually.
 [metadata]
-midori_version = "..."
+marmot_version = "..."
 generated = "2026-04-05T12:00:00Z"
 manifest_checksum = "sha256:..."
 
@@ -245,17 +245,17 @@ checksum = "sha256:..."
 dependencies = []
 ```
 
-`manifest_checksum` tracks the active root manifest file. If it changes, Midori
+`manifest_checksum` tracks the active root manifest file. If it changes, Marmot
 treats the lockfile as stale and re-resolves.
 
 Each package `checksum` is computed from:
 
-- `package.midori`
-- all `.mdr` files under the package directory
+- `package.marmot`
+- all `.mmt` files under the package directory
 
 When a locked package directory is missing or its manifest no longer matches the
-lockfile entry, Midori falls back to a fresh resolve. When package source
-checksums drift, Midori emits warnings.
+lockfile entry, Marmot falls back to a fresh resolve. When package source
+checksums drift, Marmot emits warnings.
 
 ## Native Library Selection And Verification
 
@@ -277,7 +277,7 @@ Fallback paths:
 - checksum mismatch: load fails
 - no checksum: load continues with a warning
 
-Midori does not yet build native libraries automatically when no prebuilt binary
+Marmot does not yet build native libraries automatically when no prebuilt binary
 is available.
 
 ## Import-Time Package Loading
@@ -286,11 +286,11 @@ Package resolution happens before compilation by preparing the project search
 path. During compilation, `ModuleManager` still loads dynamic FFI libraries on
 demand:
 
-1. an import resolves to an `.mdr` file on the effective `MIDORI_PATH`
-2. `ModuleManager` checks that module's directory for `package.midori`
-3. if `ffi.enabled = true`, Midori selects the library path and registers the
+1. an import resolves to an `.mmt` file on the effective `MARMOT_PATH`
+2. `ModuleManager` checks that module's directory for `package.marmot`
+3. if `ffi.enabled = true`, Marmot selects the library path and registers the
    declared functions through `DynamicFFIRegistry`
-4. Midori rejects the package if `abi_version` mismatches or a declared symbol
+4. Marmot rejects the package if `abi_version` mismatches or a declared symbol
    is missing
 
 This keeps module import behavior file-based while the search path itself is now

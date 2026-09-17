@@ -1,10 +1,10 @@
-# Midori Compilation Workflow
+# Marmot Compilation Workflow
 
-This document describes the current compiler pipeline from `.mdr` source to linked bytecode.
+This document describes the current compiler pipeline from `.mmt` source to linked bytecode.
 
 ## Overview
 
-Midori compiles in these stages:
+Marmot compiles in these stages:
 
 ```text
 Source
@@ -51,7 +51,7 @@ Source: `src/Compiler/ModuleManager/`
 
 Key rules:
 
-- Every `.mdr` file must contain exactly one explicit `module` declaration.
+- Every `.mmt` file must contain exactly one explicit `module` declaration.
 - The `module` declaration must be the first top-level statement in the file.
 - `import`, `use`, `public export`, and `private export` can appear later and can be scattered across the file.
 - Module statements are collected before normal parsing, so their relative placement after `module` does not change semantics.
@@ -59,15 +59,15 @@ Key rules:
 Import forms:
 
 - System import: `import { <IO> }`
-- Path import: `import { "./helpers.mdr" }`
+- Path import: `import { "./helpers.mmt" }`
 
 Resolution behavior:
 
-- System imports are resolved through `MIDORI_PATH`.
+- System imports are resolved through `MARMOT_PATH`.
 - Path imports are resolved relative to the importing file.
 - Duplicate module names are rejected.
 - Circular dependencies are rejected.
-- If an imported file lives beside a `package.midori`, the package manifest is loaded and any declared dynamic FFI library is registered before compilation continues.
+- If an imported file lives beside a `package.marmot`, the package manifest is loaded and any declared dynamic FFI library is registered before compilation continues.
 
 The build graph stores:
 

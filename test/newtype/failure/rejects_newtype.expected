@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/newtype/failure/rejects_newtype.mdr:7
+Type Checker Error at test/newtype/failure/rejects_newtype.mmt:7
   |
 7 | def Leak = fn(distance: Meters) -> Int => TakesInt(distance);
   |                                                            ^ Expected type 'Int' but got 'Meters'

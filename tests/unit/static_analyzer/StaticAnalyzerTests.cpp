@@ -31,7 +31,7 @@ def Compute = fn() -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mdr");
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -47,7 +47,7 @@ def Compute = fn() -> Int => {
 			.m_code = CompilerWarningCode::UnusedLocal,
 			.m_line = 4,
 			.m_message_substrings = { "Binding 'unused' is never read." },
-			.m_rendered_substrings = { "AnalyzerUnused.mdr:4", "def unused = 2;" }
+			.m_rendered_substrings = { "AnalyzerUnused.mmt:4", "def unused = 2;" }
 		});
 }
 
@@ -64,7 +64,7 @@ def Compute = fn(value : Int) -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mdr");
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -80,7 +80,7 @@ def Compute = fn(value : Int) -> Int => {
 			.m_code = CompilerWarningCode::NameShadowing,
 			.m_line = 4,
 			.m_message_substrings = { "Name 'value' shadows a variable from an outer scope." },
-			.m_rendered_substrings = { "AnalyzerShadowing.mdr:4", "def value = 2;" }
+			.m_rendered_substrings = { "AnalyzerShadowing.mmt:4", "def value = 2;" }
 		});
 }
 
@@ -95,7 +95,7 @@ def MakeCounter = fn() -> fn() -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mdr");
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -111,7 +111,7 @@ def MakeCounter = fn() -> fn() -> Int => {
 			.m_code = CompilerWarningCode::CaptureEscape,
 			.m_line = 5,
 			.m_message_substrings = { "Captured closure 'next' escapes its defining scope as a return value." },
-			.m_rendered_substrings = { "AnalyzerCapture.mdr:5", "next" }
+			.m_rendered_substrings = { "AnalyzerCapture.mmt:5", "next" }
 		});
 }
 
@@ -124,7 +124,7 @@ def shifted = 1 << 63;
 def main = fn() -> Int => too_big + shifted;
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mdr");
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -140,7 +140,7 @@ def main = fn() -> Int => too_big + shifted;
 			.m_code = CompilerWarningCode::IntegerOverflow,
 			.m_line = 2,
 			.m_message_substrings = { "overflow" },
-			.m_rendered_substrings = { "AnalyzerOverflow.mdr:2", "9223372036854775807 + 1" }
+			.m_rendered_substrings = { "AnalyzerOverflow.mmt:2", "9223372036854775807 + 1" }
 		});
 }
 
@@ -153,7 +153,7 @@ def Compute = fn(x : Int) -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mdr");
+	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));

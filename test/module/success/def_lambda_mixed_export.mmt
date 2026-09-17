@@ -1,0 +1,13 @@
+module DefLambdaMixedExport
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./def_lambda_mixed_export_lib.mmt"
+}
+
+IO::PrintLine(DefLambdaMixedExportLib::Double(4) as Text);
+IO::PrintLine(DefLambdaMixedExportLib::Triple(4) as Text);
+IO::PrintLine(DefLambdaMixedExportLib::Echo(4) as Text);
+IO::PrintLine(DefLambdaMixedExportLib::Echo("four"));
+IO::PrintLine(DefLambdaMixedExportLib::Offset as Text);

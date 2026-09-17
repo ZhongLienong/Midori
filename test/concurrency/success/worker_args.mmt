@@ -1,0 +1,15 @@
+module worker_args
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+def Greeter = fn(name: Text, greeting: Text) -> Int => {
+    PrintLine(greeting ++ ", " ++ name ++ "!");
+    0
+};
+
+def w = Concurrency::Spawn(("World", "Hello"), Greeter);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
+PrintLine("Worker exited with: " ++ (r as Text));

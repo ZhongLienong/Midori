@@ -10,7 +10,7 @@
 
 namespace
 {
-	constexpr const char* kManifestFileName = "package.midori";
+	constexpr const char* kManifestFileName = "package.marmot";
 
 	const toml::value* FindTable(const toml::value& data, const char* key)
 	{
@@ -71,7 +71,7 @@ namespace
 		info.m_description = toml::find_or<std::string>(pkg, "description", info.m_description);
 		info.m_license = toml::find_or<std::string>(pkg, "license", info.m_license);
 		info.m_repository = toml::find_or<std::string>(pkg, "repository", info.m_repository);
-		info.m_midori_version = toml::find_or<std::string>(pkg, "midori_version", info.m_midori_version);
+		info.m_midori_version = toml::find_or<std::string>(pkg, "marmot_version", info.m_midori_version);
 
 		if (pkg.contains("authors"))
 		{
@@ -94,7 +94,7 @@ namespace
 			MidoriVersion::VersionConstraint::Parse(info.m_midori_version);
 		if (!compiler_constraint.has_value())
 		{
-			return std::unexpected(std::format("Invalid midori_version constraint '{}': {}", info.m_midori_version, compiler_constraint.error()));
+			return std::unexpected(std::format("Invalid marmot_version constraint '{}': {}", info.m_midori_version, compiler_constraint.error()));
 		}
 		info.m_midori_version_constraint = compiler_constraint.value();
 
@@ -108,7 +108,7 @@ namespace
 		if (!info.m_midori_version_constraint.Matches(compiler_version.value()))
 		{
 			return std::unexpected(std::format(
-				"Package '{}' requires Midori {}, but the current compiler version is {}.",
+				"Package '{}' requires Marmot {}, but the current compiler version is {}.",
 				info.m_name,
 				info.m_midori_version,
 				compiler_version->ToString()));
@@ -264,7 +264,7 @@ namespace
 		if (ffi->m_enabled && ffi->m_abi_version != MidoriFFIRegistry::ABI_VERSION)
 		{
 			return std::unexpected(std::format(
-				"Package '{}' targets FFI ABI v{}, but this Midori runtime supports FFI ABI v{}.",
+				"Package '{}' targets FFI ABI v{}, but this Marmot runtime supports FFI ABI v{}.",
 				info->m_name,
 				ffi->m_abi_version,
 				MidoriFFIRegistry::ABI_VERSION));
@@ -370,7 +370,7 @@ std::expected<PackageManifest, std::string> PackageManifest::LoadWithError(const
 	const std::filesystem::path manifest_path = packageDirectory / kManifestFileName;
 	if (!std::filesystem::exists(manifest_path))
 	{
-		return std::unexpected(std::format("package.midori not found in: {}", packageDirectory.string()));
+		return std::unexpected(std::format("package.marmot not found in: {}", packageDirectory.string()));
 	}
 
 	try
@@ -380,7 +380,7 @@ std::expected<PackageManifest, std::string> PackageManifest::LoadWithError(const
 	}
 	catch (const std::exception& e)
 	{
-		return std::unexpected(std::format("Failed to parse package.midori in {}: {}", packageDirectory.string(), e.what()));
+		return std::unexpected(std::format("Failed to parse package.marmot in {}: {}", packageDirectory.string(), e.what()));
 	}
 }
 

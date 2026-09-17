@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Midori Benchmark Runner
+Marmot Benchmark Runner
 
 Runs the benchmark suite and reports per-benchmark medians. Optionally
 compares two executables with interleaved runs so machine drift affects
@@ -10,7 +10,7 @@ Usage:
     python scripts/bench.py                          # current Release build
     python scripts/bench.py --runs 7                 # more samples
     python scripts/bench.py --compare path/to/old.exe
-    python scripts/bench.py --exe path/to/midori.exe
+    python scripts/bench.py --exe path/to/marmot.exe
 """
 
 import argparse
@@ -23,10 +23,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 WORKLOADS = [
-    ROOT / "benchmark" / "all.mdr",
-    ROOT / "benchmark" / "perf_sort_100k.mdr",
-    ROOT / "benchmark" / "perf_text_midsize.mdr",
-    ROOT / "benchmark" / "gc_churn.mdr",
+    ROOT / "benchmark" / "all.mmt",
+    ROOT / "benchmark" / "perf_sort_100k.mmt",
+    ROOT / "benchmark" / "perf_text_midsize.mmt",
+    ROOT / "benchmark" / "gc_churn.mmt",
 ]
 
 RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re.MULTILINE)
@@ -34,14 +34,14 @@ RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re
 
 def find_executable() -> Path:
     candidates = [
-        ROOT / "out/build/ninja/x64-release/out/Midori.exe",
-        ROOT / "out/build/x64-release/out/Midori.exe",
-        ROOT / "build/out/Midori.exe",
+        ROOT / "out/build/ninja/x64-release/out/Marmot.exe",
+        ROOT / "out/build/x64-release/out/Marmot.exe",
+        ROOT / "build/out/Marmot.exe",
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    sys.exit("No Release Midori.exe found; pass --exe explicitly.")
+    sys.exit("No Release Marmot.exe found; pass --exe explicitly.")
 
 
 def run_workload(exe: Path, workload: Path) -> dict[str, int]:
@@ -74,7 +74,7 @@ def collect(exes: list[Path], runs: int) -> dict[str, dict[str, list[int]]]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Midori benchmarks and report medians.")
+    parser = argparse.ArgumentParser(description="Run Marmot benchmarks and report medians.")
     parser.add_argument("--exe", type=Path, default=None, help="Executable to benchmark")
     parser.add_argument("--compare", type=Path, default=None, help="Baseline executable for A/B comparison")
     parser.add_argument("--runs", type=int, default=5, help="Samples per benchmark (default 5)")

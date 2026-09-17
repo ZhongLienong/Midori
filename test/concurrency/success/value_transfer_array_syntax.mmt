@@ -1,0 +1,15 @@
+module value_transfer_array_syntax
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+def BuildValues = fn() -> Array<Int> => {
+    [1, 2, 3, 4]
+};
+
+def worker = Concurrency::Spawn((), BuildValues);
+def values = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+
+PrintLine("len=" ++ ((#values) as Text) ++ ",first=" ++ (values[0] as Text) ++ ",last=" ++ (values[3] as Text));

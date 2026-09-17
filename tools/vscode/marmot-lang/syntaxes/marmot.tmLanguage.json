@@ -1,0 +1,128 @@
+{
+  "name": "Marmot",
+  "scopeName": "source.marmot",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#moduleDecl"
+    },
+    {
+      "include": "#functionDecl"
+    },
+    {
+      "include": "#typeAnnotations"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.marmot",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.marmot",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.marmot",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.marmot",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.marmot",
+          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+\\.\\d+|\\d+)\\b"
+        },
+        {
+          "name": "constant.language.boolean.marmot",
+          "match": "\\b(?:true|false)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.marmot",
+          "match": "\\b(?:else|fn|for|in|if|def|import|as|foreign|case|match|then|with|module|export|public|private|use|class|instance|where|type|alias|deriving)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.marmot",
+          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never)\\b"
+        }
+      ]
+    },
+    "moduleDecl": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.marmot",
+          "match": "(?<=\\bmodule\\s)([A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*)"
+        }
+      ]
+    },
+    "functionDecl": {
+      "patterns": [
+        {
+          "name": "entity.name.function.marmot",
+          "match": "(?<=\\bdef\\s)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=\\s*fn\\b)"
+        },
+        {
+          "name": "entity.name.function.call.marmot",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "typeAnnotations": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.annotation.marmot",
+          "match": ":"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.marmot",
+          "match": "(?:\\|>|::|\\.\\.|=>|->|==|!=|<=|>=|<<=|>>=|<<|>>|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|\\+\\+|=\\+\\+|[+\\-*/%&|^=<>!#.,;{}()\\[\\]])"
+        }
+      ]
+    }
+  }
+}

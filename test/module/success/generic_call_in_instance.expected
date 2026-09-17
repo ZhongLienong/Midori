@@ -1,10 +1,10 @@
-[warning] 2 warning(s) in generic_call_in_instance_lib.mdr
-Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mdr:8
+[warning] 2 warning(s) in generic_call_in_instance_lib.mmt
+Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mmt:8
   |
 8 | def GenericPick = fn < T >(x: T, n: Int) -> Int => n;
   |                            ^ Binding 'x' is never read.
   |
-Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mdr:9
+Static Analyzer Warning at test/module/success/generic_call_in_instance_lib.mmt:9
   |
 9 | def PlainPick = fn(x: Int, n: Int) -> Int => n;
   |                    ^ Binding 'x' is never read.

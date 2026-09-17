@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/typeclass/failure/indexable_no_instance.mdr:14
+Type Checker Error at test/typeclass/failure/indexable_no_instance.mmt:14
    |
 14 | IO::PrintLine(t[0] as Text);
    |               ^ Type Text does not satisfy constraint Indexable<Text, Int> - no matching instance found

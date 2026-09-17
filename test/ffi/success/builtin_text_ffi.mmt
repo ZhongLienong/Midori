@@ -1,0 +1,54 @@
+module BuiltinTextFfi
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt",
+}
+
+// Previously also covered MIDORI_FFI_TextAppend and MIDORI_FFI_TextPrepend,
+// which mutated their argument in place and were deleted along with the
+// TEXT_APPEND opcode. What remains here is the FFI surface that returns new
+// values or reads without mutating.
+
+foreign "MIDORI_FFI_TextConcat" TextConcat : fn(Text, Text) -> Text;
+foreign "MIDORI_FFI_TextLength" TextLength : fn(Text) -> Int;
+foreign "MIDORI_FFI_TextSubstring" TextSubstring : fn(Text, Int, Int) -> Text;
+foreign "MIDORI_FFI_TextSplit" TextSplit : fn(Text, Text) -> Array<Text>;
+foreign "MIDORI_FFI_TextReverse" TextReverse : fn(Text) -> Text;
+foreign "MIDORI_FFI_TextContains" TextContains : fn(Text, Text) -> Bool;
+foreign "MIDORI_FFI_TextReplace" TextReplace : fn(Text, Text, Text) -> Text;
+foreign "MIDORI_FFI_TextTrim" TextTrim : fn(Text) -> Text;
+foreign "MIDORI_FFI_ArrayLength" ArrayLengthText : fn(Array<Text>) -> Int;
+
+def joined = TextConcat("hello", " world");
+if joined == "hello world" then () else Panic::Panic("TextConcat should return a combined text");
+if TextLength(joined) == 11 then () else Panic::Panic("TextLength should count the concatenated text");
+
+def sub = TextSubstring("abcdef", 1, 4);
+if sub == "bcd" then () else Panic::Panic("TextSubstring should use [start, end) semantics");
+
+def pieces = TextSplit("a--b--", "--");
+if ArrayLengthText(pieces) == 3 then () else Panic::Panic("TextSplit should preserve trailing empty fields");
+if pieces[0] == "a" then () else Panic::Panic("TextSplit should preserve the first segment");
+if pieces[1] == "b" then () else Panic::Panic("TextSplit should preserve the middle segment");
+if pieces[2] == "" then () else Panic::Panic("TextSplit should preserve the trailing empty segment");
+
+def reversed = TextReverse("stressed");
+if reversed == "desserts" then () else Panic::Panic("TextReverse should reverse by code point");
+
+if TextContains(joined, "lo wo")
+then ()
+else Panic::Panic("TextContains should find existing substrings");
+
+if TextContains(joined, "zzz")
+then Panic::Panic("TextContains should reject missing substrings")
+else ();
+
+def replaced = TextReplace("one two one", "one", "1");
+if replaced == "1 two 1" then () else Panic::Panic("TextReplace should replace all matches");
+
+def trimmed = TextTrim(" \t hi \n");
+if trimmed == "hi" then () else Panic::Panic("TextTrim should strip ASCII edge whitespace");
+
+IO::PrintLine("builtin_text_ffi: PASS");

@@ -1,5 +1,5 @@
-[warning] 1 warning(s) in dynamic_creation_capture_value.mdr
-Static Analyzer Warning at test/closure/dynamic_creation_capture_value.mdr:8
+[warning] 1 warning(s) in dynamic_creation_capture_value.mmt
+Static Analyzer Warning at test/closure/dynamic_creation_capture_value.mmt:8
   |
 8 | def makeCapture = fn(val : Int) -> fn() -> Int => fn() -> Int => val;
   |                                                   ^^ Captured anonymous closure escapes its defining scope as a return value.

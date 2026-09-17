@@ -828,7 +828,7 @@ namespace
 				continue;
 			}
 
-			if (entry.path().extension() == ".mdr")
+			if (entry.path().extension() == ".mmt")
 			{
 				files.push_back(entry.path());
 			}

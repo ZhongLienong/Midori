@@ -383,7 +383,7 @@ reference_package/lib/macos/*.dylib
 
 # Generated doc-example compile sandboxes
 .doc_examples/
-.doc_example_*.mdr
+.doc_example_*.mmt
 
 # Codex
 .codex*
@@ -394,9 +394,9 @@ build*
 # Images the misc/ demos render when run
 *.ppm
 
-# Bytecode artifacts `midori build` writes beside a program
-*.mbc
-*.mbc.json
+# Bytecode artifacts `marmot build` writes beside a program
+*.mmc
+*.mmc.json
 
 # Coding agent plans
 docs/plan/

@@ -1,0 +1,54 @@
+{
+  "name": "marmot-lang",
+  "displayName": "Marmot Language Support",
+  "description": "Syntax highlighting and on-save diagnostics for Marmot.",
+  "version": "0.1.0",
+  "publisher": "marmot",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:marmot"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "marmot",
+        "aliases": [
+          "Marmot",
+          "marmot"
+        ],
+        "extensions": [
+          ".mmt"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "marmot",
+        "scopeName": "source.marmot",
+        "path": "./syntaxes/marmot.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Marmot",
+      "properties": {
+        "marmot.executablePath": {
+          "type": "string",
+          "default": "Marmot.exe",
+          "description": "Path to the Marmot CLI executable used for diagnostics."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "marmot.showSuggestion",
+        "title": "Marmot: Show Suggestion"
+      }
+    ]
+  }
+}

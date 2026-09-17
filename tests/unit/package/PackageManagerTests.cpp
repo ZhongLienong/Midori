@@ -68,19 +68,19 @@ TEST_CASE("PackageManifest validates dependency constraints", "[package][manifes
 	const MidoriTest::TempProject project(
 		{
 			MidoriTest::TempProjectFile(
-				"pkg/package.midori",
+				"pkg/package.marmot",
 				"[package]\n"
 				"name = \"Image\"\n"
 				"version = \"0.2.0\"\n"
-				"midori_version = \">=1.0.0\"\n"
+				"marmot_version = \">=1.0.0\"\n"
 				"\n"
 				"[package.modules]\n"
-				"main = \"Image.mdr\"\n"
+				"main = \"Image.mmt\"\n"
 				"exports = [\"Image\"]\n"
 				"\n"
 				"[dependencies]\n"
 				"Collections = \"^1.2.0\"\n"),
-			MidoriTest::TempProjectFile("pkg/Image.mdr", "module Image\n")
+			MidoriTest::TempProjectFile("pkg/Image.mmt", "module Image\n")
 		});
 
 	const std::optional<PackageManifest> manifest = PackageManifest::Load(project.Path("pkg"));
@@ -97,29 +97,29 @@ TEST_CASE("PackageManifest reads ffi abi metadata", "[package][manifest]")
 	const MidoriTest::TempProject project(
 		{
 			MidoriTest::TempProjectFile(
-				"pkg/package.midori",
+				"pkg/package.marmot",
 				"[package]\n"
 				"name = \"Image\"\n"
 				"version = \"0.2.0\"\n"
-				"midori_version = \">=1.0.0\"\n"
+				"marmot_version = \">=1.0.0\"\n"
 				"\n"
 				"[ffi]\n"
 				"enabled = true\n"
-				"library_name = \"midori_image\"\n"
+				"library_name = \"marmot_image\"\n"
 				"abi_version = 1\n"
 				"\n"
 				"[ffi.functions]\n"
-				"\"Image::ReadInfo\" = \"midori_image_read_info\"\n"),
-			MidoriTest::TempProjectFile("pkg/Image.mdr", "module Image\n")
+				"\"Image::ReadInfo\" = \"marmot_image_read_info\"\n"),
+			MidoriTest::TempProjectFile("pkg/Image.mmt", "module Image\n")
 		});
 
 	const std::expected<PackageManifest, std::string> manifest = PackageManifest::LoadWithError(project.Path("pkg"));
 	REQUIRE(manifest.has_value());
 	CHECK(manifest->GetFFI().m_enabled);
-	CHECK(manifest->GetFFI().m_libraryName == "midori_image");
+	CHECK(manifest->GetFFI().m_libraryName == "marmot_image");
 	CHECK(manifest->GetFFI().m_abi_version == MidoriFFIRegistry::ABI_VERSION);
 	REQUIRE(manifest->GetFFI().m_functions.contains("Image::ReadInfo"));
-	CHECK(manifest->GetFFI().m_functions.at("Image::ReadInfo") == "midori_image_read_info");
+	CHECK(manifest->GetFFI().m_functions.at("Image::ReadInfo") == "marmot_image_read_info");
 }
 
 TEST_CASE("PackageManifest rejects unsupported ffi abi versions", "[package][manifest]")
@@ -128,17 +128,17 @@ TEST_CASE("PackageManifest rejects unsupported ffi abi versions", "[package][man
 	const MidoriTest::TempProject project(
 		{
 			MidoriTest::TempProjectFile(
-				"pkg/package.midori",
+				"pkg/package.marmot",
 				"[package]\n"
 				"name = \"Image\"\n"
 				"version = \"0.2.0\"\n"
-				"midori_version = \">=1.0.0\"\n"
+				"marmot_version = \">=1.0.0\"\n"
 				"\n"
 				"[ffi]\n"
 				"enabled = true\n"
-				"library_name = \"midori_image\"\n"
+				"library_name = \"marmot_image\"\n"
 				"abi_version = " + std::to_string(unsupported_abi_version) + "\n"),
-			MidoriTest::TempProjectFile("pkg/Image.mdr", "module Image\n")
+			MidoriTest::TempProjectFile("pkg/Image.mmt", "module Image\n")
 		});
 
 	const std::expected<PackageManifest, std::string> manifest = PackageManifest::LoadWithError(project.Path("pkg"));
@@ -150,44 +150,44 @@ TEST_CASE("PackageManifest rejects unsupported ffi abi versions", "[package][man
 
 TEST_CASE("Project package environment resolves local packages and reuses the lockfile", "[package][workspace]")
 {
-	const MidoriTest::ScopedEnvVar clear_midori_path("MIDORI_PATH", std::nullopt);
+	const MidoriTest::ScopedEnvVar clear_midori_path("MARMOT_PATH", std::nullopt);
 	const MidoriTest::TempProject project(
 		{
 			MidoriTest::TempProjectFile(
-				"project.midori",
+				"project.marmot",
 				"[project]\n"
 				"name = \"App\"\n"
 				"source_dir = \"src\"\n"
 				"packages_dir = \"packages\"\n"
-				"prelude_dir = \"MidoriPrelude\"\n"
-				"midori_path = [\"registry\"]\n"
+				"prelude_dir = \"MarmotPrelude\"\n"
+				"marmot_path = [\"registry\"]\n"
 				"\n"
 				"[dependencies]\n"
 				"Greeter = \"^1.0.0\"\n"),
-			MidoriTest::TempProjectFile("src/Main.mdr", "module Main\n"),
-			MidoriTest::TempProjectFile("MidoriPrelude/System.mdr", "module System\n"),
+			MidoriTest::TempProjectFile("src/Main.mmt", "module Main\n"),
+			MidoriTest::TempProjectFile("MarmotPrelude/System.mmt", "module System\n"),
 			MidoriTest::TempProjectFile(
-				"registry/Greeter-1.0.0/package.midori",
+				"registry/Greeter-1.0.0/package.marmot",
 				"[package]\n"
 				"name = \"Greeter\"\n"
 				"version = \"1.0.0\"\n"
-				"midori_version = \">=1.0.0\"\n"
+				"marmot_version = \">=1.0.0\"\n"
 				"\n"
 				"[package.modules]\n"
-				"main = \"Greeter.mdr\"\n"
+				"main = \"Greeter.mmt\"\n"
 				"exports = [\"Greeter\"]\n"),
-			MidoriTest::TempProjectFile("registry/Greeter-1.0.0/Greeter.mdr", "module Greeter\n"),
+			MidoriTest::TempProjectFile("registry/Greeter-1.0.0/Greeter.mmt", "module Greeter\n"),
 			MidoriTest::TempProjectFile(
-				"registry/Greeter-1.2.0/package.midori",
+				"registry/Greeter-1.2.0/package.marmot",
 				"[package]\n"
 				"name = \"Greeter\"\n"
 				"version = \"1.2.0\"\n"
-				"midori_version = \">=1.0.0\"\n"
+				"marmot_version = \">=1.0.0\"\n"
 				"\n"
 				"[package.modules]\n"
-				"main = \"Greeter.mdr\"\n"
+				"main = \"Greeter.mmt\"\n"
 				"exports = [\"Greeter\"]\n"),
-			MidoriTest::TempProjectFile("registry/Greeter-1.2.0/Greeter.mdr", "module Greeter\n")
+			MidoriTest::TempProjectFile("registry/Greeter-1.2.0/Greeter.mmt", "module Greeter\n")
 		});
 
 	const std::optional<MidoriProject::ManifestConfiguration> configuration =
@@ -199,8 +199,8 @@ TEST_CASE("Project package environment resolves local packages and reuses the lo
 	REQUIRE(first_environment.has_value());
 	REQUIRE(first_environment->m_graph.m_packages.contains("Greeter"));
 	CHECK(first_environment->m_graph.m_packages.at("Greeter").m_manifest.GetInfo().m_version == "1.2.0");
-	CHECK(std::filesystem::exists(project.Path("packages/Greeter-1.2.0/package.midori")));
-	CHECK(std::filesystem::exists(project.Path("midori.lock")));
+	CHECK(std::filesystem::exists(project.Path("packages/Greeter-1.2.0/package.marmot")));
+	CHECK(std::filesystem::exists(project.Path("marmot.lock")));
 
 	const std::expected<MidoriPackageManager::PackageEnvironment, std::string> second_environment =
 		MidoriPackageManager::PreparePackageEnvironment(*configuration, MidoriPackageManager::ResolveMode::PreferLockfile);
@@ -214,11 +214,11 @@ TEST_CASE("Project manifest dependency helpers update the active manifest", "[pa
 	const MidoriTest::TempProject project(
 		{
 			MidoriTest::TempProjectFile(
-				"project.midori",
+				"project.marmot",
 				"[project]\n"
 				"name = \"App\"\n"
 				"source_dir = \"src\"\n"),
-			MidoriTest::TempProjectFile("src/Main.mdr", "module Main\n")
+			MidoriTest::TempProjectFile("src/Main.mmt", "module Main\n")
 		});
 
 	std::string error_message;

@@ -74,7 +74,7 @@ namespace
 		const uint64_t counter_value = s_capture_counter.fetch_add(1u) + 1u;
 		const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 		const long long tick_count = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-		return std::filesystem::temp_directory_path() / std::format("midori-{}-{}-{}.log", label, tick_count, counter_value);
+		return std::filesystem::temp_directory_path() / std::format("marmot-{}-{}-{}.log", label, tick_count, counter_value);
 	}
 
 	std::string ReadFileContents(const std::filesystem::path& path)

@@ -25,14 +25,14 @@ namespace
 	//   - The third TEST_CASE uses GenerateOptimizedBytecodeSnippetWithDiagnostics,
 	//     which additionally runs OptimizerManager the way the real compiler
 	//     does, and asserts EXTEND_TEXT is STILL present afterwards. This
-	//     guards a different risk: test/prelude/success/concat_does_not_mutate_aliases.mdr
+	//     guards a different risk: test/prelude/success/concat_does_not_mutate_aliases.mmt
 	//     proves the same property only by observing *behaviour* through the
 	//     full compiler. If a future pass learned to fold an array index into
 	//     a literal - or a future constant-propagation pass started covering
 	//     module-level globals, which LocalConstantPropagation does not today
 	//     (it is scoped to NameContext::Local) - several of that file's probes
 	//     would stop reaching EXTEND_TEXT at all while still printing the
-	//     same, correct output. The .mdr test would keep passing and nobody
+	//     same, correct output. The .mmt test would keep passing and nobody
 	//     would notice it had stopped testing anything. The first two
 	//     TEST_CASEs would also stay green in that scenario, because they never
 	//     run the optimizer that would have done the folding - only the third
@@ -108,7 +108,7 @@ namespace
 TEST_CASE("A text literal left operand of ++ emits EXTEND_TEXT", "[compiler][codegen][concat]")
 {
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(EXTEND_SHAPE_SOURCE, "ExtendTextProbe.mdr");
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(EXTEND_SHAPE_SOURCE, "ExtendTextProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
@@ -118,7 +118,7 @@ TEST_CASE("A text literal left operand of ++ emits EXTEND_TEXT", "[compiler][cod
 TEST_CASE("A NameAccess left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][codegen][concat]")
 {
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(CONCAT_SHAPE_SOURCE, "ConcatTextProbe.mdr");
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(CONCAT_SHAPE_SOURCE, "ConcatTextProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
@@ -129,7 +129,7 @@ TEST_CASE("A NameAccess left operand of ++ emits CONCAT_TEXT and never EXTEND_TE
 TEST_CASE("EXTEND_TEXT survives the real optimizer pipeline on the Case 2/6 shape", "[compiler][codegen][concat][optimizer]")
 {
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateOptimizedBytecodeSnippetWithDiagnostics(EXTEND_SHAPE_SOURCE, "ExtendTextProbe.mdr");
+		MidoriTest::GenerateOptimizedBytecodeSnippetWithDiagnostics(EXTEND_SHAPE_SOURCE, "ExtendTextProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());

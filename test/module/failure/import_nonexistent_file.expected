@@ -1,3 +1,3 @@
 Compilation failed :(
-Module Error at test/module/failure/import_nonexistent_file.mdr:5
-  Could not resolve import: nonexistent_module.mdr
+Module Error at test/module/failure/import_nonexistent_file.mmt:5
+  Could not resolve import: nonexistent_module.mmt

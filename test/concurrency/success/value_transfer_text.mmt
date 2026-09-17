@@ -1,0 +1,31 @@
+module value_transfer_text
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+def TextWorker = fn(ch : Channel<Text>) -> Int =>
+{
+    ch -> "hello world";
+    ch -> "";
+    ch -> "special chars: !@#$%^&*()";
+    ch -> "line1\nline2";
+    0
+};
+
+def ch : Channel<Text> = Concurrency::MakeChannel(4);
+def w = Concurrency::Spawn(ch, TextWorker);
+
+def v1 = <- ch;
+def v2 = <- ch;
+def v3 = <- ch;
+def v4 = <- ch;
+
+PrintLine("v1=[" ++ v1 ++ "]");
+PrintLine("v2=[" ++ v2 ++ "]");
+PrintLine("v3=[" ++ v3 ++ "]");
+PrintLine("v4=[" ++ v4 ++ "]");
+
+Concurrency::Close(ch);
+def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

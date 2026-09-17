@@ -10,7 +10,7 @@ namespace
 	[[nodiscard]] std::filesystem::path ArtifactPathForSource(const std::filesystem::path& source_file)
 	{
 		std::filesystem::path artifact_path = source_file;
-		artifact_path.replace_extension(".mbc.json");
+		artifact_path.replace_extension(".mmc.json");
 		return artifact_path;
 	}
 
@@ -97,7 +97,7 @@ namespace MidoriBytecodeArtifact
 		std::string artifact_json = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(artifact_json, "version", 1, first_field);
-		MidoriJson::AppendStringField(artifact_json, "kind", "midori-bytecode", first_field);
+		MidoriJson::AppendStringField(artifact_json, "kind", "marmot-bytecode", first_field);
 		MidoriJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
 		MidoriJson::AppendStringField(artifact_json, "entryFile", source_file.generic_string(), first_field);
 		MidoriJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);

@@ -1,0 +1,53 @@
+module BuiltinTypeOperationsTypeclasses
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Concatenable.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+// Previously also covered Appendable, Prependable and Extendable. Those three
+// mutated their argument in place and were removed from the language; what
+// remains here is Concatenable, which returns a new value and is unaffected.
+
+def ConcatPair = fn<T>(left: T, right: T) -> T
+    where Concatenable<T> => left ++ right;
+
+def arr = [1, 2, 3, 4, 5, 6];
+
+def combined = arr ++ [7, 8];
+if #combined == 8
+then ()
+else Panic::Panic("Array Concat should return a larger array");
+
+if (combined[0] == 1) && (combined[7] == 8)
+then ()
+else Panic::Panic("Array Concat should preserve both sides");
+
+if (#arr == 6) && (arr[0] == 1) && (arr[5] == 6)
+then ()
+else Panic::Panic("Array Concat should not mutate the left operand");
+
+def combined_via_constraint = ConcatPair(arr, [9, 10]);
+if (#combined_via_constraint == 8) && (combined_via_constraint[0] == 1) && (combined_via_constraint[7] == 10)
+then ()
+else Panic::Panic("Array ++ should dispatch through Concatenable in constrained generic code");
+
+def text = "mid-core!";
+
+def joined = text ++ "?";
+if joined == "mid-core!?"
+then ()
+else Panic::Panic("Text Concat should return the combined text");
+
+if text == "mid-core!"
+then ()
+else Panic::Panic("Text Concat should not mutate the left operand");
+
+def joined_via_constraint = ConcatPair(text, "!");
+if joined_via_constraint == "mid-core!!"
+then ()
+else Panic::Panic("Text ++ should dispatch through Concatenable in constrained generic code");
+
+IO::PrintLine("builtin_type_operations_typeclasses: PASS");

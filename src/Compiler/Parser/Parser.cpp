@@ -161,7 +161,7 @@ namespace
 	}
 
 	// Concurrency::Spawn, Join and MakeChannel are written as calls but have no
-	// declaration in Concurrency.mdr: the parser turns each call into the node the
+	// declaration in Concurrency.mmt: the parser turns each call into the node the
 	// compiler already checks and lowers, as it resolves Result for Join by name.
 	constexpr std::string_view ConcurrencyModuleName = "Concurrency";
 	constexpr std::string_view SpawnIntrinsicName = "Concurrency::Spawn";
@@ -667,7 +667,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			{ "is_done", "Concurrency::IsDone" },
 			{ "cancel", "Concurrency::Cancel" }
 		};
-		return std::unexpected(GenerateParserError(std::format("'{}' is no longer supported. Write '{}', which needs \"MidoriPrelude/Concurrency.mdr\" imported like the rest of the concurrency surface.", lookup_name, replacements.at(lookup_name)), name_token));
+		return std::unexpected(GenerateParserError(std::format("'{}' is no longer supported. Write '{}', which needs \"MarmotPrelude/Concurrency.mmt\" imported like the rest of the concurrency surface.", lookup_name, replacements.at(lookup_name)), name_token));
 	}
 
 	// `loop`, `break`, `continue` and `return` are no longer keywords, so a file
@@ -1754,7 +1754,7 @@ MidoriResult::ExpressionResult Parser::LowerConcurrencyIntrinsic(std::unique_ptr
 		std::shared_ptr<MidoriType> worker_error_type = FindDeclaredTypeByName("WorkerError");
 		if (result_type == nullptr || worker_error_type == nullptr)
 		{
-			return std::unexpected(GenerateParserError("'Concurrency::Join' evaluates to Result<T, WorkerError>. Import \"MidoriPrelude/Prelude/Result.mdr\" and \"MidoriPrelude/Concurrency.mdr\" to use it.", callee_name));
+			return std::unexpected(GenerateParserError("'Concurrency::Join' evaluates to Result<T, WorkerError>. Import \"MarmotPrelude/Prelude/Result.mmt\" and \"MarmotPrelude/Concurrency.mmt\" to use it.", callee_name));
 		}
 
 		return std::make_unique<MidoriExpression>(MidoriExpression::Join(callee_name, std::move(call.m_arguments[0u]), std::move(result_type), std::move(worker_error_type)));
@@ -2269,9 +2269,9 @@ bool Parser::ProbeRecordUpdate()
 	//
 	// The pending-match counter is load-bearing, not defensive padding: `{ match x with
 	// case ... }` is a block whose 'with' sits at depth 0. Simulating this probe over the
-	// 352 .mdr files in test/, MidoriPrelude/, benchmark/, reference_package/ and tests/
+	// 352 .mmt files in test/, MarmotPrelude/, benchmark/, reference_package/ and tests/
 	// misclassifies 0 braces with the counter and 51 without it - most of
-	// MidoriPrelude/Prelude/Result.mdr and Option.mdr among them.
+	// MarmotPrelude/Prelude/Result.mmt and Option.mmt among them.
 	int offset = 0;
 	int depth = 0;
 	int pending_match = 0;

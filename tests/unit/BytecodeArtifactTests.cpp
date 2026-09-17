@@ -270,7 +270,7 @@ TEST_CASE("BinaryArtifact run with embedded sources preserves runtime error sour
 TEST_CASE("BinaryArtifact ReadExecutableFromFile returns error for missing file", "[bytecode-artifact]")
 {
 	const std::expected<MidoriExecutable, std::string> result =
-		MidoriBinaryArtifact::ReadExecutableFromFile("nonexistent_artifact_file.mbc");
+		MidoriBinaryArtifact::ReadExecutableFromFile("nonexistent_artifact_file.mmc");
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE_FALSE(result.error().empty());

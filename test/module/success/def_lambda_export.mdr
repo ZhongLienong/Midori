@@ -1,9 +1,0 @@
-module DefLambdaExport
-
-import
-{
-	"../../../MidoriPrelude/IO.mdr",
-	"./def_lambda_export_lib.mdr"
-}
-
-IO::PrintLine(DefLambdaExportLib::Twice(21) as Text);

@@ -1,0 +1,15 @@
+module MultipleNested
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+def makeAdder = fn(a : Int) -> fn(Int) -> fn(Int) -> Int =>
+{
+  fn(b : Int) -> fn(Int) -> Int => fn(c : Int) -> Int => a + b + c
+};
+
+def adder = makeAdder(3)(4);
+
+IO::PrintLine(adder(5) as Text);  // Should print 12

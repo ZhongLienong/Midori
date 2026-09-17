@@ -43,6 +43,6 @@ std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety() cons
 
 	return std::unexpected(std::format(
 		"Cannot spawn worker: the following FFI packages are not declared thread_safe: {}. "
-		"Set thread_safe = true in each package's package.midori [ffi] section if the native code is safe for concurrent use.",
+		"Set thread_safe = true in each package's package.marmot [ffi] section if the native code is safe for concurrent use.",
 		package_list));
 }

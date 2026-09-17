@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at test/newtype/failure/generic_arity_mismatch.mdr:10
+Parser Error at test/newtype/failure/generic_arity_mismatch.mmt:10
    |
 10 | def x: Boxed<Int, Text> = [1];
    |        ^^^^^ Type argument count mismatch: expected 1, got 2

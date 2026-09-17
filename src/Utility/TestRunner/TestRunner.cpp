@@ -69,7 +69,7 @@ namespace
 
 	[[nodiscard]] std::string EmptyReportJson()
 	{
-		return "{\"version\":1,\"source\":\"midori\",\"diagnostics\":[],\"warnings\":[],\"errors\":[]}";
+		return "{\"version\":1,\"source\":\"marmot\",\"diagnostics\":[],\"warnings\":[],\"errors\":[]}";
 	}
 
 	[[nodiscard]] std::filesystem::path MakeWorkerResultDirectory()
@@ -78,7 +78,7 @@ namespace
 		for (int index = 0; index < 32; index += 1)
 		{
 			const std::filesystem::path candidate = base / std::format(
-				"midori-test-worker-{}-{}",
+				"marmot-test-worker-{}-{}",
 				static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count()),
 				index);
 			std::error_code error_code;
@@ -620,7 +620,7 @@ namespace
 				return tests;
 			}
 
-			const std::filesystem::path candidate_with_extension = test_directory / (*options.m_test_file + ".mdr");
+			const std::filesystem::path candidate_with_extension = test_directory / (*options.m_test_file + ".mmt");
 			if (std::filesystem::exists(candidate_with_extension))
 			{
 				tests.push_back(candidate_with_extension);
@@ -636,7 +636,7 @@ namespace
 
 		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(test_directory))
 		{
-			if (!entry.is_regular_file() || entry.path().extension() != ".mdr")
+			if (!entry.is_regular_file() || entry.path().extension() != ".mmt")
 			{
 				continue;
 			}
@@ -655,7 +655,7 @@ namespace
 			if (entry.path().parent_path() == test_directory)
 			{
 				const std::string file_name = entry.path().filename().string();
-				if (file_name == "minimal_test.mdr" || file_name == "test.mdr" || file_name == "simple_test.mdr" || file_name == "test_backup.mdr")
+				if (file_name == "minimal_test.mmt" || file_name == "test.mmt" || file_name == "simple_test.mmt" || file_name == "test_backup.mmt")
 				{
 					continue;
 				}
@@ -857,7 +857,7 @@ namespace
 		{
 			std::error_code cleanup_error;
 			std::filesystem::remove_all(result_directory, cleanup_error);
-			return MakeWorkerFailureResult(test_directory, test_path, "Failed to start the Midori test worker process.");
+			return MakeWorkerFailureResult(test_directory, test_path, "Failed to start the Marmot test worker process.");
 		}
 
 		const std::optional<int> exit_code = WaitForChildProcess(*process, timeout_ms);
@@ -877,7 +877,7 @@ namespace
 		std::filesystem::remove_all(result_directory, cleanup_error);
 		if (result.m_name.empty())
 		{
-			return MakeWorkerFailureResult(test_directory, test_path, "The Midori test worker did not return a result.");
+			return MakeWorkerFailureResult(test_directory, test_path, "The Marmot test worker did not return a result.");
 		}
 
 		return result;
@@ -938,7 +938,7 @@ namespace MidoriTestRunner
 	std::string RunResult::Rendered() const
 	{
 		std::ostringstream output;
-		output << Bold << "Midori Test Suite" << Reset << "\n";
+		output << Bold << "Marmot Test Suite" << Reset << "\n";
 		output << Gray << "============================================================" << Reset << "\n";
 		output << "Root: " << Cyan << m_root.string() << Reset << "\n";
 		output << "Tests: " << Cyan << TotalCount() << Reset << "\n";
@@ -1031,7 +1031,7 @@ namespace MidoriTestRunner
 		std::string payload = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-		MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+		MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 		MidoriJson::AppendStringField(payload, "command", "test", first_field);
 		MidoriJson::AppendBoolField(payload, "success", Succeeded(), first_field);
 		MidoriJson::AppendStringField(payload, "root", m_root.generic_string(), first_field);
@@ -1060,7 +1060,7 @@ namespace MidoriTestRunner
 		{
 			if (executable_path.empty())
 			{
-				run_result.m_results.push_back(MakeWorkerFailureResult(run_result.m_test_directory, test_path, "Failed to resolve the current Midori executable path."));
+				run_result.m_results.push_back(MakeWorkerFailureResult(run_result.m_test_directory, test_path, "Failed to resolve the current Marmot executable path."));
 				continue;
 			}
 

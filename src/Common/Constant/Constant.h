@@ -1,4 +1,4 @@
-// Midori Compiler Constants
+// Marmot Compiler Constants
 
 #pragma once
 

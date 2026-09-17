@@ -91,7 +91,7 @@ ExecutionResult ExecuteMidoriCode(const std::string& source_code)
 
 	StartCapture();
 
-	MidoriResult::CompilerResult compile_result = Compiler(std::string(source_code), "/playground.mdr"s).Compile();
+	MidoriResult::CompilerResult compile_result = Compiler(std::string(source_code), "/playground.mmt"s).Compile();
 
 	if (!compile_result.has_value())
 	{

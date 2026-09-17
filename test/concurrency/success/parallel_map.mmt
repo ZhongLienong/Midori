@@ -1,0 +1,36 @@
+module ParallelMapTest
+
+import
+{
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt",
+	"../../../MarmotPrelude/Iter.mmt",
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// Concurrency::ParallelMap is written in Marmot, in Concurrency.mmt: it chunks the
+// array and spawns a lambda per chunk that captured `work`. This is the spec's last
+// completion criterion - a parallel map expressible in the language rather than
+// provided by the compiler.
+
+def Square = fn(n : Int) -> Int => n * n;
+def Show = fn(values : Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc : Text, n : Int) -> Text => acc ++ (n as Text) ++ " ");
+
+def values = [1, 2, 3, 4, 5, 6, 7];
+
+// The result keeps the input's order, whichever worker finishes first.
+IO::PrintLine("squares: " ++ Show(Concurrency::ParallelMap(values, Square, 3)));
+
+// One chunk, and chunks larger than the input, are the same map.
+IO::PrintLine("one chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 99)));
+
+// The mapped function can be a closure over a local.
+def ScaleAll = fn(factor : Int) -> Array<Int> => Concurrency::ParallelMap(values, fn(n : Int) -> Int => n * factor, 2);
+IO::PrintLine("scaled: " ++ Show(ScaleAll(10)));
+
+// An empty input spawns nothing.
+def empty : Array<Int> = [];
+IO::PrintLine("empty: [" ++ Show(Concurrency::ParallelMap(empty, Square, 4)) ++ "]");
+
+// Text out, Int in: the element type changes across the map.
+IO::PrintLine("retyped: " ++ Iter::Fold(Iter::OfArray(Concurrency::ParallelMap([1, 2, 3], fn(n : Int) -> Text => "<" ++ (n as Text) ++ ">", 2)), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece));

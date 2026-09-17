@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a Midori program with a temporary MIDORI_PATH.
+"""Run a Marmot program with a temporary MARMOT_PATH.
 
 This avoids installing packages system-wide.
 """
@@ -14,14 +14,14 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROGRAM = REPO_ROOT / "misc" / "mandelbrot.mdr"
+DEFAULT_PROGRAM = REPO_ROOT / "misc" / "mandelbrot.mmt"
 DEFAULT_IMAGE_PACKAGE = REPO_ROOT / "reference_package" / "Image"
 
 
 def find_midori_exe(repo: Path) -> Path | None:
     candidates = [
-        repo / "out" / "build" / "ninja" / "x64-release" / "out" / "Midori.exe",
-        repo / "out" / "build" / "x64-release" / "out" / "Midori.exe",
+        repo / "out" / "build" / "ninja" / "x64-release" / "out" / "Marmot.exe",
+        repo / "out" / "build" / "x64-release" / "out" / "Marmot.exe",
     ]
     for candidate in candidates:
         if candidate.is_file():
@@ -45,22 +45,22 @@ def append_unique_path(existing: str, to_append: Path) -> str:
 
 
 def build_midori_path(image_package: Path, prelude_dir: Path) -> str:
-    midori_path = os.environ.get("MIDORI_PATH", "")
-    midori_path = append_unique_path(midori_path, image_package)
-    midori_path = append_unique_path(midori_path, prelude_dir)
-    return midori_path
+    marmot_path = os.environ.get("MARMOT_PATH", "")
+    marmot_path = append_unique_path(marmot_path, image_package)
+    marmot_path = append_unique_path(marmot_path, prelude_dir)
+    return marmot_path
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Run Midori with a temporary MIDORI_PATH.")
-    parser.add_argument("program", nargs="?", default=str(DEFAULT_PROGRAM), help="Midori program to run.")
-    parser.add_argument("--midori-exe", default="", help="Path to Midori.exe.")
+    parser = argparse.ArgumentParser(description="Run Marmot with a temporary MARMOT_PATH.")
+    parser.add_argument("program", nargs="?", default=str(DEFAULT_PROGRAM), help="Marmot program to run.")
+    parser.add_argument("--marmot-exe", default="", help="Path to Marmot.exe.")
     parser.add_argument("--image-package", default=str(DEFAULT_IMAGE_PACKAGE), help="Path to Image package root.")
     args = parser.parse_args(argv)
 
-    midori_exe = Path(args.midori_exe).expanduser().resolve() if args.midori_exe else find_midori_exe(REPO_ROOT)
+    midori_exe = Path(args.marmot_exe).expanduser().resolve() if args.marmot_exe else find_midori_exe(REPO_ROOT)
     if midori_exe is None or not midori_exe.is_file():
-        print("Midori.exe not found. Build Midori or pass --midori-exe.", file=sys.stderr)
+        print("Marmot.exe not found. Build Marmot or pass --marmot-exe.", file=sys.stderr)
         return 1
 
     program_path = Path(args.program).expanduser().resolve()
@@ -69,15 +69,15 @@ def main(argv: list[str]) -> int:
         return 1
 
     image_package = Path(args.image_package).expanduser().resolve()
-    if not (image_package / "package.midori").is_file():
+    if not (image_package / "package.marmot").is_file():
         print(f"Image package not found: {image_package}", file=sys.stderr)
         return 1
 
-    prelude_dir = REPO_ROOT / "MidoriPrelude"
-    midori_path = build_midori_path(image_package, prelude_dir)
+    prelude_dir = REPO_ROOT / "MarmotPrelude"
+    marmot_path = build_midori_path(image_package, prelude_dir)
 
     env = os.environ.copy()
-    env["MIDORI_PATH"] = midori_path
+    env["MARMOT_PATH"] = marmot_path
 
     return subprocess.call([str(midori_exe), str(program_path)], env=env)
 

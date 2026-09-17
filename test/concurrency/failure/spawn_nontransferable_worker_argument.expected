@@ -1,5 +1,5 @@
 Compilation failed :( 
-Type Checker Error at test/concurrency/failure/spawn_nontransferable_worker_argument.mdr:16
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_worker_argument.mmt:16
    |
 16 | def nested = Concurrency::Spawn(produced, Rejoin);
    |              ^^^^^^^^^^^ Type Worker<Int> does not satisfy constraint Transferable<Worker<Int>> - no matching instance found

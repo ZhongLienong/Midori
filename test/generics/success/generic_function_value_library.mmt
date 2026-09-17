@@ -1,0 +1,8 @@
+module GenericFunctionValueLibrary
+
+// Import target for generics/failure/generic_function_imported_as_value.mmt.
+// Nothing runs here; the module exists so a generic function can be exported.
+
+public export { Identity }
+
+def Identity = fn<T>(x: T) -> T => x;

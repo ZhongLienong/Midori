@@ -1,0 +1,16 @@
+module GenericFunctionBoundToName
+
+// Test: a generic function rebound to a plain name with 'def'.
+// Expected: rejected. The binding would have to hold one specialization,
+// which pins the type parameter to whichever use came first.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def identity = fn<T>(x: T) -> T => x;
+
+def bound = identity;
+
+IO::PrintLine(bound(42) as Text);

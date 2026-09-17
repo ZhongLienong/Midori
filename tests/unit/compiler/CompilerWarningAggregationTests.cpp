@@ -26,7 +26,7 @@ TEST_CASE("CompileFileWithReport preserves aggregated warning order without rend
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Alpha.mdr",
+			"Alpha.mmt",
 			R"(module Alpha
 public export { Value }
 def Value = fn() -> Int => {
@@ -38,7 +38,7 @@ def Value = fn() -> Int => {
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Zulu.mdr",
+			"Zulu.mmt",
 			R"(module Zulu
 public export { Value }
 def Value = fn() -> Int => {
@@ -50,15 +50,15 @@ def Value = fn() -> Int => {
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
-import { "Alpha.mdr", "Zulu.mdr" }
+import { "Alpha.mmt", "Zulu.mmt" }
 def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 )"
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	MidoriTest::OutputCapture capture;
 	MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(main_file_path);
@@ -73,12 +73,12 @@ def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 	REQUIRE_FALSE(report.HasErrors());
 	REQUIRE(report.Warnings().Warnings()[0u].m_location.has_value());
 	REQUIRE(report.Warnings().Warnings()[1u].m_location.has_value());
-	CHECK(std::filesystem::path(report.Warnings().Warnings()[0u].m_location->m_file_name).filename().string() == "Alpha.mdr");
-	CHECK(std::filesystem::path(report.Warnings().Warnings()[1u].m_location->m_file_name).filename().string() == "Zulu.mdr");
+	CHECK(std::filesystem::path(report.Warnings().Warnings()[0u].m_location->m_file_name).filename().string() == "Alpha.mmt");
+	CHECK(std::filesystem::path(report.Warnings().Warnings()[1u].m_location->m_file_name).filename().string() == "Zulu.mmt");
 
 	const std::string rendered_output = MidoriTest::StripAnsiCodes(output.m_stdout);
-	CHECK(rendered_output.find("1 warning(s) in Alpha.mdr") == std::string::npos);
-	CHECK(rendered_output.find("1 warning(s) in Zulu.mdr") == std::string::npos);
+	CHECK(rendered_output.find("1 warning(s) in Alpha.mmt") == std::string::npos);
+	CHECK(rendered_output.find("1 warning(s) in Zulu.mmt") == std::string::npos);
 	CHECK(rendered_output.find("Static Analyzer Warning at") == std::string::npos);
 }
 
@@ -102,7 +102,7 @@ def main = fn() -> Int => {
 )";
 
 	MidoriResult::CompilationResult compile_result =
-		MidoriTest::CompileSnippetWithReport(source_code, "WarningWithCodegenFailure.mdr");
+		MidoriTest::CompileSnippetWithReport(source_code, "WarningWithCodegenFailure.mmt");
 	REQUIRE_FALSE(compile_result.has_value());
 
 	const MidoriResult::CompilerReport& report = MidoriTest::CompilationReport(compile_result);
@@ -132,7 +132,7 @@ TEST_CASE("CompileAndRunFile renders successful warnings from the final report",
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			R"(module Main
 def main = fn() -> Int => {
 	def used = 1;
@@ -143,7 +143,7 @@ def main = fn() -> Int => {
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	MidoriTest::OutputCapture capture;
 	MidoriDriver::DriverResult run_result = MidoriDriver::CompileAndRunFile(main_file_path);
@@ -151,10 +151,10 @@ def main = fn() -> Int => {
 	REQUIRE(run_result.has_value());
 
 	const std::string rendered_output = MidoriTest::StripAnsiCodes(output.m_stdout);
-	const size_t summary_position = rendered_output.find("[warning] 1 warning(s) in Main.mdr");
+	const size_t summary_position = rendered_output.find("[warning] 1 warning(s) in Main.mmt");
 	const size_t warning_position = rendered_output.find("Static Analyzer Warning at");
 	REQUIRE(summary_position != std::string::npos);
 	REQUIRE(warning_position != std::string::npos);
 	CHECK(summary_position < warning_position);
-	CHECK(rendered_output.find("[warning] 1 warning(s) in Main.mdr", summary_position + 1u) == std::string::npos);
+	CHECK(rendered_output.find("[warning] 1 warning(s) in Main.mmt", summary_position + 1u) == std::string::npos);
 }

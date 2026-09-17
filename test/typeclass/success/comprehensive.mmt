@@ -1,0 +1,55 @@
+module Comprehensive
+
+import { "../../../MarmotPrelude/IO.mmt", }
+
+// Define multiple typeclasses
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+class Debug<T> {
+    debug: fn(value: T) -> Text;
+};
+
+// Multiple instances for Show
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => {
+        "Int(" ++ (value as Text) ++ ")"
+    };
+};
+
+instance Show<Float> {
+    def show = fn(value: Float) -> Text => {
+        "Float(" ++ (value as Text) ++ ")"
+    };
+};
+
+// Instance for Debug
+instance Debug<Int> {
+    def debug = fn(value: Int) -> Text => {
+        "[DEBUG] " ++ (value as Text)
+    };
+};
+
+// Constrained generic functions
+def print_value = fn<T>(x: T) -> Text where Show<T> => {
+    Show::show(x)
+};
+
+def debug_value = fn<T>(x: T) -> Text where Debug<T> => {
+    Debug::debug(x)
+};
+
+// Test Show with Int
+def r1 = print_value(42);
+IO::PrintLine(r1);
+
+// Test Show with Float
+def r2 = print_value(2.718);
+IO::PrintLine(r2);
+
+// Test Debug with Int
+def r3 = debug_value(100);
+IO::PrintLine(r3);
+
+IO::PrintLine("comprehensive: PASS");

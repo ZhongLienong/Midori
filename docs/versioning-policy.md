@@ -1,6 +1,6 @@
-# Midori Versioning Policy
+# Marmot Versioning Policy
 
-This document defines how Midori versions its public surface.
+This document defines how Marmot versions its public surface.
 
 The authoritative status of any user-visible feature lives in
 [Feature Matrix](feature-matrix.md). This policy explains what those statuses
@@ -8,7 +8,7 @@ mean for compatibility, deprecation, and releases.
 
 ## Public Surface
 
-Midori treats the following as public surface when they are documented and
+Marmot treats the following as public surface when they are documented and
 marked `Stable` in the feature matrix:
 
 - language syntax, type rules, and runtime semantics
@@ -23,7 +23,7 @@ docs and feature matrix say so.
 
 ## Version Scheme
 
-Midori uses semantic versioning in `MAJOR.MINOR.PATCH` form.
+Marmot uses semantic versioning in `MAJOR.MINOR.PATCH` form.
 
 - `PATCH` releases are for backwards-compatible fixes, documentation updates,
   implementation refactors, and performance work. They should not intentionally
@@ -33,7 +33,7 @@ Midori uses semantic versioning in `MAJOR.MINOR.PATCH` form.
 - `MAJOR` releases are for intentional breaking changes to stable surface after
   `1.0.0`.
 
-Before `1.0.0`, Midori uses `0.MINOR.PATCH` releases.
+Before `1.0.0`, Marmot uses `0.MINOR.PATCH` releases.
 
 - During `0.x`, experimental surface may change between minor releases.
 - During `0.x`, stable surface should still not change silently.
@@ -82,7 +82,7 @@ When a stable feature changes:
 - the relevant user-facing docs should be updated in the same change set
 - migration guidance should be included when user code may need edits
 
-When a deprecation is machine-detectable, Midori should prefer a compiler
+When a deprecation is machine-detectable, Marmot should prefer a compiler
 warning with a stable warning code and a concrete suggestion.
 
 If a breaking change must ship immediately for correctness, soundness, security,
@@ -99,7 +99,7 @@ Stable features should be deprecated in stages:
 4. Keep the deprecated behavior available for at least one minor release after
    the first public deprecation notice.
 5. Remove the feature only in the next major release after `1.0.0`, or in a
-   later `0.x` minor release if Midori is still pre-1.0 and the removal is
+   later `0.x` minor release if Marmot is still pre-1.0 and the removal is
    clearly announced as breaking.
 
 Stable features should not be silently demoted back to `Experimental`. If the

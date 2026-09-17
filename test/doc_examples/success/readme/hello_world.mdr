@@ -1,6 +1,0 @@
-module Main
-
-// Path import (relative or absolute)
-import { "../MidoriPrelude/IO.mdr" }
-
-IO::PrintLine("Hello, Midori!");

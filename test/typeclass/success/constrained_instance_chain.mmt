@@ -1,0 +1,37 @@
+module ConstrainedInstanceChain
+
+import { "../../../MarmotPrelude/IO.mmt", }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+class Tag<T> {
+    tag: fn(value: T) -> Text;
+};
+
+type Boxed<T> = { item: T };
+
+type Wrapped<T> = { inner: T };
+
+instance Tag<Int> {
+    def tag = fn(value: Int) -> Text => "tag:" ++ (value as Text);
+};
+
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
+};
+
+instance Show<Wrapped<T>> where Tag<T> {
+    def show = fn(value: Wrapped<T>) -> Text => "Wrapped(" ++ Tag::tag(value.inner) ++ ")";
+};
+
+instance Show<Boxed<T>> where Show<T> {
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def deep = Boxed(Boxed(Wrapped(5)));
+
+IO::PrintLine(Show::show(deep));
+IO::PrintLine(Show::show(Boxed(1)));
+IO::PrintLine(Show::show(Wrapped(2)));

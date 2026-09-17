@@ -48,7 +48,7 @@ std::filesystem::path ImportResolver::ResolveCurrentFileDir(const std::filesyste
 
 std::vector<std::filesystem::path> ImportResolver::CollectSystemSearchPaths()
 {
-	std::optional<std::string> env_value = ReadEnvironmentVariable("MIDORI_PATH");
+	std::optional<std::string> env_value = ReadEnvironmentVariable("MARMOT_PATH");
 	if (!env_value.has_value())
 	{
 		return {};
@@ -229,11 +229,11 @@ std::vector<std::filesystem::path> ImportResolver::GetModuleFilePaths(const std:
 
 	std::string path_str = module_name;
 	std::ranges::replace(path_str, '.', static_cast<char>(std::filesystem::path::preferred_separator));
-	paths.push_back(path_str + ".mdr"s);
+	paths.push_back(path_str + ".mmt"s);
 
 	if (module_name.find('.') == std::string::npos)
 	{
-		paths.push_back(module_name + ".mdr"s);
+		paths.push_back(module_name + ".mmt"s);
 	}
 
 	return paths;

@@ -147,7 +147,7 @@ namespace
 
 	[[nodiscard]] std::vector<std::filesystem::path> CollectEnvironmentPaths()
 	{
-		const std::optional<std::string> env_value = ReadEnvironmentVariable("MIDORI_PATH");
+		const std::optional<std::string> env_value = ReadEnvironmentVariable("MARMOT_PATH");
 		if (!env_value.has_value())
 		{
 			return {};
@@ -176,7 +176,7 @@ namespace
 		{
 			AppendUniquePath(paths, extra_path.is_absolute() ? extra_path : configuration.m_root / extra_path);
 		}
-		AppendUniquePath(paths, ResolveConfiguredDirectory(configuration, configuration.m_prelude_dir, "MidoriPrelude"));
+		AppendUniquePath(paths, ResolveConfiguredDirectory(configuration, configuration.m_prelude_dir, "MarmotPrelude"));
 		for (const std::filesystem::path& env_path : env_paths)
 		{
 			AppendUniquePath(paths, env_path);
@@ -262,22 +262,22 @@ namespace MidoriPackageManager
 		const std::optional<std::string> local_app_data = ReadEnvironmentVariable("LOCALAPPDATA");
 		if (local_app_data.has_value())
 		{
-			return std::filesystem::path(*local_app_data) / "Midori" / "cache";
+			return std::filesystem::path(*local_app_data) / "Marmot" / "cache";
 		}
 #endif
 		const std::optional<std::string> user_profile = ReadEnvironmentVariable("USERPROFILE");
 		if (user_profile.has_value())
 		{
-			return std::filesystem::path(*user_profile) / ".midori" / "cache";
+			return std::filesystem::path(*user_profile) / ".marmot" / "cache";
 		}
 
 		const std::optional<std::string> home = ReadEnvironmentVariable("HOME");
 		if (home.has_value())
 		{
-			return std::filesystem::path(*home) / ".midori" / "cache";
+			return std::filesystem::path(*home) / ".marmot" / "cache";
 		}
 
-		return std::filesystem::current_path() / ".midori" / "cache";
+		return std::filesystem::current_path() / ".marmot" / "cache";
 	}
 
 	std::expected<ResolvedPackageGraph, std::string> InstallPackagesLocally(
@@ -380,7 +380,7 @@ namespace MidoriPackageManager
 		ResolveMode mode)
 	{
 		PackageEnvironment environment;
-		environment.m_lockfile_path = configuration.m_root / "midori.lock";
+		environment.m_lockfile_path = configuration.m_root / "marmot.lock";
 
 		const std::vector<std::filesystem::path> env_paths = CollectEnvironmentPaths();
 		const std::expected<std::string, std::string> manifest_checksum = GetManifestChecksum(configuration);

@@ -1,0 +1,11 @@
+module TestPreludeLengthOperatorList
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/List.mmt" }
+use List.{List}
+
+def list = List::Cons(1, List::Cons(2, List::Nil()));
+def len = #list;
+
+if len == 2
+then IO::PrintLine("length_operator_list: PASS")
+else IO::PrintLine("length_operator_list: FAIL");

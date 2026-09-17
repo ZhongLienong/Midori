@@ -1,5 +1,5 @@
-[warning] 1 warning(s) in side_effect.mdr
-Static Analyzer Warning at test/closure/side_effect.mdr:16
+[warning] 1 warning(s) in side_effect.mmt
+Static Analyzer Warning at test/closure/side_effect.mmt:16
    |
 16 | 	fn() -> Unit => IO::PrintLine("ran " ++ label)
    |  ^^ Captured anonymous closure escapes its defining scope as a return value.

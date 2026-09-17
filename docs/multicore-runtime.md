@@ -1,8 +1,8 @@
-# Midori Multicore Runtime
+# Marmot Multicore Runtime
 
 ## Execution Model: Isolated Workers
 
-Midori uses an **isolated-worker** concurrency model. Each worker is a full
+Marmot uses an **isolated-worker** concurrency model. Each worker is a full
 `VirtualMachine` instance with its own allocator, garbage collector, value
 stack, call stack, and global variables. Workers share read-only bytecode
 (`std::shared_ptr<const MidoriExecutable>`) but cannot share mutable values.
@@ -66,12 +66,12 @@ traceables.
 
 ## Concurrency Functions
 
-Workers and channels are created with functions from `MidoriPrelude/Concurrency.mdr`.
+Workers and channels are created with functions from `MarmotPrelude/Concurrency.mmt`.
 They are called like any other function, but the compiler provides them, so
 importing that module is what makes them available:
 
-```midori-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mdr module=MulticoreConcurrencySurface
-import { "./MidoriPrelude/Concurrency.mdr", "./MidoriPrelude/Prelude/Result.mdr" }
+```marmot-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mmt module=MulticoreConcurrencySurface
+import { "./MarmotPrelude/Concurrency.mmt", "./MarmotPrelude/Prelude/Result.mmt" }
 
 def ComputeRow = fn(row: Int, width: Int) -> Int => row * width;
 
@@ -92,8 +92,8 @@ Concurrency::Close(ch);
 - `Concurrency::Join(w)` blocks and evaluates to `Result<T, WorkerError>`:
   `Ok(value)` when the worker returned, `Err(WorkerError::Cancelled())` when it was
   cancelled, and `Err(WorkerError::Failed(message))` when it stopped with a runtime
-  error. A file that joins must also import `MidoriPrelude/Prelude/Result.mdr`.
-  `Concurrency.mdr` declares `WorkerError`, and `JoinedOrPanic` for code that
+  error. A file that joins must also import `MarmotPrelude/Prelude/Result.mmt`.
+  `Concurrency.mmt` declares `WorkerError`, and `JoinedOrPanic` for code that
   treats a worker failure as fatal.
 - `Concurrency::MakeChannel(capacity)` creates a typed bounded channel. It takes its
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
@@ -101,10 +101,10 @@ Concurrency::Close(ch);
 
 Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
 `Concurrency::Cancel(w)`. Like the three above, they are compiler-provided and
-need `Concurrency.mdr` imported.
+need `Concurrency.mmt` imported.
 
 `Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one
-worker per chunk. It is ordinary Midori in `MidoriPrelude/Concurrency.mdr`, not a
+worker per chunk. It is ordinary Marmot in `MarmotPrelude/Concurrency.mmt`, not a
 compiler builtin: the per-chunk worker is a lambda that captured `work` and crosses
 with it.
 
@@ -163,7 +163,7 @@ with it.
 
 ## FFI Under Multicore
 
-Dynamic FFI libraries declare thread safety in `package.midori`:
+Dynamic FFI libraries declare thread safety in `package.marmot`:
 
 ```toml
 [ffi]
@@ -191,7 +191,7 @@ Channels provide typed message passing between workers:
 There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
 `Channel::TryReceive` exists in the runtime but has no opcode or syntax, so it
-is currently unreachable from Midori code. See
+is currently unreachable from Marmot code. See
 `docs/plan/concurrency-backlog.md`.
 
 Internally: `std::mutex` + `std::condition_variable_any` +

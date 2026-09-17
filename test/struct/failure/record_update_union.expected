@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/struct/failure/record_update_union.mdr:10
+Type Checker Error at test/struct/failure/record_update_union.mmt:10
    |
 10 | def bad = { s with Circle = 4 };
    |               ^^^^ Record update expression type error: multi-variant type

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Midori installer.
+Marmot installer.
 
-Installs MidoriPrelude to a local directory and configures MIDORI_PATH so system imports
+Installs MarmotPrelude to a local directory and configures MARMOT_PATH so system imports
 like `import { <IO> }` can be resolved.
 
-Optionally installs Midori.exe and updates PATH so `Midori` is callable
+Optionally installs Marmot.exe and updates PATH so `Marmot` is callable
 from a new cmd/PowerShell session.
 
-Note: FFI functions are statically linked into Midori.exe, so no separate DLL is needed.
+Note: FFI functions are statically linked into Marmot.exe, so no separate DLL is needed.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class InstallLayout:
     bin_dir: Path
 
 
-INSTALL_MARKER_FILENAME = "midori_install.json"
+INSTALL_MARKER_FILENAME = "marmot_install.json"
 
 
 def is_windows() -> bool:
@@ -46,19 +46,19 @@ def default_install_root(scope: str) -> Path:
         program_files = os.environ.get("ProgramFiles", "")
         if program_files == "":
             raise RuntimeError("ProgramFiles is not set.")
-        return Path(program_files) / "Midori"
+        return Path(program_files) / "Marmot"
 
     local_appdata = os.environ.get("LOCALAPPDATA", "")
     if local_appdata == "":
         raise RuntimeError("LOCALAPPDATA is not set.")
-    return Path(local_appdata) / "Midori"
+    return Path(local_appdata) / "Marmot"
 
 
 def layout(scope: str, install_dir: Optional[str]) -> InstallLayout:
     root = Path(install_dir).expanduser().resolve() if install_dir else default_install_root(scope).resolve()
     return InstallLayout(
         root=root,
-        prelude_dir=root / "MidoriPrelude",
+        prelude_dir=root / "MarmotPrelude",
         bin_dir=root / "bin",
     )
 
@@ -96,8 +96,8 @@ def append_unique_path(existing: str, to_append: Path) -> str:
 
 def get_preset_executable_candidates(repo: Path, preset_name: str) -> list[Path]:
     return [
-        repo / "out" / "build" / "ninja" / preset_name / "out" / "Midori.exe",
-        repo / "out" / "build" / preset_name / "out" / "Midori.exe",
+        repo / "out" / "build" / "ninja" / preset_name / "out" / "Marmot.exe",
+        repo / "out" / "build" / preset_name / "out" / "Marmot.exe",
     ]
 
 
@@ -126,9 +126,9 @@ def list_available_midori_exes(repo: Path) -> list[tuple[str, Path]]:
     # Check build/out/ first (CMake command-line builds)
     for label, subdir in [("build/out", "out"), ("build/Release", "Release"), ("build", "")]:
         if subdir:
-            candidate = repo / "build" / subdir / "Midori.exe"
+            candidate = repo / "build" / subdir / "Marmot.exe"
         else:
-            candidate = repo / "build" / "Midori.exe"
+            candidate = repo / "build" / "Marmot.exe"
         if candidate.is_file():
             results.append((label, candidate.resolve()))
 
@@ -232,18 +232,18 @@ def write_install_marker(target_layout: InstallLayout, scope: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Install Midori and configure MIDORI_PATH / PATH.")
+    parser = argparse.ArgumentParser(description="Install Marmot and configure MARMOT_PATH / PATH.")
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Target environment scope (default: user).")
     parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
-    parser.add_argument("--preset", default="auto", help="CMake preset to locate Midori.exe (default: auto).")
-    parser.add_argument("--midori-exe", default="", help="Explicit path to Midori.exe (overrides --preset).")
-    parser.add_argument("--copy-binaries", action="store_true", help="Install Midori.exe and add bin dir to PATH.")
+    parser.add_argument("--preset", default="auto", help="CMake preset to locate Marmot.exe (default: auto).")
+    parser.add_argument("--marmot-exe", default="", help="Explicit path to Marmot.exe (overrides --preset).")
+    parser.add_argument("--copy-binaries", action="store_true", help="Install Marmot.exe and add bin dir to PATH.")
     args = parser.parse_args(argv)
 
     require_admin_for_machine(args.scope)
 
     repo = repo_root()
-    prelude_src = repo / "MidoriPrelude"
+    prelude_src = repo / "MarmotPrelude"
     if not prelude_src.is_dir():
         raise RuntimeError(f"Prelude source directory not found: {prelude_src}")
 
@@ -253,11 +253,11 @@ def main(argv: list[str]) -> int:
     copy_dir_contents(prelude_src, target_layout.prelude_dir)
 
     if args.copy_binaries:
-        exe_path = resolve_midori_exe(repo, args.preset, args.midori_exe if args.midori_exe != "" else None)
+        exe_path = resolve_midori_exe(repo, args.preset, args.marmot_exe if args.marmot_exe != "" else None)
         if exe_path is None or not exe_path.is_file():
-            raise RuntimeError("Midori.exe not found (build first, pass --midori-exe, or use --preset).")
+            raise RuntimeError("Marmot.exe not found (build first, pass --marmot-exe, or use --preset).")
 
-        if args.preset == "auto" and args.midori_exe == "":
+        if args.preset == "auto" and args.marmot_exe == "":
             available = list_available_midori_exes(repo)
             available_presets = list(dict.fromkeys(preset_name for preset_name, _ in available))
             if len(available_presets) > 1:
@@ -268,18 +268,18 @@ def main(argv: list[str]) -> int:
                     file=sys.stderr,
                 )
 
-        print(f"Using Midori.exe from: {exe_path}")
+        print(f"Using Marmot.exe from: {exe_path}")
 
         target_layout.bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(exe_path, target_layout.bin_dir / "Midori.exe")
+        shutil.copy2(exe_path, target_layout.bin_dir / "Marmot.exe")
 
     write_install_marker(target_layout, args.scope)
 
     if is_windows():
-        midori_path_value, midori_path_type = read_windows_env(args.scope, "MIDORI_PATH")
-        updated_midori_path = append_unique_path(midori_path_value, target_layout.prelude_dir)
-        write_windows_env(args.scope, "MIDORI_PATH", updated_midori_path, midori_path_type)
-        os.environ["MIDORI_PATH"] = updated_midori_path
+        marmot_path_value, marmot_path_type = read_windows_env(args.scope, "MARMOT_PATH")
+        updated_midori_path = append_unique_path(marmot_path_value, target_layout.prelude_dir)
+        write_windows_env(args.scope, "MARMOT_PATH", updated_midori_path, marmot_path_type)
+        os.environ["MARMOT_PATH"] = updated_midori_path
 
         if args.copy_binaries:
             path_value, path_type = read_windows_env(args.scope, "PATH")
@@ -290,11 +290,11 @@ def main(argv: list[str]) -> int:
         broadcast_environment_change_windows()
     else:
         print("Non-Windows install: copied files, but did not persist environment variables.", file=sys.stderr)
-        print(f"Add this to your shell configuration:\n  export MIDORI_PATH=\"{target_layout.prelude_dir}\"", file=sys.stderr)
+        print(f"Add this to your shell configuration:\n  export MARMOT_PATH=\"{target_layout.prelude_dir}\"", file=sys.stderr)
         if args.copy_binaries:
             print(f"  export PATH=\"$PATH:{target_layout.bin_dir}\"", file=sys.stderr)
 
-    print(f"Installed MidoriPrelude to: {target_layout.prelude_dir}")
+    print(f"Installed MarmotPrelude to: {target_layout.prelude_dir}")
     if args.copy_binaries:
         print(f"Installed binaries to: {target_layout.bin_dir}")
         print("You may need to open a new terminal for PATH changes to take effect.")

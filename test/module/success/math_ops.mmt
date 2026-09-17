@@ -1,0 +1,16 @@
+// Middle layer in transitive dependency chain
+module MathOps
+public export { compute, square }
+
+import
+{
+    "math_lib.mmt"
+}
+
+// Uses functions from math_lib internally
+def compute = fn(x: Int) -> Int => Math::add(Math::multiply(x, x), x);
+
+def square = fn(x: Int) -> Int => Math::multiply(x, x);
+
+// Private helper
+def internal_process = fn(x: Int) -> Int => Math::add(x, 1);

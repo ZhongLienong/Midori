@@ -1,0 +1,15 @@
+module worker_spawn_syntax
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+def WorkerTask = fn(message: Text) -> Int => {
+    if message == "hello" then 42 else 0
+};
+
+def worker = Concurrency::Spawn("hello", WorkerTask);
+def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+
+PrintLine("Worker result: " ++ (result as Text));

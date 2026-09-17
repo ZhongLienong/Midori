@@ -23,11 +23,11 @@ target_link_libraries(MidoriTestSupport PUBLIC
     MidoriCore
 )
 
-add_executable(MidoriUnitTests
+add_executable(MarmotUnitTests
     ${MIDORI_UNIT_TEST_SOURCES}
 )
 
-target_include_directories(MidoriUnitTests PRIVATE
+target_include_directories(MarmotUnitTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -38,15 +38,15 @@ target_include_directories(MidoriUnitTests PRIVATE
 # let them drift before; tests/unit/common/AbiConsistencyTests.cpp fails if a
 # target ever compiles those headers differently from MidoriCore again.
 
-target_link_libraries(MidoriUnitTests PRIVATE
+target_link_libraries(MarmotUnitTests PRIVATE
     Catch2::Catch2WithMain
     MidoriTestSupport
 )
 
 if(MSVC)
     target_compile_options(MidoriTestSupport PRIVATE /EHsc)
-    target_compile_options(MidoriUnitTests PRIVATE /EHsc)
+    target_compile_options(MarmotUnitTests PRIVATE /EHsc)
 endif()
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
-catch_discover_tests(MidoriUnitTests)
+catch_discover_tests(MarmotUnitTests)

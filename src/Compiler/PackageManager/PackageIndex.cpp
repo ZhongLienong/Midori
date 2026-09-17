@@ -53,7 +53,7 @@ namespace
 			return directories;
 		}
 
-		const std::filesystem::path manifest_path = root / "package.midori";
+		const std::filesystem::path manifest_path = root / "package.marmot";
 		if (std::filesystem::exists(manifest_path, error_code))
 		{
 			directories.push_back(root);
@@ -66,7 +66,7 @@ namespace
 				continue;
 			}
 
-			const std::filesystem::path child_manifest = entry.path() / "package.midori";
+			const std::filesystem::path child_manifest = entry.path() / "package.marmot";
 			if (std::filesystem::exists(child_manifest, error_code))
 			{
 				directories.push_back(entry.path());

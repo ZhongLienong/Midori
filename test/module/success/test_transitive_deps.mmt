@@ -1,0 +1,10 @@
+// Test: Transitive dependencies (A -> B -> C)
+// This file imports math_ops, which imports math_lib
+module TestTransitive
+
+import
+{
+    "math_ops.mmt"
+}
+
+def main = fn() -> Int => MathOps::compute(10);

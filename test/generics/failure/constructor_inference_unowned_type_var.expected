@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/constructor_inference_unowned_type_var.mdr:15
+Type Checker Error at test/generics/failure/constructor_inference_unowned_type_var.mmt:15
    |
 15 | def unresolved = Id(Option::None());
    |                     ^^^^^^ Construct expression type error: could not infer all type arguments for 'Option'

@@ -22,19 +22,19 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 {
 	const MidoriTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("src/Main.mdr", "module Main\n"),
-		MidoriTest::TempProjectFile("src/lib/Helper.mdr", "module Helper\n")
+		MidoriTest::TempProjectFile("src/Main.mmt", "module Main\n"),
+		MidoriTest::TempProjectFile("src/lib/Helper.mmt", "module Helper\n")
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("src/Main.mdr"));
-	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("src/Main.mmt"));
+	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mmt"));
 
 	const ImportResolver resolver(main_file_path.string());
-	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("./lib/Helper.mdr");
+	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("./lib/Helper.mmt");
 
 	REQUIRE(resolved_import.has_value());
 	CHECK(resolved_import->m_type == ImportResolver::ImportType::PATH);
-	CHECK(resolved_import->m_original_specifier == "./lib/Helper.mdr");
+	CHECK(resolved_import->m_original_specifier == "./lib/Helper.mmt");
 	CHECK(resolved_import->m_absolute_path == helper_file_path.string());
 }
 
@@ -42,12 +42,12 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 {
 	const MidoriTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mdr", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/IO.mdr", "module Std.IO\n")
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MidoriTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
-	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 
 	const ImportResolver resolver(main_file_path.string());
 	const ImportResolver configured_resolver = resolver.WithSystemSearchPaths({ project.Path("stdlib") });
@@ -59,19 +59,19 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	CHECK(resolved_import->m_absolute_path == io_module_path.string());
 }
 
-TEST_CASE("ImportResolver canonicalizes MIDORI_PATH entries and ignores missing directories", "[module][import]")
+TEST_CASE("ImportResolver canonicalizes MARMOT_PATH entries and ignores missing directories", "[module][import]")
 {
 	const MidoriTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mdr", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/Math.mdr", "module Std.Math\n")
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MidoriTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	const std::filesystem::path stdlib_path = std::filesystem::weakly_canonical(project.Path("stdlib"));
-	const std::filesystem::path math_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/Math.mdr"));
-	const std::string midori_path_value = project.Path("missing").string() + std::string(1, s_search_path_separator) + project.Path("stdlib").string();
-	const MidoriTest::ScopedEnvVar midori_path("MIDORI_PATH", midori_path_value);
+	const std::filesystem::path math_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/Math.mmt"));
+	const std::string marmot_path_value = project.Path("missing").string() + std::string(1, s_search_path_separator) + project.Path("stdlib").string();
+	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", marmot_path_value);
 
 	const ImportResolver resolver(main_file_path.string());
 
@@ -87,14 +87,14 @@ TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import
 {
 	const MidoriTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mdr", "module Main\n")
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\n")
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	const ImportResolver resolver(main_file_path.string());
 	const ImportResolver configured_resolver = resolver.WithSystemSearchPaths({ project.Root() / "stdlib" });
 
-	CHECK_FALSE(configured_resolver.Resolve("./Missing.mdr").has_value());
+	CHECK_FALSE(configured_resolver.Resolve("./Missing.mmt").has_value());
 	CHECK_FALSE(configured_resolver.Resolve("<Std.Missing>").has_value());
 }

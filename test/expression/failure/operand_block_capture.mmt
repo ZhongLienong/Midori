@@ -1,0 +1,10 @@
+module OperandBlockCapture
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+}
+
+def a = 10;
+def f = a + { def q = 5; def g = fn() -> Int => q; g() + q };
+IO::PrintLine(f as Text);

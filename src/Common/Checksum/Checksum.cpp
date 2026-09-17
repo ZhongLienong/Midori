@@ -160,7 +160,7 @@ namespace
 	[[nodiscard]] std::vector<std::filesystem::path> CollectPackageFiles(const std::filesystem::path& package_directory)
 	{
 		std::vector<std::filesystem::path> files;
-		const std::filesystem::path manifest_path = package_directory / "package.midori";
+		const std::filesystem::path manifest_path = package_directory / "package.marmot";
 		if (std::filesystem::exists(manifest_path))
 		{
 			files.push_back(manifest_path);
@@ -178,7 +178,7 @@ namespace
 				continue;
 			}
 
-			if (entry.path().extension() == ".mdr")
+			if (entry.path().extension() == ".mmt")
 			{
 				files.push_back(entry.path());
 			}

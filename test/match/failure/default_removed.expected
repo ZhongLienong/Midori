@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at test/match/failure/default_removed.mdr:9
+Parser Error at test/match/failure/default_removed.mmt:9
   |
 9 | 	default => "other"
   |  ^^^^^^^ 'default' is no longer supported. Write 'case _ =>' instead; '_' is a wildcard pattern, so it also works nested inside other patterns.

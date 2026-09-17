@@ -1,0 +1,79 @@
+module ConstructorWithoutNew
+
+// Calling the constructor is how a struct is built: `Point(1, 2)` parses to a
+// MidoriExpression::Construct node. This was one of two spellings, pinned here against a
+// `new Point(1, 2)` that had to agree with it; `new` is gone and this is the only form.
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+type Bag<T> =
+{
+	items : Array<T>,
+	extra : T
+};
+
+type Wrapper =
+{
+	inner : Point,
+	label : Text
+};
+
+// The constructor is monomorphised per construction site, so it is not a value; a lambda
+// is how you pass one around, and the lambda body uses the bare spelling.
+def make : fn(Int, Int) -> Point = fn(a, b) => { Point(a, b) };
+
+def MakeBagInner = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
+{
+	Bag(items, extra)
+};
+
+def MakeBag = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
+{
+	MakeBagInner(items, extra)
+};
+
+def ShowPoint = fn(p : Point) -> Text =>
+{
+	(p.x as Text) ++ "," ++ (p.y as Text)
+};
+
+def bare = Point(1, 2);
+IO::PrintLine("bare: " ++ ShowPoint(bare));
+
+// A construction is an ordinary primary expression, so postfix chains follow it.
+def projected = Point(7, 8).x;
+IO::PrintLine("projected: " ++ (projected as Text));
+
+// Nesting: a construction is an ordinary argument to another construction.
+def nested = Wrapper(Point(3, 4), "bare");
+IO::PrintLine("nested: " ++ ShowPoint(nested.inner) ++ " " ++ nested.label);
+
+// Generic inference is unchanged: the bare spelling inside a generic function still binds
+// T from the arguments rather than needing an explicit type argument.
+def bag = MakeBag([1, 2, 3], 7);
+IO::PrintLine("bag: " ++ (bag.extra as Text) ++ " " ++ (bag.items[0] as Text) ++ (bag.items[2] as Text));
+
+def text_bag = MakeBag(["a", "b"], "z");
+IO::PrintLine("text_bag: " ++ text_bag.extra ++ " " ++ text_bag.items[1]);
+
+// Nothing states type arguments explicitly any more, so a generic construction at an
+// un-annotated binding has to take them from the constructor's own arguments.
+def explicit = Bag([9], 10);
+IO::PrintLine("explicit: " ++ (explicit.extra as Text));
+
+def through_lambda = make(11, 12);
+IO::PrintLine("through_lambda: " ++ ShowPoint(through_lambda));
+
+// A record update over a bare construction, to show the node is the same one the rest of
+// the pipeline already understands.
+def updated = { Point(20, 21) with y = 99 };
+IO::PrintLine("updated: " ++ ShowPoint(updated));

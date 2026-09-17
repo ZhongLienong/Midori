@@ -1,12 +1,12 @@
 # Diagnostic Format
 
-Midori's machine-readable diagnostic contract is exposed through `--format json`
+Marmot's machine-readable diagnostic contract is exposed through `--format json`
 on CLI commands such as:
 
 ```powershell
-Midori.exe check src/Main.mdr --format json
-Midori.exe build src/Main.mdr --format json
-Midori.exe run src/Main.mdr --format json
+Marmot.exe check src/Main.mmt --format json
+Marmot.exe build src/Main.mmt --format json
+Marmot.exe run src/Main.mmt --format json
 ```
 
 ## Top-Level Envelope
@@ -16,7 +16,7 @@ Midori.exe run src/Main.mdr --format json
 ```json
 {
   "version": 1,
-  "source": "midori",
+  "source": "marmot",
   "command": "check",
   "success": true,
   "exitCode": 0,
@@ -24,7 +24,7 @@ Midori.exe run src/Main.mdr --format json
   "stderr": "",
   "report": {
     "version": 1,
-    "source": "midori",
+    "source": "marmot",
     "diagnostics": [],
     "warnings": [],
     "errors": []
@@ -35,7 +35,7 @@ Midori.exe run src/Main.mdr --format json
 Stable fields:
 
 - `version`: schema version. Current value is `1`.
-- `source`: always `"midori"`.
+- `source`: always `"marmot"`.
 - `command`: CLI command name.
 - `success`: `true` when the command succeeded.
 - `exitCode`: CLI exit code.
@@ -54,13 +54,13 @@ Compiler diagnostics in `report.diagnostics`, `report.warnings`, and
 
 ```json
 {
-  "source": "midori",
+  "source": "marmot",
   "severity": "warning",
   "stage": "StaticAnalyzer",
   "code": "UnusedLocal",
   "message": "Binding 'unused' is never read.",
-  "file": "test/static_analyzer/success/unused_local_warning.mdr",
-  "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+  "file": "test/static_analyzer/success/unused_local_warning.mmt",
+  "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
   "line": 4,
   "column": 4,
   "endLine": 4,
@@ -101,14 +101,14 @@ but the diagnostic object includes runtime-specific fields:
 
 ```json
 {
-  "source": "midori-runtime",
+  "source": "marmot-runtime",
   "severity": "error",
   "stage": "Runtime",
   "code": "StackOverflow",
   "kind": "panic",
   "message": "Stack overflow - exceeded maximum call depth.",
-  "file": "Runtime.mdr",
-  "file_path": "Runtime.mdr",
+  "file": "Runtime.mmt",
+  "file_path": "Runtime.mmt",
   "line": 5,
   "column": null,
   "endLine": 5,
@@ -120,8 +120,8 @@ but the diagnostic object includes runtime-specific fields:
     {
       "procedure": "recurse",
       "module": "Runtime",
-      "file": "Runtime.mdr",
-      "file_path": "Runtime.mdr",
+      "file": "Runtime.mmt",
+      "file_path": "Runtime.mmt",
       "line": 2,
       "column": null,
       "endLine": 2,
@@ -135,7 +135,7 @@ but the diagnostic object includes runtime-specific fields:
 
 Runtime-specific fields:
 
-- `source`: always `"midori-runtime"` for runtime diagnostics
+- `source`: always `"marmot-runtime"` for runtime diagnostics
 - `kind`: `"error"` or `"panic"`
 - `sourceLine`: embedded or file-backed source text for the primary location
 - `exitCode`: `1` for recoverable runtime errors, `2` for panics
@@ -230,13 +230,13 @@ Current `CompilerWarningCode` values:
 
 ```json
 {
-  "source": "midori",
+  "source": "marmot",
   "severity": "warning",
   "stage": "StaticAnalyzer",
   "code": "UnusedLocal",
   "message": "Binding 'unused' is never read.",
-  "file": "test/static_analyzer/success/unused_local_warning.mdr",
-  "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+  "file": "test/static_analyzer/success/unused_local_warning.mmt",
+  "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
   "line": 4,
   "column": 4,
   "endLine": 4,
@@ -251,13 +251,13 @@ Current `CompilerWarningCode` values:
 
 ```json
 {
-  "source": "midori",
+  "source": "marmot",
   "severity": "error",
   "stage": "Parser",
   "code": "None",
   "message": "Expected expression.",
-  "file": "test/expression/failure/missing_rhs.mdr",
-  "file_path": "test/expression/failure/missing_rhs.mdr",
+  "file": "test/expression/failure/missing_rhs.mmt",
+  "file_path": "test/expression/failure/missing_rhs.mmt",
   "line": 2,
   "column": 12,
   "endLine": 2,
@@ -272,14 +272,14 @@ Current `CompilerWarningCode` values:
 
 ```json
 {
-  "source": "midori-runtime",
+  "source": "marmot-runtime",
   "severity": "error",
   "stage": "Runtime",
   "code": "StackOverflow",
   "kind": "panic",
   "message": "Stack overflow - exceeded maximum call depth.",
-  "file": "Runtime.mdr",
-  "file_path": "Runtime.mdr",
+  "file": "Runtime.mmt",
+  "file_path": "Runtime.mmt",
   "line": 5,
   "column": null,
   "endLine": 5,
@@ -313,7 +313,7 @@ are emitted with the same shape as the full examples above.
 |------|-------|-----------------|
 | `NoMatch` | `Parser` | `No grammar rule matched the input.` |
 | `ModuleImportResolutionFailed` | `Module` | `Could not resolve import '<Foo>'.` |
-| `ModuleImportFileOpenFailed` | `Module` | `Could not open imported module file 'Foo.mdr'.` |
+| `ModuleImportFileOpenFailed` | `Module` | `Could not open imported module file 'Foo.mmt'.` |
 | `ModuleCircularDependency` | `Module` | `Circular dependency detected between 'A' and 'B'.` |
 | `ModuleDeclarationMissing` | `Module` | `File does not declare a 'module' statement.` |
 | `ModuleDeclarationDuplicate` | `Module` | `Duplicate 'module' declaration in file.` |
@@ -328,7 +328,7 @@ are emitted with the same shape as the full examples above.
 | `CodeGeneratorUnresolvedMethodResolution` | `CodeGenerator` | `Could not resolve method 'show' for type 'T'.` |
 | `CodeGeneratorAmbiguousMethodResolution` | `CodeGenerator` | `Ambiguous method 'show' for type 'T'.` |
 | `CodeGeneratorUnsupportedLowering` | `CodeGenerator` | `Cannot lower expression to bytecode.` |
-| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Midori builtin, and no package.midori in this file's directory lists it under [ffi.functions].` |
+| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin, and no package.marmot in this file's directory lists it under [ffi.functions].` |
 | `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |

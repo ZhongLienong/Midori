@@ -50,11 +50,11 @@ namespace
 
 TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory", "[runtime][vm][filesystem]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
-	const std::filesystem::path result_module_path = RepositoryRoot() / "MidoriPrelude" / "Prelude" / "Result.mdr";
-	const MidoriTest::TempDir temp_dir("midori-runtime-files");
+	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
+	const MidoriTest::TempDir temp_dir("marmot-runtime-files");
 	const std::filesystem::path data_file_path = temp_dir.Path() / "state.txt";
-	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mdr";
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeFileIO
@@ -98,7 +98,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM captures stderr emitted by runtime code", "[runtime][vm][stderr]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeStderr
@@ -109,7 +109,7 @@ def main = fn() -> Int => 0;
 		MidoriPathLiteral(io_module_path));
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeStderr.mdr");
+		MidoriTest::ExecuteSnippet(source_code, "RuntimeStderr.mmt");
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -119,7 +119,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM gives a closure the same result on repeated calls inside one scope", "[runtime][vm][closure]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeClosure
@@ -142,7 +142,7 @@ def main = fn() -> Int => 0;
 		MidoriPathLiteral(io_module_path));
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeClosure.mdr");
+		MidoriTest::ExecuteSnippet(source_code, "RuntimeClosure.mmt");
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -152,7 +152,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM executes tuple destructuring and backward ranges in-process", "[runtime][vm][aggregate]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MidoriPrelude" / "IO.mdr";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeAggregate
@@ -172,7 +172,7 @@ def main = fn() -> Int => 0;
 		MidoriPathLiteral(io_module_path));
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeAggregate.mdr");
+		MidoriTest::ExecuteSnippet(source_code, "RuntimeAggregate.mmt");
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -182,8 +182,8 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM reports deterministic runtime errors for invalid array access", "[runtime][vm][error]")
 {
-	const MidoriTest::TempDir temp_dir("midori-runtime-error");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeError.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-runtime-error");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeError.mmt";
 	const std::string source_code =
 		R"(module RuntimeError
 def value = [1, 2][4];
@@ -198,7 +198,7 @@ def main = fn() -> Int => 0;
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stderr.empty());
 	REQUIRE(executed.m_output.m_stdout.find("error[IndexOutOfBounds]") != std::string::npos);
-	REQUIRE(executed.m_output.m_stdout.find("RuntimeError.mdr:2") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("RuntimeError.mmt:2") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("Index out of bounds at index: 4.") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("def value = [1, 2][4];") != std::string::npos);
 	REQUIRE(executed.m_output.m_stdout.find("stack trace:") != std::string::npos);
@@ -209,8 +209,8 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM collapses recursive frames for stack overflow diagnostics", "[runtime][vm][error][stack]")
 {
-	const MidoriTest::TempDir temp_dir("midori-runtime-stack-overflow");
-	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflow.mdr";
+	const MidoriTest::TempDir temp_dir("marmot-runtime-stack-overflow");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflow.mmt";
 	const std::string source_code =
 		R"(module RuntimeStackOverflow
 def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;
@@ -242,12 +242,12 @@ def main = fn() -> Int => 0;
 )";
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mdr");
+		MidoriTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mmt");
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stdout.find("def value = [1, 2][4];") != std::string::npos);
-	REQUIRE(executed.m_output.m_stdout.find("EmbeddedRuntimeError.mdr:2") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("EmbeddedRuntimeError.mmt:2") != std::string::npos);
 }
 
 TEST_CASE("VM reports division by zero as a structured runtime error", "[runtime][vm][error][division]")
@@ -259,7 +259,7 @@ def main = fn() -> Int => 0;
 )";
 
 	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeDivision.mdr");
+		MidoriTest::ExecuteSnippet(source_code, "RuntimeDivision.mmt");
 	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);

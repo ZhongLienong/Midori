@@ -13,7 +13,7 @@ namespace MidoriTest
 		std::vector<std::string> m_source_lines;
 
 	public:
-		explicit SourceFixture(std::string source_code, std::string file_name = "Test.mdr");
+		explicit SourceFixture(std::string source_code, std::string file_name = "Test.mmt");
 
 		[[nodiscard]] const std::string& SourceCode() const;
 

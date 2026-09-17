@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at test/match/failure/case_after_catch_all_constructor.mdr:17
+Parser Error at test/match/failure/case_after_catch_all_constructor.mmt:17
    |
 17 | 		case Result::Err(Code::Alpha) => "alpha";
    |        ^^^^^^ An earlier case already matches every 'Result::Err', so this one can never run.

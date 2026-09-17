@@ -6479,7 +6479,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 	// infers the type arguments from the supplied members; that also works inside a generic
 	// function - `new Bag(b.items, t)` in `def Retag = fn<T>(b : Bag<T>, t : Int) -> Bag<T>`
 	// infers Bag<T0>, a type variable the enclosing function owns. See
-	// test/generics/success/generic_construction_in_generic_function.mdr.
+	// test/generics/success/generic_construction_in_generic_function.mmt.
 	record_update.m_type_data = source_type;
 	return record_update.m_type_data;
 }

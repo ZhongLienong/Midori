@@ -1,6 +1,6 @@
 # Runtime Architecture
 
-Midori runs programs on a single `VirtualMachine` execution path.
+Marmot runs programs on a single `VirtualMachine` execution path.
 
 ## Execution Flow
 
@@ -21,7 +21,7 @@ There is no secondary runtime scheduler, worker pool, or alternate execution mod
 
 ## Closures and Captures
 
-Midori has one closure-capture model:
+Marmot has one closure-capture model:
 
 - Uncaptured functions use `MAKE_FUNCTION`.
 - Capturing functions use `MAKE_CLOSURE` followed by `BIND_CAPTURES`.
@@ -47,7 +47,7 @@ allocator slot. `MidoriValue` is an untagged word in release builds, so root
 and child pointer identification is conservative (region/slot-range check
 plus a live-bit test): a scalar whose bits happen to alias a live slot only
 over-retains that object, it is never dereferenced incorrectly. This rules
-out moving/copying collection — Midori's collector is strictly non-moving.
+out moving/copying collection — Marmot's collector is strictly non-moving.
 
 ### Allocator
 

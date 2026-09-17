@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/expression/failure/tuple_destructuring_requires_tuple_rhs.mdr:4
+Type Checker Error at test/expression/failure/tuple_destructuring_requires_tuple_rhs.mmt:4
   |
 4 | def (left, right) = value;
   |      ^^^^ DefineTuple statement type error: expected tuple expression on right-hand side

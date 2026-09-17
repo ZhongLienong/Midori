@@ -49,14 +49,14 @@ TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[e
 		CompilerStage::Parser,
 		"Expected expression",
 		2,
-		"Format.mdr",
+		"Format.mmt",
 		4,
 		3u,
 		"Try adding a literal",
 		"def value = ;");
 
 	const std::string expected_render =
-		"Parser Error at Format.mdr:2\n"
+		"Parser Error at Format.mmt:2\n"
 		"  |\n"
 		"2 | def value = ;\n"
 		"  |     ^^^ Expected expression\n"
@@ -68,7 +68,7 @@ TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[e
 
 TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warning][format]")
 {
-	const Token token(std::string("shadowed"), Token::Name::IDENTIFIER_LITERAL, 1, "Warning.mdr", 4, 8u);
+	const Token token(std::string("shadowed"), Token::Name::IDENTIFIER_LITERAL, 1, "Warning.mmt", 4, 8u);
 	const std::vector<std::string> source_lines
 	{
 		"def shadowed = value"
@@ -78,13 +78,13 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		token,
-		"Warning.mdr",
+		"Warning.mmt",
 		source_lines,
 		"Prefix with '_' if intentional",
 		CompilerWarningCode::UnusedLocal);
 
 	const std::string expected_render =
-		"Static Analyzer Warning at Warning.mdr:1\n"
+		"Static Analyzer Warning at Warning.mmt:1\n"
 		"  |\n"
 		"1 | def shadowed = value\n"
 		"  |     ^^^^^^^^ Unused local\n"
@@ -97,7 +97,7 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 
 TEST_CASE("CompilerError WithToken uses the stored token span instead of searching the line text", "[error][format]")
 {
-	const Token token(std::string("alpha"), Token::Name::IDENTIFIER_LITERAL, 1, "Span.mdr", 20, 5u);
+	const Token token(std::string("alpha"), Token::Name::IDENTIFIER_LITERAL, 1, "Span.mmt", 20, 5u);
 	const std::vector<std::string> source_lines
 	{
 		"def alpha = alpha + alpha"
@@ -107,11 +107,11 @@ TEST_CASE("CompilerError WithToken uses the stored token span instead of searchi
 		CompilerStage::Parser,
 		"Unexpected identifier",
 		token,
-		"Span.mdr",
+		"Span.mmt",
 		source_lines);
 
 	const std::string expected_render =
-		"Parser Error at Span.mdr:1\n"
+		"Parser Error at Span.mmt:1\n"
 		"  |\n"
 		"1 | def alpha = alpha + alpha\n"
 		"  | " + std::string(20u, ' ') + "^^^^^ Unexpected identifier\n"
@@ -122,7 +122,7 @@ TEST_CASE("CompilerError WithToken uses the stored token span instead of searchi
 
 TEST_CASE("CompilerError WithToken renders a single caret for zero-length token spans", "[error][format]")
 {
-	const Token token(std::string{}, Token::Name::END_OF_FILE, 1, "Eof.mdr", 13, 0u);
+	const Token token(std::string{}, Token::Name::END_OF_FILE, 1, "Eof.mmt", 13, 0u);
 	const std::vector<std::string> source_lines
 	{
 		"def value = 1"
@@ -132,11 +132,11 @@ TEST_CASE("CompilerError WithToken renders a single caret for zero-length token 
 		CompilerStage::Parser,
 		"Unexpected end of file",
 		token,
-		"Eof.mdr",
+		"Eof.mmt",
 		source_lines);
 
 	const std::string expected_render =
-		"Parser Error at Eof.mdr:1\n"
+		"Parser Error at Eof.mmt:1\n"
 		"  |\n"
 		"1 | def value = 1\n"
 		"  | " + std::string(13u, ' ') + "^ Unexpected end of file\n"
@@ -162,7 +162,7 @@ TEST_CASE("Runtime errors render file-backed source lines", "[error][format][run
 			"Index out of bounds at index: 4.",
 			CompilerErrorLocation
 			{
-				.m_file_name = "Runtime.mdr",
+				.m_file_name = "Runtime.mmt",
 				.m_line = 2,
 				.m_source_line = "def value = [1, 2][4];"
 			});
@@ -170,7 +170,7 @@ TEST_CASE("Runtime errors render file-backed source lines", "[error][format][run
 
 	const std::string expected_render =
 		"error[IndexOutOfBounds]: Index out of bounds at index: 4.\n"
-		" --> Runtime.mdr:2\n"
+		" --> Runtime.mmt:2\n"
 		"  |\n"
 		"2 | def value = [1, 2][4];\n"
 		"  | Index out of bounds at index: 4.\n"
@@ -186,7 +186,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		3,
-		"C:/repo/Alpha.mdr",
+		"C:/repo/Alpha.mmt",
 		4,
 		6u,
 		"Prefix with '_' if intentional",
@@ -197,7 +197,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		CompilerStage::StaticAnalyzer,
 		"Captured closure escapes",
 		5,
-		"C:/repo/Alpha.mdr",
+		"C:/repo/Alpha.mmt",
 		1,
 		6u,
 		std::nullopt,
@@ -208,7 +208,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		CompilerStage::Parser,
 		"Shadowed name",
 		2,
-		"C:/repo/Beta.mdr",
+		"C:/repo/Beta.mmt",
 		2,
 		4u,
 		std::nullopt,
@@ -223,13 +223,13 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 	}));
 
 	const std::string rendered = StripAnsiCodes(report.RenderedWarnings());
-	CHECK(rendered.find("[warning] 2 warning(s) in Alpha.mdr\n") != std::string::npos);
-	CHECK(rendered.find("[warning] 1 warning(s) in Beta.mdr\n") != std::string::npos);
+	CHECK(rendered.find("[warning] 2 warning(s) in Alpha.mmt\n") != std::string::npos);
+	CHECK(rendered.find("[warning] 1 warning(s) in Beta.mmt\n") != std::string::npos);
 
 	const std::string machine = report.MachineReadableWarnings();
 	CHECK(machine.find("\"stage\":\"StaticAnalyzer\"") != std::string::npos);
 	CHECK(machine.find("\"code\":\"UnusedLocal\"") != std::string::npos);
-	CHECK(machine.find("\"file_path\":\"C:/repo/Alpha.mdr\"") != std::string::npos);
+	CHECK(machine.find("\"file_path\":\"C:/repo/Alpha.mmt\"") != std::string::npos);
 	CHECK(machine.find("\"column\":4") != std::string::npos);
 	CHECK(machine.find("\"caret_length\":6") != std::string::npos);
 	CHECK(machine.find("\"suggestion\":\"Prefix with '_' if intentional\"") != std::string::npos);
@@ -247,7 +247,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		3,
-		"Warn.mdr",
+		"Warn.mmt",
 		4,
 		6u,
 		std::nullopt,
@@ -259,7 +259,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		CompilerStage::CodeGenerator,
 		"First lowering failure",
 		2,
-		"First.mdr",
+		"First.mmt",
 		5,
 		3u,
 		std::nullopt,
@@ -269,7 +269,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		CompilerStage::BytecodeLinker,
 		"Second linker failure",
 		4,
-		"Second.mdr",
+		"Second.mmt",
 		1,
 		4u,
 		std::nullopt,
@@ -284,9 +284,9 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 
 	REQUIRE(rendered.starts_with("Compilation failed :( \n"));
 
-	const size_t warning_position = rendered.find("[warning] 1 warning(s) in Warn.mdr");
-	const size_t first_position = rendered.find("Code Generator Error at First.mdr:2");
-	const size_t second_position = rendered.find("Bytecode Linker Error at Second.mdr:4");
+	const size_t warning_position = rendered.find("[warning] 1 warning(s) in Warn.mmt");
+	const size_t first_position = rendered.find("Code Generator Error at First.mmt:2");
+	const size_t second_position = rendered.find("Bytecode Linker Error at Second.mmt:4");
 	REQUIRE(warning_position != std::string::npos);
 	REQUIRE(first_position != std::string::npos);
 	REQUIRE(second_position != std::string::npos);
@@ -302,7 +302,7 @@ TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics
 				CompilerStage::Runtime,
 				"Division by zero",
 				8,
-				"Runtime.mdr",
+				"Runtime.mmt",
 				10,
 				1u,
 				std::nullopt,
@@ -310,7 +310,7 @@ TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics
 
 	const std::string rendered = StripAnsiCodes(error.Rendered());
 	CHECK(rendered.find("Compilation failed :(") == std::string::npos);
-	CHECK(rendered.find("Runtime Error at Runtime.mdr:8") != std::string::npos);
+	CHECK(rendered.find("Runtime Error at Runtime.mmt:8") != std::string::npos);
 }
 
 TEST_CASE("Machine-readable errors serialize location and code metadata", "[compiler][error][report]")
@@ -319,7 +319,7 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 		CompilerStage::CodeGenerator,
 		"Unsupported lowering",
 		6,
-		"Lowering.mdr",
+		"Lowering.mmt",
 		3,
 		5u,
 		"Rewrite this expression",
@@ -329,7 +329,7 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 	const std::string serialized = SerializeMachineReadableError(error);
 	CHECK(serialized.find("\"stage\":\"CodeGenerator\"") != std::string::npos);
 	CHECK(serialized.find("\"code\":\"CodeGeneratorUnsupportedLowering\"") != std::string::npos);
-	CHECK(serialized.find("\"file_path\":\"Lowering.mdr\"") != std::string::npos);
+	CHECK(serialized.find("\"file_path\":\"Lowering.mmt\"") != std::string::npos);
 	CHECK(serialized.find("\"line\":6") != std::string::npos);
 	CHECK(serialized.find("\"column\":3") != std::string::npos);
 	CHECK(serialized.find("\"caret_length\":5") != std::string::npos);
@@ -343,7 +343,7 @@ TEST_CASE("Machine-readable runtime errors serialize runtime code and stack meta
 		"Stack overflow - exceeded maximum call depth.",
 		CompilerErrorLocation
 		{
-			.m_file_name = "Runtime.mdr",
+			.m_file_name = "Runtime.mmt",
 			.m_line = 5,
 			.m_source_line = "def value = recurse(0);"
 		},
@@ -355,7 +355,7 @@ TEST_CASE("Machine-readable runtime errors serialize runtime code and stack meta
 				.m_module_name = "Runtime",
 				.m_location = CompilerErrorLocation
 				{
-					.m_file_name = "Runtime.mdr",
+					.m_file_name = "Runtime.mmt",
 					.m_line = 2,
 					.m_source_line = "def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;"
 				},
@@ -364,7 +364,7 @@ TEST_CASE("Machine-readable runtime errors serialize runtime code and stack meta
 		});
 
 	const std::string serialized = SerializeMachineReadableRuntimeError(runtime_error);
-	CHECK(serialized.find("\"source\":\"midori-runtime\"") != std::string::npos);
+	CHECK(serialized.find("\"source\":\"marmot-runtime\"") != std::string::npos);
 	CHECK(serialized.find("\"code\":\"StackOverflow\"") != std::string::npos);
 	CHECK(serialized.find("\"kind\":\"panic\"") != std::string::npos);
 	CHECK(serialized.find("\"exitCode\":2") != std::string::npos);
@@ -384,7 +384,7 @@ def Compute = fn() -> Int => {
 };
 )";
 
-	MidoriResult::CompilationResult compile_result = MidoriTest::CompileSnippetWithReport(source_code, "CompileWarning.mdr");
+	MidoriResult::CompilationResult compile_result = MidoriTest::CompileSnippetWithReport(source_code, "CompileWarning.mmt");
 	if (!compile_result.has_value())
 	{
 		FAIL(MidoriTest::StripAnsiCodes(compile_result.error().Rendered()));
@@ -399,6 +399,6 @@ def Compute = fn() -> Int => {
 	CHECK(warning->m_stage == CompilerStage::StaticAnalyzer);
 	CHECK(warning->m_code == CompilerWarningCode::UnusedLocal);
 	REQUIRE(warning->m_location.has_value());
-	CHECK(std::filesystem::path(warning->m_location->m_file_name).filename().string() == "CompileWarning.mdr");
+	CHECK(std::filesystem::path(warning->m_location->m_file_name).filename().string() == "CompileWarning.mmt");
 	CHECK(warning->m_location->m_line == 4);
 }

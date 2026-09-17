@@ -1,0 +1,23 @@
+module NestedCase
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+type S1 =
+{
+};
+
+type U1 = A(Int) | B | C(Float, Int, Text) | D(U1) | E(S1);
+
+def z = U1::D(U1::D(U1::E(S1())));
+
+type Inner = A | B(U1);
+
+def zz = Inner::A();
+
+def sssw = match z with
+	case U1::D(u) => IO::PrintLine("D")
+	case _ => IO::PrintLine("Outer default case")
+;

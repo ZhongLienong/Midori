@@ -330,7 +330,7 @@ namespace
 		const std::optional<std::string_view> serialized_suggestion =
 			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
 
-		MidoriJson::AppendStringField(serialized, "source", "midori", first_field);
+		MidoriJson::AppendStringField(serialized, "source", "marmot", first_field);
 		MidoriJson::AppendStringField(serialized, "severity", severity == DiagnosticSeverity::Error ? "error" : "warning", first_field);
 		MidoriJson::AppendStringField(serialized, "stage", CompilerStageName(stage), first_field);
 		MidoriJson::AppendStringField(serialized, "code", code_name, first_field);
@@ -456,7 +456,7 @@ namespace
 			}
 		}
 
-		MidoriJson::AppendStringField(serialized, "source", "midori-runtime", first_field);
+		MidoriJson::AppendStringField(serialized, "source", "marmot-runtime", first_field);
 		MidoriJson::AppendStringField(serialized, "severity", "error", first_field);
 		MidoriJson::AppendStringField(serialized, "stage", CompilerStageName(CompilerStage::Runtime), first_field);
 		MidoriJson::AppendStringField(serialized, "code", RuntimeErrorCodeName(error.m_code), first_field);
@@ -771,7 +771,7 @@ std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warnin
 
 std::string SerializeMachineReadableWarning(const CompilerWarning& warning)
 {
-	return "MIDORI_WARNING\t" + SerializeMachineReadableWarningPayload(warning);
+	return "MARMOT_WARNING\t" + SerializeMachineReadableWarningPayload(warning);
 }
 
 std::string SerializeMachineReadableRuntimeError(const RuntimeError& error)

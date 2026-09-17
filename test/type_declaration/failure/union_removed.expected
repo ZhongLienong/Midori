@@ -1,5 +1,5 @@
 Compilation failed :(
-Parser Error at test/type_declaration/failure/union_removed.mdr:7
+Parser Error at test/type_declaration/failure/union_removed.mmt:7
   |
 7 | union Flag = Off | On(Int);
   | ^^^^^ 'union' is no longer supported. Write 'type Name = A | B(Type);' instead.

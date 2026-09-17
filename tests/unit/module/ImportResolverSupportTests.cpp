@@ -8,13 +8,13 @@ TEST_CASE("TempProject and ScopedEnvVar make system import resolution determinis
 {
 	const MidoriTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mdr", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/IO.mdr", "module Std.IO\n")
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MidoriTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
 	});
 
-	const std::filesystem::path main_file_path = project.Path("Main.mdr");
-	const std::filesystem::path module_file_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mdr"));
-	const MidoriTest::ScopedEnvVar midori_path("MIDORI_PATH", project.Path("stdlib").string());
+	const std::filesystem::path main_file_path = project.Path("Main.mmt");
+	const std::filesystem::path module_file_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
+	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
 	const ImportResolver resolver(main_file_path.string());
 	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("<Std.IO>");

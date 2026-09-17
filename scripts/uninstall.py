@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Midori uninstaller.
+Marmot uninstaller.
 
-Removes the install's MidoriPrelude entry from MIDORI_PATH and removes the install's bin directory
+Removes the install's MarmotPrelude entry from MARMOT_PATH and removes the install's bin directory
 from PATH. Optionally deletes the installed files.
 """
 
@@ -24,7 +24,7 @@ class InstallLayout:
     bin_dir: Path
 
 
-INSTALL_MARKER_FILENAME = "midori_install.json"
+INSTALL_MARKER_FILENAME = "marmot_install.json"
 
 
 def is_windows() -> bool:
@@ -36,19 +36,19 @@ def default_install_root(scope: str) -> Path:
         program_files = os.environ.get("ProgramFiles", "")
         if program_files == "":
             raise RuntimeError("ProgramFiles is not set.")
-        return Path(program_files) / "Midori"
+        return Path(program_files) / "Marmot"
 
     local_appdata = os.environ.get("LOCALAPPDATA", "")
     if local_appdata == "":
         raise RuntimeError("LOCALAPPDATA is not set.")
-    return Path(local_appdata) / "Midori"
+    return Path(local_appdata) / "Marmot"
 
 
 def layout(scope: str, install_dir: Optional[str]) -> InstallLayout:
     root = Path(install_dir).expanduser().resolve() if install_dir else default_install_root(scope).resolve()
     return InstallLayout(
         root=root,
-        prelude_dir=root / "MidoriPrelude",
+        prelude_dir=root / "MarmotPrelude",
         bin_dir=root / "bin",
     )
 
@@ -189,11 +189,11 @@ def safe_remove_install_dir(target_layout: InstallLayout, scope: str, force: boo
     marker_path = target_layout.root / INSTALL_MARKER_FILENAME
     has_marker = marker_path.is_file()
     default_root = default_install_root(scope).resolve()
-    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / "Midori.exe").is_file()
+    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / "Marmot.exe").is_file()
 
     if not force and not (has_marker or (resolved_root == default_root and has_expected_files)):
         raise RuntimeError(
-            f"Refusing to remove '{resolved_root}' because it does not look like a Midori installation. "
+            f"Refusing to remove '{resolved_root}' because it does not look like a Marmot installation. "
             f"Expected '{INSTALL_MARKER_FILENAME}' or a default install layout. Pass --force to override."
         )
 
@@ -201,11 +201,11 @@ def safe_remove_install_dir(target_layout: InstallLayout, scope: str, force: boo
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Uninstall Midori and remove MIDORI_PATH / PATH entries.")
+    parser = argparse.ArgumentParser(description="Uninstall Marmot and remove MARMOT_PATH / PATH entries.")
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Target environment scope (default: user).")
     parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
     parser.add_argument("--keep-files", action="store_true", help="Do not remove installed files; only update env vars.")
-    parser.add_argument("--force", action="store_true", help="Remove install directory even if it does not look like Midori.")
+    parser.add_argument("--force", action="store_true", help="Remove install directory even if it does not look like Marmot.")
     args = parser.parse_args(argv)
 
     require_admin_for_machine(args.scope)
@@ -213,15 +213,15 @@ def main(argv: list[str]) -> int:
     target_layout = layout(args.scope, args.install_dir if args.install_dir != "" else None)
 
     if is_windows():
-        midori_path_value, midori_path_type, midori_path_exists = read_windows_env(args.scope, "MIDORI_PATH")
-        updated_midori_path = remove_path_entries(midori_path_value, target_layout.prelude_dir)
+        marmot_path_value, marmot_path_type, marmot_path_exists = read_windows_env(args.scope, "MARMOT_PATH")
+        updated_midori_path = remove_path_entries(marmot_path_value, target_layout.prelude_dir)
         if updated_midori_path.strip() == "":
-            if midori_path_exists:
-                delete_windows_env(args.scope, "MIDORI_PATH")
-            os.environ.pop("MIDORI_PATH", None)
+            if marmot_path_exists:
+                delete_windows_env(args.scope, "MARMOT_PATH")
+            os.environ.pop("MARMOT_PATH", None)
         else:
-            write_windows_env(args.scope, "MIDORI_PATH", updated_midori_path, midori_path_type)
-            os.environ["MIDORI_PATH"] = updated_midori_path
+            write_windows_env(args.scope, "MARMOT_PATH", updated_midori_path, marmot_path_type)
+            os.environ["MARMOT_PATH"] = updated_midori_path
 
         path_value, path_type, path_exists = read_windows_env(args.scope, "PATH")
         updated_path = remove_path_entries(path_value, target_layout.bin_dir)
@@ -240,7 +240,7 @@ def main(argv: list[str]) -> int:
     if not args.keep_files:
         safe_remove_install_dir(target_layout, args.scope, args.force)
 
-    print(f"Removed MIDORI_PATH entry: {target_layout.prelude_dir}")
+    print(f"Removed MARMOT_PATH entry: {target_layout.prelude_dir}")
     print(f"Removed PATH entry: {target_layout.bin_dir}")
     if args.keep_files:
         print(f"Kept install directory: {target_layout.root}")

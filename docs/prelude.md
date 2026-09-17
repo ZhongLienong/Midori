@@ -1,23 +1,23 @@
-# Midori Prelude
+# Marmot Prelude
 
-`MidoriPrelude/` is the standard-library layer that ships with the repository. It wraps the runtime FFI surface in Midori-facing modules and collects the core algebraic data types, collections, and built-in helpers that ordinary programs use.
+`MarmotPrelude/` is the standard-library layer that ships with the repository. It wraps the runtime FFI surface in Marmot-facing modules and collects the core algebraic data types, collections, and built-in helpers that ordinary programs use.
 
-The examples below assume a program that lives next to `MidoriPrelude/` in the repo or in a project with the same layout. If you expose top-level prelude modules on `MIDORI_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
+The examples below assume a program that lives next to `MarmotPrelude/` in the repo or in a project with the same layout. If you expose top-level prelude modules on `MARMOT_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
 
-Complete `.mdr` source files still need an explicit `module` declaration even when a focused snippet below omits it.
+Complete `.mmt` source files still need an explicit `module` declaration even when a focused snippet below omits it.
 
-The documented examples in this file are mirrored by `test/prelude/success/documentation_examples.mdr`.
+The documented examples in this file are mirrored by `test/prelude/success/documentation_examples.mmt`.
 
 ## Module Map
 
-- `Prelude/Option.mdr`, `Prelude/Result.mdr`, and `Prelude/List.mdr` provide the core ADTs and helper functions used throughout the rest of the prelude.
-- `Collections/Map.mdr` and `Collections/Set.mdr` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
-- `IO.mdr`, `System.mdr`, and `DateTime.mdr` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
-- `TextUtil.mdr`, `ArrayUtil.mdr`, and `Math.mdr` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
-- `Concatenable.mdr`, `Convertable.mdr`, `Countable.mdr`, `Equatable.mdr`, `Hashable.mdr`, `Indexable.mdr`, `Iterable.mdr`, `Orderable.mdr`, and `Transferable.mdr` expose the helper and typeclass surface used by operators, collections, and concurrency.
-- `Iter.mdr` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
-- `Prelude/Panic.mdr` contains the simple panic helper used by many tests and examples.
-- `Concurrency.mdr` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to, `JoinedOrPanic` for code that treats a worker failure as fatal, and `ParallelMap`, which is written in Midori rather than provided by the compiler. The compiler requires the `WorkerError` declaration to have exactly that shape.
+- `Prelude/Option.mmt`, `Prelude/Result.mmt`, and `Prelude/List.mmt` provide the core ADTs and helper functions used throughout the rest of the prelude.
+- `Collections/Map.mmt` and `Collections/Set.mmt` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
+- `IO.mmt`, `System.mmt`, and `DateTime.mmt` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
+- `TextUtil.mmt`, `ArrayUtil.mmt`, and `Math.mmt` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
+- `Concatenable.mmt`, `Convertable.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
+- `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
+- `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
+- `Concurrency.mmt` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to, `JoinedOrPanic` for code that treats a worker failure as fatal, and `ParallelMap`, which is written in Marmot rather than provided by the compiler. The compiler requires the `WorkerError` declaration to have exactly that shape.
 
 ## Helper and Typeclass Modules
 
@@ -30,15 +30,15 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
 - `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
-- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, `Channel<T>`, and function types — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Midori. A closure's captures are not part of its type, so they are not checked: a closure that captured a `Worker<T>` crosses with a handle that means nothing on the other side. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`. `Concurrency::Close`, `Concurrency::IsDone` and `Concurrency::Cancel` complete that surface.
+- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, `Channel<T>`, and function types — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Marmot. A closure's captures are not part of its type, so they are not checked: a closure that captured a `Worker<T>` crosses with a handle that means nothing on the other side. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`. `Concurrency::Close`, `Concurrency::IsDone` and `Concurrency::Cancel` complete that surface.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
 ## Sequence Pipelines
 
-`Iter.mdr` turns a sequence into a pipeline. Every stage takes its source as its
+`Iter.mmt` turns a sequence into a pipeline. Every stage takes its source as its
 first argument, so stages compose with the pipe operator:
 
-```midori
+```marmot
 def evens = values
 	|> Iter::OfArray
 	|> Iter::Filter(IsEven)
@@ -63,7 +63,7 @@ A stage's element type is tied to its source by an equality constraint
 
 ## Result Naming
 
-`Prelude/Result.mdr` uses `Result::Ok` and `Result::Err` as the only public constructor spellings.
+`Prelude/Result.mmt` uses `Result::Ok` and `Result::Err` as the only public constructor spellings.
 
 Migration note:
 
@@ -75,13 +75,13 @@ Migration note:
 
 `IO` models file-system failures as `Result<_, IOError>`. `System` uses `Option<Text>` for environment lookup, `Result<_, SystemError>` for fallible process and directory operations, and a `Platform` union for platform detection.
 
-```midori-test name=prelude/typed_io_system path=.doc_example_prelude_typed_io_system.mdr module=PreludeTypedIOSystem
+```marmot-test name=prelude/typed_io_system path=.doc_example_prelude_typed_io_system.mmt module=PreludeTypedIOSystem
 import
 {
-    "./MidoriPrelude/IO.mdr",
-    "./MidoriPrelude/System.mdr",
-    "./MidoriPrelude/Prelude/Option.mdr",
-    "./MidoriPrelude/Prelude/Result.mdr"
+    "./MarmotPrelude/IO.mmt",
+    "./MarmotPrelude/System.mmt",
+    "./MarmotPrelude/Prelude/Option.mmt",
+    "./MarmotPrelude/Prelude/Result.mmt"
 }
 use Option.{Option}
 use Result.{Result}
@@ -94,9 +94,9 @@ def config_text =
     ;
 
 def cache_dir =
-    match System::TryGetEnv("MIDORI_CACHE_DIR") with
+    match System::TryGetEnv("MARMOT_CACHE_DIR") with
         case Option::Some(path) => path
-        case Option::None() => ".midori-cache"
+        case Option::None() => ".marmot-cache"
     ;
 
 def platform_name =
@@ -129,8 +129,8 @@ The raw foreign declarations remain module-internal implementation details and a
 
 `DateTime` exposes explicit local and UTC structs instead of leaving callers to reconstruct ambient parts manually.
 
-```midori-test name=prelude/datetime path=.doc_example_prelude_datetime.mdr module=PreludeDateTime
-import { "./MidoriPrelude/DateTime.mdr" }
+```marmot-test name=prelude/datetime path=.doc_example_prelude_datetime.mmt module=PreludeDateTime
+import { "./MarmotPrelude/DateTime.mmt" }
 
 def local = DateTime::LocalNow();
 def utc = DateTime::UtcNow();
@@ -149,15 +149,15 @@ Public date/time entry points:
 
 `TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Build an array up front with a comprehension or `List`, or grow one incrementally with `WithAppended` when the number of elements is small - calling it in a loop is quadratic.
 
-```midori-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mdr module=PreludeTextArrayHelpers
+```marmot-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mmt module=PreludeTextArrayHelpers
 import
 {
-    "./MidoriPrelude/TextUtil.mdr",
-    "./MidoriPrelude/ArrayUtil.mdr"
+    "./MarmotPrelude/TextUtil.mmt",
+    "./MarmotPrelude/ArrayUtil.mmt"
 }
 
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");
-def headline = TextUtil::Replace("midori docs", "docs", "prelude");
+def headline = TextUtil::Replace("marmot docs", "docs", "prelude");
 
 def numbers = [1, 2, 3];
 def grown = ArrayUtil::WithAppended(numbers, 4);
@@ -182,15 +182,15 @@ Public array helpers:
 
 The core prelude modules stay intentionally small:
 
-- `Prelude/Option.mdr`: `Option`, `OptionMap`, `OptionBind`, `OptionIsSome`, `OptionIsNone`, `OptionOrElse`, `OptionUnwrap`, `OptionUnwrapOrElse`, `OptionUnwrapOrPanic`
-- `Prelude/Result.mdr`: `Result`, `ResultMap`, `ResultBind`, `ResultMapError`, `ResultIsOk`, `ResultIsError`, `ResultUnwrap`, `ResultUnwrapOrElse`, `ResultUnwrapOrPanic`
-- `Prelude/List.mdr`: `List`, `ListMap`, `ListLength`, `ListAppend`, `ListFilter`, `ListReverse`, `ListFold`, `ListFromArray`, `ListToArray`
-- `Collections/Map.mdr`: `MapNew`, `MapInsert`, `MapGet`, `MapGetOr`, `MapUpdate`, `MapRemove`, `MapContains`, `MapKeys`, `MapValues`, `MapEntries`
-- `Collections/Set.mdr`: `SetNew`, `SetInsert`, `SetContains`, `SetRemove`, `SetUnion`, `SetIntersection`, `SetDifference`, `SetToArray`
+- `Prelude/Option.mmt`: `Option`, `OptionMap`, `OptionBind`, `OptionIsSome`, `OptionIsNone`, `OptionOrElse`, `OptionUnwrap`, `OptionUnwrapOrElse`, `OptionUnwrapOrPanic`
+- `Prelude/Result.mmt`: `Result`, `ResultMap`, `ResultBind`, `ResultMapError`, `ResultIsOk`, `ResultIsError`, `ResultUnwrap`, `ResultUnwrapOrElse`, `ResultUnwrapOrPanic`
+- `Prelude/List.mmt`: `List`, `ListMap`, `ListLength`, `ListAppend`, `ListFilter`, `ListReverse`, `ListFold`, `ListFromArray`, `ListToArray`
+- `Collections/Map.mmt`: `MapNew`, `MapInsert`, `MapGet`, `MapGetOr`, `MapUpdate`, `MapRemove`, `MapContains`, `MapKeys`, `MapValues`, `MapEntries`
+- `Collections/Set.mmt`: `SetNew`, `SetInsert`, `SetContains`, `SetRemove`, `SetUnion`, `SetIntersection`, `SetDifference`, `SetToArray`
 
 ## Math
 
-`Math.mdr` exports the numeric constants and wrappers used by ordinary Midori code:
+`Math.mmt` exports the numeric constants and wrappers used by ordinary Marmot code:
 
 - constants such as `Pi`, `E`, and `Tau`
 - transcendental and trigonometric helpers such as `SquareRoot`, `Pow`, `Sin`, and `Atan2`

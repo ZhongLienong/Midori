@@ -1,0 +1,12 @@
+module MultipleVariable
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+}
+
+def makeAdder = fn(a : Int, b : Int) -> fn(Int) -> Int => fn(x : Int) -> Int => a + b + x;
+
+def adder = makeAdder(3, 4);
+
+IO::PrintLine(adder(5) as Text);  // Should print 12

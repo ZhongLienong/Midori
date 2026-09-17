@@ -94,7 +94,7 @@ namespace
 
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
 	{
-		const char* warning_format = std::getenv("MIDORI_TEST_WARNING_FORMAT");
+		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
 		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 	}
 
@@ -157,7 +157,7 @@ namespace
 		const std::filesystem::path& source_file)
 	{
 		std::filesystem::path artifact_path = source_file;
-		artifact_path.replace_extension(".mbc.json");
+		artifact_path.replace_extension(".mmc.json");
 
 		std::vector<std::string> globals;
 		globals.reserve(static_cast<size_t>(executable.GetGlobalVariableCount()));
@@ -185,7 +185,7 @@ namespace
 		std::string artifact_json = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(artifact_json, "version", 1, first_field);
-		MidoriJson::AppendStringField(artifact_json, "kind", "midori-bytecode", first_field);
+		MidoriJson::AppendStringField(artifact_json, "kind", "marmot-bytecode", first_field);
 		MidoriJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
 		MidoriJson::AppendStringField(artifact_json, "entryFile", source_file.generic_string(), first_field);
 		MidoriJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
@@ -227,101 +227,101 @@ namespace
 		if (command_name == "run")
 		{
 			return
-				"Usage: midori run <file> [--format json]\n"
-				"Compile and execute a .mdr source file, or load and execute a .mbc artifact.\n\n"
+				"Usage: marmot run <file> [--format json]\n"
+				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n\n"
 				"Examples:\n"
-				"  midori run src/Main.mdr\n"
-				"  midori run src/Main.mbc\n"
-				"  midori src/Main.mdr\n"
-				"  midori run src/Main.mdr --format json\n";
+				"  marmot run src/Main.mmt\n"
+				"  marmot run src/Main.mmc\n"
+				"  marmot src/Main.mmt\n"
+				"  marmot run src/Main.mmt --format json\n";
 		}
 
 		if (command_name == "check")
 		{
 			return
-				"Usage: midori check <file> [--format json]\n"
-				"Type-check a Midori source file without executing it.\n\n"
+				"Usage: marmot check <file> [--format json]\n"
+				"Type-check a Marmot source file without executing it.\n\n"
 				"Examples:\n"
-				"  midori check src/Main.mdr\n"
-				"  midori check src/Main.mdr --format json\n";
+				"  marmot check src/Main.mmt\n"
+				"  marmot check src/Main.mmt --format json\n";
 		}
 
 		if (command_name == "build")
 		{
 			return
-				"Usage: midori build <file> [--embed-sources] [--format json]\n"
-				"Compile a Midori source file and emit a .mbc binary artifact.\n"
-				"With --format json, emit a .mbc.json disassembly instead.\n"
+				"Usage: marmot build <file> [--embed-sources] [--format json]\n"
+				"Compile a Marmot source file and emit a .mmc binary artifact.\n"
+				"With --format json, emit a .mmc.json disassembly instead.\n"
 				"With --embed-sources, embed source file content in the artifact for\n"
-				"richer runtime error reporting without the original .mdr on disk.\n\n"
+				"richer runtime error reporting without the original .mmt on disk.\n\n"
 				"Examples:\n"
-				"  midori build src/Main.mdr\n"
-				"  midori build src/Main.mdr --embed-sources\n"
-				"  midori build src/Main.mdr --format json\n";
+				"  marmot build src/Main.mmt\n"
+				"  marmot build src/Main.mmt --embed-sources\n"
+				"  marmot build src/Main.mmt --format json\n";
 		}
 
 		if (command_name == "fmt")
 		{
 			return
-				"Usage: midori fmt <file|dir> [--write|-w] [--check] [--format json]\n"
-				"Format Midori source files using the canonical CLI style.\n\n"
+				"Usage: marmot fmt <file|dir> [--write|-w] [--check] [--format json]\n"
+				"Format Marmot source files using the canonical CLI style.\n\n"
 				"Examples:\n"
-				"  midori fmt src/Main.mdr\n"
-				"  midori fmt src -w\n"
-				"  midori fmt test --check\n";
+				"  marmot fmt src/Main.mmt\n"
+				"  marmot fmt src -w\n"
+				"  marmot fmt test --check\n";
 		}
 
 		if (command_name == "test")
 		{
 			return
-				"Usage: midori test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
+				"Usage: marmot test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
 				"Discover and run project tests from the configured test directory.\n\n"
 				"Examples:\n"
-				"  midori test\n"
-				"  midori test closure\n"
-				"  midori test --pattern loop\n"
-				"  midori test --test closure/simple.mdr\n";
+				"  marmot test\n"
+				"  marmot test closure\n"
+				"  marmot test --pattern loop\n"
+				"  marmot test --test closure/simple.mmt\n";
 		}
 
 		if (command_name == "init")
 		{
 			return
-				"Usage: midori init [path] [--name <project_name>]\n"
-				"       midori init --package [path] [--name <package_name>]\n"
-				"Initialize a Midori project or package scaffold.\n\n"
+				"Usage: marmot init [path] [--name <project_name>]\n"
+				"       marmot init --package [path] [--name <package_name>]\n"
+				"Initialize a Marmot project or package scaffold.\n\n"
 				"Examples:\n"
-				"  midori init my-app --name MyApp\n"
-				"  midori init --package packages/Greeter --name greeter\n\n"
-				"Project manifests use project.midori and packages use package.midori.\n";
+				"  marmot init my-app --name MyApp\n"
+				"  marmot init --package packages/Greeter --name greeter\n\n"
+				"Project manifests use project.marmot and packages use package.marmot.\n";
 		}
 
 		if (command_name == "install")
 		{
 			return
-				"Usage: midori install\n"
-				"       midori install <package> [--version <constraint>]\n"
-				"Resolve project dependencies, vendor packages into packages/, and update midori.lock.\n";
+				"Usage: marmot install\n"
+				"       marmot install <package> [--version <constraint>]\n"
+				"Resolve project dependencies, vendor packages into packages/, and update marmot.lock.\n";
 		}
 
 		if (command_name == "update")
 		{
 			return
-				"Usage: midori update [package]\n"
-				"Re-resolve dependencies ignoring the current lockfile and write an updated midori.lock.\n";
+				"Usage: marmot update [package]\n"
+				"Re-resolve dependencies ignoring the current lockfile and write an updated marmot.lock.\n";
 		}
 
 		if (command_name == "remove")
 		{
 			return
-				"Usage: midori remove <package>\n"
+				"Usage: marmot remove <package>\n"
 				"Remove a direct dependency from the active manifest and refresh the lockfile.\n";
 		}
 
 		if (command_name == "list")
 		{
 			return
-				"Usage: midori list\n"
-				"Show the resolved dependency tree from midori.lock or from a fresh resolution.\n";
+				"Usage: marmot list\n"
+				"Show the resolved dependency tree from marmot.lock or from a fresh resolution.\n";
 		}
 
 		return {};
@@ -330,15 +330,15 @@ namespace
 	[[nodiscard]] std::string GeneralHelp()
 	{
 		return
-			"Midori CLI\n\n"
+			"Marmot CLI\n\n"
 			"Usage:\n"
-			"  midori <file>\n"
-			"  midori <command> [options]\n\n"
+			"  marmot <file>\n"
+			"  marmot <command> [options]\n\n"
 			"Commands:\n"
 			"  run      Compile and execute a source file\n"
 			"  check    Type-check a source file without executing it\n"
 			"  build    Compile a source file and emit a bytecode artifact\n"
-			"  fmt      Format one file or a directory of .mdr files\n"
+			"  fmt      Format one file or a directory of .mmt files\n"
 			"  test     Discover and run project tests\n"
 			"  init     Initialize a project or package scaffold\n"
 			"  install  Resolve and vendor package dependencies\n"
@@ -348,17 +348,17 @@ namespace
 			"  help     Show general or per-command help\n\n"
 			"Global flags:\n"
 			"  --help      Show help\n"
-			"  --version   Show the Midori version\n\n"
+			"  --version   Show the Marmot version\n\n"
 			"Examples:\n"
-			"  midori init hello-world\n"
-			"  midori fmt src -w\n"
-			"  midori check src/Main.mdr --format json\n"
-			"  midori run src/Main.mdr\n"
-			"  midori test closure\n"
-			"  midori install\n\n"
+			"  marmot init hello-world\n"
+			"  marmot fmt src -w\n"
+			"  marmot check src/Main.mmt --format json\n"
+			"  marmot run src/Main.mmt\n"
+			"  marmot test closure\n"
+			"  marmot install\n\n"
 			"Relevant project manifests:\n"
-			"  project.midori\n"
-			"  package.midori\n";
+			"  project.marmot\n"
+			"  package.marmot\n";
 	}
 
 	[[nodiscard]] int EditDistance(std::string_view left, std::string_view right)
@@ -692,7 +692,7 @@ namespace
 	{
 		if (args.size() != 2u && args.size() != 3u)
 		{
-			return std::unexpected("Usage: midori __test-worker <test_file> <result_dir> [test_dir]");
+			return std::unexpected("Usage: marmot __test-worker <test_file> <result_dir> [test_dir]");
 		}
 
 		Invocation invocation;
@@ -1017,7 +1017,7 @@ namespace
 		std::string payload = "{";
 		bool first_field = true;
 		MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-		MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+		MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 		MidoriJson::AppendStringField(payload, "command", command, first_field);
 		MidoriJson::AppendBoolField(payload, "success", success, first_field);
 		MidoriJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
@@ -1085,7 +1085,7 @@ namespace
 		}
 		diagnostics_json.push_back(']');
 
-		return std::string("{\"version\":1,\"source\":\"midori\",\"diagnostics\":") + diagnostics_json
+		return std::string("{\"version\":1,\"source\":\"marmot\",\"diagnostics\":") + diagnostics_json
 			+ ",\"warnings\":" + warnings_json
 			+ ",\"errors\":" + errors_json + "}";
 	}
@@ -1096,7 +1096,7 @@ namespace
 			MidoriProject::FindManifestConfiguration(std::filesystem::current_path());
 		if (!configuration.has_value())
 		{
-			return std::unexpected("Could not find project.midori or package.midori from the current directory.");
+			return std::unexpected("Could not find project.marmot or package.marmot from the current directory.");
 		}
 
 		return configuration.value();
@@ -1113,7 +1113,7 @@ namespace
 	[[nodiscard]] std::optional<MidoriPackageManager::ResolvedPackageGraph> LoadExistingLockfileGraph(
 		const MidoriProject::ManifestConfiguration& configuration)
 	{
-		const std::filesystem::path lockfile_path = configuration.m_root / "midori.lock";
+		const std::filesystem::path lockfile_path = configuration.m_root / "marmot.lock";
 		if (!std::filesystem::exists(lockfile_path))
 		{
 			return std::nullopt;
@@ -1200,16 +1200,16 @@ namespace
 			std::string payload = "{";
 			bool first_field = true;
 			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 			MidoriJson::AppendStringField(payload, "command", "version", first_field);
 			MidoriJson::AppendBoolField(payload, "success", true, first_field);
-			MidoriJson::AppendStringField(payload, "midoriVersion", MidoriBuild::VersionString, first_field);
+			MidoriJson::AppendStringField(payload, "marmotVersion", MidoriBuild::VersionString, first_field);
 			payload.push_back('}');
 			std::print("{}", payload);
 		}
 		else
 		{
-			std::print("midori {}\n", MidoriBuild::VersionString);
+			std::print("marmot {}\n", MidoriBuild::VersionString);
 		}
 		return EXIT_SUCCESS;
 	}
@@ -1233,7 +1233,7 @@ namespace
 				std::string payload = "{";
 				bool first_field = true;
 				MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-				MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+				MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 				MidoriJson::AppendStringField(payload, "command", "init", first_field);
 				MidoriJson::AppendBoolField(payload, "success", false, first_field);
 				MidoriJson::AppendStringField(payload, "kind", invocation.m_init_package ? "package" : "project", first_field);
@@ -1261,7 +1261,7 @@ namespace
 			std::string payload = "{";
 			bool first_field = true;
 			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 			MidoriJson::AppendStringField(payload, "command", "init", first_field);
 			MidoriJson::AppendBoolField(payload, "success", true, first_field);
 			MidoriJson::AppendStringField(payload, "kind", invocation.m_init_package ? "package" : "project", first_field);
@@ -1272,7 +1272,7 @@ namespace
 		else
 		{
 			std::print(
-				"Initialized Midori {} at {}\n",
+				"Initialized Marmot {} at {}\n",
 				invocation.m_init_package ? "package" : "project",
 				resolved_target.empty() ? "." : resolved_target.string());
 		}
@@ -1573,7 +1573,7 @@ namespace
 
 		if (invocation.m_format == OutputFormat::Json)
 		{
-			// --format json: emit the existing .mbc.json disassembly format
+			// --format json: emit the existing .mmc.json disassembly format
 			const std::expected<BuildArtifactResult, std::string> artifact_result =
 				WriteBuildArtifact(executable, invocation.m_source_file);
 			if (!artifact_result.has_value())
@@ -1589,9 +1589,9 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		// Default: write .mbc binary artifact
+		// Default: write .mmc binary artifact
 		std::filesystem::path artifact_path = invocation.m_source_file;
-		artifact_path.replace_extension(".mbc");
+		artifact_path.replace_extension(".mmc");
 
 		const std::expected<void, std::string> write_result =
 			MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
@@ -1625,7 +1625,7 @@ namespace
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
 
-		if (invocation.m_source_file.extension() == ".mbc")
+		if (invocation.m_source_file.extension() == ".mmc")
 		{
 			// Load-and-run path for pre-built binary artifacts
 			MidoriDriver::LoadArtifactResult load_result = MidoriDriver::LoadArtifact(invocation.m_source_file);
@@ -1671,7 +1671,7 @@ namespace
 			return run_result.value();
 		}
 
-		// Compile-and-run path for .mdr source files
+		// Compile-and-run path for .mmt source files
 		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
 		if (!compile_result.has_value())
 		{
@@ -1774,7 +1774,7 @@ namespace
 				std::string payload = "{";
 				bool first_field = true;
 				MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-				MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+				MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 				MidoriJson::AppendStringField(payload, "command", "fmt", first_field);
 				MidoriJson::AppendBoolField(payload, "success", true, first_field);
 				MidoriJson::AppendStringField(payload, "target", invocation.m_target_path.generic_string(), first_field);
@@ -1822,7 +1822,7 @@ namespace
 			std::string payload = "{";
 			bool first_field = true;
 			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "midori", first_field);
+			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 			MidoriJson::AppendStringField(payload, "command", "fmt", first_field);
 			MidoriJson::AppendBoolField(payload, "success", !result.HasErrors() && (!invocation.m_fmt_check || !result.HasChanges()), first_field);
 			MidoriJson::AppendNumberField(payload, "changedCount", result.ChangedCount(), first_field);
@@ -1932,7 +1932,7 @@ namespace
 			{ "run", "Compile and execute a source file", CommandKind::Run, &HandleRun },
 			{ "check", "Type-check a source file without executing it", CommandKind::Check, &HandleCheck },
 			{ "build", "Compile a source file and report bytecode stats", CommandKind::Build, &HandleBuild },
-			{ "fmt", "Format one file or a directory of .mdr files", CommandKind::Fmt, &HandleFmt },
+			{ "fmt", "Format one file or a directory of .mmt files", CommandKind::Fmt, &HandleFmt },
 			{ "test", "Discover and run project tests", CommandKind::Test, &HandleTest },
 			{ "init", "Initialize a project or package scaffold", CommandKind::Init, &HandleInit },
 			{ "install", "Resolve and vendor package dependencies", CommandKind::Install, &HandleInstall },

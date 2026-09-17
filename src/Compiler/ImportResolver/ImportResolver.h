@@ -11,7 +11,7 @@ public:
 	enum class ImportType
 	{
 		PATH,    // Relative or absolute file path
-		SYSTEM   // System module (uses MIDORI_PATH)
+		SYSTEM   // System module (uses MARMOT_PATH)
 	};
 
 	struct ResolvedImport

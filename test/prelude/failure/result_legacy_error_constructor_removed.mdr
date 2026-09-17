@@ -1,6 +1,0 @@
-module ResultLegacyErrorConstructorRemoved
-
-import { "../../../MidoriPrelude/Prelude/Result.mdr" }
-use Result.{Result}
-
-def value : Result<Int, Text> = Result::Error("legacy");

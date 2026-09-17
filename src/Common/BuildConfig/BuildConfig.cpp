@@ -27,7 +27,7 @@ namespace MidoriBuild
             return override_value != 0;
         }
 
-        static const bool s_is_test_mode = EnvironmentFlagEnabledUncached("MIDORI_TEST_MODE");
+        static const bool s_is_test_mode = EnvironmentFlagEnabledUncached("MARMOT_TEST_MODE");
         return s_is_test_mode;
     }
 

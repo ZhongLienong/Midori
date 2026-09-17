@@ -46,7 +46,7 @@ def doubler : fn(Int) -> Int = fn(x) => { x * 2 };
 def result = doubler(21);
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "TypeInference.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "TypeInference.mmt");
 	if (!typecheck_result.has_value())
 	{
 		FAIL(std::string(typecheck_result.error().Rendered()));
@@ -81,7 +81,7 @@ alias IntPair = Pair<Int, Int>;
 def pair : IntPair = Pair(1, 2);
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "AliasTypes.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "AliasTypes.mmt");
 	if (!typecheck_result.has_value())
 	{
 		FAIL(std::string(typecheck_result.error().Rendered()));
@@ -124,14 +124,14 @@ def Display = fn<T>(value: T) -> Text where Show<T> => {
 def rendered = Display(Hidden(1));
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "ConstraintFailure.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "ConstraintFailure.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::TypeChecker;
 	expectation.m_code = CompilerErrorCode::TypeUnsatisfiedConstraint;
 	expectation.m_message_substrings = { "Type Hidden does not satisfy constraint Show<Hidden>", "no matching instance found" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mdr:13", "Display(Hidden(1))" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "ConstraintFailure.mmt:13", "Display(Hidden(1))" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
@@ -142,7 +142,7 @@ TEST_CASE("TypeChecker exposes failures through shared diagnostics transport", "
 def number : Int = "oops";
 )";
 
-	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SharedDiagnostics.mdr");
+	std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "SharedDiagnostics.mmt");
 	REQUIRE(parse_result.has_value());
 
 	MidoriResult::TypeCheckerResult typecheck_result = TypeChecker
@@ -160,7 +160,7 @@ def number : Int = "oops";
 	expectation.m_code = CompilerErrorCode::TypeMismatch;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "SharedDiagnostics.mdr:2" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "SharedDiagnostics.mmt:2" };
 	RequireErrorMatches(typecheck_result.error().First(), expectation);
 }
 
@@ -173,7 +173,7 @@ def flag : Bool = 123;
 )";
 
 	std::expected<MidoriTest::TypedSnippet, MidoriResult::CompilerDiagnostics> typecheck_result =
-		MidoriTest::TypeCheckSnippetWithDiagnostics(source_code, "MultipleDiagnostics.mdr");
+		MidoriTest::TypeCheckSnippetWithDiagnostics(source_code, "MultipleDiagnostics.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 	REQUIRE(typecheck_result.error().Size() == 2u);
 
@@ -182,7 +182,7 @@ def flag : Bool = 123;
 	first_expectation.m_code = CompilerErrorCode::TypeMismatch;
 	first_expectation.m_line = 2;
 	first_expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
-	first_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mdr:2" };
+	first_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:2" };
 	RequireErrorMatches(typecheck_result.error().m_errors[0u], first_expectation);
 
 	MidoriTest::ErrorExpectation second_expectation;
@@ -190,7 +190,7 @@ def flag : Bool = 123;
 	second_expectation.m_code = CompilerErrorCode::TypeMismatch;
 	second_expectation.m_line = 3;
 	second_expectation.m_message_substrings = { "Expected type 'Bool' but got 'Int'" };
-	second_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mdr:3" };
+	second_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:3" };
 	RequireErrorMatches(typecheck_result.error().m_errors[1u], second_expectation);
 }
 
@@ -201,7 +201,7 @@ TEST_CASE("Compiler tags undefined names with a stable diagnostic code", "[typec
 def value = missing;
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "UndefinedName.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "UndefinedName.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -209,7 +209,7 @@ def value = missing;
 	expectation.m_code = CompilerErrorCode::TypeUndefinedName;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Undefined name" };
-	expectation.m_rendered_substrings = { "Parser Error", "UndefinedName.mdr:2" };
+	expectation.m_rendered_substrings = { "Parser Error", "UndefinedName.mmt:2" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
@@ -221,7 +221,7 @@ def value = 1;
 def result = value();
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NotCallable.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NotCallable.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -229,7 +229,7 @@ def result = value();
 	expectation.m_code = CompilerErrorCode::TypeNotCallable;
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "not a callable" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "NotCallable.mdr:3" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "NotCallable.mmt:3" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
@@ -241,7 +241,7 @@ def id = fn(value: Int) -> Int => value;
 def result = id();
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "IncorrectArity.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "IncorrectArity.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -249,7 +249,7 @@ def result = id();
 	expectation.m_code = CompilerErrorCode::TypeIncorrectArity;
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "incorrect arity" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "IncorrectArity.mdr:3" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "IncorrectArity.mmt:3" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }
 
@@ -264,7 +264,7 @@ def result = match value with
 ;
 )";
 
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NonExhaustiveMatch.mdr");
+	std::expected<MidoriTest::TypedSnippet, CompilerError> typecheck_result = MidoriTest::TypeCheckSnippet(source_code, "NonExhaustiveMatch.mmt");
 	REQUIRE_FALSE(typecheck_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -272,6 +272,6 @@ def result = match value with
 	expectation.m_code = CompilerErrorCode::TypeNonExhaustiveMatch;
 	expectation.m_line = 4;
 	expectation.m_message_substrings = { "non-exhaustive match", "None" };
-	expectation.m_rendered_substrings = { "Type Checker Error", "NonExhaustiveMatch.mdr:4" };
+	expectation.m_rendered_substrings = { "Type Checker Error", "NonExhaustiveMatch.mmt:4" };
 	RequireErrorMatches(typecheck_result.error(), expectation);
 }

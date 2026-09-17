@@ -135,7 +135,7 @@ namespace
 	}
 
 	// A foreign name that is not a builtin can only be provided by a package
-	// library. ModuleManager loads a package's library from the package.midori
+	// library. ModuleManager loads a package's library from the package.marmot
 	// beside the imported file and binds exactly the names listed under
 	// [ffi.functions], so that same manifest is the whole set of names such a
 	// file can call. Anything else would fail at the call site at run time.
@@ -149,7 +149,7 @@ namespace
 		}
 
 		const std::filesystem::path package_directory = file_path.parent_path();
-		if (!std::filesystem::exists(package_directory / "package.midori", error))
+		if (!std::filesystem::exists(package_directory / "package.marmot", error))
 		{
 			return false;
 		}
@@ -2527,7 +2527,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 	}
 	else if (!IsDeclaredByOwningPackage(m_file_name, foreign.m_foreign_name))
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Midori builtin, and no package.midori in this file's directory lists it under [ffi.functions].", foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin, and no package.marmot in this file's directory lists it under [ffi.functions].", foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
 		return;
 	}
 

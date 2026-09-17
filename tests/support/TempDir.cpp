@@ -16,7 +16,7 @@ namespace
 namespace MidoriTest
 {
 	TempDir::TempDir()
-		: TempDir("midori-test")
+		: TempDir("marmot-test")
 	{
 	}
 

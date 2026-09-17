@@ -1,0 +1,34 @@
+module worker_cancel_blocked_receive
+
+import { "../../../MarmotPrelude/Concurrency.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+import { "../../../MarmotPrelude/System.mmt" }
+use System.{Sleep}
+
+def BlockOnChannel = fn(ch: Channel<Int>) -> Int => {
+    def v = <- ch;
+    v
+};
+
+def ch : Channel<Int> = Concurrency::MakeChannel(1);
+def w = Concurrency::Spawn(ch, BlockOnChannel);
+Sleep(50);
+def cancelled = Concurrency::Cancel(w);
+// Polls the global `w` rather than taking it as a parameter, so the worker
+// handle type does not have to be named.
+def WaitUntilDone = fn(attempts: Int) -> Unit =>
+    if Concurrency::IsDone(w) || (attempts >= 500)
+    then ()
+    else
+    {
+        Sleep(10);
+        WaitUntilDone(attempts + 1)
+    };
+
+WaitUntilDone(0);
+if cancelled && Concurrency::IsDone(w)
+then PrintLine("blocked worker cancelled")
+else PrintLine("blocked worker still running");

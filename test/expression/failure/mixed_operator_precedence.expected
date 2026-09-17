@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at test/expression/failure/mixed_operator_precedence.mdr:11
+Parser Error at test/expression/failure/mixed_operator_precedence.mmt:11
    |
 11 | def mixed = a + b * c;
    |               ^ '+' and '*' do not bind equally, so mixing them needs parentheses: write the '*' operand in its own parentheses.

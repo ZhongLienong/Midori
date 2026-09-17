@@ -118,7 +118,7 @@ unsafe fn alloc_array_from_bytes(values: &[u8]) -> *mut FFIArray {
 }
 
 #[no_mangle]
-pub extern "C" fn midori_image_read_info(args: *mut *mut c_void, ret: *mut c_void) {
+pub extern "C" fn marmot_image_read_info(args: *mut *mut c_void, ret: *mut c_void) {
     let path = unsafe { read_text(args, 0) };
     let Some(path) = path else {
         unsafe {
@@ -140,7 +140,7 @@ pub extern "C" fn midori_image_read_info(args: *mut *mut c_void, ret: *mut c_voi
 }
 
 #[no_mangle]
-pub extern "C" fn midori_image_read_rgba(args: *mut *mut c_void, ret: *mut c_void) {
+pub extern "C" fn marmot_image_read_rgba(args: *mut *mut c_void, ret: *mut c_void) {
     let path = unsafe { read_text(args, 0) };
     let Some(path) = path else {
         unsafe {
@@ -162,7 +162,7 @@ pub extern "C" fn midori_image_read_rgba(args: *mut *mut c_void, ret: *mut c_voi
 }
 
 #[no_mangle]
-pub extern "C" fn midori_image_write_rgba(args: *mut *mut c_void, ret: *mut c_void) {
+pub extern "C" fn marmot_image_write_rgba(args: *mut *mut c_void, ret: *mut c_void) {
     let path = unsafe { read_text(args, 0) };
     let Some(path) = path else {
         unsafe {

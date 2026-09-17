@@ -1,0 +1,46 @@
+module OperatorExplicitMethodAgree
+
+// Every operator desugars to exactly one class method, so `#x` and
+// `Countable::Count(x)` - and `a ++ b` and `Concatenable::Concat(a, b)` -
+// must select the same instance in the same context. The explicit
+// spelling used to fail wherever the ambient expected type was not the
+// method's return type: inside an `as` operand, or as an argument to a
+// generic function. Instance selection is argument-directed; the
+// expected type only breaks ties, which is what `Convertable` needs.
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Countable.mmt", "../../../MarmotPrelude/Concatenable.mmt", "../../../MarmotPrelude/Convertable.mmt", }
+
+def Same = fn < T >(value: T) -> T => value;
+
+type Bag < T > = {
+    items: Array < T >
+};
+
+instance Countable < Bag < T >> {
+    def Count = fn(value: Bag < T >) -> Int => #value.items;
+};
+
+def text = "hello";
+def bag: Bag < Int > = Bag ([1, 2, 3]);
+
+IO::PrintLine(#text as Text);
+IO::PrintLine(Countable::Count(text) as Text);
+IO::PrintLine(Same(Countable::Count(text)) as Text);
+
+IO::PrintLine(#bag as Text);
+IO::PrintLine(Countable::Count(bag) as Text);
+
+IO::PrintLine("a" ++ "b");
+IO::PrintLine(Concatenable::Concat("a", "b"));
+IO::PrintLine(Same(Concatenable::Concat("a", "b")));
+
+def left: Array < Int > = [1, 2];
+def right: Array < Int > = [3];
+def joined = left ++ right;
+
+IO::PrintLine(#joined as Text);
+IO::PrintLine(Countable::Count(Concatenable::Concat(left, right)) as Text);
+
+def converted: Text = Convertable::Convert(7);
+IO::PrintLine(converted);
+IO::PrintLine(7 as Text);

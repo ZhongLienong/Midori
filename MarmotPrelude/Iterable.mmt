@@ -1,0 +1,10 @@
+module Iterable
+import { "Prelude/Option.mmt" }
+public export { Iterable }
+use Option.{
+    Option
+}
+class Iterable < Iter > {
+    type Item;
+    Next: fn(iter: Iter) -> Option < (Item, Iter) >;
+};

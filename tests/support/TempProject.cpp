@@ -11,7 +11,7 @@ namespace MidoriTest
 	}
 
 	TempProject::TempProject()
-		: m_root("midori-project")
+		: m_root("marmot-project")
 	{
 	}
 

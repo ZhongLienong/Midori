@@ -1,0 +1,20 @@
+module MixedLocalSystemImport
+
+// Test: mixing local and system imports
+
+import {
+    "mixed_local_system_lib.mmt",
+    <IO>,
+    <Math>
+}
+
+use Utils.{FormatNumber}
+use IO.{PrintLine}
+use Math.{SquareRoot}
+
+def main = fn() -> Unit => {
+    PrintLine(FormatNumber(SquareRoot(25.0)));
+    PrintLine("Mixed imports work!");
+};
+
+main();

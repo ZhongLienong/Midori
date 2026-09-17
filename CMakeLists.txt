@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 3.24)
 # ============================================================================
 # Project Configuration
 # ============================================================================
-project(Midori
+project(Marmot
     VERSION 1.0.0
-    DESCRIPTION "Midori Programming Language"
+    DESCRIPTION "Marmot Programming Language"
     LANGUAGES CXX
 )
 
@@ -14,7 +14,7 @@ project(Midori
 # ============================================================================
 if(NOT EMSCRIPTEN AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
-        "Midori requires a 64-bit toolchain (sizeof(void*) == 8).\n"
+        "Marmot requires a 64-bit toolchain (sizeof(void*) == 8).\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER}\n"
         "On Windows with Ninja, run from a 'x64 Native Tools Command Prompt' "
         "or use vcvarsall.bat x64 before configuring.")
@@ -50,7 +50,7 @@ elseif(NOT CMAKE_GENERATOR_MULTI_CONFIG)
         set(MIDORI_BUILD_TESTS_DEFAULT OFF)
     endif()
 endif()
-option(MIDORI_BUILD_TESTS "Build Midori implementation unit tests" ${MIDORI_BUILD_TESTS_DEFAULT})
+option(MIDORI_BUILD_TESTS "Build Marmot implementation unit tests" ${MIDORI_BUILD_TESTS_DEFAULT})
 
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "Use static MSVC runtime (/MT, /MTd in Debug)" FORCE)
@@ -183,14 +183,14 @@ if(EMSCRIPTEN)
     )
 
     # Create WASM executable (no main() needed)
-    add_executable(Midori
+    add_executable(Marmot
         ${WASM_FILES}
     )
-    target_link_libraries(Midori PRIVATE MidoriCore)
+    target_link_libraries(Marmot PRIVATE MidoriCore)
 
     set(MIDORI_WASM_COMPILE_TARGETS
         MidoriCore
-        Midori
+        Marmot
     )
 
     foreach(target_name IN LISTS MIDORI_WASM_COMPILE_TARGETS)
@@ -212,11 +212,11 @@ if(EMSCRIPTEN)
     endforeach()
 
     # Emscripten linker options
-    target_link_options(Midori PRIVATE
+    target_link_options(Marmot PRIVATE
         --bind
         -sALLOW_MEMORY_GROWTH=1
         -sMODULARIZE=1
-        -sEXPORT_NAME=createMidoriModule
+        -sEXPORT_NAME=createMarmotModule
         -sENVIRONMENT=web
         -sSTACK_SIZE=5MB
         -sINITIAL_MEMORY=32MB
@@ -232,8 +232,8 @@ if(EMSCRIPTEN)
     )
 
     # Set output properties
-    set_target_properties(Midori PROPERTIES
-        OUTPUT_NAME "midori"
+    set_target_properties(Marmot PROPERTIES
+        OUTPUT_NAME "marmot"
         SUFFIX ".js"
     )
 
@@ -244,15 +244,15 @@ else()
     message(STATUS "Configuring for native build")
 
     # Create the thin CLI executable that links against MidoriCore
-    add_executable(Midori
-        "src/Midori.cpp"
+    add_executable(Marmot
+        "src/Marmot.cpp"
     )
-    target_link_libraries(Midori PRIVATE MidoriCore)
+    target_link_libraries(Marmot PRIVATE MidoriCore)
     set(MIDORI_NATIVE_COMPILE_TARGETS
         MidoriCore
-        Midori
+        Marmot
     )
-    set(MIDORI_NATIVE_LINK_TARGETS Midori)
+    set(MIDORI_NATIVE_LINK_TARGETS Marmot)
 
     # Detect AVX2 compiler flag for Experimental configuration
     set(MIDORI_HAS_AVX2_FLAG FALSE)
@@ -310,7 +310,7 @@ else()
             string(REPLACE "/RTC1" "" ${flag_var} "${${flag_var}}")
         endforeach()
 
-        # Common MSVC flags for Midori executable
+        # Common MSVC flags for Marmot executable
         foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI

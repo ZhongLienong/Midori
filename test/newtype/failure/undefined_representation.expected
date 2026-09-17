@@ -1,5 +1,5 @@
 Compilation failed :( 
-Parser Error at test/newtype/failure/undefined_representation.mdr:8
+Parser Error at test/newtype/failure/undefined_representation.mmt:8
   |
 8 | type Bad = UnknownRepresentation;
   |            ^^^^^^^^^^^^^^^^^^^^^ Undefined struct or union.

@@ -1,5 +1,5 @@
 Compilation failed :(
-Type Checker Error at test/struct/failure/record_update_unknown_field.mdr:12
+Type Checker Error at test/struct/failure/record_update_unknown_field.mmt:12
    |
 12 | def bad = { p with z = 3 };
    |                    ^ Unknown struct member in record update

@@ -1,12 +1,12 @@
 [
   {
-    "source": "midori",
+    "source": "marmot",
     "severity": "warning",
     "stage": "StaticAnalyzer",
     "code": "UnusedLocal",
     "message": "Binding 'unused' is never read.",
-    "file": "test/static_analyzer/success/unused_local_warning.mdr",
-    "file_path": "test/static_analyzer/success/unused_local_warning.mdr",
+    "file": "test/static_analyzer/success/unused_local_warning.mmt",
+    "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
     "line": 4,
     "column": 4,
     "endLine": 4,

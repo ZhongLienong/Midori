@@ -1,6 +1,6 @@
-# Image (Midori package)
+# Image (Marmot package)
 
-Simple image read/write bindings for Midori using Rust and the image crate.
+Simple image read/write bindings for Marmot using Rust and the image crate.
 
 ## API
 - ReadInfo(path: Text) -> Array<Int>
@@ -13,13 +13,13 @@ Simple image read/write bindings for Midori using Rust and the image crate.
 ## Build (Windows)
 1) cd native
 2) cargo build --release
-3) Copy native/target/release/midori_image.dll to lib/windows/x64/midori_image.dll
+3) Copy native/target/release/marmot_image.dll to lib/windows/x64/marmot_image.dll
 
 ## Use
-Set MIDORI_PATH to include this package and MidoriPrelude, then import it.
+Set MARMOT_PATH to include this package and MarmotPrelude, then import it.
 
 Example:
-```midori
+```marmot
 import { <Image> }
 
 // Read

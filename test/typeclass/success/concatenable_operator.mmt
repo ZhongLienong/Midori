@@ -1,0 +1,21 @@
+module ConcatenableOperator
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Concatenable.mmt" }
+
+type Chunk = {
+    text: Text
+};
+
+instance Concatenable<Chunk> {
+    def Concat = fn(left: Chunk, right: Chunk) -> Chunk => Chunk(left.text ++ right.text);
+};
+
+def Join = fn<T>(left: T, right: T) -> T
+    where Concatenable<T> => left ++ right;
+
+def combined = Chunk("mid") ++ Chunk("ori");
+def joined = Join(Chunk("type"), Chunk("class"));
+
+if (combined.text == "marmot") && (joined.text == "typeclass")
+then IO::PrintLine("concatenable_operator: PASS")
+else IO::PrintLine("concatenable_operator: FAIL");

@@ -19,7 +19,7 @@ namespace
 
 TEST_CASE("Bytecode linker reports unresolved imports with importer source provenance", "[compiler][linker][diagnostics]")
 {
-	BytecodeModule importer("Importer", "Importer.mdr");
+	BytecodeModule importer("Importer", "Importer.mmt");
 	importer.m_imports.emplace_back(
 		"missingValue",
 		"MissingModule",
@@ -40,7 +40,7 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 	expectation.m_code = CompilerErrorCode::BytecodeLinkerUnresolvedImport;
 	expectation.m_line = 4;
 	expectation.m_message_substrings = { "Unresolved import: missingValue from module MissingModule." };
-	expectation.m_rendered_substrings = { "Bytecode Linker Error", "Importer.mdr:4", "MissingModule::missingValue" };
+	expectation.m_rendered_substrings = { "Bytecode Linker Error", "Importer.mmt:4", "MissingModule::missingValue" };
 	RequireErrorMatches(link_result.error(), expectation);
 }
 
@@ -58,7 +58,7 @@ TEST_CASE("Bytecode linker tags empty link jobs with a stable code", "[compiler]
 
 TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict details", "[compiler][linker][diagnostics]")
 {
-	BytecodeModule first_module("Shared", "SharedA.mdr");
+	BytecodeModule first_module("Shared", "SharedA.mmt");
 	first_module.m_exports.emplace_back(
 		"run",
 		0uz,
@@ -70,7 +70,7 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 			3u,
 			std::string("def run = fn() -> Int => 1;")));
 
-	BytecodeModule second_module("Shared", "SharedB.mdr");
+	BytecodeModule second_module("Shared", "SharedB.mmt");
 	second_module.m_exports.emplace_back(
 		"run",
 		0uz,
@@ -93,7 +93,7 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 	expectation.m_stage = CompilerStage::BytecodeLinker;
 	expectation.m_code = CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol;
 	expectation.m_line = 5;
-	expectation.m_message_substrings = { "Duplicate symbol export: run from module Shared.", "SharedA.mdr:2" };
-	expectation.m_rendered_substrings = { "Bytecode Linker Error", "SharedB.mdr:5", "def run = fn() -> Int => 2;" };
+	expectation.m_message_substrings = { "Duplicate symbol export: run from module Shared.", "SharedA.mmt:2" };
+	expectation.m_rendered_substrings = { "Bytecode Linker Error", "SharedB.mmt:5", "def run = fn() -> Int => 2;" };
 	RequireErrorMatches(link_result.error(), expectation);
 }

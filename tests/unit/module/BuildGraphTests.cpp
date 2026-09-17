@@ -95,15 +95,15 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./Lib.mdr\", \"./Util.mdr\" }\n"
+			"import { \"./Lib.mmt\", \"./Util.mmt\" }\n"
 			"use Lib.{PrintLine, Parse}\n"
 			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Lib.mdr",
+			"Lib.mmt",
 			"module Lib\n"
 			"public export { PrintLine, Parse }\n"
 			"def PrintLine = fn() -> Int => 0;\n"
@@ -111,15 +111,15 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Util.mdr",
+			"Util.mmt",
 			"module Util\n"
 			"def value = 1;\n"
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
-	const std::filesystem::path lib_file_path = std::filesystem::weakly_canonical(project.Path("Lib.mdr"));
-	const std::filesystem::path util_file_path = std::filesystem::weakly_canonical(project.Path("Util.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	const std::filesystem::path lib_file_path = std::filesystem::weakly_canonical(project.Path("Lib.mmt"));
+	const std::filesystem::path util_file_path = std::filesystem::weakly_canonical(project.Path("Util.mmt"));
 
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
 	if (!graph_result.has_value())
@@ -168,15 +168,15 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./MathVector.mdr\" }\n"
+			"import { \"./MathVector.mmt\" }\n"
 			"use Math.Vector.{add, sub}\n"
 			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"MathVector.mdr",
+			"MathVector.mmt",
 			"module Math.Vector\n"
 			"public export { add, sub }\n"
 			"def add = 1;\n"
@@ -184,7 +184,7 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
 	if (!graph_result.has_value())
@@ -207,12 +207,12 @@ TEST_CASE("ModuleManager requires an explicit module declaration in every file",
 	({
 		MidoriTest::TempProjectFile
 		(
-			"MissingModule.mdr",
+			"MissingModule.mmt",
 			"def value = 1;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MissingModule.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MissingModule.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
@@ -229,14 +229,14 @@ TEST_CASE("ModuleManager rejects multiple module declarations in one file", "[mo
 	({
 		MidoriTest::TempProjectFile
 		(
-			"MultipleModules.mdr",
+			"MultipleModules.mmt",
 			"module First\n"
 			"module Second\n"
 			"def value = 1;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MultipleModules.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("MultipleModules.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
@@ -253,13 +253,13 @@ TEST_CASE("ModuleManager requires the module declaration to be the first top-lev
 	({
 		MidoriTest::TempProjectFile
 		(
-			"LateModule.mdr",
+			"LateModule.mmt",
 			"def value = 1;\n"
 			"module Late\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("LateModule.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("LateModule.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
@@ -274,13 +274,13 @@ TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names"
 	const MidoriTest::TempProject project
 	({
 		MidoriTest::TempProjectFile(
-			"Invalid.mdr",
+			"Invalid.mmt",
 			"module def\n"
 			"def value = 1;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
@@ -296,14 +296,14 @@ TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", 
 	({
 		MidoriTest::TempProjectFile
 		(
-			"InvalidUse.mdr",
+			"InvalidUse.mmt",
 			"module Main\n"
 			"use Math..{add}\n"
 			"def value = 1;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidUse.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidUse.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
@@ -319,18 +319,18 @@ TEST_CASE("ModuleManager returns a diagnostic for import statements without brac
 	({
 		MidoriTest::TempProjectFile
 		(
-			"InvalidImport.mdr",
+			"InvalidImport.mmt",
 			"module Main\n"
 			"import <IO>\n"
 			"def value = 1;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidImport.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("InvalidImport.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	CheckDiagnosticLocation(error, std::filesystem::weakly_canonical(project.Path("InvalidImport.mdr")), 2);
+	CheckDiagnosticLocation(error, std::filesystem::weakly_canonical(project.Path("InvalidImport.mmt")), 2);
 
 	MidoriTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
@@ -346,29 +346,29 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./Parent.mdr\" }\n"
+			"import { \"./Parent.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Parent.mdr",
+			"Parent.mmt",
 			"module Parent\n"
-			"import { \"./Broken.mdr\" }\n"
+			"import { \"./Broken.mmt\" }\n"
 			"def value = 1;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Broken.mdr",
+			"Broken.mmt",
 			"module Broken\n"
 			"def value =+ 1;\n"
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
-	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mdr"));
-	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mmt"));
+	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mmt"));
 
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
 	REQUIRE_FALSE(graph_result.has_value());
@@ -387,28 +387,28 @@ TEST_CASE("ModuleManager preserves imported child module diagnostics across recu
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./Parent.mdr\" }\n"
+			"import { \"./Parent.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Parent.mdr",
+			"Parent.mmt",
 			"module Parent\n"
-			"import { \"./Broken.mdr\" }\n"
+			"import { \"./Broken.mmt\" }\n"
 			"def value = 1;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"Broken.mdr",
+			"Broken.mmt",
 			"def value = 1;\n"
 		)
 	});
 
-	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mdr"));
-	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mdr"));
-	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mdr"));
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	const std::filesystem::path parent_file_path = std::filesystem::weakly_canonical(project.Path("Parent.mmt"));
+	const std::filesystem::path broken_file_path = std::filesystem::weakly_canonical(project.Path("Broken.mmt"));
 
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(main_file_path);
 	REQUIRE_FALSE(graph_result.has_value());
@@ -431,14 +431,14 @@ TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code",
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./Missing.mdr\" }\n"
+			"import { \"./Missing.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -455,7 +455,7 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
 			"import { \"./Library\" }\n"
 			"def main = fn() -> Int => 0;\n"
@@ -464,7 +464,7 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 
 	std::filesystem::create_directories(project.Path("Library"));
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -481,28 +481,28 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 	({
 		MidoriTest::TempProjectFile
 		(
-			"Main.mdr",
+			"Main.mmt",
 			"module Main\n"
-			"import { \"./A.mdr\" }\n"
+			"import { \"./A.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"A.mdr",
+			"A.mmt",
 			"module A\n"
-			"import { \"./B.mdr\" }\n"
+			"import { \"./B.mmt\" }\n"
 			"def value = 1;\n"
 		),
 		MidoriTest::TempProjectFile
 		(
-			"B.mdr",
+			"B.mmt",
 			"module B\n"
-			"import { \"./A.mdr\" }\n"
+			"import { \"./A.mmt\" }\n"
 			"def value = 2;\n"
 		)
 	});
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mdr"));
+	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;
@@ -520,7 +520,7 @@ public export { missing }
 def main = fn() -> Int => 0;
 )";
 
-	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "MissingExport.mdr");
+	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "MissingExport.mmt");
 	REQUIRE_FALSE(compile_result.has_value());
 
 	MidoriTest::ErrorExpectation expectation;

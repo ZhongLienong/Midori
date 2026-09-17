@@ -1,5 +1,5 @@
 Compilation failed :(
-Parser Error at test/array_comprehension/failure/syntax_missing_for.mdr:4
+Parser Error at test/array_comprehension/failure/syntax_missing_for.mmt:4
   |
 4 | def x = [i i in 0..1..10];
   |            ^ Expected 'for' in array comprehension. Use '[expr for item in range]' syntax.

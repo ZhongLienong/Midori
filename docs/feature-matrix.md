@@ -1,6 +1,6 @@
-# Midori Feature Matrix
+# Marmot Feature Matrix
 
-This document is the tracked source of truth for the current public Midori surface.
+This document is the tracked source of truth for the current public Marmot surface.
 Status is based on the Phase 1 audit and the repo state checked on 2026-04-04.
 
 The coverage column points at the primary automated coverage for each row. It is
@@ -78,11 +78,11 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `tests/unit/module/`, `tests/unit/compiler/` | The compiler emits stable module error codes for these cases. |
 | `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by `MidoriFFIRegistry`. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
-| `package.midori` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
+| `package.marmot` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
 | Structured compiler warnings/errors and stable diagnostic codes | Stable | `tests/unit/common/`, `tests/unit/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
-| Machine-readable warnings and compiler-report JSON | Stable | `tests/unit/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Midori.exe check --format json`. |
+| Machine-readable warnings and compiler-report JSON | Stable | `tests/unit/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Marmot.exe check --format json`. |
 | Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `tests/unit/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
-| Project manifests (`project.midori` and `[project]` fallback) and `Midori.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.midori` fallback, manifest precedence, and init scaffolding. |
+| Project manifests (`project.marmot` and `[project]` fallback) and `Marmot.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.marmot` fallback, manifest precedence, and init scaffolding. |
 
 ## Standard Library
 
@@ -98,7 +98,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `Concurrency::Spawn`, `Concurrency::Join` | Stable | `test/concurrency/` | Compiler-provided functions, available once `Concurrency.mdr` is imported. `Spawn(argument, F)` takes `F` as a value - a name, a lambda, or a parameter holding one - and spreads a tuple argument across several parameters, so `(a, b) \|> Concurrency::Spawn(F)` pipes. `Concurrency::ParallelMap` is built on it, in Midori. `Concurrency::Close`, `IsDone` and `Cancel` round out the surface. `Join` evaluates to `Result<T, WorkerError>`, so a failed or cancelled worker is a value rather than an error in the joiner (needs `Prelude/Result.mdr` too). Callee must be a named `def Name = fn(...)`. The `spawn`/`join` keywords were removed. |
+| `Concurrency::Spawn`, `Concurrency::Join` | Stable | `test/concurrency/` | Compiler-provided functions, available once `Concurrency.mmt` is imported. `Spawn(argument, F)` takes `F` as a value - a name, a lambda, or a parameter holding one - and spreads a tuple argument across several parameters, so `(a, b) \|> Concurrency::Spawn(F)` pipes. `Concurrency::ParallelMap` is built on it, in Marmot. `Concurrency::Close`, `IsDone` and `Cancel` round out the surface. `Join` evaluates to `Result<T, WorkerError>`, so a failed or cancelled worker is a value rather than an error in the joiner (needs `Prelude/Result.mmt` too). Callee must be a named `def Name = fn(...)`. The `spawn`/`join` keywords were removed. |
 | `Concurrency::MakeChannel(cap)` | Stable | `test/concurrency/` | Creates a typed bounded channel, taking `T` from context (`def ch : Channel<Int> = ...`). `T` must satisfy `Transferable`. Replaces the `channel<T>(cap)` keyword. |
 | `->` (send) and `<-` (receive) operators | Stable | `test/concurrency/` | Binary send and unary prefix receive; type-checked against `Channel<T>`. |
 | `Worker<T>` and `Channel<T>` types | Stable | `test/concurrency/` | Opaque handle types with compile-time type parameter tracking. |

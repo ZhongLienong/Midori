@@ -11,7 +11,7 @@
 
 TEST_CASE("ScopedEnvVar restores the prior environment value", "[support][env]")
 {
-	const std::string env_name = "MIDORI_PHASE2_SUPPORT_ENV";
+	const std::string env_name = "MARMOT_PHASE2_SUPPORT_ENV";
 	const MidoriTest::ScopedEnvVar clear_guard(env_name, std::nullopt);
 
 	{
@@ -28,7 +28,7 @@ TEST_CASE("TempDir creates files that are removed with the fixture", "[support][
 	std::filesystem::path file_path;
 
 	{
-		const MidoriTest::TempDir temp_dir("midori-support-tempdir");
+		const MidoriTest::TempDir temp_dir("marmot-support-tempdir");
 		root_path = temp_dir.Path();
 		file_path = temp_dir.WriteTextFile("nested/sample.txt", "contents");
 

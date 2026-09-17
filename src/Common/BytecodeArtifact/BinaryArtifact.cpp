@@ -388,7 +388,7 @@ namespace MidoriBinaryArtifact
 		header_writer.WriteRaw(s_magic, 4u);
 		// format_version
 		header_writer.WriteU32(MidoriBuild::MbcFormatVersion);
-		// midori_version
+		// marmot_version
 		header_writer.WriteU16(ver_major);
 		header_writer.WriteU16(ver_minor);
 		header_writer.WriteU16(ver_patch);
@@ -422,7 +422,7 @@ namespace MidoriBinaryArtifact
 		}
 		if (magic[0] != s_magic[0] || magic[1] != s_magic[1] || magic[2] != s_magic[2] || magic[3] != s_magic[3])
 		{
-			return std::unexpected("Not a Midori bytecode artifact (bad magic).");
+			return std::unexpected("Not a Marmot bytecode artifact (bad magic).");
 		}
 
 		uint32_t format_version;

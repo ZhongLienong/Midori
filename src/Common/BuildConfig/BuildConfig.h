@@ -48,7 +48,7 @@
     #endif
 #endif
 
-// Build configuration levels for Midori compiler
+// Build configuration levels for Marmot compiler
 //
 // MIDORI_BUILD_DEBUG (3):
 //   - Full debugging output
@@ -97,7 +97,7 @@ namespace MidoriBuild
     // POSITION in that table into the bytecode (CodeGenerator.cpp), and the
     // VM looks the builtin up by that position at call time
     // (VirtualMachine.cpp). Removing entries from the middle shifts every
-    // later entry's position, so a .mbc built against the old table would
+    // later entry's position, so a .mmc built against the old table would
     // silently call a different builtin with no error. Bumping this forces
     // old artifacts to be rejected instead of misexecuted. A future reader
     // who removes or reorders a builtin from this table must bump this

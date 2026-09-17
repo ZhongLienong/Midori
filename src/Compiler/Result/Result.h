@@ -463,7 +463,7 @@ namespace MidoriResult
 
 			diagnostics.push_back(']');
 
-			return std::string("{\"version\":1,\"source\":\"midori\",\"diagnostics\":") + diagnostics +
+			return std::string("{\"version\":1,\"source\":\"marmot\",\"diagnostics\":") + diagnostics +
 				",\"warnings\":" + m_warnings.MachineReadableJson() +
 				",\"errors\":" + m_errors.MachineReadableJson() + "}";
 		}
