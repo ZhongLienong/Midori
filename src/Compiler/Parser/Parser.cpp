@@ -1819,7 +1819,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		if (Match(Token::Name::RIGHT_PAREN))
 		{
 			// Empty tuple is unit
-			return std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Previous()));
+			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Unit));
 		}
 
 		return ParseExpression()
@@ -1999,11 +1999,11 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::TRUE, Token::Name::FALSE))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Previous()));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Bool));
 	}
 	else if (Match(Token::Name::FLOAT_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(Previous()));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Float));
 	}
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
@@ -2027,28 +2027,28 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 			if (value <= 0xFF)
 			{
 				// Fits in Byte (0-255)
-				return std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Byte));
 			}
 			else if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
 			{
 				// Fits in signed Int
-				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer));
 			}
 			else
 			{
 				// Needs Word (unsigned 64-bit)
-				return std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Word));
 			}
 		}
 		else
 		{
-			// Decimal literal - keep as IntegerLiteral for backwards compatibility
-			return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(token));
+			// Decimal literal - an Integer literal
+			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer));
 		}
 	}
 	else if (Match(Token::Name::TEXT_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(Previous()));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Text));
 	}
 	else if (Match(Token::Name::LEFT_BRACKET))
 	{
@@ -5859,12 +5859,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 	auto make_bool_literal = [this, &struct_stmt](bool value) -> std::unique_ptr<MidoriExpression>
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(MakeSyntheticToken(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, struct_stmt.m_name)));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(MakeSyntheticToken(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, struct_stmt.m_name), MidoriExpression::LiteralKind::Bool));
 	};
 
 	auto make_int_literal = [this, &struct_stmt](int value) -> std::unique_ptr<MidoriExpression>
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(MakeSyntheticToken(std::to_string(value), Token::Name::INTEGER_LITERAL, struct_stmt.m_name)));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(MakeSyntheticToken(std::to_string(value), Token::Name::INTEGER_LITERAL, struct_stmt.m_name), MidoriExpression::LiteralKind::Integer));
 	};
 
 	for (const Token& derive_target : deriving_targets)
@@ -5992,12 +5992,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	auto make_bool_literal = [this, &union_stmt](bool value) -> std::unique_ptr<MidoriExpression>
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(MakeSyntheticToken(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, union_stmt.m_name)));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(MakeSyntheticToken(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, union_stmt.m_name), MidoriExpression::LiteralKind::Bool));
 	};
 
 	auto make_int_literal = [this, &union_stmt](int value) -> std::unique_ptr<MidoriExpression>
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(MakeSyntheticToken(std::to_string(value), Token::Name::INTEGER_LITERAL, union_stmt.m_name)));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(MakeSyntheticToken(std::to_string(value), Token::Name::INTEGER_LITERAL, union_stmt.m_name), MidoriExpression::LiteralKind::Integer));
 	};
 
 	auto make_binding_pattern = [this, &union_stmt](const std::string& name, int local_index) -> std::unique_ptr<MidoriPattern>

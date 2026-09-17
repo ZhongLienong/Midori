@@ -127,6 +127,13 @@ private:
 	void PopByte(int line);
 
 	void EmitTextConstant(std::string_view data, int line);
+	void EmitTextLiteral(const MidoriExpression::Literal& literal);
+	void EmitBoolLiteral(const MidoriExpression::Literal& literal);
+	void EmitFloatLiteral(const MidoriExpression::Literal& literal);
+	void EmitIntegerLiteral(const MidoriExpression::Literal& literal);
+	void EmitByteLiteral(const MidoriExpression::Literal& literal);
+	void EmitWordLiteral(const MidoriExpression::Literal& literal);
+	void EmitUnitLiteral(const MidoriExpression::Literal& literal);
 
 	void EmitByte(OpCode byte, int line);
 
@@ -272,19 +279,7 @@ private:
 
 
 
-	void operator()(MidoriExpression::TextLiteral& text);
-
-	void operator()(MidoriExpression::BoolLiteral& bool_expr);
-
-	void operator()(MidoriExpression::FloatLiteral& float_literal);
-
-	void operator()(MidoriExpression::IntegerLiteral& integer);
-
-	void operator()(MidoriExpression::ByteLiteral& byte_literal);
-
-	void operator()(MidoriExpression::WordLiteral& word_literal);
-
-	void operator()(MidoriExpression::UnitLiteral& unit);
+	void operator()(MidoriExpression::Literal& literal);
 
 	void operator()(MidoriExpression::Function& function);
 

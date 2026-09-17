@@ -11,7 +11,6 @@ namespace
 {
 	using OptimizerAnalysis::BlockLocalAccessSummary;
 	using OptimizerAnalysis::ConstantValue;
-	using OptimizerAnalysis::LiteralForm;
 	using OptimizerAnalysis::StatementLocalAccessSummary;
 	using OptimizerAnalysis::UnitConstant;
 
@@ -652,37 +651,38 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriExpression::BoolLiteral>)
+				if constexpr (std::is_same_v<T, MidoriExpression::Literal>)
 				{
-					return ConstantValue{ node.m_token.m_token_name == Token::Name::TRUE };
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::IntegerLiteral>)
-				{
-					std::optional<MidoriInteger> value = SafeParseInteger(node.m_token.m_lexeme);
-					return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::FloatLiteral>)
-				{
-					std::optional<MidoriFloat> value = SafeParseFloat(node.m_token.m_lexeme);
-					return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::ByteLiteral>)
-				{
-					std::optional<MidoriByte> value = SafeParseByte(node.m_token.m_lexeme);
-					return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::WordLiteral>)
-				{
-					std::optional<MidoriWord> value = SafeParseWord(node.m_token.m_lexeme);
-					return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::TextLiteral>)
-				{
-					return ConstantValue{ node.m_token.m_lexeme };
-				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::UnitLiteral>)
-				{
-					return ConstantValue{ UnitConstant{} };
+					switch (node.m_kind)
+					{
+					case MidoriExpression::LiteralKind::Bool:
+						return ConstantValue{ node.m_token.m_token_name == Token::Name::TRUE };
+					case MidoriExpression::LiteralKind::Integer:
+					{
+						std::optional<MidoriInteger> value = SafeParseInteger(node.m_token.m_lexeme);
+						return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+					}
+					case MidoriExpression::LiteralKind::Float:
+					{
+						std::optional<MidoriFloat> value = SafeParseFloat(node.m_token.m_lexeme);
+						return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+					}
+					case MidoriExpression::LiteralKind::Byte:
+					{
+						std::optional<MidoriByte> value = SafeParseByte(node.m_token.m_lexeme);
+						return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+					}
+					case MidoriExpression::LiteralKind::Word:
+					{
+						std::optional<MidoriWord> value = SafeParseWord(node.m_token.m_lexeme);
+						return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
+					}
+					case MidoriExpression::LiteralKind::Text:
+						return ConstantValue{ node.m_token.m_lexeme };
+					case MidoriExpression::LiteralKind::Unit:
+						return ConstantValue{ UnitConstant{} };
+					}
+					return std::nullopt;
 				}
 				else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
 				{
@@ -753,13 +753,7 @@ namespace
 			{
 				using T = std::decay_t<decltype(node)>;
 
-				if constexpr (std::is_same_v<T, MidoriExpression::TextLiteral>
-					|| std::is_same_v<T, MidoriExpression::BoolLiteral>
-					|| std::is_same_v<T, MidoriExpression::FloatLiteral>
-					|| std::is_same_v<T, MidoriExpression::IntegerLiteral>
-					|| std::is_same_v<T, MidoriExpression::ByteLiteral>
-					|| std::is_same_v<T, MidoriExpression::WordLiteral>
-					|| std::is_same_v<T, MidoriExpression::UnitLiteral>
+				if constexpr (std::is_same_v<T, MidoriExpression::Literal>
 					|| std::is_same_v<T, MidoriExpression::NameAccess>)
 				{
 					return true;
@@ -1170,31 +1164,7 @@ namespace
 			}
 		}
 
-		void Visit(const MidoriExpression::TextLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::BoolLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::FloatLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::IntegerLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::ByteLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::WordLiteral&)
-		{
-		}
-
-		void Visit(const MidoriExpression::UnitLiteral&)
+		void Visit(const MidoriExpression::Literal&)
 		{
 		}
 
@@ -1391,49 +1361,10 @@ namespace MidoriAnalysis
 		return expr;
 	}
 
-	LiteralForm GetLiteralForm(const MidoriExpression& expr)
-	{
-		const MidoriExpression* stripped_expr = StripRedundantGroups(&expr);
-		if (stripped_expr == nullptr)
-		{
-			return LiteralForm::None;
-		}
-
-		if (stripped_expr->IsExpression<MidoriExpression::BoolLiteral>())
-		{
-			return LiteralForm::Bool;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::IntegerLiteral>())
-		{
-			return LiteralForm::Integer;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::FloatLiteral>())
-		{
-			return LiteralForm::Float;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::ByteLiteral>())
-		{
-			return LiteralForm::Byte;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::WordLiteral>())
-		{
-			return LiteralForm::Word;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::TextLiteral>())
-		{
-			return LiteralForm::Text;
-		}
-		if (stripped_expr->IsExpression<MidoriExpression::UnitLiteral>())
-		{
-			return LiteralForm::Unit;
-		}
-
-		return LiteralForm::None;
-	}
-
 	bool IsLiteralExpression(const MidoriExpression& expr)
 	{
-		return GetLiteralForm(expr) != LiteralForm::None;
+		const MidoriExpression* stripped_expr = StripRedundantGroups(&expr);
+		return stripped_expr != nullptr && stripped_expr->IsExpression<MidoriExpression::Literal>();
 	}
 
 	bool IsPure(const MidoriExpression& expr)
@@ -1479,34 +1410,34 @@ namespace MidoriAnalysis
 				{
 					if (literal_value)
 					{
-						return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("true", Token::Name::TRUE, source_token)));
+						return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token("true", Token::Name::TRUE, source_token), MidoriExpression::LiteralKind::Bool));
 					}
 
-					return std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(Token("false", Token::Name::FALSE, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token("false", Token::Name::FALSE, source_token), MidoriExpression::LiteralKind::Bool));
 				}
 				else if constexpr (std::is_same_v<T, MidoriInteger>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token), MidoriExpression::LiteralKind::Integer));
 				}
 				else if constexpr (std::is_same_v<T, MidoriFloat>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token), MidoriExpression::LiteralKind::Float));
 				}
 				else if constexpr (std::is_same_v<T, MidoriByte>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token), MidoriExpression::LiteralKind::Byte));
 				}
 				else if constexpr (std::is_same_v<T, MidoriWord>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::INTEGER_LITERAL, source_token), MidoriExpression::LiteralKind::Word));
 				}
 				else if constexpr (std::is_same_v<T, std::string>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(Token(std::string(literal_value), Token::Name::TEXT_LITERAL, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::string(literal_value), Token::Name::TEXT_LITERAL, source_token), MidoriExpression::LiteralKind::Text));
 				}
 				else
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(Token("()", Token::Name::UNIT, source_token)));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token("()", Token::Name::UNIT, source_token), MidoriExpression::LiteralKind::Unit));
 				}
 			},
 			value.m_value

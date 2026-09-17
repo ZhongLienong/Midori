@@ -46,23 +46,9 @@ namespace MidoriAnalysis
 		}
 	};
 
-	enum class LiteralForm
-	{
-		None,
-		Bool,
-		Integer,
-		Float,
-		Byte,
-		Word,
-		Text,
-		Unit
-	};
-
 	const MidoriExpression* StripRedundantGroups(const MidoriExpression* expr);
 
 	std::unique_ptr<MidoriExpression> StripRedundantGroups(std::unique_ptr<MidoriExpression> expr);
-
-	LiteralForm GetLiteralForm(const MidoriExpression& expr);
 
 	bool IsLiteralExpression(const MidoriExpression& expr);
 

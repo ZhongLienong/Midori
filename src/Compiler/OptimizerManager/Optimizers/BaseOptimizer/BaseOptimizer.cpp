@@ -136,31 +136,7 @@ void MidoriOptimizer::operator()(MidoriExpression::NameAccess&)
 {
 }
 
-void MidoriOptimizer::operator()(MidoriExpression::TextLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::BoolLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::FloatLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::IntegerLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::ByteLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::WordLiteral&)
-{
-}
-
-void MidoriOptimizer::operator()(MidoriExpression::UnitLiteral&)
+void MidoriOptimizer::operator()(MidoriExpression::Literal&)
 {
 }
 

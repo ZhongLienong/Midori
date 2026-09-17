@@ -185,7 +185,7 @@ namespace
 	{
 		std::unique_ptr<MidoriExpression> replacement = std::make_unique<MidoriExpression>
 		(
-			MidoriExpression::UnitLiteral(Token("()", Token::Name::UNIT, source_token))
+			MidoriExpression::Literal(Token("()", Token::Name::UNIT, source_token), MidoriExpression::LiteralKind::Unit)
 		);
 		SetReplacementType(replacement, type);
 		return replacement;

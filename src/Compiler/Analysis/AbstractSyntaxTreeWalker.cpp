@@ -170,31 +170,7 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::NameAccess&)
 {
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::TextLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::BoolLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::FloatLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::IntegerLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::ByteLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::WordLiteral&)
-{
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::UnitLiteral&)
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Literal&)
 {
 }
 

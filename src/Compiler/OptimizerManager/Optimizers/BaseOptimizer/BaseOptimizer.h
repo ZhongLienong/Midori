@@ -65,13 +65,7 @@ protected:
 	virtual void operator()(MidoriExpression::Call& call) override;
 	virtual void operator()(MidoriExpression::MemberAccess& get) override;
 	virtual void operator()(MidoriExpression::NameAccess& variable) override;
-	virtual void operator()(MidoriExpression::TextLiteral& text) override;
-	virtual void operator()(MidoriExpression::BoolLiteral& bool_expr) override;
-	virtual void operator()(MidoriExpression::FloatLiteral& float_literal) override;
-	virtual void operator()(MidoriExpression::IntegerLiteral& integer) override;
-	virtual void operator()(MidoriExpression::ByteLiteral& byte_literal) override;
-	virtual void operator()(MidoriExpression::WordLiteral& word_literal) override;
-	virtual void operator()(MidoriExpression::UnitLiteral& unit) override;
+	virtual void operator()(MidoriExpression::Literal& literal) override;
 	virtual void operator()(MidoriExpression::Function& function) override;
 	virtual void operator()(MidoriExpression::Construct& construct) override;
 	virtual void operator()(MidoriExpression::RecordUpdate& record_update) override;

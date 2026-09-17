@@ -55,19 +55,7 @@ struct PrintAbstractSyntaxTree
 	void operator()(const MidoriExpression::NameAccess& variable, int depth = 0) const;
 
 
-	void operator()(const MidoriExpression::TextLiteral& text, int depth = 0) const;
-
-	void operator()(const MidoriExpression::BoolLiteral& bool_val, int depth = 0) const;
-
-	void operator()(const MidoriExpression::FloatLiteral& float_literal, int depth = 0) const;
-
-	void operator()(const MidoriExpression::IntegerLiteral& integer, int depth = 0) const;
-
-	void operator()(const MidoriExpression::ByteLiteral& byte_literal, int depth = 0) const;
-
-	void operator()(const MidoriExpression::WordLiteral& word_literal, int depth = 0) const;
-
-	void operator()(const MidoriExpression::UnitLiteral&, int depth = 0) const;
+	void operator()(const MidoriExpression::Literal& literal, int depth = 0) const;
 
 	void operator()(const MidoriExpression::Function& closure, int depth = 0) const;
 

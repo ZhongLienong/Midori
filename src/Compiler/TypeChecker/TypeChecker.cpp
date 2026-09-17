@@ -6106,46 +6106,33 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::TextLiteral& text)
+MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Literal& literal)
 {
-	text.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
-	return text.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::BoolLiteral& bool_expr)
-{
-	bool_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-	return	bool_expr.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::FloatLiteral& float_literal)
-{
-	float_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
-	return float_literal.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IntegerLiteral& integer)
-{
-	integer.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	return integer.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ByteLiteral& byte_literal)
-{
-	byte_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
-	return byte_literal.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::WordLiteral& word_literal)
-{
-	word_literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
-	return word_literal.m_type_data;
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnitLiteral& unit)
-{
-	unit.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
-	return unit.m_type_data;
+	switch (literal.m_kind)
+	{
+	case MidoriExpression::LiteralKind::Text:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
+		break;
+	case MidoriExpression::LiteralKind::Bool:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		break;
+	case MidoriExpression::LiteralKind::Float:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
+		break;
+	case MidoriExpression::LiteralKind::Integer:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+		break;
+	case MidoriExpression::LiteralKind::Byte:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
+		break;
+	case MidoriExpression::LiteralKind::Word:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
+		break;
+	case MidoriExpression::LiteralKind::Unit:
+		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		break;
+	}
+	return literal.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars)

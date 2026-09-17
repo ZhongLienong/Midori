@@ -112,11 +112,11 @@ std::unique_ptr<MidoriExpression> ConstantBranchElimination::MakeLogicalNot(Mido
 bool ConstantBranchElimination::IsBoolLiteral(const MidoriExpression& expr, bool expected_value)
 {
 	const MidoriExpression* stripped_expr = MidoriAnalysis::StripRedundantGroups(&expr);
-	if (stripped_expr == nullptr || !stripped_expr->IsExpression<MidoriExpression::BoolLiteral>())
+	if (stripped_expr == nullptr || !stripped_expr->IsLiteral(MidoriExpression::LiteralKind::Bool))
 	{
 		return false;
 	}
 
-	const MidoriExpression::BoolLiteral& bool_expr = stripped_expr->GetExpression<MidoriExpression::BoolLiteral>();
+	const MidoriExpression::Literal& bool_expr = stripped_expr->GetExpression<MidoriExpression::Literal>();
 	return (bool_expr.m_token.m_token_name == Token::Name::TRUE) == expected_value;
 }

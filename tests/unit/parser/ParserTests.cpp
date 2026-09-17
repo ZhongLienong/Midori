@@ -47,6 +47,13 @@ namespace
 		return expression->template GetExpression<ExpressionType>();
 	}
 
+	const MidoriExpression::Literal& RequireLiteral(const std::unique_ptr<MidoriExpression>& expression, MidoriExpression::LiteralKind kind)
+	{
+		const MidoriExpression::Literal& literal = RequireExpression<MidoriExpression::Literal>(expression);
+		REQUIRE(literal.m_kind == kind);
+		return literal;
+	}
+
 	// `def Name = fn(...)` parses as a variable definition whose value is a lambda; the
 	// FunctionDefinition node is now only produced by instance methods, deriving and
 	// closure lifting.
@@ -163,20 +170,20 @@ def tuple_value = (1 + 2, 3);
 	REQUIRE(chain_expr.m_op.m_token_name == Token::Name::SINGLE_MINUS);
 	const MidoriExpression::Binary& chain_left = RequireExpression<MidoriExpression::Binary>(chain_expr.m_left);
 	REQUIRE(chain_left.m_op.m_token_name == Token::Name::SINGLE_PLUS);
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_left.m_left).m_token.m_lexeme == "1");
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_left.m_right).m_token.m_lexeme == "2");
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(chain_expr.m_right).m_token.m_lexeme == "3");
+	REQUIRE(RequireLiteral(chain_left.m_left, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "1");
+	REQUIRE(RequireLiteral(chain_left.m_right, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "2");
+	REQUIRE(RequireLiteral(chain_expr.m_right, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
 
 	// `1 + (2 * 3)` keeps the multiplication in its own group.
 	const MidoriStatement::VariableDefinition& grouped_definition = RequireVariableDefinition(program, 1u, "grouped");
 	const MidoriExpression::Binary& grouped_expr = RequireExpression<MidoriExpression::Binary>(grouped_definition.m_value);
 	REQUIRE(grouped_expr.m_op.m_token_name == Token::Name::SINGLE_PLUS);
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(grouped_expr.m_left).m_token.m_lexeme == "1");
+	REQUIRE(RequireLiteral(grouped_expr.m_left, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "1");
 	const MidoriExpression::Group& grouped_right = RequireExpression<MidoriExpression::Group>(grouped_expr.m_right);
 	const MidoriExpression::Binary& multiplied_expr = RequireExpression<MidoriExpression::Binary>(grouped_right.m_expr_in);
 	REQUIRE(multiplied_expr.m_op.m_token_name == Token::Name::STAR);
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(multiplied_expr.m_left).m_token.m_lexeme == "2");
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(multiplied_expr.m_right).m_token.m_lexeme == "3");
+	REQUIRE(RequireLiteral(multiplied_expr.m_left, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "2");
+	REQUIRE(RequireLiteral(multiplied_expr.m_right, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
 
 	const MidoriStatement::VariableDefinition& tuple_definition = RequireVariableDefinition(program, 2u, "tuple_value");
 	const MidoriExpression::Tuple& tuple_expr = RequireExpression<MidoriExpression::Tuple>(tuple_definition.m_value);
@@ -184,9 +191,9 @@ def tuple_value = (1 + 2, 3);
 
 	const MidoriExpression::Binary& tuple_first_element = RequireExpression<MidoriExpression::Binary>(tuple_expr.m_elements[0u]);
 	REQUIRE(tuple_first_element.m_op.m_token_name == Token::Name::SINGLE_PLUS);
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_first_element.m_left).m_token.m_lexeme == "1");
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_first_element.m_right).m_token.m_lexeme == "2");
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(tuple_expr.m_elements[1u]).m_token.m_lexeme == "3");
+	REQUIRE(RequireLiteral(tuple_first_element.m_left, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "1");
+	REQUIRE(RequireLiteral(tuple_first_element.m_right, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "2");
+	REQUIRE(RequireLiteral(tuple_expr.m_elements[1u], MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
 
 	// The same expression without parentheses is an error that names both operators.
 	const std::string mixed_source =
@@ -687,12 +694,12 @@ def result = match Option::Some(7) with
 	const MidoriPattern::Constructor& some_pattern = RequirePattern<MidoriPattern::Constructor>(some_case.m_pattern);
 	REQUIRE(some_pattern.m_args.size() == 1u);
 	static_cast<void>(RequirePattern<MidoriPattern::Wildcard>(some_pattern.m_args[0u]));
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(some_case.m_expr).m_token.m_lexeme == "1");
+	REQUIRE(RequireLiteral(some_case.m_expr, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "1");
 
 	const MidoriExpression::Case& none_case = RequireExpression<MidoriExpression::Case>(match_expr.m_cases[1u]);
 	const MidoriPattern::Constructor& none_pattern = RequirePattern<MidoriPattern::Constructor>(none_case.m_pattern);
 	REQUIRE(none_pattern.m_args.empty());
-	REQUIRE(RequireExpression<MidoriExpression::IntegerLiteral>(none_case.m_expr).m_token.m_lexeme == "0");
+	REQUIRE(RequireLiteral(none_case.m_expr, MidoriExpression::LiteralKind::Integer).m_token.m_lexeme == "0");
 }
 
 TEST_CASE("Parser tells a record update apart from a block", "[parser]")

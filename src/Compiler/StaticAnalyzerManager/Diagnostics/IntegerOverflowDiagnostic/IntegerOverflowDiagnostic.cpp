@@ -16,11 +16,11 @@ namespace
 			current = current->GetExpression<MidoriExpression::Group>().m_expr_in.get();
 		}
 
-		if (current->IsExpression<MidoriExpression::IntegerLiteral>())
+		if (current->IsLiteral(MidoriExpression::LiteralKind::Integer))
 		{
 			try
 			{
-				return std::stoll(current->GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+				return std::stoll(current->GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
 			}
 			catch (const std::invalid_argument&)
 			{

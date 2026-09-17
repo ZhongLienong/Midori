@@ -2148,13 +2148,7 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 		void operator()(MidoriExpression::Binary& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Group& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Tuple& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::TextLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::BoolLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::FloatLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::IntegerLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::ByteLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::WordLiteral& arg) const { (*m_self)(arg); }
-		void operator()(MidoriExpression::UnitLiteral& arg) const { (*m_self)(arg); }
+		void operator()(MidoriExpression::Literal& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::UnaryPrefix& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::UnarySuffix& arg) const { (*m_self)(arg); }
 		void operator()(MidoriExpression::Spawn& arg) const { (*m_self)(arg); }
@@ -2949,7 +2943,7 @@ std::optional<int> CodeGenerator::GetFusibleLocalIndex(const MidoriExpression& e
 
 std::optional<MidoriInteger> CodeGenerator::GetFusibleSmallInt(const MidoriExpression& expr)
 {
-	if (!expr.IsExpression<MidoriExpression::IntegerLiteral>())
+	if (!expr.IsLiteral(MidoriExpression::LiteralKind::Integer))
 	{
 		return std::nullopt;
 	}
@@ -2957,7 +2951,7 @@ std::optional<MidoriInteger> CodeGenerator::GetFusibleSmallInt(const MidoriExpre
 	MidoriInteger value = 0;
 	try
 	{
-		value = std::stoll(expr.GetExpression<MidoriExpression::IntegerLiteral>().m_token.m_lexeme);
+		value = std::stoll(expr.GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
 	}
 	catch (...)
 	{
@@ -3126,7 +3120,7 @@ namespace
 			return binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS && !binary.m_uses_concatenable;
 		}
 
-		return expr.IsExpression<MidoriExpression::TextLiteral>()
+		return expr.IsLiteral(MidoriExpression::LiteralKind::Text)
 			|| expr.IsExpression<MidoriExpression::Array>()
 			|| expr.IsExpression<MidoriExpression::ArrayComprehension>();
 	}
@@ -4185,24 +4179,52 @@ void CodeGenerator::operator()(MidoriExpression::NameAccess& variable)
 	std::visit(NameAccessVisitor{ this, &variable }, variable.m_name_ctx);
 }
 
-void CodeGenerator::operator()(MidoriExpression::TextLiteral& text)
+void CodeGenerator::operator()(MidoriExpression::Literal& literal)
+{
+	switch (literal.m_kind)
+	{
+	case MidoriExpression::LiteralKind::Text:
+		EmitTextLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Bool:
+		EmitBoolLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Float:
+		EmitFloatLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Integer:
+		EmitIntegerLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Byte:
+		EmitByteLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Word:
+		EmitWordLiteral(literal);
+		return;
+	case MidoriExpression::LiteralKind::Unit:
+		EmitUnitLiteral(literal);
+		return;
+	}
+}
+
+void CodeGenerator::EmitTextLiteral(const MidoriExpression::Literal& text)
 {
 	EmitTextConstant(text.m_token.m_lexeme, text.m_token.m_line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::BoolLiteral& bool_expr)
+void CodeGenerator::EmitBoolLiteral(const MidoriExpression::Literal& bool_expr)
 {
 	int line = bool_expr.m_token.m_line;
 	EmitByte(bool_expr.m_token.m_lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::FloatLiteral& float_literal)
+void CodeGenerator::EmitFloatLiteral(const MidoriExpression::Literal& float_literal)
 {
 	int line = float_literal.m_token.m_line;
 	EmitFloatConstant(std::stod(float_literal.m_token.m_lexeme), line);
 }
 
-void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
+void CodeGenerator::EmitIntegerLiteral(const MidoriExpression::Literal& integer)
 {
 	int line = integer.m_token.m_line;
 	try
@@ -4219,7 +4241,7 @@ void CodeGenerator::operator()(MidoriExpression::IntegerLiteral& integer)
 	}
 }
 
-void CodeGenerator::operator()(MidoriExpression::ByteLiteral& byte_literal)
+void CodeGenerator::EmitByteLiteral(const MidoriExpression::Literal& byte_literal)
 {
 	int line = byte_literal.m_token.m_line;
 	const std::string& lexeme = byte_literal.m_token.m_lexeme;
@@ -4256,7 +4278,7 @@ void CodeGenerator::operator()(MidoriExpression::ByteLiteral& byte_literal)
 	}
 }
 
-void CodeGenerator::operator()(MidoriExpression::WordLiteral& word_literal)
+void CodeGenerator::EmitWordLiteral(const MidoriExpression::Literal& word_literal)
 {
 	int line = word_literal.m_token.m_line;
 	const std::string& lexeme = word_literal.m_token.m_lexeme;
@@ -4287,7 +4309,7 @@ void CodeGenerator::operator()(MidoriExpression::WordLiteral& word_literal)
 	}
 }
 
-void CodeGenerator::operator()(MidoriExpression::UnitLiteral& unit)
+void CodeGenerator::EmitUnitLiteral(const MidoriExpression::Literal& unit)
 {
 	int line = unit.m_token.m_line;
 	EmitByte(OpCode::OP_UNIT, line);

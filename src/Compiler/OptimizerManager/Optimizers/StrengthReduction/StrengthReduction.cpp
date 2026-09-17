@@ -56,11 +56,11 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 	VisitAndReplace(binary.m_left);
 	VisitAndReplace(binary.m_right);
 
-	MidoriExpression::IntegerLiteral* left_int = binary.m_left->IsExpression<MidoriExpression::IntegerLiteral>() ? &binary.m_left->GetExpression<MidoriExpression::IntegerLiteral>() : nullptr;
-	MidoriExpression::IntegerLiteral* right_int = binary.m_right->IsExpression<MidoriExpression::IntegerLiteral>() ? &binary.m_right->GetExpression<MidoriExpression::IntegerLiteral>() : nullptr;
+	MidoriExpression::Literal* left_int = binary.m_left->IsLiteral(MidoriExpression::LiteralKind::Integer) ? &binary.m_left->GetExpression<MidoriExpression::Literal>() : nullptr;
+	MidoriExpression::Literal* right_int = binary.m_right->IsLiteral(MidoriExpression::LiteralKind::Integer) ? &binary.m_right->GetExpression<MidoriExpression::Literal>() : nullptr;
 
-	MidoriExpression::FloatLiteral* left_float = binary.m_left->IsExpression<MidoriExpression::FloatLiteral>() ? &binary.m_left->GetExpression<MidoriExpression::FloatLiteral>() : nullptr;
-	MidoriExpression::FloatLiteral* right_float = binary.m_right->IsExpression<MidoriExpression::FloatLiteral>() ? &binary.m_right->GetExpression<MidoriExpression::FloatLiteral>() : nullptr;
+	MidoriExpression::Literal* left_float = binary.m_left->IsLiteral(MidoriExpression::LiteralKind::Float) ? &binary.m_left->GetExpression<MidoriExpression::Literal>() : nullptr;
+	MidoriExpression::Literal* right_float = binary.m_right->IsLiteral(MidoriExpression::LiteralKind::Float) ? &binary.m_right->GetExpression<MidoriExpression::Literal>() : nullptr;
 
 	std::unique_ptr<MidoriExpression> reduced = TryReduceBinary(binary, binary.m_op, left_int, right_int, left_float, right_float);
 
@@ -72,7 +72,7 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 	}
 }
 
-double StrengthReduction::GetFloatValue(MidoriExpression::FloatLiteral* float_lit)
+double StrengthReduction::GetFloatValue(MidoriExpression::Literal* float_lit)
 {
 	return std::stod(float_lit->m_token.m_lexeme);
 }
@@ -99,7 +99,7 @@ int64_t StrengthReduction::IsPowerOfTwo(MidoriInteger value)
 	return exponent;
 }
 
-std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::IntegerLiteral* left_int, MidoriExpression::IntegerLiteral* right_int, MidoriExpression::FloatLiteral* left_float, MidoriExpression::FloatLiteral* right_float)
+std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::Literal* left_int, MidoriExpression::Literal* right_int, MidoriExpression::Literal* left_float, MidoriExpression::Literal* right_float)
 {
 	if (left_int || right_int)
 	{
@@ -109,12 +109,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
 			}
 			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(zero_token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
 			}
 		}
 
@@ -201,7 +201,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			{
 				Token shift_token("<<", Token::Name::LEFT_SHIFT, op.m_line, op.m_file_name);
 				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(exp_token))));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(exp_token, MidoriExpression::LiteralKind::Integer))));
 			}
 		}
 
@@ -219,7 +219,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			{
 				Token shift_token(">>", Token::Name::RIGHT_SHIFT, op.m_line, op.m_file_name);
 				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(exp_token))));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(exp_token, MidoriExpression::LiteralKind::Integer))));
 			}
 		}
 
@@ -238,7 +238,7 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 				Token and_token("&", Token::Name::SINGLE_AMPERSAND, op.m_line, op.m_file_name);
 				MidoriInteger mask = right_val - 1;
 				Token mask_token(std::to_string(mask), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(and_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(mask_token))));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(and_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(mask_token, MidoriExpression::LiteralKind::Integer))));
 			}
 		}
 	}
@@ -252,12 +252,12 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			if (right_float && GetFloatValue(right_float) == 0.0)
 			{
 				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(zero_token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
 			}
 			if (left_float && GetFloatValue(left_float) == 0.0)
 			{
 				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(zero_token));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
 			}
 		}
 

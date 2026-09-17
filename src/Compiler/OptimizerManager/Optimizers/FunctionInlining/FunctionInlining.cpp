@@ -73,13 +73,7 @@ bool FunctionInlining::IsInlinableBody(const MidoriExpression& expr, InlineCandi
 		return false;
 	}
 
-	if (expr.IsExpression<MidoriExpression::IntegerLiteral>()
-		|| expr.IsExpression<MidoriExpression::FloatLiteral>()
-		|| expr.IsExpression<MidoriExpression::BoolLiteral>()
-		|| expr.IsExpression<MidoriExpression::ByteLiteral>()
-		|| expr.IsExpression<MidoriExpression::WordLiteral>()
-		|| expr.IsExpression<MidoriExpression::UnitLiteral>()
-		|| expr.IsExpression<MidoriExpression::TextLiteral>())
+	if (expr.IsExpression<MidoriExpression::Literal>())
 	{
 		return true;
 	}
@@ -162,13 +156,7 @@ bool FunctionInlining::IsInlinableBody(const MidoriExpression& expr, InlineCandi
 
 bool FunctionInlining::IsSimpleArgument(const MidoriExpression& expr)
 {
-	return expr.IsExpression<MidoriExpression::IntegerLiteral>()
-		|| expr.IsExpression<MidoriExpression::FloatLiteral>()
-		|| expr.IsExpression<MidoriExpression::BoolLiteral>()
-		|| expr.IsExpression<MidoriExpression::ByteLiteral>()
-		|| expr.IsExpression<MidoriExpression::WordLiteral>()
-		|| expr.IsExpression<MidoriExpression::UnitLiteral>()
-		|| expr.IsExpression<MidoriExpression::TextLiteral>()
+	return expr.IsExpression<MidoriExpression::Literal>()
 		|| expr.IsExpression<MidoriExpression::NameAccess>();
 }
 
@@ -214,33 +202,10 @@ bool FunctionInlining::IsSubstitutablePureArgument(const MidoriExpression& expr)
 std::unique_ptr<MidoriExpression> FunctionInlining::CloneSimple(const MidoriExpression& expr)
 {
 	std::unique_ptr<MidoriExpression> clone = nullptr;
-	if (expr.IsExpression<MidoriExpression::IntegerLiteral>())
+	if (expr.IsExpression<MidoriExpression::Literal>())
 	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::IntegerLiteral(expr.GetExpression<MidoriExpression::IntegerLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::FloatLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::FloatLiteral(expr.GetExpression<MidoriExpression::FloatLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::BoolLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::BoolLiteral(expr.GetExpression<MidoriExpression::BoolLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::ByteLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::ByteLiteral(expr.GetExpression<MidoriExpression::ByteLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::WordLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::WordLiteral(expr.GetExpression<MidoriExpression::WordLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::UnitLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::UnitLiteral(expr.GetExpression<MidoriExpression::UnitLiteral>().m_token));
-	}
-	else if (expr.IsExpression<MidoriExpression::TextLiteral>())
-	{
-		clone = std::make_unique<MidoriExpression>(MidoriExpression::TextLiteral(expr.GetExpression<MidoriExpression::TextLiteral>().m_token));
+		const MidoriExpression::Literal& literal = expr.GetExpression<MidoriExpression::Literal>();
+		clone = std::make_unique<MidoriExpression>(MidoriExpression::Literal(literal.m_token, literal.m_kind));
 	}
 	else if (expr.IsExpression<MidoriExpression::NameAccess>())
 	{

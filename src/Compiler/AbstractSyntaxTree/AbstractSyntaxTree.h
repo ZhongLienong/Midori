@@ -14,6 +14,17 @@
 
 class MidoriExpression;
 
+enum class MidoriLiteralKind
+{
+	Bool,
+	Integer,
+	Byte,
+	Word,
+	Float,
+	Text,
+	Unit
+};
+
 class MidoriStatement
 {
 public:
@@ -196,16 +207,7 @@ public:
 		Wildcard(const Token& token);
 	};
 
-	enum class LiteralKind
-	{
-		Bool,
-		Integer,
-		Byte,
-		Word,
-		Float,
-		Text,
-		Unit
-	};
+	using LiteralKind = MidoriLiteralKind;
 
 	struct Literal : BasePattern
 	{
@@ -345,53 +347,14 @@ public:
 		Tuple(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elements);
 	};
 
-	struct TextLiteral : BaseExpression
+	using LiteralKind = MidoriLiteralKind;
+
+	struct Literal : BaseExpression
 	{
 		Token m_token;
+		LiteralKind m_kind;
 
-		TextLiteral(const Token& token);
-	};
-
-	struct BoolLiteral : BaseExpression
-	{
-		Token m_token;
-
-		BoolLiteral(const Token& token);
-	};
-
-	struct FloatLiteral : BaseExpression
-	{
-		Token m_token;
-
-		FloatLiteral(const Token& token);
-	};
-
-	struct IntegerLiteral : BaseExpression
-	{
-		Token m_token;
-
-		IntegerLiteral(const Token& token);
-	};
-
-	struct ByteLiteral : BaseExpression
-	{
-		Token m_token;
-
-		ByteLiteral(const Token& token);
-	};
-
-	struct WordLiteral : BaseExpression
-	{
-		Token m_token;
-
-		WordLiteral(const Token& token);
-	};
-
-	struct UnitLiteral : BaseExpression
-	{
-		Token m_token;
-
-		UnitLiteral(const Token& token);
+		Literal(const Token& token, LiteralKind kind);
 	};
 
 	struct UnaryPrefix : BaseExpression
@@ -690,7 +653,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, TextLiteral, BoolLiteral, FloatLiteral, IntegerLiteral, ByteLiteral, WordLiteral, UnitLiteral, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
 	ExpressionUnion m_variant;
 
 public:
@@ -715,6 +678,11 @@ public:
 	constexpr bool IsExpression() const
 	{
 		return std::holds_alternative<T>(m_variant);
+	}
+
+	bool IsLiteral(LiteralKind kind) const
+	{
+		return IsExpression<Literal>() && GetExpression<Literal>().m_kind == kind;
 	}
 
 	ExpressionUnion& operator*();

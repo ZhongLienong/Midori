@@ -116,13 +116,13 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 ### Counts
 
-| | before | target | actual, 2026-09-06 | actual, 2026-09-12 | **actual, 2026-09-15** |
-|---|---|---|---|---|---|
-| Expression nodes | 41 | 18 | 42 | 36 | **34** |
-| Statement nodes | 11 | 5 | 11 | 10 | **10** |
-| Built-in type kinds | 17 | 8 | 17 | *not re-measured* | **17** |
-| Reserved words | 37 | ~25 | 34 | 31 | **26** |
-| Callable concepts | 7 | 1 | 7 | *unchanged* | *unchanged* |
+| | before | target | actual, 2026-09-06 | actual, 2026-09-12 | actual, 2026-09-15 | **actual, 2026-09-16** |
+|---|---|---|---|---|---|---|
+| Expression nodes | 41 | 18 | 42 | 36 | 34 | **28** |
+| Statement nodes | 11 | 5 | 11 | 10 | 10 | **10** |
+| Built-in type kinds | 17 | 8 | 17 | *not re-measured* | 17 | **17** |
+| Reserved words | 37 | ~25 | 34 | 31 | 26 | **26** |
+| Callable concepts | 7 | 1 | 7 | *unchanged* | *unchanged* | *unchanged* |
 
 Counted on 2026-09-15 from `MidoriExpression::ExpressionUnion`,
 `MidoriStatement::StatementUnion`, `MidoriType::MidoriTypeUnion` (its 22 entries
@@ -131,9 +131,12 @@ less the five that are inference machinery rather than language types:
 `ClassConstraint`) and the keyword table in `Lexer.cpp`. Reserved words reached the target:
 `else false for in if true def fn as import foreign case then with match module
 export public private use class instance where type alias deriving`. Expression
-nodes are still double the target; the remaining excess is concentrated in
-literals (seven nodes), the concurrency four (`Spawn`, `Join`, `ChannelCreate`,
-`Send`, `Receive`) and the range pair.
+nodes were still nearly double the target on 2026-09-15, concentrated in literals
+(seven nodes), the concurrency five (`Spawn`, `Join`, `ChannelCreate`, `Send`,
+`Receive`) and the range pair. On 2026-09-16 the seven literal nodes became one
+`Literal` carrying a `MidoriLiteralKind`, the same enum literal patterns already
+used, so expression nodes went 34 → 28. That changes no syntax and no bytecode.
+The remaining excess over the target is the concurrency five and the range pair.
 
 In-place mutation was removed on 2026-09-12. The replacement idioms are a
 comprehension or a cons `List` converted once, both linear and both within ~2x

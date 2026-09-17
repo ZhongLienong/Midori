@@ -272,19 +272,7 @@ private:
 
 
 
-	MidoriResult::TypeResult operator()(MidoriExpression::TextLiteral& text);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::BoolLiteral& bool_expr);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::FloatLiteral& float_literal);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::IntegerLiteral& integer);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::ByteLiteral& byte_literal);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::WordLiteral& word_literal);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::UnitLiteral& unit);
+	MidoriResult::TypeResult operator()(MidoriExpression::Literal& literal);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Function& function);
 

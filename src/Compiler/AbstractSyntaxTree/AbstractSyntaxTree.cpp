@@ -92,38 +92,9 @@ MidoriExpression::Tuple::Tuple(const Token& op, std::vector<std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::TextLiteral::TextLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::BoolLiteral::BoolLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::FloatLiteral::FloatLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::IntegerLiteral::IntegerLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::ByteLiteral::ByteLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::WordLiteral::WordLiteral(const Token& token)
-	: m_token(token)
-{
-}
-
-MidoriExpression::UnitLiteral::UnitLiteral(const Token& token)
-	: m_token(token)
+MidoriExpression::Literal::Literal(const Token& token, LiteralKind kind)
+	: m_token(token),
+	m_kind(kind)
 {
 }
 

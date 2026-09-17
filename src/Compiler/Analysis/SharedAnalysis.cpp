@@ -140,13 +140,7 @@ namespace
 				{
 					return &node.m_op;
 				}
-				else if constexpr (std::is_same_v<T, MidoriExpression::TextLiteral>
-					|| std::is_same_v<T, MidoriExpression::BoolLiteral>
-					|| std::is_same_v<T, MidoriExpression::FloatLiteral>
-					|| std::is_same_v<T, MidoriExpression::IntegerLiteral>
-					|| std::is_same_v<T, MidoriExpression::ByteLiteral>
-					|| std::is_same_v<T, MidoriExpression::WordLiteral>
-					|| std::is_same_v<T, MidoriExpression::UnitLiteral>)
+				else if constexpr (std::is_same_v<T, MidoriExpression::Literal>)
 				{
 					return &node.m_token;
 				}

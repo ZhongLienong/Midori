@@ -91,7 +91,6 @@ Current statement variants:
 - `VariableDefinition`
 - `TupleDefinition`
 - `FunctionDefinition`
-- `Continue`
 - `ForeignDefinition`
 - `Struct`
 - `Union`
@@ -108,24 +107,25 @@ Current pattern variants:
 - `Array`
 - `Constructor`
 
-Current expression variants include:
+Current expression variants:
 
 - `As`
 - `Binary`
 - `Group`
 - `Tuple`
-- `TextLiteral`, `BoolLiteral`, `FloatLiteral`, `IntegerLiteral`, `ByteLiteral`, `WordLiteral`, `UnitLiteral`
+- `Literal` (one node; `m_kind` is `Bool`, `Integer`, `Byte`, `Word`, `Float`, `Text` or `Unit`)
 - `UnaryPrefix`, `UnarySuffix`
-- `Assignment`, `CompoundAssign`, `NameAccess`
+- `Spawn`, `Join`, `ChannelCreate`, `Send`, `Receive`
+- `NameAccess`
 - `Call`, `Function`
-- `Construct`
+- `Construct`, `RecordUpdate`
 - `IfElse`
-- `MemberAccess`, `MemberAssignment`
-- `Array`, `IndexAccess`, `IndexAssignment`
+- `MemberAccess`
+- `Array`, `IndexAccess`
 - `ArrayComprehension`
 - `RangeBinary`, `RangeTernary`
 - `Block`
-- `Match`, `Case`, `Default`
+- `Match`, `Case`
 - `For`
 
 Notably absent:

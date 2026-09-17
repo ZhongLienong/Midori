@@ -310,51 +310,36 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::NameAccess& var
 	PrintWithIndentation(depth, "}");
 }
 
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::TextLiteral& text, int depth) const
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Literal& literal, int depth) const
 {
-	PrintWithIndentation(depth, "Text {");
-	PrintWithIndentation(depth + 1, "Value: \"" + text.m_token.m_lexeme + "\"");
+	switch (literal.m_kind)
+	{
+	case MidoriExpression::LiteralKind::Text:
+		PrintWithIndentation(depth, "Text {");
+		PrintWithIndentation(depth + 1, "Value: \"" + literal.m_token.m_lexeme + "\"");
+		PrintWithIndentation(depth, "}");
+		return;
+	case MidoriExpression::LiteralKind::Unit:
+		PrintWithIndentation(depth, "()");
+		return;
+	case MidoriExpression::LiteralKind::Bool:
+		PrintWithIndentation(depth, "Bool {");
+		break;
+	case MidoriExpression::LiteralKind::Float:
+		PrintWithIndentation(depth, "Float {");
+		break;
+	case MidoriExpression::LiteralKind::Integer:
+		PrintWithIndentation(depth, "Integer {");
+		break;
+	case MidoriExpression::LiteralKind::Byte:
+		PrintWithIndentation(depth, "Byte {");
+		break;
+	case MidoriExpression::LiteralKind::Word:
+		PrintWithIndentation(depth, "Word {");
+		break;
+	}
+	PrintWithIndentation(depth + 1, "Value: " + literal.m_token.m_lexeme);
 	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::BoolLiteral& bool_val, int depth) const
-{
-	PrintWithIndentation(depth, "Bool {");
-	PrintWithIndentation(depth + 1, "Value: " + bool_val.m_token.m_lexeme);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::FloatLiteral& float_literal, int depth) const
-{
-	PrintWithIndentation(depth, "Float {");
-	PrintWithIndentation(depth + 1, "Value: " + float_literal.m_token.m_lexeme);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::IntegerLiteral& integer, int depth) const
-{
-	PrintWithIndentation(depth, "Integer {");
-	PrintWithIndentation(depth + 1, "Value: " + integer.m_token.m_lexeme);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ByteLiteral& byte_literal, int depth) const
-{
-	PrintWithIndentation(depth, "Byte {");
-	PrintWithIndentation(depth + 1, "Value: " + byte_literal.m_token.m_lexeme);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::WordLiteral& word_literal, int depth) const
-{
-	PrintWithIndentation(depth, "Word {");
-	PrintWithIndentation(depth + 1, "Value: " + word_literal.m_token.m_lexeme);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnitLiteral&, int depth) const
-{
-	PrintWithIndentation(depth, "()");
 }
 
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Function& closure, int depth) const

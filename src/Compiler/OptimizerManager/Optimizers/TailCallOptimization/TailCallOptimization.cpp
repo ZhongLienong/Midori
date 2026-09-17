@@ -265,40 +265,11 @@ namespace
 				return ContainsRecursiveCallImpl(*node.m_range, m_function_name) || ContainsRecursiveCallImpl(*node.m_body, m_function_name);
 			}
 
-			bool operator()(const MidoriExpression::TextLiteral&) const
+			bool operator()(const MidoriExpression::Literal&) const
 			{
 				return false;
 			}
 
-			bool operator()(const MidoriExpression::BoolLiteral&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::FloatLiteral&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::IntegerLiteral&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::ByteLiteral&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::WordLiteral&) const
-			{
-				return false;
-			}
-
-			bool operator()(const MidoriExpression::UnitLiteral&) const
-			{
-				return false;
-			}
 		};
 
 		return std::visit(RecursiveCallVisitor{ function_name }, *expr);
