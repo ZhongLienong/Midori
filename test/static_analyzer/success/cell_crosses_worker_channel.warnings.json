@@ -1,0 +1,34 @@
+[
+  {
+    "source": "marmot",
+    "severity": "warning",
+    "stage": "StaticAnalyzer",
+    "code": "CellCrossesWorker",
+    "message": "This Cell is copied into the worker; writes on either side are not seen by the other.",
+    "file": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
+    "file_path": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
+    "line": 15,
+    "column": 8,
+    "endLine": 15,
+    "endColumn": 10,
+    "caret_length": 2,
+    "suggestion": null,
+    "relatedInformation": []
+  },
+  {
+    "source": "marmot",
+    "severity": "warning",
+    "stage": "StaticAnalyzer",
+    "code": "CellCrossesWorker",
+    "message": "This Cell is copied into the worker; writes on either side are not seen by the other.",
+    "file": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
+    "file_path": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
+    "line": 21,
+    "column": 55,
+    "endLine": 21,
+    "endColumn": 56,
+    "caret_length": 1,
+    "suggestion": null,
+    "relatedInformation": []
+  }
+]

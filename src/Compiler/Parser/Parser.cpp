@@ -206,6 +206,12 @@ namespace
 			return;
 		}
 
+		if (type->IsType<MidoriType::CellType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::CellType>().m_element_type, constraints, visited);
+			return;
+		}
+
 		if (type->IsType<MidoriType::RangeType>())
 		{
 			CollectTypeConstraints(type->GetType<MidoriType::RangeType>().m_element_type, constraints, visited);
@@ -400,6 +406,11 @@ namespace
 		if (type->IsType<MidoriType::ArrayType>())
 		{
 			return ContainsGenericParam(type->GetType<MidoriType::ArrayType>().m_element_type, name, visited);
+		}
+
+		if (type->IsType<MidoriType::CellType>())
+		{
+			return ContainsGenericParam(type->GetType<MidoriType::CellType>().m_element_type, name, visited);
 		}
 		if (type->IsType<MidoriType::RangeType>())
 		{

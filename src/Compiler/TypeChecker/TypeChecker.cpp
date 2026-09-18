@@ -212,6 +212,7 @@ namespace
 			CollectTypeVariableIds(type->GetType<MidoriType::ChannelType>().m_element_type, type_variable_ids, visited);
 			return;
 		}
+
 		if (type->IsType<MidoriType::CellType>())
 		{
 			CollectTypeVariableIds(type->GetType<MidoriType::CellType>().m_element_type, type_variable_ids, visited);
@@ -348,6 +349,7 @@ namespace
 		{
 			return ContainsAssociatedTypes(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 		}
+
 		if (type->IsType<MidoriType::CellType>())
 		{
 			return ContainsAssociatedTypes(type->GetType<MidoriType::CellType>().m_element_type, visited);
@@ -488,6 +490,12 @@ namespace
 		if (type->IsType<MidoriType::ArrayType>())
 		{
 			CollectTypeConstraints(type->GetType<MidoriType::ArrayType>().m_element_type, constraints, visited);
+			return;
+		}
+
+		if (type->IsType<MidoriType::CellType>())
+		{
+			CollectTypeConstraints(type->GetType<MidoriType::CellType>().m_element_type, constraints, visited);
 			return;
 		}
 
@@ -646,6 +654,15 @@ namespace
 				return false;
 			}
 			return MatchInstanceTypeArg(pattern->GetType<MidoriType::ArrayType>().m_element_type, concrete->GetType<MidoriType::ArrayType>().m_element_type, substitutions, visited);
+		}
+
+		if (pattern->IsType<MidoriType::CellType>())
+		{
+			if (!concrete->IsType<MidoriType::CellType>())
+			{
+				return false;
+			}
+			return MatchInstanceTypeArg(pattern->GetType<MidoriType::CellType>().m_element_type, concrete->GetType<MidoriType::CellType>().m_element_type, substitutions, visited);
 		}
 
 		if (pattern->IsType<MidoriType::RangeType>())

@@ -61,7 +61,8 @@ enum class CompilerWarningCode
 	NameShadowing,
 	UnusedLocal,
 	CaptureEscape,
-	IntegerOverflow
+	IntegerOverflow,
+	CellCrossesWorker
 };
 
 enum class RuntimeErrorCode

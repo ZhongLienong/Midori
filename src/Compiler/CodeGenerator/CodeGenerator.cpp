@@ -46,6 +46,7 @@ namespace
 		{
 			return ContainsFreeTypeParameter(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 		}
+
 		if (type->IsType<MidoriType::CellType>())
 		{
 			return ContainsFreeTypeParameter(type->GetType<MidoriType::CellType>().m_element_type, visited);
@@ -1076,6 +1077,15 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 			return false;
 		}
 		return MatchInstanceTypeArg(pattern->GetType<MidoriType::ArrayType>().m_element_type, concrete->GetType<MidoriType::ArrayType>().m_element_type, substitutions, visited);
+	}
+
+	if (pattern->IsType<MidoriType::CellType>())
+	{
+		if (!concrete->IsType<MidoriType::CellType>())
+		{
+			return false;
+		}
+		return MatchInstanceTypeArg(pattern->GetType<MidoriType::CellType>().m_element_type, concrete->GetType<MidoriType::CellType>().m_element_type, substitutions, visited);
 	}
 
 	if (pattern->IsType<MidoriType::RangeType>())

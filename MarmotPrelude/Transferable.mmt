@@ -1,4 +1,5 @@
 module Transferable
+import { "./Cell.mmt" }
 public export { Transferable }
 class Transferable < T > {
 };
@@ -19,4 +20,7 @@ instance Transferable < Unit > {
 instance Transferable < Never > {
 };
 instance Transferable < Array < T >> {
+};
+// A cell crosses to a worker as a copy; the CellCrossesWorker warning says so.
+instance Transferable < Cell < T >> {
 };

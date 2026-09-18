@@ -104,6 +104,8 @@ std::string_view CompilerWarningCodeName(CompilerWarningCode code)
 		return "UnusedLocal";
 	case CompilerWarningCode::CaptureEscape:
 		return "CaptureEscape";
+	case CompilerWarningCode::CellCrossesWorker:
+		return "CellCrossesWorker";
 	case CompilerWarningCode::IntegerOverflow:
 		return "IntegerOverflow";
 	case CompilerWarningCode::None:
