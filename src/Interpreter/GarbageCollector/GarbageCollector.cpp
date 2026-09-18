@@ -207,6 +207,10 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			MidoriValue cell_value = current->GetTraceable<MidoriCellValue>().GetValue();
 			TryMark(cell_value.GetPointer());
 		}
+		else if (current->IsTraceable<MidoriMutableCell>())
+		{
+			TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
+		}
 		else if (current->IsTraceable<MidoriStruct>())
 		{
 			mark_tuple_values(current->GetTraceable<MidoriStruct>().m_values);

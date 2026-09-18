@@ -344,6 +344,10 @@ MidoriTraceable::MidoriTraceable(MidoriCellValue&& cell_value) noexcept : m_cell
 {
 }
 
+MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept : m_mutable_cell(std::move(mutable_cell)), m_type(TraceableType::MutableCell)
+{
+}
+
 MidoriTraceable::MidoriTraceable(MidoriClosure&& closure) noexcept : m_closure(std::move(closure)), m_type(TraceableType::Closure)
 {
 }
@@ -383,6 +387,9 @@ MidoriTraceable::~MidoriTraceable()
 		break;
 	case TraceableType::Cell:
 		m_cell.~MidoriCellValue();
+		break;
+	case TraceableType::MutableCell:
+		m_mutable_cell.~MidoriMutableCell();
 		break;
 	case TraceableType::Closure:
 		m_closure.~MidoriClosure();
@@ -439,6 +446,8 @@ MidoriText MidoriTraceable::ToText()
 		return MidoriText("FloatRange");
 	case TraceableType::Cell:
 		return MidoriText("Cell(").Append(m_cell.GetValue().ToText()).Append(")");
+	case TraceableType::MutableCell:
+		return MidoriText("Cell::New(").Append(m_mutable_cell.m_value.ToText()).Append(")");
 	case TraceableType::Closure:
 	{
 		char buffer[64];
@@ -1939,5 +1948,10 @@ MidoriValue& MidoriCellValue::GetValue()
 const MidoriValue& MidoriCellValue::GetValue() const
 {
 	return m_value;
+}
+
+MidoriMutableCell::MidoriMutableCell(MidoriValue value) noexcept
+	: m_value(value)
+{
 }
 

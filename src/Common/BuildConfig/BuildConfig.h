@@ -117,7 +117,10 @@ namespace MidoriBuild
     // Bumped 2026-09-16 (8): WORD_TO_TEXT was inserted after INT_TO_TEXT, which
     // renumbered every later opcode. `Word as Text` used to lower to
     // WORD_TO_INT + INT_TO_TEXT and print values above 2^63 - 1 as negative.
-    inline constexpr uint32_t MbcFormatVersion = 8u;
+    //
+    // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
+    // after SET_CELL for Cell<T>, which renumbered every later opcode.
+    inline constexpr uint32_t MbcFormatVersion = 9u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

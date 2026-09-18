@@ -653,6 +653,9 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 		case OpCode::CHANNEL_CLOSE:
 		case OpCode::WORKER_IS_DONE:
 		case OpCode::WORKER_CANCEL:
+		case OpCode::MAKE_CELL:
+		case OpCode::READ_CELL:
+		case OpCode::WRITE_CELL:
 			advance = 1;
 			break;
 		case OpCode::CALL_FOREIGN:

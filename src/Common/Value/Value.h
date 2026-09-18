@@ -569,6 +569,17 @@ struct MidoriCellValue
 	const MidoriValue& GetValue() const;
 };
 
+// A user-visible Cell<T>. Deliberately a different traceable type from
+// MidoriCellValue: GET_LOCAL_CELL and SET_LOCAL_CELL decide whether a local slot
+// was boxed for capture by checking for a MidoriCellValue pointer, so a user cell
+// of that type sitting unboxed in a local would be unwrapped by mistake.
+struct MidoriMutableCell
+{
+	MidoriValue m_value;
+
+	explicit MidoriMutableCell(MidoriValue value) noexcept;
+};
+
 struct MidoriClosure
 {
 	MidoriTuple m_cell_values;
@@ -599,6 +610,7 @@ public:
 		Struct,
 		Union,
 		Cell,
+		MutableCell,
 		Closure
 	};
 
@@ -613,6 +625,7 @@ private:
 		MidoriStruct m_struct;
 		MidoriUnion m_union;
 		MidoriCellValue m_cell;
+		MidoriMutableCell m_mutable_cell;
 		MidoriClosure m_closure;
 	};
 	TraceableType m_type;
@@ -651,6 +664,10 @@ private:
 		else if constexpr (std::is_same_v<T, MidoriCellValue>)
 		{
 			return TraceableType::Cell;
+		}
+		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
+		{
+			return TraceableType::MutableCell;
 		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
@@ -705,6 +722,10 @@ public:
 		{
 			return m_cell;
 		}
+		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
+		{
+			return m_mutable_cell;
+		}
 		else if constexpr (std::is_same_v<T, MidoriClosure>)
 		{
 			return m_closure;
@@ -735,6 +756,7 @@ public:
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
 	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
+	MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept;
 	MidoriTraceable(MidoriClosure&& closure) noexcept;
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;

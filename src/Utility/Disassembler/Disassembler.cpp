@@ -884,6 +884,15 @@ namespace Disassembler
 		case OpCode::WORKER_IS_DONE:
 			SimpleInstruction("WORKER_IS_DONE", offset);
 			break;
+		case OpCode::MAKE_CELL:
+			SimpleInstruction("MAKE_CELL", offset);
+			break;
+		case OpCode::READ_CELL:
+			SimpleInstruction("READ_CELL", offset);
+			break;
+		case OpCode::WRITE_CELL:
+			SimpleInstruction("WRITE_CELL", offset);
+			break;
 		case OpCode::WORKER_CANCEL:
 			SimpleInstruction("WORKER_CANCEL", offset);
 			break;

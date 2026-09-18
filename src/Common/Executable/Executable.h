@@ -198,6 +198,11 @@ enum class OpCode : uint8_t
 	GET_CELL,
 	SET_CELL,
 
+	// Cell<T>: operate on a cell value on the stack, not on a captured local.
+	MAKE_CELL,
+	READ_CELL,
+	WRITE_CELL,
+
 	// Wide variable operations (for indices > 255)
 	DEFINE_GLOBAL_WIDE,
 	GET_GLOBAL_WIDE,

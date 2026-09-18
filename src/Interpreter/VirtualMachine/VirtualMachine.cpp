@@ -2979,6 +2979,30 @@ int VirtualMachine::ExecuteLoop() noexcept
 			cell_owner->GetTraceable<MidoriCellValue>().GetValue() = Peek(sp);
 			break;
 		}
+		case OpCode::MAKE_CELL:
+		{
+			// The initial value stays on the stack, and so stays rooted, until the
+			// cell holding it replaces it.
+			MidoriValue& top = Peek(sp);
+			top = AllocateTraceable(MidoriMutableCell(top));
+			TryCollect(ip, sp, bp, env);
+			break;
+		}
+		case OpCode::READ_CELL:
+		{
+			MidoriValue& top = Peek(sp);
+			top = top.GetPointer()->GetTraceable<MidoriMutableCell>().m_value;
+			break;
+		}
+		case OpCode::WRITE_CELL:
+		{
+			MidoriValue value = Pop(sp);
+			MidoriTraceable* cell = Pop(sp).GetPointer();
+			m_gc.WriteBarrier(cell);
+			cell->GetTraceable<MidoriMutableCell>().m_value = value;
+			Push(sp, value);
+			break;
+		}
 		case OpCode::DEFINE_GLOBAL_WIDE:
 		{
 			MidoriValue value = Pop(sp);
