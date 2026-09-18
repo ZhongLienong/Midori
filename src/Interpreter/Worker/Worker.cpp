@@ -12,11 +12,11 @@ namespace
 	// (repeating any effect, such as printing, once per spawn) and restored only
 	// the entry module's globals whose names matched a procedure, so data globals
 	// read as zero and pointer-valued ones crashed the worker.
-	std::expected<void, WorkerError> InstallWorkerGlobals(VirtualMachine& worker_vm, const std::vector<SerializedValue>& serialized_globals)
+	std::expected<void, WorkerError> InstallWorkerGlobals(VirtualMachine& worker_vm, const std::vector<SerializedValue>& serialized_globals, ValueTransfer::DeserializePointerMap& sharing)
 	{
 		for (size_t global_index = 0uz; global_index < serialized_globals.size(); global_index += 1uz)
 		{
-			std::expected<MidoriValue, std::string> global_value = ValueTransfer::Deserialize(serialized_globals[global_index], worker_vm);
+			std::expected<MidoriValue, std::string> global_value = ValueTransfer::Deserialize(serialized_globals[global_index], worker_vm, sharing);
 			if (!global_value.has_value())
 			{
 				return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, global_value.error() });
@@ -87,7 +87,9 @@ void Worker::Execute(std::stop_token stop_token)
 			return;
 		}
 
-		std::expected<void, WorkerError> init_result = InstallWorkerGlobals(worker_vm, m_serialized_globals);
+		// One sharing map for the whole payload, matching how SPAWN_WORKER serialised it.
+		ValueTransfer::DeserializePointerMap sharing;
+		std::expected<void, WorkerError> init_result = InstallWorkerGlobals(worker_vm, m_serialized_globals, sharing);
 		if (!init_result.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
@@ -98,7 +100,7 @@ void Worker::Execute(std::stop_token stop_token)
 			return;
 		}
 
-		std::expected<MidoriValue, std::string> worker_function = ValueTransfer::Deserialize(m_serialized_function, worker_vm);
+		std::expected<MidoriValue, std::string> worker_function = ValueTransfer::Deserialize(m_serialized_function, worker_vm, sharing);
 		if (!worker_function.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
@@ -112,7 +114,7 @@ void Worker::Execute(std::stop_token stop_token)
 		worker_vm.PrepareWorkerCall(worker_function.value());
 		for (const SerializedValue& serialized_arg : m_serialized_args)
 		{
-			std::expected<MidoriValue, std::string> deserialized_arg = ValueTransfer::Deserialize(serialized_arg, worker_vm);
+			std::expected<MidoriValue, std::string> deserialized_arg = ValueTransfer::Deserialize(serialized_arg, worker_vm, sharing);
 			if (!deserialized_arg.has_value())
 			{
 				std::lock_guard<std::mutex> lock(m_result_mutex);

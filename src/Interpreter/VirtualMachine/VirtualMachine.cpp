@@ -371,7 +371,11 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 		// crosses to the worker like any other transferred value: its procedure index
 		// plus a copy of whatever cells it captured.
 		MidoriValue worker_function = Pop();
-		std::expected<SerializedValue, std::string> serialized_function = ValueTransfer::Serialize(worker_function, *this);
+		// The function, its arguments and the globals cross as one payload through one
+		// sharing map, so an object reached twice (a cell passed twice, or captured and
+		// also passed) arrives as one copy rather than two.
+		ValueTransfer::SerializePointerMap sharing;
+		std::expected<SerializedValue, std::string> serialized_function = ValueTransfer::Serialize(worker_function, *this, sharing);
 		if (!serialized_function.has_value())
 		{
 			m_instruction_pointer = ip;
@@ -392,7 +396,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 		for (int arg_index = 0; arg_index < arg_count; arg_index += 1)
 		{
 			MidoriValue argument = Pop();
-			std::expected<SerializedValue, std::string> serialized_argument = ValueTransfer::Serialize(argument, *this);
+			std::expected<SerializedValue, std::string> serialized_argument = ValueTransfer::Serialize(argument, *this, sharing);
 			if (!serialized_argument.has_value())
 			{
 				m_instruction_pointer = ip;
@@ -411,7 +415,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 		serialized_globals.reserve(m_global_vars->size());
 		for (const MidoriValue& global_value : *m_global_vars)
 		{
-			std::expected<SerializedValue, std::string> serialized_global = ValueTransfer::Serialize(global_value, *this);
+			std::expected<SerializedValue, std::string> serialized_global = ValueTransfer::Serialize(global_value, *this, sharing);
 			if (!serialized_global.has_value())
 			{
 				m_instruction_pointer = ip;

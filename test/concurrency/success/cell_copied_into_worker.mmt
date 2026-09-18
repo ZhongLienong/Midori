@@ -1,0 +1,45 @@
+module CellCopiedIntoWorker
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt",
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Result.{ Result }
+
+// A cell that reaches a worker is copied: the worker changes its own copy, and
+// the spawning side still sees the original.
+
+def BumpTwice = fn(c: Cell<Int>) -> Int =>
+{
+	def first = Cell::Set(c, Cell::Get(c) + 1);
+	Cell::Set(c, first + 1)
+};
+
+def main_cell = Cell::New(100);
+def worker = Concurrency::Spawn(main_cell, BumpTwice);
+def worker_result =
+	match Concurrency::Join(worker) with
+		case Result::Ok(value) => value
+		case Result::Err(_) => -1;
+
+IO::PrintLine("worker saw " ++ (worker_result as Text) ++ ", main still has " ++ (Cell::Get(main_cell) as Text));
+
+// Two references to the same cell in one transfer arrive as two references to
+// one copy, so a write through one is seen through the other inside the worker.
+def WriteFirstReadSecond = fn(a: Cell<Int>, b: Cell<Int>) -> Int =>
+{
+	def written = Cell::Set(a, 7);
+	Cell::Get(b) + written
+};
+
+def pair_worker = Concurrency::Spawn((main_cell, main_cell), WriteFirstReadSecond);
+def pair_result =
+	match Concurrency::Join(pair_worker) with
+		case Result::Ok(value) => value
+		case Result::Err(_) => -1;
+
+IO::PrintLine("shared inside the worker: " ++ (pair_result as Text) ++ ", main still has " ++ (Cell::Get(main_cell) as Text));

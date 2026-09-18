@@ -1,0 +1,2 @@
+worker saw 102, main still has 100
+shared inside the worker: 14, main still has 100

@@ -1038,6 +1038,13 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 		return EnsureTransferable(token, resolved_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 	}
 
+	// A cell reaching a worker is copied (the CellCrossesWorker warning says so),
+	// so it is transferable exactly when what it holds is.
+	if (resolved_type->IsType<MidoriType::CellType>())
+	{
+		return EnsureTransferable(token, resolved_type->GetType<MidoriType::CellType>().m_element_type, visited);
+	}
+
 	if (resolved_type->IsType<MidoriType::TupleType>())
 	{
 		for (const std::shared_ptr<MidoriType>& element_type : resolved_type->GetType<MidoriType::TupleType>().m_element_types)

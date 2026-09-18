@@ -10,10 +10,20 @@ std::expected<SerializedValue, std::string> ValueTransfer::Serialize(MidoriValue
 	return SerializeValue(source, source_vm, visited);
 }
 
+std::expected<SerializedValue, std::string> ValueTransfer::Serialize(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& sharing)
+{
+	return SerializeValue(source, source_vm, sharing);
+}
+
 std::expected<MidoriValue, std::string> ValueTransfer::Deserialize(const SerializedValue& source, VirtualMachine& target_vm)
 {
 	DeserializePointerMap visited;
 	return DeserializeValue(source, target_vm, visited);
+}
+
+std::expected<MidoriValue, std::string> ValueTransfer::Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& sharing)
+{
+	return DeserializeValue(source, target_vm, sharing);
 }
 
 std::expected<TransferResult, std::string> ValueTransfer::Transfer(MidoriValue source, VirtualMachine& source_vm, VirtualMachine& target_vm)
@@ -230,6 +240,21 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 		return serialized;
 	}
 
+	if (source->IsTraceable<MidoriMutableCell>())
+	{
+		const MidoriMutableCell& src_cell = source->GetTraceable<MidoriMutableCell>();
+		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::MutableCell{} });
+		visited.emplace(source, serialized);
+
+		std::expected<SerializedValue, std::string> value = SerializeValue(src_cell.m_value, source_vm, visited);
+		if (!value.has_value())
+		{
+			return std::unexpected(value.error());
+		}
+		std::get<SerializedObject::MutableCell>(serialized->m_data).m_value = std::move(value.value());
+		return serialized;
+	}
+
 	return std::unexpected(std::string("Cannot transfer unknown traceable value between workers."));
 }
 
@@ -395,6 +420,20 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			return std::unexpected(value.error());
 		}
 		transferred->GetTraceable<MidoriCellValue>().GetValue() = value.value();
+		return transferred;
+	}
+
+	if (const SerializedObject::MutableCell* serialized_cell = std::get_if<SerializedObject::MutableCell>(&source->m_data))
+	{
+		MidoriTraceable* transferred = target_vm.AllocateTraceable(MidoriMutableCell(MidoriValue()));
+		visited.emplace(source.get(), transferred);
+
+		std::expected<MidoriValue, std::string> value = DeserializeValue(serialized_cell->m_value, target_vm, visited);
+		if (!value.has_value())
+		{
+			return std::unexpected(value.error());
+		}
+		transferred->GetTraceable<MidoriMutableCell>().m_value = value.value();
 		return transferred;
 	}
 
