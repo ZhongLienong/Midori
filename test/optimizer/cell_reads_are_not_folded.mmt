@@ -1,0 +1,22 @@
+module CellReadsAreNotFolded
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Cell.mmt"
+}
+
+// Every optimizer pass runs over this. A pass that treated Cell::Get as pure
+// could reuse the first read after the Set, or drop the Set because its value is
+// discarded.
+
+def Probe = fn(c: Cell<Int>) -> Int =>
+{
+	def before = Cell::Get(c);
+	Cell::Set(c, before * 2);
+	def after = Cell::Get(c);
+	before + after
+};
+
+def c = Cell::New(7);
+IO::PrintLine((Probe(c) as Text) ++ " " ++ (Cell::Get(c) as Text));
