@@ -1,0 +1,8 @@
+module ReadmeCells
+
+import { "../MarmotPrelude/Cell.mmt" }
+
+def counter = Cell::New(0);                                  // Cell<Int>
+def Next = fn() -> Int => Cell::Set(counter, Cell::Get(counter) + 1);
+def first = Next();   // 1
+def second = Next();  // 2

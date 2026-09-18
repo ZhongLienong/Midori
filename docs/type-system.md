@@ -93,6 +93,28 @@ Channel<Text>     // handle to a channel carrying Text values
 
 Both are internally represented as `Int` handles but carry compile-time type parameters. `Worker<T>` is produced by `Concurrency::Spawn` and consumed by `Concurrency::Join`. `Channel<T>` is produced by `Concurrency::MakeChannel(capacity)`, which takes `T` from context, and used with `->` (send) and `<-` (receive).
 
+### Cells
+
+`Cell<T>` is a box whose contents can change. It is available once
+`MarmotPrelude/Cell.mmt` is imported; `Cell` is not a keyword, so a program's own
+type named `Cell` takes precedence over it.
+
+| Operation | Type | Meaning |
+|---|---|---|
+| `Cell::New(value)` | `fn<T>(T) -> Cell<T>` | A new cell holding `value`. |
+| `Cell::Get(cell)` | `fn<T>(Cell<T>) -> T` | The value currently stored. |
+| `Cell::Set(cell, value)` | `fn<T>(Cell<T>, T) -> T` | Stores `value` and evaluates to it. |
+
+A cell is a reference: passing it, capturing it, or storing it in an array,
+tuple or record shares the one cell. Bindings stay immutable, so the only state
+that changes is a cell's contents, and a program's mutable state can be found by
+looking for `Cell<...>` in its types.
+
+Deliberately not provided: `Equatable`, `Hashable` or `Orderable` instances for
+cells (compare contents with `Cell::Get(a) == Cell::Get(b)`), operators such as
+`!c` or `c := v`, and any tracking of mutation in function types. A cell that
+reaches another worker is copied; see [Multicore Runtime](multicore-runtime.md).
+
 ### Ranges
 
 Ranges are used directly in `for` loops:
@@ -385,17 +407,11 @@ The shipped prelude provides the following related modules:
 
 The concrete coverage is intentionally uneven today. For example, `Orderable` is provided as a class surface, but most interesting instances are still expected to come from user code rather than the prelude.
 
-### Compound Assignment Surface
+### No Assignment Operators
 
-In addition to `+=`, `-=`, `*=`, `/=`, and `%=`, the current language surface also includes:
-
-- `&=`
-- `|=`
-- `^=`
-- `<<=`
-- `>>=`
-
-These are currently defined for integer-style numeric types (`Int`, `Byte`, and `Word`) where appropriate.
+There is no assignment, compound or otherwise (`=`, `+=`, `&=` and the rest were
+removed in v2). A computed value is bound to a new name with `def`; state that
+has to change in place lives in a [`Cell<T>`](#cells).
 
 ## Pattern Matching
 

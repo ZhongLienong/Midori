@@ -116,13 +116,13 @@ def Append = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
 ### Counts
 
-| | before | target | actual, 2026-09-06 | actual, 2026-09-12 | actual, 2026-09-15 | **actual, 2026-09-16** |
-|---|---|---|---|---|---|---|
-| Expression nodes | 41 | 18 | 42 | 36 | 34 | **28** |
-| Statement nodes | 11 | 5 | 11 | 10 | 10 | **10** |
-| Built-in type kinds | 17 | 8 | 17 | *not re-measured* | 17 | **17** |
-| Reserved words | 37 | ~25 | 34 | 31 | 26 | **26** |
-| Callable concepts | 7 | 1 | 7 | *unchanged* | *unchanged* | *unchanged* |
+| | before | target | actual, 2026-09-06 | actual, 2026-09-12 | actual, 2026-09-15 | actual, 2026-09-16 | **actual, 2026-09-17** |
+|---|---|---|---|---|---|---|---|
+| Expression nodes | 41 | 18 | 42 | 36 | 34 | 28 | **28** |
+| Statement nodes | 11 | 5 | 11 | 10 | 10 | 10 | **10** |
+| Built-in type kinds | 17 | 8 | 17 | *not re-measured* | 17 | 17 | **18** |
+| Reserved words | 37 | ~25 | 34 | 31 | 26 | 26 | **26** |
+| Callable concepts | 7 | 1 | 7 | *unchanged* | *unchanged* | *unchanged* | *unchanged* |
 
 Counted on 2026-09-15 from `MidoriExpression::ExpressionUnion`,
 `MidoriStatement::StatementUnion`, `MidoriType::MidoriTypeUnion` (its 22 entries
@@ -275,6 +275,12 @@ independently of its representation — which is what `Text` actually needs.
 There is **no mutable type**. Building is a runtime concern behind comprehensions
 and folds; FFI mutation lives outside the language behind opaque foreign handles,
 the same pattern `Channel<T>` and `Worker<T>` already use.
+
+**Amended 2026-09-17:** `Cell<T>` ships (`2026-09-16-cell-design.md`). The prelude
+test below showed the prelude did not need one; Knuth's Man or Boy test showed
+programs that share changing state through closures do. Bindings stay immutable
+and `def` stays single-assignment; only a cell's contents change, and a
+program's mutable state is exactly the `Cell<...>` values in its types.
 
 `Cell<T>` is designed but **deliberately not shipped**. Build the language and
 rewrite the prelude without it. If the prelude never needs one, the language does

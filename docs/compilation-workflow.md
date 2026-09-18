@@ -226,6 +226,7 @@ Important opcode families in the current executable format:
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
 - Closures and functions: `MAKE_FUNCTION`, `MAKE_CLOSURE`, `BIND_CAPTURES`
 - Variables: `DEFINE_GLOBAL`, `GET_GLOBAL`, `SET_GLOBAL`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL`, `GET_CELL`, `SET_CELL`, plus wide variants
+- Cells (`Cell<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
 - Members and stack: `GET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
 - Termination: `RETURN`, `HALT`
 

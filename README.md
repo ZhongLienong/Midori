@@ -314,6 +314,34 @@ def first = add_ten(1);   // 11
 def second = add_ten(5);  // 15
 ```
 
+### Cells
+A name never changes, but a cell's contents can. Every name, closure, array or
+record holding the same cell sees `Cell::Set`, which stores a value and evaluates
+to it.
+```marmot-test name=readme/cells path=.doc_examples/readme_cells.mmt module=ReadmeCells
+import { "../MarmotPrelude/Cell.mmt" }
+
+def counter = Cell::New(0);                                  // Cell<Int>
+def Next = fn() -> Int => Cell::Set(counter, Cell::Get(counter) + 1);
+def first = Next();   // 1
+def second = Next();  // 2
+```
+
+Knuth's Man or Boy test, which needs a closure to change a variable its creator
+can see, reads like the original:
+```marmot-test name=readme/man_or_boy path=.doc_examples/readme_man_or_boy.mmt module=ReadmeManOrBoy
+import { "../MarmotPrelude/Cell.mmt" }
+
+def A = fn(k: Int, x1: fn() -> Int, x2: fn() -> Int, x3: fn() -> Int, x4: fn() -> Int, x5: fn() -> Int) -> Int =>
+{
+    def cell = Cell::New(k);
+    def B = fn() -> Int => A(Cell::Set(cell, Cell::Get(cell) - 1), B, x1, x2, x3, x4);
+    if k > 0 then B() else x4() + x5()
+};
+
+def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() -> Int => 1, fn() -> Int => 0);  // -67
+```
+
 ## Language Features
 
 ### Type System
@@ -356,6 +384,8 @@ def second = add_ten(5);  // 15
 
 There is no assignment operator, compound or otherwise, and no in-place
 mutation: `def` binds a name once and the name never changes value.
+Where a program genuinely needs shared, changing state, it uses a `Cell<T>`
+(see [Cells](#cells)), whose contents change while every binding stays fixed.
 Concatenating onto an existing binding produces a new value under a new name:
 
 ```marmot
@@ -382,6 +412,7 @@ def updated_text = text ++ suffix;
 - **Collections** - `Collections/Map.mmt`, `Collections/Set.mmt`
 - **Effects** - `IO.mmt`, `System.mmt`, `DateTime.mmt`
 - **Built-in helpers** - `TextUtil.mmt`, `ArrayUtil.mmt`, `Math.mmt`
+- **Shared state** - `Cell.mmt` (`Cell::New`, `Cell::Get`, `Cell::Set`)
 - **Helper / typeclass modules** - `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
