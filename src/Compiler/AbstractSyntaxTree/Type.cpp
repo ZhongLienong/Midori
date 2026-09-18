@@ -73,6 +73,10 @@ namespace
 			{
 				return MidoriType::MakeChannelType(substitute(type_variant.m_element_type));
 			}
+			else if constexpr (std::is_same_v<T, MidoriType::CellType>)
+			{
+				return MidoriType::MakeCellType(substitute(type_variant.m_element_type));
+			}
 			else if constexpr (std::is_same_v<T, MidoriType::RangeType>)
 			{
 				return MidoriType::MakeRangeType(substitute(type_variant.m_element_type));
@@ -274,6 +278,10 @@ namespace
 			{
 				return "Channel<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
+			else if constexpr (std::is_same_v<Type, MidoriType::CellType>)
+			{
+				return "Cell<"s + stringify(*type_variant.m_element_type) + ">"s;
+			}
 			else if constexpr (std::is_same_v<Type, MidoriType::RangeType>)
 			{
 				return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
@@ -466,6 +474,10 @@ struct MidoriType::TypeEqualityVisitor
 			return *a.m_result_type == *b.m_result_type;
 		}
 		else if constexpr (std::is_same_v<TypeA, MidoriType::ChannelType>)
+		{
+			return *a.m_element_type == *b.m_element_type;
+		}
+		else if constexpr (std::is_same_v<TypeA, MidoriType::CellType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
@@ -685,6 +697,11 @@ std::shared_ptr<MidoriType> MidoriType::MakeWorkerType(const std::shared_ptr<Mid
 std::shared_ptr<MidoriType> MidoriType::MakeChannelType(const std::shared_ptr<MidoriType>& element_type)
 {
 	return std::make_shared<MidoriType>(MidoriTypeUnion(ChannelType{.m_element_type = element_type}));
+}
+
+std::shared_ptr<MidoriType> MidoriType::MakeCellType(const std::shared_ptr<MidoriType>& element_type)
+{
+	return std::make_shared<MidoriType>(MidoriTypeUnion(CellType{.m_element_type = element_type}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::MakeRangeType(const std::shared_ptr<MidoriType>& element_type)

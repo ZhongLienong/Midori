@@ -86,6 +86,10 @@ namespace
 		{
 			return HasTypeVariables(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 		}
+		else if (type->IsType<MidoriType::CellType>())
+		{
+			return HasTypeVariables(type->GetType<MidoriType::CellType>().m_element_type, visited);
+		}
 		else if (type->IsType<MidoriType::FunctionType>())
 		{
 			MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
@@ -206,6 +210,11 @@ namespace
 		if (type->IsType<MidoriType::ChannelType>())
 		{
 			CollectTypeVariableIds(type->GetType<MidoriType::ChannelType>().m_element_type, type_variable_ids, visited);
+			return;
+		}
+		if (type->IsType<MidoriType::CellType>())
+		{
+			CollectTypeVariableIds(type->GetType<MidoriType::CellType>().m_element_type, type_variable_ids, visited);
 			return;
 		}
 		if (type->IsType<MidoriType::TupleType>())
@@ -338,6 +347,10 @@ namespace
 		if (type->IsType<MidoriType::ChannelType>())
 		{
 			return ContainsAssociatedTypes(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+		}
+		if (type->IsType<MidoriType::CellType>())
+		{
+			return ContainsAssociatedTypes(type->GetType<MidoriType::CellType>().m_element_type, visited);
 		}
 		if (type->IsType<MidoriType::FunctionType>())
 		{
@@ -1637,6 +1650,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		left_subst->IsType<MidoriType::RangeType>() ||
 		left_subst->IsType<MidoriType::WorkerType>() ||
 		left_subst->IsType<MidoriType::ChannelType>() ||
+		left_subst->IsType<MidoriType::CellType>() ||
 		left_subst->IsType<MidoriType::FunctionType>();
 
 	if (!is_complex_type && *left_subst == *right_subst)
@@ -1705,6 +1719,15 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	else if (left_subst->IsType<MidoriType::ChannelType>() && right_subst->IsType<MidoriType::ChannelType>())
 	{
 		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ChannelType>().m_element_type, right_subst->GetType<MidoriType::ChannelType>().m_element_type, diagnostic_mode);
+		if (!result.has_value())
+		{
+			return result;
+		}
+		return left;
+	}
+	else if (left_subst->IsType<MidoriType::CellType>() && right_subst->IsType<MidoriType::CellType>())
+	{
+		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::CellType>().m_element_type, right_subst->GetType<MidoriType::CellType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
@@ -2262,6 +2285,11 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		MidoriType::ChannelType& channel_type = type->GetType<MidoriType::ChannelType>();
 		return MidoriType::MakeChannelType(Freshen(channel_type.m_element_type, context));
 	}
+	else if (type->IsType<MidoriType::CellType>())
+	{
+		MidoriType::CellType& cell_type = type->GetType<MidoriType::CellType>();
+		return MidoriType::MakeCellType(Freshen(cell_type.m_element_type, context));
+	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
@@ -2616,6 +2644,16 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		}
 		return type;
 	}
+	else if (type->IsType<MidoriType::CellType>())
+	{
+		MidoriType::CellType& cell_type = type->GetType<MidoriType::CellType>();
+		std::shared_ptr<MidoriType> element_type = ApplySubstitution(cell_type.m_element_type, cache);
+		if (element_type != cell_type.m_element_type)
+		{
+			return MidoriType::MakeCellType(element_type);
+		}
+		return type;
+	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
@@ -2904,6 +2942,10 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	else if (subst_type->IsType<MidoriType::ChannelType>())
 	{
 		return OccursCheck(var_id, subst_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+	}
+	else if (subst_type->IsType<MidoriType::CellType>())
+	{
+		return OccursCheck(var_id, subst_type->GetType<MidoriType::CellType>().m_element_type, visited);
 	}
 	else if (subst_type->IsType<MidoriType::FunctionType>())
 	{

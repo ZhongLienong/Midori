@@ -46,6 +46,10 @@ namespace
 		{
 			return ContainsFreeTypeParameter(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
 		}
+		if (type->IsType<MidoriType::CellType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::CellType>().m_element_type, visited);
+		}
 		if (type->IsType<MidoriType::TupleType>())
 		{
 			const MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
@@ -5349,6 +5353,11 @@ bool CodeGenerator::IsGenericType(const std::shared_ptr<MidoriType>& type)
 		{
 			return m_self->IsGenericType(type_variant.m_element_type);
 		}
+
+		bool operator()(const MidoriType::CellType& type_variant) const
+		{
+			return m_self->IsGenericType(type_variant.m_element_type);
+		}
 		bool operator()(const MidoriType::RangeType& type_variant) const
 		{
 			return m_self->IsGenericType(type_variant.m_element_type);
@@ -5488,6 +5497,14 @@ void CodeGenerator::DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType
 			if (m_concrete_type->IsType<MidoriType::ChannelType>())
 			{
 				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::ChannelType>().m_element_type, m_map, m_visited);
+			}
+		}
+
+		void operator()(const MidoriType::CellType& p_var) const
+		{
+			if (m_concrete_type->IsType<MidoriType::CellType>())
+			{
+				m_self->DeduceGenericTypesRecursive(p_var.m_element_type, m_concrete_type->GetType<MidoriType::CellType>().m_element_type, m_map, m_visited);
 			}
 		}
 
@@ -6162,6 +6179,16 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			if (substituted_element != type_variant.m_element_type)
 			{
 				return MidoriType::MakeChannelType(substituted_element);
+			}
+			return m_current;
+		}
+
+		std::shared_ptr<MidoriType> operator()(const MidoriType::CellType& type_variant) const
+		{
+			std::shared_ptr<MidoriType> substituted_element = m_substitute(type_variant.m_element_type);
+			if (substituted_element != type_variant.m_element_type)
+			{
+				return MidoriType::MakeCellType(substituted_element);
 			}
 			return m_current;
 		}

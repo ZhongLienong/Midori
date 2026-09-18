@@ -156,3 +156,23 @@ TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
 
 	REQUIRE(boxed_int->ToString() != boxed_text->ToString());
 }
+
+TEST_CASE("Cell<T> renders with its element type", "[type][cell]")
+{
+	const std::shared_ptr<MidoriType> element = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	const std::shared_ptr<MidoriType> cell = MidoriType::MakeCellType(element);
+
+	REQUIRE(cell->ToString() == "Cell<Int>");
+}
+
+TEST_CASE("Cell types are equal exactly when their element types are", "[type][cell]")
+{
+	const std::shared_ptr<MidoriType> int_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
+	const std::shared_ptr<MidoriType> other_int_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
+	const std::shared_ptr<MidoriType> text_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::TextType>());
+	const std::shared_ptr<MidoriType> int_channel = MidoriType::MakeChannelType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
+
+	REQUIRE(*int_cell == *other_int_cell);
+	REQUIRE_FALSE(*int_cell == *text_cell);
+	REQUIRE_FALSE(*int_cell == *int_channel);
+}
