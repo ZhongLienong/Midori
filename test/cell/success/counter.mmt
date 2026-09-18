@@ -1,0 +1,16 @@
+module CellCounter
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt"
+}
+
+def counter = Cell::New(0);
+def first = Cell::Set(counter, Cell::Get(counter) + 1);
+def second = Cell::Set(counter, Cell::Get(counter) + 1);
+def annotated : Cell<Text> = Cell::New("start");
+def replaced = Cell::Set(annotated, "end");
+
+IO::PrintLine("first=" ++ (first as Text) ++ " second=" ++ (second as Text) ++ " now=" ++ (Cell::Get(counter) as Text));
+IO::PrintLine("replaced=" ++ replaced ++ " text=" ++ Cell::Get(annotated));

@@ -177,6 +177,18 @@ namespace
 			|| name == CloseIntrinsicName || name == IsDoneIntrinsicName || name == CancelIntrinsicName;
 	}
 
+	// Cell::New, Get and Set are compiler-provided like the concurrency calls above:
+	// importing Cell.mmt makes them, and the Cell<T> type, available.
+	constexpr std::string_view CellModuleName = "Cell";
+	constexpr std::string_view CellNewIntrinsicName = "Cell::New";
+	constexpr std::string_view CellGetIntrinsicName = "Cell::Get";
+	constexpr std::string_view CellSetIntrinsicName = "Cell::Set";
+
+	bool IsCellIntrinsicName(std::string_view name)
+	{
+		return name == CellNewIntrinsicName || name == CellGetIntrinsicName || name == CellSetIntrinsicName;
+	}
+
 	void CollectTypeConstraints(
 		const std::shared_ptr<MidoriType>& type,
 		std::vector<MidoriType::ClassConstraint>& constraints,
@@ -1965,9 +1977,12 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
 
-						const bool concurrency_is_visible = m_context.m_imported_symbols.contains(std::string(ConcurrencyModuleName))
-							|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == ConcurrencyModuleName);
-						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && concurrency_is_visible)
+						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && IsModuleVisible(ConcurrencyModuleName))
+						{
+							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
+						}
+
+						if (qualifier == CellModuleName && IsCellIntrinsicName(variable.m_lexeme) && IsModuleVisible(CellModuleName))
 						{
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
@@ -5072,6 +5087,14 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								std::string mangled_name = Mangle(type_name.m_lexeme);
 								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
 
+								// Cell is an ordinary identifier, not a keyword like Channel: a program
+								// may declare its own type named Cell, and that one wins. Otherwise
+								// Cell<T> is the built-in cell type once Cell.mmt is imported.
+								if (found_scope_it == m_state.m_scopes.crend() && type_name.m_lexeme == CellModuleName && IsModuleVisible(CellModuleName))
+								{
+									return ParseCellTypeArguments();
+								}
+
 								std::shared_ptr<MidoriType> base_type = nullptr;
 								const std::vector<std::string>* alias_generic_params = nullptr;
 								auto try_parse_associated_type = [this, &type_name]() -> MidoriResult::TypeResult
@@ -6522,4 +6545,36 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 		result[tc_name] = std::move(metadata);
 	}
 	return result;
+}
+
+bool Parser::IsModuleVisible(std::string_view module_name) const
+{
+	return m_context.m_imported_symbols.contains(std::string(module_name))
+		|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == module_name);
+}
+
+MidoriResult::TypeResult Parser::ParseCellTypeArguments()
+{
+	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Cell'.")
+		.and_then
+		(
+			[this](Token&&) -> MidoriResult::TypeResult
+			{
+				return ParseType()
+					.and_then
+					(
+						[this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
+						{
+							return ConsumeTypeRightAngle("Expected '>' after cell element type.")
+								.and_then
+								(
+									[&element_type](Token&&) -> MidoriResult::TypeResult
+									{
+										return MidoriType::MakeCellType(element_type);
+									}
+								);
+						}
+					);
+			}
+		);
 }

@@ -3836,6 +3836,25 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 			EmitByte(OpCode::WORKER_CANCEL, line);
 			return;
 		}
+		if (function_name == "Cell::New" && call.m_arguments.size() == 1u)
+		{
+			Visit(call.m_arguments[0u]);
+			EmitByte(OpCode::MAKE_CELL, line);
+			return;
+		}
+		if (function_name == "Cell::Get" && call.m_arguments.size() == 1u)
+		{
+			Visit(call.m_arguments[0u]);
+			EmitByte(OpCode::READ_CELL, line);
+			return;
+		}
+		if (function_name == "Cell::Set" && call.m_arguments.size() == 2u)
+		{
+			Visit(call.m_arguments[0u]);
+			Visit(call.m_arguments[1u]);
+			EmitByte(OpCode::WRITE_CELL, line);
+			return;
+		}
 
 		std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(function_name);
 		if (resolution_it != m_method_resolution_map.end())

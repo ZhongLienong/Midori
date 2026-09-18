@@ -5625,6 +5625,87 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 			return call.m_type_data;
 		}
 
+		if (full_name == "Cell::New")
+		{
+			if (call.m_arguments.size() != 1u)
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Cell::New takes exactly one argument, the value the cell starts with", call.m_paren, m_file_name, m_source_lines));
+			}
+
+			// An annotated binding such as 'def c : Cell<Array<Int>> = Cell::New([])' tells
+			// the initial value what it is, the way a constructor's context does.
+			std::shared_ptr<MidoriType> expected_element = nullptr;
+			std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
+			if (expected_type != nullptr && expected_type->IsType<MidoriType::CellType>())
+			{
+				expected_element = expected_type->GetType<MidoriType::CellType>().m_element_type;
+			}
+
+			MidoriResult::TypeResult value_result = [this, &call, &expected_element]() -> MidoriResult::TypeResult
+			{
+				ExpectedTypeGuard guard(*this, expected_element);
+				return Evaluate(call.m_arguments[0u]);
+			}();
+			if (!value_result.has_value())
+			{
+				return value_result;
+			}
+
+			call.m_is_foreign = false;
+			call.m_type_data = MidoriType::MakeCellType(ApplySubstitution(value_result.value()));
+			return call.m_type_data;
+		}
+		if (full_name == "Cell::Get" || full_name == "Cell::Set")
+		{
+			const bool is_set = full_name == "Cell::Set";
+			const size_t expected_arity = is_set ? 2u : 1u;
+			if (call.m_arguments.size() != expected_arity)
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes {}", full_name, is_set ? "two arguments, the cell and the new value" : "exactly one argument, the cell"), call.m_paren, m_file_name, m_source_lines));
+			}
+
+			MidoriResult::TypeResult cell_result = [this, &call]() -> MidoriResult::TypeResult
+			{
+				ExpectedTypeGuard guard(*this, nullptr);
+				return Evaluate(call.m_arguments[0u]);
+			}();
+			if (!cell_result.has_value())
+			{
+				return cell_result;
+			}
+
+			std::shared_ptr<MidoriType> resolved_cell_type = ApplySubstitution(cell_result.value());
+			if (!resolved_cell_type->IsType<MidoriType::CellType>())
+			{
+				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} takes a Cell<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_cell_type));
+			}
+
+			std::shared_ptr<MidoriType> element_type = resolved_cell_type->GetType<MidoriType::CellType>().m_element_type;
+			if (is_set)
+			{
+				MidoriResult::TypeResult value_result = [this, &call, &element_type]() -> MidoriResult::TypeResult
+				{
+					ExpectedTypeGuard guard(*this, element_type);
+					return Evaluate(call.m_arguments[1u]);
+				}();
+				if (!value_result.has_value())
+				{
+					return value_result;
+				}
+
+				std::shared_ptr<MidoriType> value_type = value_result.value();
+				MidoriResult::TypeResult unified = Unify(call.m_paren, element_type, value_type);
+				if (!unified.has_value())
+				{
+					return unified;
+				}
+			}
+
+			call.m_is_foreign = false;
+			call.m_type_data = ApplySubstitution(element_type);
+			return call.m_type_data;
+		}
+
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
 		{
