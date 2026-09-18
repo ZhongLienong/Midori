@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/cell/failure/compare_cells.mmt:12
+   |
+12 | def same = a == b;
+   |              ^^ Type Cell<Int> does not satisfy constraint Equatable<Cell<Int>> - no matching instance found
+   |

@@ -1,0 +1,27 @@
+module CellCaptureBoxes
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt"
+}
+
+// A user cell held in a local must read back as the cell, whether or not a
+// closure has boxed that local for capture. Capture boxes and user cells are
+// different heap objects, so the two cannot be confused.
+
+def NotCaptured = fn() -> Int =>
+{
+	def c = Cell::New(1);
+	Cell::Set(c, Cell::Get(c) + 1)
+};
+
+def Captured = fn() -> Int =>
+{
+	def c = Cell::New(1);
+	def Bump = fn() -> Int => Cell::Set(c, Cell::Get(c) + 10);
+	def after_closure = Bump();
+	Cell::Get(c) + after_closure
+};
+
+IO::PrintLine((NotCaptured() as Text) ++ " " ++ (Captured() as Text));

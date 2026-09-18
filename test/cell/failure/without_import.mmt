@@ -1,0 +1,9 @@
+module CellWithoutImport
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// Cell::New is only available after importing MarmotPrelude/Cell.mmt.
+def c = Cell::New(1);

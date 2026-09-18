@@ -1,0 +1,12 @@
+module CellCompareCells
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt"
+}
+
+// Cells have no equality; compare their contents with Cell::Get instead.
+def a = Cell::New(1);
+def b = Cell::New(1);
+def same = a == b;

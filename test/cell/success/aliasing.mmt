@@ -1,0 +1,32 @@
+module CellAliasing
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt"
+}
+
+// A cell is a reference: passing it, capturing it, or storing it in an array or
+// record shares the one cell.
+
+type Holder = { cell: Cell<Int> };
+type Pair<T> = { left: T, right: T };
+
+def Bump = fn(c: Cell<Int>) -> Int => Cell::Set(c, Cell::Get(c) + 1);
+
+def shared = Cell::New(10);
+def via_function = Bump(shared);
+def Increment = fn() -> Int => Bump(shared);
+def via_closure = Increment();
+def in_array = [shared, shared];
+def via_array = Bump(in_array[1]);
+def holder = Holder(shared);
+def via_record = Bump(holder.cell);
+
+def pair_cell = Cell::New(Pair(1, 2));
+def swapped = Cell::Set(pair_cell, Pair(Cell::Get(pair_cell).right, Cell::Get(pair_cell).left));
+def nested = Cell::New(Cell::New(5));
+def inner_after = Cell::Set(Cell::Get(nested), 6);
+
+IO::PrintLine((via_function as Text) ++ " " ++ (via_closure as Text) ++ " " ++ (via_array as Text) ++ " " ++ (via_record as Text) ++ " " ++ (Cell::Get(shared) as Text));
+IO::PrintLine((Cell::Get(pair_cell).left as Text) ++ "," ++ (Cell::Get(pair_cell).right as Text) ++ " " ++ (Cell::Get(Cell::Get(nested)) as Text));
